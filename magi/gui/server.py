@@ -95,51 +95,82 @@ class GUIServer:
                 return
                 
             elif method == "SYS_EXEC":
-                # Emulate a real swarm pipeline response
                 await websocket.send(json.dumps({
                     "type": "TERMINAL_OUT",
-                    "content": f"[SWARM] Routing task: {command}"
+                    "content": f"[SWARM] Iniciando análisis para la tarea: '{command}'"
                 }))
                 
-                # Balthasar (Critic)
-                await asyncio.sleep(1.0)
-                await websocket.send(json.dumps({
-                    "type": "AGENT_POST",
-                    "agent": "BALTHASAR",
-                    "role": "critica",
-                    "provider": "Claude 3.5 Sonnet",
-                    "content": f"Analizando vulnerabilidades y dependencias para la tarea: '{command}'. No se detectan anomalías iniciales.",
-                    "changes": 0,
-                    "stats": "1.2s"
-                }))
-                
-                # Casper (Arbiter)
-                await asyncio.sleep(0.8)
-                await websocket.send(json.dumps({
-                    "type": "AGENT_POST",
-                    "agent": "CASPER",
-                    "role": "arbitro",
-                    "provider": "Gemini 1.5 Pro",
-                    "content": f"Verificando propuesta de Balthasar. Confirmando requerimientos del sistema local.",
-                    "changes": 0,
-                    "stats": "850ms"
-                }))
-                
-                # Melchior (Proposer)
+                # Ronda 1
                 await asyncio.sleep(1.5)
                 await websocket.send(json.dumps({
                     "type": "AGENT_POST",
                     "agent": "MELCHIOR",
                     "role": "propone",
                     "provider": "OpenAI GPT-4o",
-                    "content": f"Ejecución completada. Tarea '{command}' resuelta óptimamente.",
-                    "changes": 1,
+                    "content": f"Propongo la siguiente estructura inicial para resolver '{command}'. Se requieren 3 módulos principales y acceso a red.",
+                    "changes": 0,
                     "stats": "1.5s"
+                }))
+                
+                await asyncio.sleep(2.0)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "BALTHASAR",
+                    "role": "critica",
+                    "provider": "Claude 3.5 Sonnet",
+                    "content": "La propuesta de Melchior es arriesgada. Abrir acceso a red sin sanitización excede los protocolos de seguridad. Sugiero aislar el módulo.",
+                    "changes": 0,
+                    "stats": "1.8s"
+                }))
+                
+                await asyncio.sleep(2.0)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "CASPER",
+                    "role": "arbitro",
+                    "provider": "Gemini 1.5 Pro",
+                    "content": "Estoy de acuerdo con Balthasar. Melchior, reajusta la arquitectura para que corra en un sandbox estricto.",
+                    "changes": 0,
+                    "stats": "2.1s"
+                }))
+                
+                # Ronda 2
+                await asyncio.sleep(1.5)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "MELCHIOR",
+                    "role": "propone",
+                    "provider": "OpenAI GPT-4o",
+                    "content": "Entendido. He reescrito la lógica. Todo se ejecutará en memoria aislada sin llamadas externas. Aquí está el código modificado.",
+                    "changes": 3,
+                    "stats": "1.3s"
+                }))
+                
+                await asyncio.sleep(1.5)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "BALTHASAR",
+                    "role": "critica",
+                    "provider": "Claude 3.5 Sonnet",
+                    "content": "El nuevo código cumple con las normativas de seguridad. No hay fugas de memoria detectadas en el análisis estático.",
+                    "changes": 0,
+                    "stats": "1.4s"
+                }))
+                
+                await asyncio.sleep(1.0)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "CASPER",
+                    "role": "arbitro",
+                    "provider": "Gemini 1.5 Pro",
+                    "content": "Consenso alcanzado. Procediendo a consolidar los cambios en el sistema base.",
+                    "changes": 0,
+                    "stats": "900ms"
                 }))
                 
                 await websocket.send(json.dumps({
                     "type": "TERMINAL_OUT",
-                    "content": f"[SWARM] Tarea completada."
+                    "content": f"[SWARM] Ejecución completada. Consolidando {3} archivos."
                 }))
                 return
                 
