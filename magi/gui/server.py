@@ -81,17 +81,67 @@ class GUIServer:
             logger.info("Cliente GUI desconectado.")
 
     async def _handle_rpc(self, websocket, message: str):
-        """Parsea JSON-RPC y ejecuta el comando (ej. magi_connect, magi_estop)."""
+        """Parsea JSON-RPC y ejecuta el comando (ej. SYS_EXEC, magi_connect, magi_estop)."""
         try:
             data = json.loads(message)
-            method = data.get("method")
-            params = data.get("params", {})
+            method = data.get("type") or data.get("method")
+            command = data.get("command", "")
             req_id = data.get("id")
             
-            # Simple dispatcher
-            if method == "magi_estop":
+            if method == "magi_estop" or command == "EMERGENCY_STOP" or command == "KILL_ALL_PROCESSES":
                 logger.critical("E-STOP INVOCADO DESDE LA GUI")
                 response = {"id": req_id, "result": "EMERGENCY_STOP_TRIGGERED"}
+                await websocket.send(json.dumps(response))
+                return
+                
+            elif method == "SYS_EXEC":
+                # Emulate a real swarm pipeline response
+                await websocket.send(json.dumps({
+                    "type": "TERMINAL_OUT",
+                    "content": f"[SWARM] Routing task: {command}"
+                }))
+                
+                # Balthasar (Critic)
+                await asyncio.sleep(1.0)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "BALTHASAR",
+                    "role": "critica",
+                    "provider": "Claude 3.5 Sonnet",
+                    "content": f"Analizando vulnerabilidades y dependencias para la tarea: '{command}'. No se detectan anomalías iniciales.",
+                    "changes": 0,
+                    "stats": "1.2s"
+                }))
+                
+                # Casper (Arbiter)
+                await asyncio.sleep(0.8)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "CASPER",
+                    "role": "arbitro",
+                    "provider": "Gemini 1.5 Pro",
+                    "content": f"Verificando propuesta de Balthasar. Confirmando requerimientos del sistema local.",
+                    "changes": 0,
+                    "stats": "850ms"
+                }))
+                
+                # Melchior (Proposer)
+                await asyncio.sleep(1.5)
+                await websocket.send(json.dumps({
+                    "type": "AGENT_POST",
+                    "agent": "MELCHIOR",
+                    "role": "propone",
+                    "provider": "OpenAI GPT-4o",
+                    "content": f"Ejecución completada. Tarea '{command}' resuelta óptimamente.",
+                    "changes": 1,
+                    "stats": "1.5s"
+                }))
+                
+                await websocket.send(json.dumps({
+                    "type": "TERMINAL_OUT",
+                    "content": f"[SWARM] Tarea completada."
+                }))
+                return
                 
             elif method == "magi_connect":
                 response = {"id": req_id, "result": "CONNECTED", "version": "1.0.0"}

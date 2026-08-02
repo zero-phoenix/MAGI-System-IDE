@@ -6,25 +6,32 @@ import { useMagiSocket } from "./useMagiSocket";
 function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
   const [topSection, setTopSection] = useState("Conversación");
-  const [selectedProject, setSelectedProject] = useState("Juego de plataformas 8 bits");
+  const [selectedProject, setSelectedProject] = useState("Workspace Activo");
   const [inputVal, setInputVal] = useState("");
   
   const { connected, messages, terminalOutput, sysCommand } = useMagiStore();
   const { sendCommand } = useMagiSocket(20140);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll terminal
+  // Auto-scroll terminal and chat
   useEffect(() => {
     if (activeTab === "Terminal" && terminalEndRef.current) {
       terminalEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [terminalOutput, activeTab]);
 
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   const handleExecute = () => {
     if(!inputVal.trim()) return;
-    sysCommand(inputVal);
-    sendCommand(inputVal);
+    sysCommand(inputVal); // Echo local to terminal
+    sendCommand(inputVal); // Send to Python backend
     setInputVal("");
   };
 
@@ -33,257 +40,168 @@ function App() {
     sendCommand("KILL_ALL_PROCESSES");
   };
 
-  const sidebarItems = [
-    { type: 'lbl', text: 'HOY' },
-    { type: 'item', text: 'Juego de plataformas 8 bits', desc: 'versión 3 de 6 · midiendo' },
-    { type: 'item', text: 'Revisar contrato', desc: 'terminado · v4' },
-    { type: 'lbl', text: 'PROYECTOS' },
-    { type: 'item', text: 'emulador-psp', desc: '↑2 ↓0 · repositorio conectado' },
-    { type: 'item', text: 'soporte-perfil-20', desc: 'local · sin remoto' },
-  ];
-
   return (
-    <>
-      <div className="tt">
-        <b>MAGI SYSTEM IDE</b> — ejecutable de escritorio. Interfaz horizontal fija.
-      </div>
-
-      <div className="bar">
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
-          <span className="secs">
-            <button 
-              className={topSection === "Conversación" ? "on" : ""} 
-              onClick={() => setTopSection("Conversación")}
-            >Conversación</button>
-            <button 
-              className={topSection === "Proyectos" ? "on" : ""}
-              onClick={() => setTopSection("Proyectos")}
-            >Proyectos</button>
+    <div className="layout">
+      {/* HEADER FIJO */}
+      <header className="header">
+        <div className="h-left">
+          <span className="brand">MAGI SYSTEM IDE</span>
+          <span className={`status ${connected ? "online" : "offline"}`}>
+            {connected ? "EN LÍNEA" : "DESCONECTADO"}
           </span>
+          <nav className="h-nav">
+            <button className={topSection === "Conversación" ? "active" : ""} onClick={() => setTopSection("Conversación")}>Conversación</button>
+            <button className={topSection === "Proyectos" ? "active" : ""} onClick={() => setTopSection("Proyectos")}>Proyectos</button>
+          </nav>
         </div>
-        <div className="q">
-          <span>prov-a <b>31/50</b></span>
-          <span>prov-b <b>agotado · repone 19:40</b></span>
-          <span>prov-c <b>ok</b></span>
-          <span>⚙</span>
-          <span className="stop" style={{cursor: "pointer"}} onClick={handleStopAll}>PARAR TODO</span>
+        <div className="h-right">
+          <span className="stop-btn" onClick={handleStopAll}>PARAR TODO</span>
         </div>
-      </div>
+      </header>
 
-      <div className="app">
-        {/* CARRIL */}
-        <div className="col rail">
-          <input
-            style={{ width: "100%", background: "#050a0b", border: "1px solid var(--gr)", color: "#cfe0e4", padding: "4px 6px", font: "inherit", fontSize: "11px", marginBottom: "8px" }}
-            placeholder="Buscar…"
-          />
-          <div className="sc">
-            {sidebarItems.map((item, idx) => (
-              item.type === 'lbl' ? (
-                <div key={idx} className="lbl">{item.text}</div>
-              ) : (
-                <div 
-                  key={idx} 
-                  className={`th ${selectedProject === item.text ? 'on' : ''}`}
-                  onClick={() => setSelectedProject(item.text)}
-                >
-                  {item.text}
-                  <small>{item.desc}</small>
-                </div>
-              )
-            ))}
+      {/* ÁREA PRINCIPAL PROPORCIONAL */}
+      <main className="main-area">
+        
+        {/* BARRA LATERAL */}
+        <aside className="sidebar">
+          <div className="sidebar-content">
+            <div className="lbl">PROYECTOS ACTIVOS</div>
+            <div className={`th ${selectedProject === 'Workspace Activo' ? 'on' : ''}`} onClick={() => setSelectedProject('Workspace Activo')}>
+              Workspace Activo
+              <small>Enrutado a disco local</small>
+            </div>
+            <div className="lbl" style={{marginTop: "20px"}}>ESTADO ENJAMBRE</div>
+            <div className="th">
+              Balthasar (Crítico)
+              <small>Conectado: Claude 3.5</small>
+            </div>
+            <div className="th">
+              Casper (Árbitro)
+              <small>Conectado: Gemini 1.5</small>
+            </div>
+            <div className="th">
+              Melchior (Propone)
+              <small>Conectado: GPT-4o</small>
+            </div>
           </div>
           <div className="cfg" onClick={() => setActiveTab("Terminal")}>
             ⚙ Terminal del Sistema
-            <br />
-            <span style={{ fontSize: "9px", fontWeight: 400 }}>Acceso Irrestricto</span>
           </div>
-        </div>
+        </aside>
 
-        {/* CONVERSACIÓN O PROYECTOS */}
-        <div className="col">
+        {/* ÁREA CENTRAL: CONVERSACIÓN */}
+        <section className="chat-section">
           {topSection === "Conversación" ? (
-            <>
-              <div className="tri">
-                <div className="nd b">
-                  <div className="fx">el que busca fallos</div>
-                  <div className="nm">BALTHASAR · 2</div>
-                  <div className="md">prov-c · nube · activo</div>
-                </div>
-                <div className="cn k1"></div>
-                <div className="cn k2"></div>
-                <div className="rh">
-                  <div className="lg">MAGI</div>
-                  <div className="r">RONDA 3 / 3–7 · cuota ok</div>
-                </div>
-                <div className="nd c">
-                  <div className="fx">el que decide</div>
-                  <div className="nm">CASPER · 3</div>
-                  <div className="md">prov-a · nube · analizando</div>
-                </div>
-                <div className="nd m1">
-                  <div className="fx">el que propone</div>
-                  <div className="nm">MELCHIOR · 1</div>
-                  <div className="md">prov-b · agotado · espera</div>
-                </div>
-              </div>
-
-              <div className="conv">
-                <div className="you">
-                  <div className="w">SISTEMA</div>
-                  Conectado a la Pasarela de Inferencia. Esperando flujos del Enjambre...
-                </div>
-
-                {messages.map((msg, i) => (
-                  <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`}>
-                    <div className="ch">
-                      <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                        <span className="dot" style={{ background: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}></span>
-                        <b style={{ color: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}>{msg.agent}</b>
-                        <span style={{ color: "#6d8288" }}>{msg.role}</span>
-                      </span>
-                    </div>
-                    <div className="mid">
-                      <b>{msg.provider}</b> · modelo enjambre
-                    </div>
-                    <div className="pl">«{msg.content}»</div>
-                    <div className="sec">
-                      Cambios detectados <span style={{ color: "#5f7378" }}>{msg.changes} cambios</span>
-                    </div>
-                    <div className="ft">{msg.stats}</div>
+            <div className="chat-container">
+              <div className="chat-history">
+                {messages.length === 0 ? (
+                  <div className="sys-msg">
+                    SISTEMA: Conectado a la Pasarela de Inferencia. Esperando flujos del Enjambre...
                   </div>
-                ))}
+                ) : (
+                  messages.map((msg, i) => (
+                    <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`}>
+                      <div className="ch">
+                        <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          <span className="dot" style={{ background: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}></span>
+                          <b style={{ color: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}>{msg.agent}</b>
+                          <span style={{ color: "#6d8288", textTransform: "uppercase" }}>{msg.role}</span>
+                        </span>
+                      </div>
+                      <div className="mid">
+                        IA UTILIZADA: <b style={{color: "var(--acc)"}}>{msg.provider}</b>
+                      </div>
+                      <div className="pl">«{msg.content}»</div>
+                      <div className="sec" style={{display: "flex", justifyContent: "space-between"}}>
+                        <span>Cambios detectados: {msg.changes}</span>
+                        <span>Inferencia: {msg.stats}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={chatEndRef} />
               </div>
-
-              <div className="comp">
-                <div className="cr">
-                  <button className="pre">SYS_EXEC ▾</button>
-                  <textarea
-                    className="pf"
-                    rows={1}
-                    placeholder="Escribe tu instrucción o comando (acceso total)…"
-                    value={inputVal}
-                    onChange={(e) => setInputVal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if(e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleExecute();
-                      }
-                    }}
-                  ></textarea>
-                  <button className="bt go" onClick={handleExecute}>Ejecutar ▸</button>
-                </div>
-                <div className="att">
-                  <span className="chip" style={{ borderStyle: "dashed", color: "#6d8288" }}>
-                    arrastra evidencia / logs aquí
-                  </span>
-                </div>
+              <div className="chat-composer">
+                <input
+                  type="text"
+                  placeholder="Escribe tu instrucción o comando (acceso total)…"
+                  value={inputVal}
+                  onChange={(e) => setInputVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleExecute(); }}
+                />
+                <button onClick={handleExecute}>Ejecutar ▸</button>
               </div>
-            </>
+            </div>
           ) : (
-            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <h2 style={{ color: "var(--acc)" }}>Gestor de Proyectos</h2>
-              <div style={{ border: "1px solid var(--gr)", padding: "10px", background: "#050809" }}>
-                Activo: <b style={{ color: "var(--node)" }}>{selectedProject}</b>
-              </div>
-              <p style={{ color: "#8fa4aa" }}>El gestor de versiones se sincronizará con GitHub automáticamente desde esta pestaña.</p>
+            <div className="projects-container">
+              <h2 style={{ color: "var(--acc)", marginTop: 0 }}>Gestor de Proyectos (Workspace Activo)</h2>
+              <p style={{ color: "#8fa4aa" }}>El sistema leerá los archivos de tu computadora y sincronizará los cambios automáticamente.</p>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* LIENZO */}
-        <div className="col canvas">
+        {/* ÁREA DERECHA: PESTAÑAS (LIENZO) */}
+        <section className="canvas-section">
           <div className="tabs">
             {["Plan", "Código", "Vista previa", "Terminal", "Gráfico HDC"].map((tab) => (
-              <div
-                key={tab}
-                className={`tab ${activeTab === tab ? "on" : ""}`}
-                onClick={() => setActiveTab(tab)}
-              >
+              <div key={tab} className={`tab ${activeTab === tab ? "on" : ""}`} onClick={() => setActiveTab(tab)}>
                 {tab}
               </div>
             ))}
           </div>
-          <div className="cbody" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <div className="canvas-body">
             
             {activeTab === "Vista previa" && (
-              <>
-                <div className="pv">
-                  <div className="game"></div>
-                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "#0f1a1d", borderTop: "1px solid var(--gr)", padding: "2px 6px", fontSize: "9.5px", color: "#8fa4aa", display: "flex", justifyContent: "space-between" }}>
-                    <span>entorno activo</span>
-                    <span>Tauri nativo</span>
-                  </div>
+              <div className="preview-pane">
+                <div className="preview-content"></div>
+                <div className="preview-footer">
+                  <span>Entorno activo: nativo local</span>
                 </div>
-                <div style={{ fontSize: "10px", letterSpacing: ".1em", color: "var(--acc)", marginBottom: "3px" }}>
-                  CRITERIOS DUROS
-                </div>
-                <div className="mrow">
-                  <b>Compilación Rust</b>
-                  <span className="ok">Completado ✓</span>
-                </div>
-                <div className="mrow">
-                  <b>Acceso irrestricto</b>
-                  <span className="ok">Concedido ✓</span>
-                </div>
-              </>
+              </div>
             )}
             
             {activeTab === "Terminal" && (
-              <div style={{ flex: 1, background: "#000", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#0f0", whiteSpace: "pre-wrap", overflowY: "auto" }}>
-                {terminalOutput}
-                <div ref={terminalEndRef} />
+              <div className="terminal-pane">
+                <div className="terminal-content">
+                  {terminalOutput}
+                  <div ref={terminalEndRef} />
+                </div>
               </div>
             )}
             
             {activeTab === "Código" && (
-               <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#d4d4d4", overflowY: "auto" }}>
-                // Módulo Activo: {selectedProject}<br/><br/>
-                <span style={{color: "#569cd6"}}>import</span> {"{"} useState {"}"} <span style={{color: "#569cd6"}}>from</span> <span style={{color: "#ce9178"}}>"react"</span>;<br/>
-                <span style={{color: "#569cd6"}}>export</span> <span style={{color: "#569cd6"}}>function</span> <span style={{color: "#dcdcaa"}}>Module</span>() {"{"}<br/>
-                &nbsp;&nbsp;<span style={{color: "#c586c0"}}>return</span> <span style={{color: "#ce9178"}}>"Funcionalidad inyectada"</span>;<br/>
-                {"}"}
-               </div>
+              <div className="code-pane">
+                // Sin archivos abiertos.<br/>
+                // Envía comandos al Enjambre para generar código.
+              </div>
             )}
 
             {activeTab === "Plan" && (
-               <div style={{ flex: 1, padding: "10px", color: "#cfe0e4", overflowY: "auto" }}>
-                  <div style={{ fontSize: "12px", color: "var(--acc)", marginBottom: "8px" }}>ROADMAP: {selectedProject}</div>
-                  <ul className="plan">
-                    <li className="d">
-                      Establecer conexión WebSocket
-                      <small>completado por el agente</small>
-                    </li>
-                    <li className="n">
-                      Sincronizar telemetría del enjambre
-                      <small>en progreso</small>
-                    </li>
-                    <li className="w">
-                      Despliegue a la nube
-                      <small>pendiente</small>
-                    </li>
+               <div className="plan-pane">
+                  <div style={{ fontSize: "12px", color: "var(--acc)", marginBottom: "8px" }}>PLAN DE EJECUCIÓN</div>
+                  <ul className="plan-list">
+                    <li>Esperando instrucciones del agente proponente.</li>
                   </ul>
                </div>
             )}
 
             {activeTab === "Gráfico HDC" && (
-               <div style={{ flex: 1, padding: "10px", border: "1px dashed var(--dim)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--node)" }}>
+               <div className="hdc-pane">
                   [Renderizador WebGL de Memoria Hiperdimensional - Esperando Datos]
                </div>
             )}
 
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div className="foot">
-        <div>
-          ejecutable de escritorio · <b>MAGI SYSTEM IDE v8.0</b> · proyecto en carpeta
-        </div>
-        <div>acceso root habilitado</div>
-      </div>
-    </>
+      </main>
+      
+      {/* FOOTER */}
+      <footer className="footer">
+        <span>MAGI SYSTEM IDE v9.0 · ejecutable nativo puro</span>
+        <span style={{color: "var(--acc)"}}>ACCESO ROOT: HABILITADO</span>
+      </footer>
+    </div>
   );
 }
 

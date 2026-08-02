@@ -30,11 +30,10 @@ export const useMagiStore = create<MagiState>((set) => ({
   messages: [],
   addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
   
-  terminalOutput: "[MAGI-SHELL] root@system:~# _\nConectando al Motor Core... [OK]\nTerminal System-Level habilitada.\n",
+  terminalOutput: "",
   appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),
   
   sysCommand: (cmd) => {
-    // Aquí el websocket enviaría el comando al backend Python
-    set((state) => ({ terminalOutput: state.terminalOutput + `\nroot@system:~# ${cmd}\n> Procesando en membrana... [AVX Accelerated]` }));
+    set((state) => ({ terminalOutput: state.terminalOutput + `\nroot@system:~# ${cmd}` }));
   }
 }));
