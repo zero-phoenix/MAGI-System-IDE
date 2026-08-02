@@ -644,11 +644,205 @@ body {
   flex: 0 0 auto;
   margin-top: 6px;
   font-size: 10.5px;
+}
+
+.cr {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.pre {
+  background: #000;
+  border: 1px solid var(--acc);
+  color: var(--acc2);
+  padding: 6px 7px;
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.pf {
+  flex: 1;
+  min-width: 0;
+  background: #050a0b;
+  border: 1px solid var(--acc);
+  color: #e6f2f5;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  resize: none;
+  max-height: 88px;
+  overflow-y: auto;
+}
+
+.bt {
+  background: #000;
+  border: 1px solid var(--acc);
+  color: var(--acc);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.bt.go {
+  background: var(--acc);
+  color: #000;
+  font-weight: 800;
+  padding: 7px 14px;
+}
+
+.att {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  font-size: 10.5px;
+  padding-bottom: 2px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--gr);
+  background: #081215;
+  padding: 2px 6px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* lienzo */
+.canvas {
+  background: var(--sf);
+  border-left: 1px solid var(--gr);
+}
+
+.tabs {
+  flex: 0 0 auto;
+  display: flex;
+  border-bottom: 1px solid var(--gr);
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 4px 9px;
+  font-size: 10.5px;
+  color: #6d8288;
+  border-right: 1px solid var(--gr);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab.on {
+  background: var(--node);
+  color: #000;
+  font-weight: 800;
+}
+
+.cbody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan li {
+  list-style: none;
+  padding: 3px 0 3px 20px;
+  position: relative;
+  font-size: 11.5px;
+  border-bottom: 1px solid #101c1f;
+  overflow-wrap: anywhere;
+}
+
+.plan li:before {
+  position: absolute;
+  left: 0;
+  top: 3px;
+}
+
+.plan li.d:before {
+  content: "✓";
+  color: var(--ok);
+}
+
+.plan li.n:before {
+  content: "▸";
+  color: var(--acc2);
+}
+
+.plan li.w:before {
+  content: "○";
+  color: #4a5f65;
+}
+
+.plan li small {
+  display: block;
+  color: #5f7378;
+  font-size: 10px;
+}
+
+.pv {
+  border: 1px solid var(--gr);
+  background: #000;
+  height: 126px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 7px;
+}
+
+.game {
+  image-rendering: pixelated;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(#0f380f, #0f380f) 0 96% / 100% 12% no-repeat,
+    linear-gradient(#8bac0f, #8bac0f) 22% 74% / 16% 6% no-repeat,
+    linear-gradient(#8bac0f, #8bac0f) 54% 56% / 14% 6% no-repeat,
+    linear-gradient(#9bbc0f, #9bbc0f) 30% 84% / 5% 9% no-repeat,
+    #306230;
+}
+
+.mrow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  padding: 2px 0;
+  border-bottom: 1px dotted #16262a;
+}
+
+.mrow b {
+  font-weight: 400;
+  color: #8fa4aa;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.bad {
+  color: var(--dang);
+}
+
+.wn {
+  color: var(--warn);
+}
+
+.foot {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  font-size: 10.5px;
   color: #6d8288;
   display: flex;
   justify-content: space-between;
   gap: 10px;
 }
- 
- . m a r k d o w n - b o d y   a   {   c o l o r :   v a r ( - - n o d e ) ;   t e x t - d e c o r a t i o n :   u n d e r l i n e ;   }  
- 
+
+.markdown-body a { color: var(--node); text-decoration: underline; }
