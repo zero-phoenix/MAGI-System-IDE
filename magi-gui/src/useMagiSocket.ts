@@ -37,6 +37,8 @@ export function useMagiSocket(port: number = 20128) {
                 });
               } else if (topic === 'TERMINAL_OUT') {
                 appendTerminal(payload.content || payload.message || String(payload));
+              } else if (topic === 'system.project_created') {
+                ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
               }
             } else if (data.ok !== undefined) {
                // Es una respuesta directa RPC

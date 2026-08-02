@@ -171,6 +171,11 @@ class Kernel:
         new_proj_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch") / f"project_{task_id}"
         new_proj_dir.mkdir(parents=True, exist_ok=True)
         
+        await self.bus.publish(BusEvent(
+            topic="system.project_created",
+            payload={"name": f"project_{task_id}"}
+        ))
+        
         # Publicar en el bus para que el Logger lo intercepte
         await self.bus.publish(BusEvent(
             topic="SYS_EXEC",

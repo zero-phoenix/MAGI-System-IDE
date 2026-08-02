@@ -223,6 +223,17 @@ body {
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
+  transition: background-color 0.3s ease;
+}
+
+@keyframes magi-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.blinking {
+  animation: magi-blink 0.3s infinite;
 }
 
 .nd .fx {
@@ -230,6 +241,7 @@ body {
   font-weight: 800;
   opacity: .6;
   text-transform: uppercase;
+  color: #000 !important;
 }
 
 .nd .nm {
@@ -637,3 +649,6 @@ body {
   justify-content: space-between;
   gap: 10px;
 }
+ 
+ . m a r k d o w n - b o d y   a   {   c o l o r :   v a r ( - - n o d e ) ;   t e x t - d e c o r a t i o n :   u n d e r l i n e ;   }  
+ 

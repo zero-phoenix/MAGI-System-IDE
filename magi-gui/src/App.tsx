@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import "./App.css";
 import { useMagiStore } from "./store";
 import { useMagiSocket } from "./useMagiSocket";
+import { useMagiAudio } from "./useMagiAudio";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
@@ -11,6 +14,7 @@ function App() {
   
   const { connected, messages, addMessage, terminalOutput, sysCommand, projects, metrics, telemetry } = useMagiStore();
   const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
+  const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -81,11 +85,22 @@ function App() {
   const casperData = getAgentData("CASPER", "prov-a");
   const melchiorData = getAgentData("MELCHIOR", "prov-b");
   
-  // Consensus Colors
   const casperMsgs = messages.filter(m => m.agent === 'CASPER');
   const lastCasper = casperMsgs[casperMsgs.length - 1];
   const isApproved = lastCasper?.stats?.includes("APPROVED");
   const isRejected = lastCasper?.stats?.includes("REJECTED");
+  
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+  const isCasperThinking = lastMsg?.agent === "BALTHASAR";
+
+  // Efectos de Sonido
+  useEffect(() => {
+    if (isCasperThinking) {
+      playCalcBeep();
+    } else if (lastMsg?.agent === "CASPER") {
+      playDecisionClack();
+    }
+  }, [messages.length]);
   
   const casperColor = isApproved ? "#0f0" : (isRejected ? "#f55" : "");
   const melchiorColor = isApproved ? "#0f0" : "";
@@ -166,10 +181,10 @@ function App() {
           </div>
 
           <div className="tri" style={{ paddingBottom: "10px" }}>
-            <div className="nd b">
-              <div className="fx" style={{ color: balthasarColor }}>el que busca fallos</div>
+            <div className="nd b" style={{ backgroundColor: balthasarColor || undefined }}>
+              <div className="fx">el que busca fallos</div>
               <div className="nm">BALTHASAR · 2</div>
-              <div className="md">{balthasarData.provider} · {balthasarData.latency}</div>
+              <div className="md" style={{ color: balthasarColor ? '#000' : 'var(--ink)' }}>{balthasarData.provider} · {balthasarData.latency}</div>
             </div>
             <div className="cn k1"></div>
             <div className="cn k2"></div>
@@ -177,15 +192,15 @@ function App() {
               <div className="lg">MAGI</div>
               <div className="r">ENJAMBRE ACTIVO</div>
             </div>
-            <div className="nd c">
-              <div className="fx" style={{ color: casperColor }}>el que decide</div>
+            <div className={`nd c ${isCasperThinking ? 'blinking' : ''}`} style={{ backgroundColor: casperColor || undefined }}>
+              <div className="fx">el que decide</div>
               <div className="nm">CASPER · 3</div>
-              <div className="md">{casperData.provider} · {casperData.latency}</div>
+              <div className="md" style={{ color: casperColor ? '#000' : 'var(--ink)' }}>{casperData.provider} · {casperData.latency}</div>
             </div>
-            <div className="nd m1">
-              <div className="fx" style={{ color: melchiorColor }}>el que propone</div>
+            <div className="nd m1" style={{ backgroundColor: melchiorColor || undefined }}>
+              <div className="fx">el que propone</div>
               <div className="nm">MELCHIOR · 1</div>
-              <div className="md">{melchiorData.provider} · {melchiorData.latency}</div>
+              <div className="md" style={{ color: melchiorColor ? '#000' : 'var(--ink)' }}>{melchiorData.provider} · {melchiorData.latency}</div>
             </div>
           </div>
 
@@ -212,7 +227,11 @@ function App() {
                     </span>
                   )}
                 </div>
-                <div className="pl">«{msg.content}»</div>
+                <div className="pl markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
                 <div className="sec">
                   Cambios propuestos <span style={{ color: "#5f7378" }}>{msg.changes || 0}</span>
                 </div>
