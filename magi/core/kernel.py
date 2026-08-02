@@ -47,6 +47,7 @@ class Kernel:
         self.rpc.register_handler("KILL_ALL_PROCESSES", self._handle_estop)
         self.rpc.register_handler("SYS_EXEC", self._handle_sys_exec)
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
+        self.rpc.register_handler("git.clone", self._handle_git_clone)
         
     async def _handle_hello(self, payload, websocket):
         return {"status": "MAGI Kernel Online", "version": "1.0"}
@@ -63,20 +64,50 @@ class Kernel:
         res = self.policy.request_capability("rpc_client", cap)
         return {"granted": res.granted, "reason": res.reason}
 
+    async def _handle_git_clone(self, payload, websocket):
+        import asyncio
+        import os
+        from pathlib import Path
+        
+        repo_url = payload.get("url")
+        if not repo_url:
+            return {"status": "error", "message": "URL requerida"}
+            
+        scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Publicar inicio en terminal
+        await self.bus.publish(BusEvent(topic="SYS_EXEC", payload={"task_id": "sys_git", "command": f"git clone {repo_url}"}))
+        await self.bus.publish(BusEvent(topic="sys.terminal.out", payload=f"\\n> Clonando {repo_url} en {scratch_dir}...\\n"))
+        
+        process = await asyncio.create_subprocess_shell(
+            f"git clone {repo_url}",
+            cwd=str(scratch_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        out_msg = (stdout.decode() + "\\n" + stderr.decode()).strip()
+        
+        await self.bus.publish(BusEvent(topic="sys.terminal.out", payload=f"{out_msg}\\n[Git Clone completado con código {process.returncode}]"))
+        
+        return {"status": "ok", "message": f"Clonado completado en scratch/"}
+
     async def _handle_state_sync(self, payload, websocket):
         """Devuelve el estado real del sistema para poblar la GUI sin simulación."""
         import os
         from pathlib import Path
         
-        # Escanear proyectos reales en D:\PROYECTOS\MAGI System IDE
-        base_dir = Path("D:/PROYECTOS/MAGI System IDE")
+        # Escanear proyectos reales en D:\PROYECTOS\MAGI System IDE\scratch
+        base_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
         real_projects = []
         if base_dir.exists():
             for child in base_dir.iterdir():
-                if child.is_dir() and (child / ".magi" / "project.yaml").exists():
+                if child.is_dir() and not child.name.startswith("."):
                     real_projects.append({
                         "name": child.name,
-                        "desc": "local · repositorio detectado" if (child / ".git").exists() else "local · sin remoto"
+                        "desc": "local · git detectado" if (child / ".git").exists() else "local · sin remoto"
                     })
         
         return {

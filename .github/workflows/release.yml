@@ -1,72 +1,47 @@
-name: Release MAGI-IDE Portable
+name: Build and Release MAGI System IDE
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
-    permissions:
-      contents: write
-      
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
 
-      - name: Cache npm dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-      - name: Install Frontend Dependencies
-        working-directory: magi-gui
-        run: npm ci
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller pywebview
 
-      - name: Build React Frontend
-        working-directory: magi-gui
-        run: npm run build
+    - name: Build Frontend
+      working-directory: ./magi-gui
+      run: |
+        npm install
+        npm run build
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          cache: 'pip'
+    - name: Build Executable (PyInstaller)
+      run: |
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v3" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
-      - name: Install Python Dependencies
-        run: pip install -r requirements.txt
-
-      - name: Build PyInstaller Executable
-        run: |
-          pyinstaller --clean --onefile --noconsole --name "MAGI-IDE" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
-
-      - name: Get tag version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
-
-      - name: Create GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          name: MAGI System IDE ${{ env.VERSION }} SOTA
-          body: |
-            ## MAGI System IDE (Release Nativo y Portable)
-            Este release contiene el compilado nativo `.exe` de la interfaz de Alta Frecuencia (Standalone Portable).
-            
-            ### Novedades y Características Arquitectónicas (v2.0.0)
-            - **RAG Vectorial Algebraico**: Indexador TF-IDF ultraligero que vectoriza +2000 habilidades (Awesome Skills) sin ahogar la CPU.
-            - **Motor de Evasión (Cloud WAF)**: Suplantación de navegadores TLS en cascada con sistema de cuarentena (TTL) para burlar Rate Limits y bloqueos Cloudflare.
-            - **Telemetría Empírica Persistente**: Sistema que evalúa matemáticamente el rendimiento, la densidad de código y la latencia de cada nodo del Enjambre de IAs.
-            - **Portable EXE via PyWebView**: El backend Python, el frontend React/Vite y la persistencia SQLite comprimidos en un solo binario de Windows (`MAGI-IDE.exe`).
-          files: |
-            dist/MAGI-IDE.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MAGI-IDE-v3.exe
+        path: dist/MAGI-IDE-v3.exe

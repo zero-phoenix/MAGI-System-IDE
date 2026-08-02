@@ -73,15 +73,29 @@ export function useMagiSocket(port: number = 20128) {
 
   const sendCommand = (cmd: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'SYS_EXEC', command: cmd }));
+      ws.current.send(JSON.stringify({
+        type: "SYS_EXEC",
+        payload: cmd
+      }));
+    }
+  };
+
+  const sendGitClone = (url: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "git.clone",
+        payload: { url }
+      }));
     }
   };
 
   const fetchTelemetry = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'GET_TELEMETRY', id: 'req_telemetry' }));
+      ws.current.send(JSON.stringify({
+        type: "GET_TELEMETRY"
+      }));
     }
   };
 
-  return { sendCommand, fetchTelemetry };
+  return { sendCommand, sendGitClone, fetchTelemetry };
 }

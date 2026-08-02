@@ -74,28 +74,22 @@ class FreeCloudLLM:
         asyncio.create_task(self.db.log_provider_failure(name))
 
     async def _fetch_from_provider(self, provider, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
-        """Intenta obtener una respuesta inyectando un User-Agent y un Proxy fantasma."""
+        """Intenta obtener una respuesta usando G4F nativo (sin corromper TLS)."""
         if not self.client:
             raise ValueError("G4F client no inicializado")
             
-        ua = random.choice(self.user_agents)
-        proxy = f"http://{random.choice(self.proxies)}" if self.proxies else None
-        
-        logger.debug(f"[Enjambre] Lanzando {provider.__name__} [Navegador: {ua[:30]}...]")
+        logger.debug(f"[Enjambre] Lanzando {provider.__name__} de forma nativa...")
         
         start_t = time.time()
         try:
-            # G4F AsyncClient pasa los kwargs adicionales al provider subyacente
+            # Quitamos impersonate y proxy manuales, dejamos que G4F use su evasión interna.
             response = await self.client.chat.completions.create(
                 model=model,
                 provider=provider,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ],
-                # Impersonación TLS en cascada
-                impersonate=["chrome120", "safari15_3", "edge101"][attempt % 3],
-                proxy=proxy
+                ]
             )
             content = response.choices[0].message.content
             latency_ms = (time.time() - start_t) * 1000

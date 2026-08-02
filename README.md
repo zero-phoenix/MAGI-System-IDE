@@ -1,126 +1,93 @@
-# MAGI System IDE (v2.0.0 SOTA)
+# MAGI System IDE (V3.0.0)
 
-MAGI System IDE es una plataforma cognitiva avanzada impulsada por un enjambre de Inteligencias Artificiales coordinadas, diseñado para asistir, automatizar y auditar flujos de trabajo de ingeniería de software a escala. Concebido originalmente como un núcleo cuántico abstracto, este sistema opera en modo *Standalone Portable* integrando un frontend reactivo ultrarrápido y un backend impulsado por RAG Vectorial.
+MAGI System IDE es una interfaz gráfica de escritorio y un orquestador backend potenciado por un enjambre de Inteligencias Artificiales coordinadas, diseñado para operar localmente y comunicarse con proveedores de IA en la nube mediante técnicas de evasión, proporcionando un entorno autónomo de ingeniería de software.
+
+## 🚀 Características Principales
+
+*   **Enjambre de IA Tripartito (Balthasar, Melchior, Casper):** Tres nodos especializados debaten asíncronamente para proponer código, criticar vulnerabilidades y arbitrar decisiones finales.
+*   **Red Nube Evasiva (G4F Nativo):** Se eluden los bloqueos de Rate Limit (Error 429) mediante rotación transparente de proveedores LLM en la nube (Blackbox, Pollinations, DuckDuckGo) sin necesidad de API Keys.
+*   **Layout Maestro de 3 Columnas:** Una interfaz construida en React de alto rendimiento. Integra gestor de proyectos, visualizador del enjambre y paneles técnicos (Código, Terminal, Telemetría) en una sola vista persistente.
+*   **Ejecución Git Nativa:** Funcionalidad de autoconexión para clonar y operar sobre repositorios remotos directamente en el disco duro físico (`scratch/`) con *feedback* directo a la consola del IDE.
+*   **Telemetría Empírica:** Métrica de desempeño algorítmico, velocidad de inferencia, fallos y densidad de código monitorizada permanentemente en una base de datos SQLite persistente.
+*   **Portabilidad Extrema:** Empaquetado completo en un solo ejecutable (`.exe`) sin dependencias mediante PyInstaller y PyWebView (Motor Edge de Windows).
 
 ---
 
-## 🏛 Arquitectura Horizontal (Subdivisiones Funcionales)
+## 🗺️ Arquitectura del Sistema (Flujos Verticales y Horizontales)
 
-MAGI no es un monolito. Es una colmena descentralizada de micro-agentes coordinados asíncronamente (Áreas 1 a 13) orquestados mediante un patrón de Bus de Mensajes.
+El diseño de MAGI opera de manera bidimensional: **Verticalmente** (flujo de datos desde la máquina física hasta la nube) y **Horizontalmente** (la interacción asíncrona entre los múltiples agentes del Enjambre).
+
+### 1. Flujo Vertical (Hardware -> Nube)
+
+Este flujo detalla cómo una instrucción del usuario viaja desde el cliente React hasta los proveedores de IA.
+
+```mermaid
+graph TD
+    %% Flujo Vertical
+    U((Usuario)) -->|Click / Texto| A(Frontend React - Master Layout)
+    A -->|WebSocket| B(Servidor RPC - WSServer)
+    B -->|MagiBus Event| C(Kernel Python - Área 0)
+    
+    subgraph Backend Core
+        C -->|SYS_EXEC / git.clone| D(Controlador del SO / Subprocess)
+        C -->|Instrucción IAM| E(Swarm Orchestrator - Área 16)
+        E --> F{Gestor de Proveedores - G4F}
+    end
+
+    F -->|Handshake TLS Nativo| G[Nube LLM 1: DuckDuckGo]
+    F -->|Handshake TLS Nativo| H[Nube LLM 2: Blackbox]
+    F -->|Handshake TLS Nativo| I[Nube LLM 3: Pollinations]
+    
+    G & H & I -->|Respuesta Generada| E
+    E -->|Telemetría Empírica| J[(MagiDatabase - SQLite)]
+    E -->|Broadcasting| B
+    B -->|Estado / Mensaje| A
+    D -->|Archivos / Logs| A
+```
+
+### 2. Flujo Horizontal (Subdivisión Funcional del Enjambre)
+
+Este flujo detalla cómo se subdividen y procesan los problemas internamente a través de los nodos lógicos.
 
 ```mermaid
 graph LR
-    subgraph Frontend [UI React/Vite]
-        UI[Dashboard de Telemetría]
-        Chat[Terminal de Operaciones]
-    end
-
-    subgraph Capas de Pasarela
-        RPC[WebSocket Multiplexor]
-        Router[Enrutador Semántico]
-    end
-
-    subgraph MAGI Core [Kernel Python]
-        Orch[Orquestador Maestro]
-        Mem[Memoria a Largo Plazo]
-        Swarm[Enjambre: Melchior, Balthasar, Casper]
+    %% Flujo Horizontal
+    Task[Nueva Tarea] --> O[Swarm Orchestrator]
+    
+    subgraph "Debate y Resolución"
+        O -->|Inicia Ronda| M(MELCHIOR - Nodo 1)
+        M -->|1. Genera Código Inicial / Propuesta| B(BALTHASAR - Nodo 2)
+        B -->|2. Falsacionismo / Crítica Feroz| C(CASPER - Nodo 3)
+        C -->|3. Arbitraje Final / Ejecución| O
     end
     
-    subgraph AASLoader [Motor RAG Vectorial]
-        TFIDF[Matriz TF-IDF]
-        CosSim[Cos Similariity]
-    end
-
-    subgraph Data Layer
-        DB[(SQLite persistente)]
-        Cloud[Evasión WAF Cloud]
-    end
-
-    UI <--> RPC
-    Chat <--> RPC
-    RPC --> Router
-    Router --> Orch
-    Orch --> Swarm
-    Swarm --> AASLoader
-    AASLoader --> TFIDF
-    AASLoader --> CosSim
-    Swarm --> Cloud
-    Orch --> Mem
-    Mem <--> DB
-    Cloud <--> DB
+    O -->|Iteración Fallida| M
+    O -->|Consenso Alcanzado| Output[Decisión Aprobada]
+    
+    M -.->|Usa| P1(Prov B)
+    B -.->|Usa| P2(Prov C)
+    C -.->|Usa| P3(Prov A)
 ```
 
-### Subdivisiones Detalladas:
-1. **Interfaz Holográfica Nativa (UI):** Empaquetada con `PyWebView` usando el motor de Edge de Windows para ejecutar React de forma nativa como un binario (`.exe`), sin servidores web pesados.
-2. **Pasarela Bidireccional (RPC):** Un puente WebSockets con multiplexación asíncrona capaz de enrutar millones de tokens sin bloquear el hilo principal (hilo secundario de `asyncio`).
-3. **El Enjambre (MagiHive):** Tres entidades autónomas (Melchior, Balthasar, Casper) que evalúan críticamente, votan y debaten antes de dar luz verde a una solución.
-4. **Motor RAG Algebraico (AASLoader):** Evita la saturación del GPU. Usa la matriz de términos inversa (`Scikit-Learn` y `NumPy`) para indexar en memoria ram +2000 flujos de trabajo en <1ms.
-5. **Evasor de WAF (Cloud Layer):** Subsistema `curl_cffi` para falsificar *hello packets* TLS de navegadores Chrome reales y burlar las protecciones de Cloudflare mediante enrutamiento en cuarentena.
+### Detalles de la Subdivisión Funcional
+
+1.  **Orquestador (Área 16):** Coordina los ciclos de vida de las tareas. Mantiene la memoria transaccional y delega los *prompts* a los agentes correspondientes.
+2.  **Melchior (Generación):** Toma la petición bruta y formula la mejor aproximación constructiva (escribir código, diseñar plan).
+3.  **Balthasar (Crítica):** Ejecuta un algoritmo de falsacionismo. Trata de romper el código propuesto y encuentra fallas lógicas o de seguridad.
+4.  **Casper (Decisión):** Analiza la propuesta y la crítica. Decide si la propuesta se acepta, si necesita parche, o si la ronda debe reiniciarse.
+5.  **Pasarela Cloud:** El motor G4F distribuye estas tres mentes en tres llamadas paralelas a proveedores distintos para evitar bloqueos por sobrecarga (Rate Limiting).
 
 ---
 
-## 🚀 Ciclo de Vida: Gráfico de Flujo Vertical
+## 📦 Compilación
 
-El siguiente diagrama de actividad técnica muestra el viaje microscópico de una señal (Query) desde su inyección por el usuario hasta la consolidación de la telemetría empírica.
+Para compilar el proyecto en un ejecutable `.exe` portable en Windows:
 
-```mermaid
-sequenceDiagram
-    participant User as Operador
-    participant GUI as Interfaz Web (React)
-    participant WSS as Servidor RPC
-    participant Orch as Orquestador (Área 0)
-    participant AAS as RAG (TF-IDF)
-    participant Swarm as MAGI Swarm
-    participant Net as Motor Cloud (Evasión)
-    participant DB as SQLite Telemetría
+1. Instalar dependencias en el entorno base:
+   `pip install -r requirements.txt`
+2. Construir la UI (requiere Node.js):
+   `cd magi-gui && npm run build`
+3. Ejecutar PyInstaller:
+   `powershell -ExecutionPolicy Bypass -File build.ps1`
 
-    User->>GUI: Ingresa comando crítico
-    GUI->>WSS: Payload JSON (WebSockets)
-    WSS->>Orch: Deserialización y Enrutamiento
-    
-    rect rgb(20, 40, 20)
-    Note over Orch, AAS: Fase 1: Enriquecimiento Semántico
-    Orch->>AAS: Extraer contexto del comando
-    AAS-->>Orch: Devuelve los mejores N Skills (Cosine Similarity)
-    end
-    
-    rect rgb(40, 20, 20)
-    Note over Orch, Net: Fase 2: Ejecución Cognitiva y Evasión
-    Orch->>Swarm: Inyecta Contexto + Comando
-    loop Debate
-        Swarm->>Net: Solicita inferencia a LLM Externo
-        Net-->>Net: Impersona TLS (Chrome 120)
-        alt Rate Limit WAF detectado
-            Net->>Net: Aplica Cuarentena TTL (300s)
-            Net->>Net: Rota proveedor y reintenta
-        end
-        Net-->>Swarm: Respuesta LLM bruta
-        Swarm->>Swarm: Falsacionismo Crítico (Casper/Melchior)
-    end
-    end
-
-    rect rgb(20, 20, 40)
-    Note over Orch, DB: Fase 3: Consolidación y Telemetría
-    Swarm-->>Orch: Veredicto Unánime
-    Orch->>DB: Registra Densidad de Código y Latencia
-    Orch->>WSS: Despacha Payload Final
-    WSS-->>GUI: Renderiza Output Markdown
-    end
-```
-
----
-
-## 🛠️ Portabilidad Extrema
-
-La versión 2.0.0 elimina todas las dependencias del usuario final. Gracias a un compilador basado en `PyInstaller` inyectado por GitHub Actions, todo el sistema (C, Rust, Python, React) se comprime en el archivo `MAGI-IDE.exe`.
-
-- **0 Configuración:** La base de datos `magi_brain.db` (telemetría) se crea dinámicamente en el directorio de ejecución actual (CWD).
-- **Ejecución Local:** Solo doble clic y MAGI despertará en una ventana nativa de alta velocidad.
-
-## 🤝 Desarrollo y Despliegue
-
-Para los mantenedores y agentes de software que modifican este núcleo:
-1. Las Actions de GitHub `release.yml` detectan tags de versión (`v*`).
-2. Toman el código, compilan el TypeScript a estáticos puros (`npm run build`).
-3. Instalan las dependencias matemáticas de C++ precompiladas (`NumPy`, `Scikit`).
-4. Lo entrelazan todo bajo `main.py` y publican `MAGI-IDE.exe` directo en la pestaña de *Releases* de GitHub.
+El resultado estará en `dist/MAGI-IDE-v3.exe`.
