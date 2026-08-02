@@ -74,5 +74,7 @@ jobs:
             Este release contiene el compilado nativo `.exe` de la interfaz de Alta Frecuencia (Standalone Portable).
           files: |
             magi-gui/src-tauri/target/release/magi-gui.exe
+            magi-gui/src-tauri/target/release/bundle/nsis/*.exe
+            magi-gui/src-tauri/target/release/bundle/msi/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
