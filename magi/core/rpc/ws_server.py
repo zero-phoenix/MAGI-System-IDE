@@ -1,40 +1,116 @@
 import asyncio
 import json
 import logging
-from typing import Callable, Awaitable, Any
+import websockets
+from typing import Callable, Awaitable, Any, Set
+from magi.core.bus import MagiBus, BusEvent  # type: ignore
+from magi.core.store.database import MagiDatabase
 
 logger = logging.getLogger(__name__)
 
-class MockWebSocketServer:
+class WSServer:
     """
-    Servidor RPC / WebSocket simulado para pruebas de integración (Área 10).
-    En producción usaría el módulo 'websockets' sobre 127.0.0.1.
+    Servidor RPC / WebSocket real para MAGI System IDE (Área 10).
     """
-    def __init__(self, port: int = 8080):
+    def __init__(self, bus: MagiBus, host: str = "127.0.0.1", port: int = 20128):
+        self.bus = bus
+        self.host = host
         self.port = port
         self.handlers = {}
-        self.connected = False
+        self.clients: Set[Any] = set()
+        self.server = None
+        self.db = MagiDatabase("magi_brain.db")
         
-    def register_handler(self, method: str, handler: Callable[[Any], Awaitable[Any]]):
+        # Registramos endpoints internos
+        self.register_handler("GET_TELEMETRY", self._handle_get_telemetry)
+        
+    def register_handler(self, method: str, handler: Callable[[Any, Any], Awaitable[Any]]):
         self.handlers[method] = handler
         
     async def start(self):
-        logger.info(f"Servidor RPC iniciando en ws://127.0.0.1:{self.port}")
-        self.connected = True
+        logger.info(f"Servidor RPC iniciando en ws://{self.host}:{self.port}")
+        self.bus.subscribe("*", self._handle_bus_event)
+        self.server = await websockets.serve(self._handler, self.host, self.port)
         
-    async def simulate_message_from_gui(self, message: str) -> str:
-        """Simula recibir un JSON de Tauri/React y procesarlo"""
+    async def close(self):
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+            
+    async def wait_closed(self):
+        if self.server:
+            await self.server.wait_closed()
+
+    async def _handle_bus_event(self, event: BusEvent):
+        if not self.clients:
+            return
+            
+        message = json.dumps({
+            "type": "event",
+            "topic": event.topic,
+            "payload": event.payload
+        })
+        
+        await asyncio.gather(
+            *[self._send_safe(client, message) for client in self.clients]
+        )
+            
+    async def _send_safe(self, client, message: str):
+        try:
+            await client.send(message)
+        except websockets.exceptions.ConnectionClosed:
+            pass
+
+    async def _handler(self, websocket):
+        remote_ip = websocket.remote_address[0]
+        if remote_ip not in ("127.0.0.1", "::1"):
+            logger.warning(f"Rechazada conexión desde IP externa: {remote_ip}")
+            await websocket.close(1008, "Only local connections allowed.")
+            return
+
+        self.clients.add(websocket)
+        logger.info(f"Cliente GUI conectado desde {remote_ip}")
+        
+        try:
+            async for message in websocket:
+                if isinstance(message, bytes):
+                    await self._process_rpc(websocket, '{"method": "magi_connect", "params": {"binary_mode": true}}')
+                else:
+                    await self._process_rpc(websocket, message)
+        except websockets.exceptions.ConnectionClosed:
+            pass
+        finally:
+            self.clients.remove(websocket)
+            logger.info("Cliente GUI desconectado.")
+
+    async def _process_rpc(self, websocket, message: str):
         try:
             data = json.loads(message)
-            method = data.get("method")
-            payload = data.get("payload", {})
-            req_id = data.get("request_id", "0")
+            method = data.get("type") or data.get("method")
+            payload = data.get("payload") or data.get("params") or data
+            req_id = data.get("id") or data.get("request_id", "0")
             
             if method in self.handlers:
-                result = await self.handlers[method](payload)
-                return json.dumps({"request_id": req_id, "ok": True, "result": result})
+                result = await self.handlers[method](payload, websocket)
+                if result is not None:
+                    await websocket.send(json.dumps({"id": req_id, "ok": True, "result": result}))
             else:
-                return json.dumps({"request_id": req_id, "ok": False, "error": {"message": "Method not found"}})
+                await websocket.send(json.dumps({"id": req_id, "ok": False, "error": f"Method {method} not found"}))
                 
         except json.JSONDecodeError:
-             return json.dumps({"ok": False, "error": {"message": "Invalid JSON"}})
+            logger.error("Mensaje no es JSON válido.")
+
+    async def _handle_get_telemetry(self, payload: Any, websocket: Any) -> Any:
+        return await self.db.get_telemetry()
+
+    async def simulate_message_from_gui(self, message: str) -> str:
+        """Helper para pruebas unitarias sin levantar el websocket real."""
+        class DummyWebSocket:
+            def __init__(self):
+                self.responses = []
+            async def send(self, data):
+                self.responses.append(data)
+        
+        ws = DummyWebSocket()
+        await self._process_rpc(ws, message)
+        return ws.responses[0] if ws.responses else ""

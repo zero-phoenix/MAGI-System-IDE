@@ -21,3 +21,8 @@ magi-gui/.npm/
 # Temp
 scratch/
 *.log
+
+# PyInstaller
+dist/
+build/
+*.spec

@@ -10,6 +10,18 @@ export interface AgentMessage {
   stats: string;
 }
 
+export interface Project {
+  name: string;
+  desc: string;
+}
+
+export interface Metrics {
+  prov_a: string;
+  prov_b: string;
+  prov_c: string;
+  status: string;
+}
+
 interface MagiState {
   connected: boolean;
   setConnected: (status: boolean) => void;
@@ -21,6 +33,15 @@ interface MagiState {
   appendTerminal: (text: string) => void;
   
   sysCommand: (cmd: string) => void;
+
+  projects: Project[];
+  setProjects: (projects: Project[]) => void;
+
+  metrics: Metrics;
+  setMetrics: (metrics: Metrics) => void;
+
+  telemetry: any[];
+  setTelemetry: (data: any[]) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -35,5 +56,14 @@ export const useMagiStore = create<MagiState>((set) => ({
   
   sysCommand: (cmd) => {
     set((state) => ({ terminalOutput: state.terminalOutput + `\nroot@system:~# ${cmd}` }));
-  }
+  },
+
+  projects: [],
+  setProjects: (projects) => set({ projects }),
+
+  metrics: { prov_a: "0/0", prov_b: "0/0", prov_c: "0/0", status: "offline" },
+  setMetrics: (metrics) => set({ metrics }),
+
+  telemetry: [],
+  setTelemetry: (telemetry) => set({ telemetry })
 }));

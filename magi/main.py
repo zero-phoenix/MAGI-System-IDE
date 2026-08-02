@@ -4,10 +4,12 @@ import argparse
 import sys
 import os
 import signal
+import threading
+import webview
+from magi.gui_server import GUIServer
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from magi.core.bus import MagiBus
-from magi.gui.server import GUIServer
+from magi.core.kernel import Kernel
 from magi.modules.resilience.selector import CloudSelector
 from magi.modules.route.gateway import Gateway
 from magi.modules.memory.composer import Composer
@@ -30,14 +32,10 @@ class MagiSystem:
         if self.debug:
             logging.getLogger().setLevel(logging.DEBUG)
             
-        self.bus = MagiBus()
+        self.kernel = Kernel(host=self.host, port=self.port)
+        self.bus = self.kernel.bus
         # Inicialización de Resiliencia Cloud-Only (Área 6)
         self.cloud_selector = CloudSelector(["cloud-openai-gpt4", "cloud-anthropic-claude", "cloud-google-gemini", "cloud-mistral", "cloud-cohere"])
-        
-        # Inicialización del Servidor GUI (Área 10)
-        self.gui_server = GUIServer(self.bus, host=self.host, port=self.port)
-        
-        self._ws_server_instance = None
         self._shutdown_event = asyncio.Event()
 
     async def _setup_signal_handlers(self):
@@ -57,13 +55,13 @@ class MagiSystem:
         # 1. Setup de señales
         await self._setup_signal_handlers()
         
-        # 2. Levantar el broker elevado de GUI (Área 10)
-        self._ws_server_instance = await self.gui_server.start()
+        # 2. Levantar el Kernel (Área 0)
+        await self.kernel.start()
         
         # 3. Levantar otros módulos base
         self.gateway = Gateway()
         from magi.modules.memory.record import MemoryRecord
-        self.record = MemoryRecord()
+        self.record = MemoryRecord("main_session")
         self.composer = Composer(self.record)
         
         # Inyección de MAGI 2.0 (Amplificación)
@@ -136,27 +134,68 @@ class MagiSystem:
         if hasattr(self, 'hive') and self.hive:
             self.hive.shutdown()
             
-        if self._ws_server_instance:
-            self._ws_server_instance.close()
-            await self._ws_server_instance.wait_closed()
+        if hasattr(self, 'kernel') and self.kernel:
+            await self.kernel.shutdown()
             logger.info("Sistema apagado correctamente.")
             if hasattr(self, 'cellular_router'):
                 self.cellular_router.shutdown()
+
+def _start_magi_background(magi, loop):
+    """Ejecuta el loop asyncio en un hilo secundario"""
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(magi.start())
+    except Exception as e:
+        logger.error(f"Error fatal en el loop secundario: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="MAGI System IDE Bootstrapper")
     parser.add_argument("--host", default="127.0.0.1", help="Host para el GUI Server (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=20128, help="Puerto para el GUI Server (default: 20128)")
+    parser.add_argument("--gui-port", type=int, default=1420, help="Puerto HTTP local para el Frontend (default: 1420)")
     parser.add_argument("--debug", action="store_true", help="Habilitar logs de depuración")
     
     args = parser.parse_args()
     
     magi = MagiSystem(host=args.host, port=args.port, debug=args.debug)
     
-    try:
-        asyncio.run(magi.start())
-    except KeyboardInterrupt:
-        pass # Handle natively in asyncio loop
+    # 1. Iniciar Servidor GUI Estático
+    gui = GUIServer(port=args.gui_port)
+    gui.start()
     
+    # 2. Iniciar el Kernel MAGI en un Hilo Secundario
+    magi_loop = asyncio.new_event_loop()
+    magi_thread = threading.Thread(target=_start_magi_background, args=(magi, magi_loop), daemon=True)
+    magi_thread.start()
+    
+    # 3. Lanzar WebView en el Hilo Principal (Bloqueante)
+    logger.info("Iniciando ventana nativa de MAGI...")
+    webview.create_window(
+        title="MAGI System IDE",
+        url=f"http://127.0.0.1:{args.gui_port}",
+        width=1280,
+        height=800,
+        frameless=False,
+        easy_drag=False
+    )
+    
+    # Esto bloqueará hasta que el usuario cierre la ventana
+    webview.start(debug=args.debug)
+    
+    # 4. Apagado Limpio al cerrar la ventana
+    logger.info("Ventana cerrada. Apagando sistemas...")
+    gui.stop()
+    
+    # Señalizar al loop que se detenga
+    if sys.platform != 'win32':
+        magi_loop.call_soon_threadsafe(magi._shutdown_event.set)
+    else:
+        # Hack simple para despertar y apagar en Windows
+        magi_loop.call_soon_threadsafe(magi._shutdown_event.set)
+        
+    magi_thread.join(timeout=3)
+    logger.info("MAGI cerrado por completo. Adiós.")
+    sys.exit(0)
+
 if __name__ == "__main__":
     main()

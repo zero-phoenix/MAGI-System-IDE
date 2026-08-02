@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useMagiStore } from './store';
 
-export function useMagiSocket(port: number = 20140) {
+export function useMagiSocket(port: number = 20128) {
   const ws = useRef<WebSocket | null>(null);
   const { setConnected, addMessage, appendTerminal } = useMagiStore();
 
@@ -13,23 +13,41 @@ export function useMagiSocket(port: number = 20140) {
         ws.current.onopen = () => {
           setConnected(true);
           appendTerminal(`[NETWORK] Conexión WebSocket establecida en puerto ${port}`);
+          // Solicitar estado real inicial
+          ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
         };
 
         ws.current.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.type === 'AGENT_POST') {
-              addMessage({
-                id: Math.random().toString(36),
-                agent: data.agent,
-                role: data.role || 'propone',
-                provider: data.provider || 'local',
-                content: data.content,
-                changes: data.changes || 0,
-                stats: data.stats || '0 ms'
-              });
-            } else if (data.type === 'TERMINAL_OUT') {
-              appendTerminal(data.content);
+            
+            if (data.type === 'event') {
+              const topic = data.topic;
+              const payload = data.payload;
+              
+              if (topic === 'AGENT_POST') {
+                addMessage({
+                  id: Math.random().toString(36),
+                  agent: payload.agent,
+                  role: payload.role || 'propone',
+                  provider: payload.provider || 'local',
+                  content: payload.content,
+                  changes: payload.changes || 0,
+                  stats: payload.stats || '0 ms'
+                });
+              } else if (topic === 'TERMINAL_OUT') {
+                appendTerminal(payload.content || payload.message || String(payload));
+              }
+            } else if (data.ok !== undefined) {
+               // Es una respuesta directa RPC
+               if (data.id === 'sync_0' && data.result) {
+                 useMagiStore.getState().setProjects(data.result.projects || []);
+                 if (data.result.metrics) {
+                   useMagiStore.getState().setMetrics(data.result.metrics);
+                 }
+               } else if (data.id === 'req_telemetry' && data.result) {
+                 useMagiStore.getState().setTelemetry(data.result);
+               }
             }
           } catch (e) {
             appendTerminal(`[NETWORK] Mensaje RAW: ${event.data}`);
@@ -59,5 +77,11 @@ export function useMagiSocket(port: number = 20140) {
     }
   };
 
-  return { sendCommand };
+  const fetchTelemetry = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'GET_TELEMETRY', id: 'req_telemetry' }));
+    }
+  };
+
+  return { sendCommand, fetchTelemetry };
 }

@@ -1,4 +1,5 @@
-name: Release MAGI Tauri
+name: Release MAGI-IDE Portable
+
 on:
   push:
     tags:
@@ -19,11 +20,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
       - name: Cache npm dependencies
         uses: actions/cache@v3
         with:
@@ -32,47 +28,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Cache cargo registry
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            magi-gui/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
       - name: Install Frontend Dependencies
         working-directory: magi-gui
         run: npm ci
 
-      - name: Build Tauri App
+      - name: Build React Frontend
         working-directory: magi-gui
-        run: npm run tauri build
+        run: npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build PyInstaller Executable
+        run: |
+          pyinstaller --clean --onefile --noconsole --name "MAGI-IDE" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
       - name: Get tag version
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
 
-      - name: Generate Changelog
-        id: generate_changelog
-        run: |
-          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s" > changelog.txt
-          echo "CHANGELOG<<EOF" >> $env:GITHUB_ENV
-          cat changelog.txt >> $env:GITHUB_ENV
-          echo "EOF" >> $env:GITHUB_ENV
-
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          name: MAGI System IDE ${{ env.VERSION }}
+          name: MAGI System IDE ${{ env.VERSION }} SOTA
           body: |
-            ## Novedades en esta versión
-            ${{ env.CHANGELOG }}
-            
+            ## MAGI System IDE (Release Nativo y Portable)
             Este release contiene el compilado nativo `.exe` de la interfaz de Alta Frecuencia (Standalone Portable).
+            
+            ### Novedades y Características Arquitectónicas (v2.0.0)
+            - **RAG Vectorial Algebraico**: Indexador TF-IDF ultraligero que vectoriza +2000 habilidades (Awesome Skills) sin ahogar la CPU.
+            - **Motor de Evasión (Cloud WAF)**: Suplantación de navegadores TLS en cascada con sistema de cuarentena (TTL) para burlar Rate Limits y bloqueos Cloudflare.
+            - **Telemetría Empírica Persistente**: Sistema que evalúa matemáticamente el rendimiento, la densidad de código y la latencia de cada nodo del Enjambre de IAs.
+            - **Portable EXE via PyWebView**: El backend Python, el frontend React/Vite y la persistencia SQLite comprimidos en un solo binario de Windows (`MAGI-IDE.exe`).
           files: |
-            magi-gui/src-tauri/target/release/magi-gui.exe
+            dist/MAGI-IDE.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

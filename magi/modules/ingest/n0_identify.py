@@ -1,69 +1,90 @@
 import os
+import magic
+import zipfile
+import tarfile
 from pathlib import Path
 from .models import FormatProfile
 
 class IdentifierN0:
     """
-    N0: Identificación mediante fusión de señales (A15-1.2).
-    La extensión nunca decide sola.
+    N0: Identificación mediante libmagic (python-magic) y validación estructural.
+    La extensión nunca decide sola, solo desempata o apoya.
     """
     def identify(self, path: Path) -> FormatProfile:
-        # En una implementación real usaría libmagic, Apache Tika y heurísticas.
-        # Aquí proveemos la estructura de desempate.
-        
-        filename = path.name.lower()
-        
-        # Simulación de señales
-        magic_signal = self._mock_magic(path)
+        if not path.exists():
+            return FormatProfile(family="unknown", name="Not Found", confidence=0.0, evidence=["File not found"])
+            
         ext = path.suffix.lower()
-        
-        confidence = 0.0
-        family = "unknown"
-        name = "unknown"
         evidence = []
         
-        # Simulación: ZIP que es DOCX
-        if magic_signal == "application/zip":
-            if ext == ".docx":
-                family = "wordprocessor"
-                name = "OOXML Word (DOCX)"
-                confidence = 0.95
-                evidence = ["magic ZIP", "estructura OOXML", "extensión .docx (desempate)"]
-            elif ext == ".jar":
-                family = "archive"
-                name = "Java Archive"
-                confidence = 0.90
-                evidence = ["magic ZIP", "extensión .jar"]
-            else:
-                family = "archive"
-                name = "ZIP Archive"
-                confidence = 0.80
-                evidence = ["magic ZIP"]
-        elif magic_signal == "text/plain":
+        # 1. libmagic para inspección profunda (magic bytes)
+        try:
+            mime_type = magic.from_file(str(path), mime=True)
+            magic_desc = magic.from_file(str(path))
+            evidence.append(f"libmagic: {mime_type}")
+        except Exception as e:
+            mime_type = "application/octet-stream"
+            magic_desc = "unknown"
+            evidence.append(f"libmagic falló: {e}")
+            
+        family = "unknown"
+        name = "Unknown Format"
+        confidence = 0.0
+        
+        # 2. Análisis estructural para contenedores
+        is_zip = zipfile.is_zipfile(str(path))
+        is_tar = tarfile.is_tarfile(str(path))
+        
+        if is_zip or is_tar or mime_type in ["application/zip", "application/x-tar", "application/gzip"]:
+            family = "archive"
+            name = "ZIP/TAR Archive"
+            confidence = 0.85
+            if is_zip: evidence.append("Estructura comprobada: ZIP")
+            if is_tar: evidence.append("Estructura comprobada: TAR")
+            
+            # Subtipos estructurales dentro de ZIP (DOCX, JAR, etc.)
+            if is_zip:
+                # Comprobar si es DOCX/OOXML
+                try:
+                    with zipfile.ZipFile(str(path), 'r') as zf:
+                        if "word/document.xml" in zf.namelist():
+                            family = "wordprocessor"
+                            name = "OOXML Word (DOCX)"
+                            confidence = 0.95
+                            evidence.append("Estructura OOXML (word/document.xml)")
+                        elif "META-INF/MANIFEST.MF" in zf.namelist() and ext == ".jar":
+                            name = "Java Archive"
+                            confidence = 0.90
+                            evidence.append("Estructura JAR y extensión .jar")
+                except zipfile.BadZipFile:
+                    pass
+                    
+        elif mime_type.startswith("text/"):
             family = "text"
             name = "Plain Text"
             confidence = 0.9
-            evidence = ["magic TEXT"]
-        
-        # Si la extensión no cuadra con la estructura, la estructura manda.
-        # En un test con extensión falsa (ej. ZIP renombrado a .doc), detectará ZIP.
-        if ext == ".doc" and magic_signal == "application/zip":
-            # Demostración del Gate N0: extensión ignorada.
-            family = "archive"
-            name = "ZIP Archive"
-            confidence = 0.85
-            evidence = ["magic ZIP", "ignoring fake .doc extension"]
-
+        elif mime_type == "application/pdf":
+            family = "document"
+            name = "PDF Document"
+            confidence = 0.95
+        elif mime_type.startswith("image/"):
+            family = "image"
+            name = magic_desc
+            confidence = 0.90
+            
+        # 3. La extensión como desempate (Regla de Oro A15-1)
+        if ext == ".doc" and family == "archive":
+            # Demostración del Gate N0: extensión ignorada si choca frontalmente con la estructura.
+            evidence.append(f"Extensión {ext} ignorada, contradice la estructura.")
+        elif family == "unknown" and ext != "":
+            # Si libmagic falla (e.g. un formato muy crudo), la extensión puede dar una pista débil (Nivel 5)
+            evidence.append(f"Única pista: extensión {ext}")
+            confidence = 0.3
+            name = f"Unknown {ext} file"
+            
         return FormatProfile(
             family=family,
             name=name,
             confidence=confidence,
             evidence=evidence
         )
-        
-    def _mock_magic(self, path: Path) -> str:
-        # Simula el retorno de libmagic
-        name = path.name.lower()
-        if "zip" in name or name.endswith(".docx"):
-            return "application/zip"
-        return "application/octet-stream"

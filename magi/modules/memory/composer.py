@@ -1,25 +1,49 @@
+import logging
 from magi.modules.memory.record import MemoryRecord
+from magi.modules.memory.nosummary import NoSummary
+
+logger = logging.getLogger(__name__)
 
 class Composer:
     """
     Compositor de Contexto (P18.c).
-    Prepara la ventana de contexto. Si se excede, direcciona pero NO resume.
+    Prepara la ventana de contexto. Si excede, direcciona mediante índice completo literal, pero NO resume.
     """
     def __init__(self, record: MemoryRecord):
         self.record = record
+        self.validator = NoSummary(record)
         
     def compose(self, budget_tokens: int, items_to_include: list) -> dict:
         """
-        Simula el ensamblado. Si el presupuesto es muy bajo, omite el cuerpo
-        y deja sólo referencias explícitas (truncado indexado).
+        Ensambla el contexto.
+        A18-2: Si no cabe, compone un índice (Bloque 2) con 160 chars literales e instrucción de fetch.
         """
-        total_len = sum(len(self.record.get_text(i)) for i in items_to_include)
-        # Asumiendo 1 token = 4 chars
-        if (total_len / 4) > budget_tokens:
-            return {
-                "context": f"Hay elementos no cargados: {items_to_include}. Recupéralos con memory.fetch antes de pronunciarte sobre ellos."
-            }
+        # Calcular tokens de todos los ítems completos (aprox. 4 chars por token)
+        total_chars = sum(len(self.record.get_text(i)) for i in items_to_include)
+        
+        if (total_chars / 4) > budget_tokens:
+            logger.info(f"memory.overflow: El registro excede {budget_tokens} tokens. Activando modo direccionado.")
+            # Montar bloque 2 (Índice Literal)
+            index_lines = []
+            for i in items_to_include:
+                full_text = self.record.get_text(i)
+                # Validar que no perdemos texto original
+                self.validator.assert_verbatim(full_text, i)
+                
+                # Extraemos hasta 160 chars LITERAMENTE
+                snippet = full_text[:160] + "..." if len(full_text) > 160 else full_text
+                index_lines.append(f"[{i}]: {snippet}")
             
-        # Cabe bien
-        full_text = " ".join([self.record.get_text(i) for i in items_to_include])
-        return {"context": full_text}
+            warning_msg = f"Hay {len(items_to_include)} elementos relacionados con este turno que no están cargados íntegramente. Recupéralos con memory.fetch antes de pronunciarte sobre ellos."
+            
+            context_body = "\n".join(index_lines) + "\n\n" + warning_msg
+            return {"context": context_body, "mode": "directed"}
+            
+        # Si cabe completo: Bloque 3 (Cuerpo literal)
+        full_blocks = []
+        for i in items_to_include:
+            text = self.record.get_text(i)
+            self.validator.assert_verbatim(text, i)
+            full_blocks.append(f"[{i}]:\n{text}")
+            
+        return {"context": "\n\n".join(full_blocks), "mode": "full"}

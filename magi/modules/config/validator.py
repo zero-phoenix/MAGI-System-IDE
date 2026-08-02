@@ -1,4 +1,4 @@
-from magi.modules.config.schema import ConfigSchema
+from magi.modules.config.schema import ConfigDeclarationRegister
 
 class ConfigValidator:
     """
@@ -6,7 +6,7 @@ class ConfigValidator:
     Garantiza que no se puedan inyectar configuraciones peligrosas.
     """
     def __init__(self):
-        self.schema = ConfigSchema()
+        self.schema = ConfigDeclarationRegister()
         
     def validate_import(self, incoming_config: dict) -> dict:
         """
@@ -19,12 +19,12 @@ class ConfigValidator:
                 
             # Regla: debate.rounds.min nunca puede ser menor que 3
             if key == "debate.rounds.min":
-                if value < field_def["minimum"]:
-                    return {"success": False, "reason": f"Value {value} for {key} is below absolute minimum of {field_def['minimum']}"}
+                if value < field_def.minimum:
+                    return {"success": False, "reason": f"Value {value} for {key} is below absolute minimum of {field_def.minimum}"}
                     
             # Regla: topes de seguridad
             if key == "security.max_temp":
-                if value > field_def["maximum"]:
-                    return {"success": False, "reason": f"Value {value} for {key} exceeds factory maximum of {field_def['maximum']}"}
+                if value > field_def.maximum:
+                    return {"success": False, "reason": f"Value {value} for {key} exceeds factory maximum of {field_def.maximum}"}
                     
         return {"success": True, "validated_config": incoming_config}
