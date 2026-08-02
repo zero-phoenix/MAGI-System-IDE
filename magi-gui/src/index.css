@@ -1,1 +1,4 @@
-/* Reset default vite styling */
+/* Vite styling reset */
+* {
+  box-sizing: border-box;
+}

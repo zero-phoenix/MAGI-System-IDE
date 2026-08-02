@@ -38,7 +38,7 @@ export function useMagiSocket(port: number = 20140) {
 
         ws.current.onclose = () => {
           setConnected(false);
-          appendTerminal(`[NETWORK] Conexión perdida. Reconectando en 3s...`);
+          // appendTerminal(`[NETWORK] Conexión perdida. Reconectando en 3s...`);
           setTimeout(connect, 3000);
         };
       } catch (err) {

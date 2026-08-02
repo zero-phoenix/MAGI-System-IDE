@@ -48,30 +48,30 @@ function App() {
         <b>MAGI SYSTEM IDE</b> — ejecutable de escritorio. Interfaz horizontal fija.
       </div>
 
-      <div className="app">
-        <div className="bar">
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
-            <span className="secs">
-              <button 
-                className={topSection === "Conversación" ? "on" : ""} 
-                onClick={() => setTopSection("Conversación")}
-              >Conversación</button>
-              <button 
-                className={topSection === "Proyectos" ? "on" : ""}
-                onClick={() => setTopSection("Proyectos")}
-              >Proyectos</button>
-            </span>
-          </div>
-          <div className="q">
-            <span>prov-a <b>31/50</b></span>
-            <span>prov-b <b>agotado · repone 19:40</b></span>
-            <span>prov-c <b>ok</b></span>
-            <span>⚙</span>
-            <span className="stop" style={{cursor: "pointer"}} onClick={handleStopAll}>PARAR TODO</span>
-          </div>
+      <div className="bar">
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
+          <span className="secs">
+            <button 
+              className={topSection === "Conversación" ? "on" : ""} 
+              onClick={() => setTopSection("Conversación")}
+            >Conversación</button>
+            <button 
+              className={topSection === "Proyectos" ? "on" : ""}
+              onClick={() => setTopSection("Proyectos")}
+            >Proyectos</button>
+          </span>
         </div>
+        <div className="q">
+          <span>prov-a <b>31/50</b></span>
+          <span>prov-b <b>agotado · repone 19:40</b></span>
+          <span>prov-c <b>ok</b></span>
+          <span>⚙</span>
+          <span className="stop" style={{cursor: "pointer"}} onClick={handleStopAll}>PARAR TODO</span>
+        </div>
+      </div>
 
+      <div className="app">
         {/* CARRIL */}
         <div className="col rail">
           <input
