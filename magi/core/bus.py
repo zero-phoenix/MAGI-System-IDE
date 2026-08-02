@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class BusEvent(BaseModel):
     topic: str
-    payload: Dict[str, Any]
+    payload: Any
     critical: bool = False
 
 class MagiBus:

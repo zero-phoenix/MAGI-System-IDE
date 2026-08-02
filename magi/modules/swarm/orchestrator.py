@@ -39,7 +39,6 @@ class SwarmOrchestrator:
                     
                     if blocks:
                         from pathlib import Path
-                        import asyncio
                         import os
                         
                         async def _auto_exec():
