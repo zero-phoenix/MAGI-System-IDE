@@ -1,4 +1,4 @@
-# MAGI System IDE (V5.0.0)
+# MAGI System IDE (V5.0.1)
 
 MAGI System IDE es una interfaz gráfica de escritorio y un orquestador backend potenciado por un enjambre de Inteligencias Artificiales coordinadas, diseñado para operar localmente y comunicarse con proveedores de IA en la nube mediante técnicas de evasión, proporcionando un entorno autónomo de ingeniería de software.
 

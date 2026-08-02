@@ -47,9 +47,9 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: dist/MAGI-IDE-v5.exe
-        name: "MAGI System IDE V5.0.0 - Auto-Routing & Scroll Fix"
+        name: "MAGI System IDE V5.0.1 - Auto-Routing & Scroll Fix"
         body: |
-          ### 🚀 Actualizaciones y Modificaciones (V5.0.0):
+          ### 🚀 Actualizaciones y Modificaciones (V5.0.1):
           - **Enrutamiento G4F Dinámico (Anti-429):** El núcleo intercepta solicitudes a modelos caídos y los redirige de forma transparente al proveedor más estable (`gpt-4o`) para evitar el colapso del Enjambre. Funciona nativamente sin keys.
           - **UI Master Layout:** La Consola y el panel de conversaciones ahora soportan auto-scroll real sin desbordar el contenedor en Windows.
           - **Selección de Texto:** Los comandos y los códigos del enjambre ya pueden ser copiados libremente.
