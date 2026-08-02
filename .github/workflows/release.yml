@@ -47,9 +47,9 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: dist/MAGI-IDE-v5.exe
-        name: "MAGI System IDE V5.0.3 - Agentic Mode & Strict Constraints"
+        name: "MAGI System IDE V5.0.7 - Agentic Mode & Strict Constraints"
         body: |
-          ### 🚀 Actualizaciones y Modificaciones (V5.0.3):
+          ### 🚀 Actualizaciones y Modificaciones (V5.0.7):
           - **Modo Agentic Completo:** MAGI ahora es consciente de que corre en Windows. Puede ejecutar scripts y comandos localmente sobre la carpeta del proyecto a través de la interfaz usando el botón `Ejecutar en PC`.
           - **Aislamiento de Contextos:** Se agregó un botón `Nueva Consulta` para limpiar la memoria del enjambre y evitar contaminación entre tareas independientes.
           - **Audio Personalizado:** Sustitución de osciladores web básicos por archivos MP3 de alta fidelidad para el feedback auditivo de los agentes.
