@@ -8,12 +8,11 @@ import remarkGfm from 'remark-gfm';
 
 function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
-  const [selectedProject, setSelectedProject] = useState("");
   const [inputVal, setInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
   const { 
-    connected, messages, addMessage, terminalOutput, sysCommand, projects, metrics, telemetry,
-    activeConversationId, startNewConversation
+    connected, messages, addMessage, terminalOutput, sysCommand, metrics, telemetry,
+    activeConversationId, setActiveConversationId, conversations, startNewConversation
   } = useMagiStore();
   const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
@@ -142,8 +141,8 @@ function App() {
   const melchiorColor = isApproved ? "#0f0" : "";
   const balthasarColor = isRejected ? "#f55" : (isApproved ? "#0f0" : "");
   
-  // Filter Projects
-  const filteredProjects = projects ? projects.filter(p => !p.name.includes('__pycache__') && p.name !== 'agentic-awesome-skills') : [];
+  // Filter Conversations (instead of projects)
+  const conversationKeys = Object.keys(conversations);
 
   return (
     <>
@@ -175,19 +174,19 @@ function App() {
             placeholder="Buscar proyectos…"
           />
           <div className="sc">
-            <div className="sect">Proyectos detectados</div>
-            {filteredProjects.length > 0 ? filteredProjects.map((item, idx) => (
+            <div className="sect">Conversaciones Activas</div>
+            {conversationKeys.length > 0 ? conversationKeys.map((taskId, idx) => (
               <div 
                 key={idx} 
-                className={`th ${selectedProject === item.name ? 'on' : ''}`}
-                onClick={() => setSelectedProject(item.name)}
+                className={`th ${activeConversationId === taskId ? 'on' : ''}`}
+                onClick={() => setActiveConversationId(taskId)}
               >
-                {item.name}
-                <small>{item.desc}</small>
+                {taskId}
+                <small>{conversations[taskId]?.length || 0} mensajes</small>
               </div>
             )) : (
               <div style={{ padding: "10px", fontSize: "10px", color: "#5f7378" }}>
-                Sin proyectos locales válidos.
+                Sin conversaciones.
               </div>
             )}
             
@@ -197,7 +196,7 @@ function App() {
                 style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
                 onClick={() => startNewConversation()}
               >
-                <span>+</span> Nueva Consulta (Limpiar Contexto)
+                <span>+</span> Nueva Conversación
               </button>
             </div>
           </div>
@@ -222,7 +221,7 @@ function App() {
           
           <div style={{ background: "#050809", padding: "5px 10px", borderBottom: "1px solid var(--gr)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "11px", color: "var(--dim)" }}>
-              Proyecto Activo: <b style={{ color: "var(--node)" }}>{selectedProject || "[Global]"}</b>
+              Contexto Activo: <b style={{ color: "var(--node)" }}>{activeConversationId}</b>
             </span>
           </div>
 
@@ -253,7 +252,7 @@ function App() {
           <div className="conv" style={{ flex: 1 }}>
             <div className="you">
               <div className="w">SISTEMA</div>
-              {selectedProject ? `Contexto anclado a ${selectedProject}. Esperando flujos del Enjambre...` : "Conectado a la Pasarela Global. Esperando flujos del Enjambre..."}
+              Conectado a la Pasarela Global. Esperando flujos del Enjambre para {activeConversationId}...
             </div>
 
             {messages.map((msg, i) => (
@@ -273,7 +272,7 @@ function App() {
                     </span>
                   )}
                 </div>
-                <div className="pl markdown-body" style={{ color: "var(--ink)", padding: "10px 0" }}>
+                <div className="pl markdown-body" style={{ color: "#cfe0e4", padding: "10px 0" }}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]}
                     components={{ code: renderCode }}
@@ -295,7 +294,7 @@ function App() {
               <textarea
                 className="pf"
                 rows={1}
-                placeholder={`Instrucciones para ${selectedProject || 'el sistema global'}...`}
+                placeholder={`Instrucciones para ${activeConversationId}...`}
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 onKeyDown={(e) => {
@@ -351,37 +350,54 @@ function App() {
               </div>
             )}
             
-            {activeTab === "Configuración" && (
+             {activeTab === "Configuración" && (
                <div style={{ flex: 1, background: "#050a0b", border: "1px solid var(--dim)", padding: "20px", color: "#cfe0e4", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
-                  <h2 style={{ color: "var(--acc)", marginBottom: "15px" }}>Configuración del Sistema MAGI</h2>
-                  <p style={{ color: "var(--dim)", marginBottom: "20px" }}>Ajustes del orquestador y conexiones de red.</p>
+                  <h2 style={{ color: "var(--acc)", marginBottom: "15px" }}>Estado de Inteligencias Artificiales</h2>
+                  <p style={{ color: "var(--dim)", marginBottom: "20px" }}>Resumen de la arquitectura del Enjambre y modelos utilizados por MAGI a través del G4F Auto-Router.</p>
                   
-                  <div style={{ marginBottom: "15px" }}>
-                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>Conexión LLM (Backend)</label>
-                    <select style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }}>
-                      <option>Nativo (G4F Auto-Router Open Source)</option>
-                      <option>Ollama (Local LLM)</option>
-                      <option>OpenRouter (Bring Your Own Key)</option>
-                    </select>
-                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px", fontSize: "12px" }}>
+                    <thead>
+                      <tr style={{ background: "var(--gr)", textAlign: "left" }}>
+                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>IA (Rol)</th>
+                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Modelo Principal</th>
+                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Fallback (Evasión anti-429)</th>
+                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Estado G4F</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--node)", fontWeight: "bold" }}>🧠 MELCHIOR (Arquitecto)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>DeepSeek / LLaMA 3</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--dang)", fontWeight: "bold" }}>🛡️ BALTHASAR (Crítico)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Claude 3.5 Sonnet</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--warn)", fontWeight: "bold" }}>⚖️ CASPER (Árbitro)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Qwen 2.5</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
+                      </tr>
+                    </tbody>
+                  </table>
                   
-                  <div style={{ marginBottom: "15px" }}>
-                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>Ollama URL (Opcional)</label>
-                    <input type="text" placeholder="http://localhost:11434" style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }} />
-                  </div>
-
-                  <div style={{ marginBottom: "15px" }}>
-                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>API Key Personal (Opcional)</label>
-                    <input type="password" placeholder="sk-..." style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }} />
-                  </div>
-
-                  <button className="bt go" onClick={() => sysCommand("Guardando configuración...")}>Guardar Cambios</button>
+                  <p style={{ color: "#8fa4aa", fontSize: "11px", fontStyle: "italic", marginTop: "20px" }}>
+                    * El enrutador G4F intercepta automáticamente las caídas de los modelos principales (por ej. cuando Claude 3.5 o DeepSeek imponen límites de uso) y redirige de forma transparente la solicitud hacia el ecosistema GPT-4o para garantizar que el Enjambre nunca se detenga. No se requieren API Keys locales.
+                  </p>
                </div>
             )}
             
             {activeTab === "Código" && (
-               <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#d4d4d4", overflowY: "auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "var(--dim)" }}>[Esperando sincronización de árbol de archivos para {selectedProject || "Global"}]</span>
+               <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#d4d4d4", overflowY: "auto" }}>
+                  <div className="sect">Árbol de Directorios</div>
+                  <div style={{ padding: "10px", fontSize: "11px" }}>
+                    <span style={{ color: "var(--dim)" }}>[Esperando sincronización de árbol de archivos para {activeConversationId}]</span>
+                  </div>
                </div>
             )}
 

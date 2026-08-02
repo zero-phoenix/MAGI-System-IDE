@@ -47,13 +47,13 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: dist/MAGI-IDE-v5.exe
-        name: "MAGI System IDE V5.0.7 - Agentic Mode & Strict Constraints"
+        name: "MAGI System IDE V5.0.8 - UI Overhaul & Conversation Isolation"
         body: |
-          ### 🚀 Actualizaciones y Modificaciones (V5.0.7):
-          - **Modo Agentic Completo:** MAGI ahora es consciente de que corre en Windows. Puede ejecutar scripts y comandos localmente sobre la carpeta del proyecto a través de la interfaz usando el botón `Ejecutar en PC`.
-          - **Aislamiento de Contextos:** Se agregó un botón `Nueva Consulta` para limpiar la memoria del enjambre y evitar contaminación entre tareas independientes.
-          - **Audio Personalizado:** Sustitución de osciladores web básicos por archivos MP3 de alta fidelidad para el feedback auditivo de los agentes.
-          - **Regla Estricta de 3 Rondas:** El Enjambre está bloqueado algorítmicamente para dar al menos 3 vueltas de Refinamiento (Melchior) y Crítica Falsacionista (Balthasar) antes de permitir una aprobación final.
-          - **Aprobación Interactiva (Casper):** Al alcanzar un consenso, el debate se pausa y Casper pedirá autorización explícita al usuario antes de permitir la ejecución de cualquier código. Melchior y Balthasar tienen prohibido hacer preguntas.
+          ### 🚀 Actualizaciones y Modificaciones (V5.0.8):
+          - **Aislamiento de Conversaciones (Pestañas):** La barra lateral ya no muestra "proyectos detectados". Ahora clasifica y aísla cada flujo de conversación en su propia pestaña real. Al cambiar de pestaña, el chat cambia dinámicamente sin perder contexto ni "borrar" nada.
+          - **Contraste de UI Mejorado:** Se corrigió el error de visibilidad que volvía ilegibles los textos de los agentes en el modo oscuro.
+          - **Nuevo Panel de Inteligencias Artificiales:** Se eliminó la configuración innecesaria de Ollama y API Keys. En su lugar, se agregó una tabla informativa detallando cada rol del enjambre (Melchior, Balthasar, Casper), sus modelos principales y el mecanismo de fallback anti-caídas (gpt-4o) soportado por G4F.
+          - **Audio MP3 Personalizado:** Se integró el archivo de audio recortado del usuario como sonido principal del sistema.
+          - **Regla Estricta de 3 Rondas y Aprobación Interactiva (Casper):** Mantiene las políticas estrictas de ejecución y revisión integradas en la V5.0.7.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
