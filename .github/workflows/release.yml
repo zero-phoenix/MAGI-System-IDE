@@ -38,10 +38,18 @@ jobs:
 
     - name: Build Executable (PyInstaller)
       run: |
-        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v3" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+    - name: Create Release and Upload Asset
+      uses: softprops/action-gh-release@v2
       with:
-        name: MAGI-IDE-v3.exe
-        path: dist/MAGI-IDE-v3.exe
+        files: dist/MAGI-IDE-v5.exe
+        name: "MAGI System IDE V5.0.0 - Auto-Routing & Scroll Fix"
+        body: |
+          ### 🚀 Actualizaciones y Modificaciones (V5.0.0):
+          - **Enrutamiento G4F Dinámico (Anti-429):** El núcleo intercepta solicitudes a modelos caídos y los redirige de forma transparente al proveedor más estable (`gpt-4o`) para evitar el colapso del Enjambre. Funciona nativamente sin keys.
+          - **UI Master Layout:** La Consola y el panel de conversaciones ahora soportan auto-scroll real sin desbordar el contenedor en Windows.
+          - **Selección de Texto:** Los comandos y los códigos del enjambre ya pueden ser copiados libremente.
+          - **Panel de Configuración:** Incorporado como pestaña nativa en el lienzo derecho para gestión interna.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
