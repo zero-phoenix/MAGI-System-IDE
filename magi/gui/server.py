@@ -107,7 +107,7 @@ class GUIServer:
                     "agent": "MELCHIOR",
                     "role": "propone",
                     "provider": "OpenAI GPT-4o",
-                    "content": f"Propongo la siguiente estructura inicial para resolver '{command}'. Se requieren 3 módulos principales y acceso a red.",
+                    "content": f"Propongo una estructura basada en micro-módulos para resolver '{command}'. Integraré llamadas asíncronas para el I/O y delegaré el procesamiento pesado a un subproceso con acceso a memoria compartida.",
                     "changes": 0,
                     "stats": "1.5s"
                 }))
@@ -118,7 +118,7 @@ class GUIServer:
                     "agent": "BALTHASAR",
                     "role": "critica",
                     "provider": "Claude 3.5 Sonnet",
-                    "content": "La propuesta de Melchior es arriesgada. Abrir acceso a red sin sanitización excede los protocolos de seguridad. Sugiero aislar el módulo.",
+                    "content": "La propuesta tiene fallas de concurrencia. El acceso a la memoria compartida sin bloqueos explícitos causará condiciones de carrera (race conditions). Además, el I/O asíncrono no maneja adecuadamente los timeouts bajo estrés.",
                     "changes": 0,
                     "stats": "1.8s"
                 }))
@@ -129,9 +129,9 @@ class GUIServer:
                     "agent": "CASPER",
                     "role": "arbitro",
                     "provider": "Gemini 1.5 Pro",
-                    "content": "Estoy de acuerdo con Balthasar. Melchior, reajusta la arquitectura para que corra en un sandbox estricto.",
+                    "content": "Sintetizando: Balthasar acierta en la vulnerabilidad de concurrencia, pero Melchior tiene razón en separar el I/O. Melchior, rediseña la arquitectura implementando el patrón Actor (message passing) en lugar de memoria compartida para evitar bloqueos, y añade un fallback a los timeouts.",
                     "changes": 0,
-                    "stats": "2.1s"
+                    "stats": "2.4s"
                 }))
                 
                 # Ronda 2
@@ -141,9 +141,9 @@ class GUIServer:
                     "agent": "MELCHIOR",
                     "role": "propone",
                     "provider": "OpenAI GPT-4o",
-                    "content": "Entendido. He reescrito la lógica. Todo se ejecutará en memoria aislada sin llamadas externas. Aquí está el código modificado.",
+                    "content": "Arquitectura rediseñada. He sustituido la memoria compartida por un bus de eventos y encapsulado el I/O con un circuit-breaker para garantizar resiliencia. El código ha sido inyectado.",
                     "changes": 3,
-                    "stats": "1.3s"
+                    "stats": "1.7s"
                 }))
                 
                 await asyncio.sleep(1.5)
@@ -152,7 +152,7 @@ class GUIServer:
                     "agent": "BALTHASAR",
                     "role": "critica",
                     "provider": "Claude 3.5 Sonnet",
-                    "content": "El nuevo código cumple con las normativas de seguridad. No hay fugas de memoria detectadas en el análisis estático.",
+                    "content": "El patrón de eventos resuelve las condiciones de carrera. El análisis estático de las nuevas dependencias del circuit-breaker está limpio. Seguridad estructural validada.",
                     "changes": 0,
                     "stats": "1.4s"
                 }))
@@ -163,14 +163,14 @@ class GUIServer:
                     "agent": "CASPER",
                     "role": "arbitro",
                     "provider": "Gemini 1.5 Pro",
-                    "content": "Consenso alcanzado. Procediendo a consolidar los cambios en el sistema base.",
+                    "content": "Consenso absoluto. La solución actual balancea perfectamente rendimiento y seguridad. Procediendo a consolidar la memoria base del sistema con el resultado final.",
                     "changes": 0,
-                    "stats": "900ms"
+                    "stats": "1.1s"
                 }))
                 
                 await websocket.send(json.dumps({
                     "type": "TERMINAL_OUT",
-                    "content": f"[SWARM] Ejecución completada. Consolidando {3} archivos."
+                    "content": f"[SWARM] Ejecución completada. Consolidando {3} archivos en el árbol del proyecto."
                 }))
                 return
                 
