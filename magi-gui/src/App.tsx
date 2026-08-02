@@ -56,8 +56,9 @@ function App() {
         <div className="q">
           <span>prov-a <b>{metrics?.prov_a || "0/0"}</b></span>
           <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
+          <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
-          <span style={{cursor: "pointer"}} onClick={() => setActiveTab("Terminal")}>⚙</span>
+          <span style={{cursor: "pointer"}} onClick={() => setActiveTab("Configuración")}>⚙</span>
           <span className="stop" style={{cursor: "pointer"}} onClick={handleStopAll}>PARAR TODO</span>
         </div>
       </div>
@@ -141,7 +142,7 @@ function App() {
             </div>
 
             {messages.map((msg, i) => (
-              <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`}>
+              <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`} style={{ userSelect: "text", WebkitUserSelect: "text" }}>
                 <div className="ch">
                   <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                     <span className="dot" style={{ background: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}></span>
@@ -198,7 +199,7 @@ function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Gráfico HDC", "Telemetría del Enjambre"].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Configuración", "Gráfico HDC", "Telemetría del Enjambre"].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -217,10 +218,38 @@ function App() {
             )}
             
             {activeTab === "Terminal" && (
-              <div style={{ flex: 1, background: "#000", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#0f0", whiteSpace: "pre-wrap", overflowY: "auto" }}>
+              <div className="selectable" style={{ flex: 1, background: "#000", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#0f0", whiteSpace: "pre-wrap", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
                 {terminalOutput}
                 <div ref={terminalEndRef} />
               </div>
+            )}
+            
+            {activeTab === "Configuración" && (
+               <div style={{ flex: 1, background: "#050a0b", border: "1px solid var(--dim)", padding: "20px", color: "#cfe0e4", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
+                  <h2 style={{ color: "var(--acc)", marginBottom: "15px" }}>Configuración del Sistema MAGI</h2>
+                  <p style={{ color: "var(--dim)", marginBottom: "20px" }}>Ajustes del orquestador y conexiones de red.</p>
+                  
+                  <div style={{ marginBottom: "15px" }}>
+                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>Conexión LLM (Backend)</label>
+                    <select style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }}>
+                      <option>Nativo (G4F Auto-Router Open Source)</option>
+                      <option>Ollama (Local LLM)</option>
+                      <option>OpenRouter (Bring Your Own Key)</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ marginBottom: "15px" }}>
+                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>Ollama URL (Opcional)</label>
+                    <input type="text" placeholder="http://localhost:11434" style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }} />
+                  </div>
+
+                  <div style={{ marginBottom: "15px" }}>
+                    <label style={{ display: "block", marginBottom: "5px", color: "var(--node)" }}>API Key Personal (Opcional)</label>
+                    <input type="password" placeholder="sk-..." style={{ background: "#000", color: "#fff", border: "1px solid var(--gr)", padding: "5px", width: "100%" }} />
+                  </div>
+
+                  <button className="bt go" onClick={() => sysCommand("Guardando configuración...")}>Guardar Cambios</button>
+               </div>
             )}
             
             {activeTab === "Código" && (

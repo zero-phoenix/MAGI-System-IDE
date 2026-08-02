@@ -73,19 +73,19 @@ class FreeCloudLLM:
         # Log persistence
         asyncio.create_task(self.db.log_provider_failure(name))
 
-    async def _fetch_from_provider(self, provider, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
-        """Intenta obtener una respuesta usando G4F nativo (sin corromper TLS)."""
+    async def _fetch_from_provider(self, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
+        """Intenta obtener una respuesta usando el motor de auto-enrutamiento de G4F."""
         if not self.client:
             raise ValueError("G4F client no inicializado")
             
-        logger.debug(f"[Enjambre] Lanzando {provider.__name__} de forma nativa...")
+        logger.debug(f"[Enjambre] G4F Auto-Routing para el modelo {model} (Intento {attempt})...")
         
         start_t = time.time()
         try:
-            # Quitamos impersonate y proxy manuales, dejamos que G4F use su evasión interna.
+            # Quitamos el parámetro 'provider' para que G4F seleccione automáticamente el mejor
+            # proveedor libre (OpenCode style / Auto-fallback).
             response = await self.client.chat.completions.create(
                 model=model,
-                provider=provider,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -95,20 +95,22 @@ class FreeCloudLLM:
             latency_ms = (time.time() - start_t) * 1000
             
             if content:
-                logger.info(f"[Enjambre] ¡VICTORIA! {provider.__name__} fue el más rápido ({latency_ms:.2f}ms).")
+                # G4F puede ocultar qué provider exacto usó si hace auto-fallback, 
+                # usaremos 'G4F_Auto_Router' para la telemetría empírica.
+                provider_name = "G4F_Auto_Router"
+                logger.info(f"[Enjambre] ¡VICTORIA! El auto-router completó la tarea en ({latency_ms:.2f}ms).")
                 
                 # Calcular telemetría empírica (Inteligencia/Complejidad)
                 has_code = "```" in content
                 word_count = len(content.split())
                 role = "Generación" if "MELCHIOR" in system_prompt else "Análisis" if "BALTHASAR" in system_prompt else "Arbitraje"
                 
-                asyncio.create_task(self.db.log_provider_success(provider.__name__, latency_ms, has_code, word_count, role))
+                asyncio.create_task(self.db.log_provider_success(provider_name, latency_ms, has_code, word_count, role))
                 
-                return (content, provider.__name__)
+                return (content, provider_name)
             raise ValueError("Respuesta vacía")
         except Exception as e:
-            logger.debug(f"[Enjambre] {provider.__name__} falló: {e}")
-            self._mark_failure(provider)
+            logger.debug(f"[Enjambre] Auto-router falló en intento {attempt}: {e}")
             raise e
 
     async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-4o") -> tuple[str, str]:
@@ -121,59 +123,26 @@ class FreeCloudLLM:
             logger.info(f"[LLM Cloud] ACIERTO EN CACHÉ. Retornando respuesta en 0ms.")
             return self._cache[cache_key]
             
-        # 2. Parallel Racing (Carrera Asíncrona) con Retries
+        # 2. Retries Secuenciales con Auto-Router
         max_retries = 3
         base_delay = 2.0
         
-        for attempt in range(max_retries):
-            alive_providers = [p for p in self.provider_swarm if self._is_alive(p)]
-            if not alive_providers:
-                logger.error("[LLM Cloud] Todos los proveedores están muertos (en cooldown).")
-                break
-                
-            logger.info(f"[LLM Cloud] Iniciando Carrera Asíncrona con {len(alive_providers)} proveedores vivos para '{model}' (Intento {attempt + 1}/{max_retries})...")
+        for attempt in range(1, max_retries + 1):
+            logger.info(f"[LLM Cloud] Iniciando petición a la nube para '{model}' (Intento {attempt}/{max_retries})...")
             
-            tasks = [
-                asyncio.create_task(self._fetch_from_provider(p, model, system_prompt, user_prompt, attempt))
-                for p in alive_providers
-            ]
-            
-            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-            
-            result_content = None
-            result_provider = "Unknown"
-            for task in done:
-                try:
-                    res = task.result()
-                    if res and res[0]:
-                        result_content, result_provider = res
-                        break
-                except Exception:
-                    pass
-                    
-            if not result_content:
-                logger.warning("[LLM Cloud] El primer batallón falló. Esperando a los rezagados...")
-                for task in asyncio.as_completed(pending):
-                    try:
-                        res = await task
-                        if res and res[0]:
-                            result_content, result_provider = res
-                            break
-                    except Exception:
-                        continue
-                        
-            for task in pending:
-                task.cancel()
+            try:
+                result_content, result_provider = await self._fetch_from_provider(model, system_prompt, user_prompt, attempt)
+                if result_content:
+                    self._cache[cache_key] = (result_content, result_provider)
+                    return (result_content, result_provider)
+            except Exception as e:
+                logger.warning(f"[LLM Cloud] Intento {attempt} fallido por completo. Posible 429 Rate Limit o indisponibilidad del modelo.")
+                asyncio.create_task(self.db.log_provider_failure("G4F_Auto_Router"))
                 
-            if result_content:
-                self._cache[cache_key] = (result_content, result_provider)
-                return (result_content, result_provider)
-                
-            logger.warning(f"[LLM Cloud] Intento {attempt + 1} fallido por completo. Posible 429 Rate Limit.")
-            if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                logger.info(f"[LLM Cloud] Aplicando backoff exponencial. Esperando {delay:.2f}s...")
-                await asyncio.sleep(delay)
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** (attempt-1)) + random.uniform(0, 1)
+                    logger.info(f"[LLM Cloud] Aplicando backoff exponencial. Esperando {delay:.2f}s...")
+                    await asyncio.sleep(delay)
                 
         logger.error("[LLM Cloud] Fallo Crítico en el Enjambre real. Agotados todos los reintentos y proveedores.")
         # Retornamos error real para no continuar el flujo simulado, tal como indicó el usuario.
