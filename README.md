@@ -13,69 +13,49 @@ MAGI System IDE es una interfaz gráfica de escritorio y un orquestador backend 
 
 ---
 
-## 🗺️ Arquitectura del Sistema (Flujos Verticales y Horizontales)
+## 🗺️ Arquitectura del Sistema: Flujo Integral Unidireccional
 
-El diseño de MAGI opera de manera bidimensional: **Verticalmente** (flujo de datos desde la máquina física hasta la nube) y **Horizontalmente** (la interacción asíncrona entre los múltiples agentes del Enjambre).
-
-### 1. Flujo Vertical (Hardware -> Nube)
-
-Este flujo detalla cómo una instrucción del usuario viaja desde el cliente React hasta los proveedores de IA.
+A continuación se detalla el ciclo de vida de una instrucción en MAGI System IDE, desde la entrada del usuario en su PC local hasta el arbitraje final, pasando por la nube.
 
 ```mermaid
 graph TD
-    %% Flujo Vertical
-    U((Usuario)) -->|Click / Texto| A(Frontend React - Master Layout)
-    A -->|WebSocket| B(Servidor RPC - WSServer)
-    B -->|MagiBus Event| C(Kernel Python - Área 0)
+    %% -- CAPA CLIENTE LOCAL (WINDOWS) --
+    U(("Usuario (Windows)")) -->|Ingresa Instrucción o Carga Archivo| GUI["Frontend (React / Master Layout)"]
+    GUI -->|WebSocket (JSON RPC)| KERNEL["Kernel (Área 0)"]
     
-    subgraph Backend Core
-        C -->|SYS_EXEC / git.clone| D(Controlador del SO / Subprocess)
-        C -->|Instrucción IAM| E(Swarm Orchestrator - Área 16)
-        E --> F{Gestor de Proveedores - G4F}
-    end
-
-    F -->|Handshake TLS Nativo| G[Nube LLM 1: DuckDuckGo]
-    F -->|Handshake TLS Nativo| H[Nube LLM 2: Blackbox]
-    F -->|Handshake TLS Nativo| I[Nube LLM 3: Pollinations]
+    %% -- CAPA KERNEL Y RUTEO --
+    KERNEL -->|Filtra Comandos (SYS_EXEC_HOST)| SO["Sistema Operativo Local"]
+    SO -->|Crea Archivos / Ejecuta Scripts| DISCO[("Disco Duro (scratch/)")]
+    KERNEL -->|Despacha Tarea de IA| ORCH["Swarm Orchestrator (Área 16)"]
     
-    G & H & I -->|Respuesta Generada| E
-    E -->|Telemetría Empírica| J[(MagiDatabase - SQLite)]
-    E -->|Broadcasting| B
-    B -->|Estado / Mensaje| A
-    D -->|Archivos / Logs| A
+    %% -- CAPA ENJAMBRE Y NUBE --
+    ORCH -->|1. Solicita Propuesta Inicial| MELCHIOR["🧠 MELCHIOR (Arquitecto)"]
+    MELCHIOR -->|Consulta| G4F_1["Pasarela G4F (DeepSeek)"]
+    G4F_1 -->|Retorna Código/Plan| ORCH
+    
+    ORCH -->|2. Envía Propuesta para Crítica| BALTHASAR["🛡️ BALTHASAR (Seguridad/Crítica)"]
+    BALTHASAR -->|Consulta| G4F_2["Pasarela G4F (Claude 3.5 Sonnet)"]
+    G4F_2 -->|Retorna Vulnerabilidades| ORCH
+    
+    ORCH -->|Fuerza Mejora Continua| MELCHIOR
+    
+    ORCH -->|3. Tras 3 rondas mínimas, solicita Veredicto| CASPER["⚖️ CASPER (Árbitro Final)"]
+    CASPER -->|Consulta| G4F_3["Pasarela G4F (Qwen 2.5)"]
+    G4F_3 -->|Retorna Síntesis Final| ORCH
+    
+    %% -- CAPA INTERACTIVA --
+    ORCH -->|4. Solicita Aprobación| GUI_INTERACT["Casper Pausa el Debate"]
+    GUI_INTERACT -->|Muestra al Usuario| U
+    U -->|Aprueba (Ejecutar)| GUI_INTERACT
+    GUI_INTERACT -->|Publica Veredicto| SO
 ```
 
-### 2. Flujo Horizontal (Subdivisión Funcional del Enjambre)
-
-Este flujo detalla cómo se subdividen y procesan los problemas internamente a través de los nodos lógicos.
-
-```mermaid
-graph LR
-    %% Flujo Horizontal
-    Task[Nueva Tarea] --> O[Swarm Orchestrator]
-    
-    subgraph "Debate y Resolución"
-        O -->|Inicia Ronda| M(MELCHIOR - Nodo 1)
-        M -->|1. Genera Código Inicial / Propuesta| B(BALTHASAR - Nodo 2)
-        B -->|2. Falsacionismo / Crítica Feroz| C(CASPER - Nodo 3)
-        C -->|3. Arbitraje Final / Ejecución| O
-    end
-    
-    O -->|Iteración Fallida| M
-    O -->|Consenso Alcanzado| Output[Decisión Aprobada]
-    
-    M -.->|Usa| P1(Prov B)
-    B -.->|Usa| P2(Prov C)
-    C -.->|Usa| P3(Prov A)
-```
-
-### Detalles de la Subdivisión Funcional
-
-1.  **Orquestador (Área 16):** Coordina los ciclos de vida de las tareas. Mantiene la memoria transaccional y delega los *prompts* a los agentes correspondientes.
-2.  **Melchior (Generación):** Toma la petición bruta y formula la mejor aproximación constructiva (escribir código, diseñar plan).
-3.  **Balthasar (Crítica):** Ejecuta un algoritmo de falsacionismo. Trata de romper el código propuesto y encuentra fallas lógicas o de seguridad.
-4.  **Casper (Decisión):** Analiza la propuesta y la crítica. Decide si la propuesta se acepta, si necesita parche, o si la ronda debe reiniciarse.
-5.  **Pasarela Cloud:** El motor G4F distribuye estas tres mentes en tres llamadas paralelas a proveedores distintos para evitar bloqueos por sobrecarga (Rate Limiting).
+### Detalle del Proceso (Horizontal)
+- **1. Inicialización (Usuario -> Kernel):** El usuario introduce una meta (ej. "Crea el juego de Tetris en Python"). La UI manda un WebSocket al Kernel. MAGI se comporta de manera *Agentic* reconociendo su host Windows y su acceso a disco.
+- **2. Propuesta Arquitectónica (Melchior):** Sin dudar ni hacer preguntas, Melchior diseña el plan técnico y redacta el script/código necesario usando su proveedor de IA asíncrono.
+- **3. Falsacionismo Riguroso (Balthasar):** Balthasar intenta romper la propuesta, buscando cuellos de botella o errores. No habla con el usuario, solo ataca el código de Melchior.
+- **4. Iteración Forzada (Regla de 3 Rondas):** El Orquestador obliga a que Melchior y Balthasar repitan el ciclo (Corregir -> Criticar) al menos 3 veces, asegurando un nivel de ingeniería ultra refinado.
+- **5. Aprobación Interactiva (Casper):** Al final del debate, Casper consolida la versión definitiva. Como único agente autorizado, te pregunta directamente en pantalla: *"¿Apruebas ejecutar esto?"*. Si dices "sí", habilita la ejecución en tu disco.
 
 ---
 

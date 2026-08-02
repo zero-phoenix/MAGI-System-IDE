@@ -28,6 +28,7 @@ export function useMagiSocket(port: number = 20128) {
               if (topic === 'AGENT_POST') {
                 addMessage({
                   id: Math.random().toString(36),
+                  task_id: payload.task_id,
                   agent: payload.agent,
                   role: payload.role || 'propone',
                   provider: payload.provider || 'local',
@@ -73,11 +74,14 @@ export function useMagiSocket(port: number = 20128) {
     };
   }, [port]);
 
-  const sendCommand = (cmd: string) => {
+  const sendCommand = (cmd: string, taskId?: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         type: "SYS_EXEC",
-        payload: cmd
+        payload: {
+          command: cmd,
+          id: taskId
+        }
       }));
     }
   };

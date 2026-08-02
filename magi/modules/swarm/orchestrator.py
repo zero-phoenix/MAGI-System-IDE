@@ -22,7 +22,29 @@ class SwarmOrchestrator:
         self.casper = CasperAgent(self.blackboard, self.bus)
 
     async def submit_task(self, task_id: str, command: str):
-        """Inicia un nuevo flujo de trabajo en el enjambre."""
+        """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
+        if task_id in self.active_tasks:
+            state = self.active_tasks[task_id]
+            if state["status"] == "WAITING_USER_APPROVAL":
+                if any(word in command.lower() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes"]):
+                    state["status"] = "completed"
+                    await self.bus.publish(BusEvent(
+                        topic="TERMINAL_OUT",
+                        payload={"content": f"[SWARM] Aprobación recibida. Tarea {task_id} finalizada. Usa el botón 'Ejecutar en PC' para proceder."}
+                    ))
+                else:
+                    state["status"] = "in_progress"
+                    state["command"] = f"El usuario rechazó la versión final o pidió cambios: {command}"
+                    state["round"] += 1
+                    await self.bus.publish(BusEvent(
+                        topic="TERMINAL_OUT",
+                        payload={"content": f"[SWARM] El usuario solicitó cambios. Reiniciando debate (Ronda {state['round']})."}
+                    ))
+                    asyncio.create_task(self._orchestrate_loop(task_id))
+                return
+            elif state["status"] == "in_progress":
+                return # Ignorar comandos extra mientras piensa
+                
         logger.info(f"[SWARM] Iniciando tarea {task_id}: {command}")
         self.active_tasks[task_id] = {
             "command": command,
@@ -60,11 +82,19 @@ class SwarmOrchestrator:
             self.blackboard.post(f"{task_id}.verdict", verdict)
             
             if verdict["decision"] == "APPROVED":
-                state["status"] = "completed"
-                await self.bus.publish(BusEvent(
-                    topic="TERMINAL_OUT",
-                    payload={"content": f"[SWARM] Ejecución completada en Ronda {current_round}. Consolidando cambios en el árbol del proyecto."}
-                ))
+                if current_round < 3:
+                    state["round"] += 1
+                    state["last_proposal"] = proposal
+                    state["last_critique"] = critique
+                    state["command"] = "Mejorar la robustez del código para cumplir el estándar de calidad (Regla de 3 rondas)."
+                    await asyncio.sleep(1.0)
+                else:
+                    state["status"] = "WAITING_USER_APPROVAL"
+                    await self.bus.publish(BusEvent(
+                        topic="TERMINAL_OUT",
+                        payload={"content": f"[SWARM] Esperando aprobación interactiva del usuario para ejecutar la propuesta final."}
+                    ))
+                    break # Pausar el bucle hasta recibir input del usuario
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 state["round"] += 1
                 state["last_proposal"] = proposal

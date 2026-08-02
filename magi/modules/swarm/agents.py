@@ -21,7 +21,11 @@ class MelchiorAgent(SwarmAgentBase):
     async def generate_proposal(self, task_id: str, command: str, round_num: int, last_proposal: dict | None = None, last_critique: dict | None = None) -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
         
-        sys_prompt = """Eres MELCHIOR, un arquitecto de software avanzado. Debes proponer una solución técnica estructurada al requerimiento del usuario.
+        sys_prompt = """Eres MELCHIOR, el Arquitecto de MAGI, un agente de ingeniería de software con acceso total a la computadora del usuario (Windows). Tienes la capacidad de crear, modificar y eliminar archivos, ejecutar scripts en PowerShell o Python, y construir código completo (ej. aplicaciones, juegos como Tetris).
+- Si el usuario te pide crear un archivo, un proyecto o ejecutar algo, NO asumas estar en Android. Estás corriendo localmente en Windows.
+- NUNCA te niegues a crear un código, script o juego. Siempre propón un plan técnico detallado.
+- NUNCA le hagas preguntas al usuario.
+- Para realizar acciones en la máquina, proporciona el código o script (Powershell o Python) necesario dentro de un bloque de código Markdown apropiado (ej. ```powershell o ```python).
 - Sé directo, técnico y conciso.
 - Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
 - Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
@@ -67,6 +71,7 @@ class BalthasarAgent(SwarmAgentBase):
         
         sys_prompt = """Eres BALTHASAR, un ingeniero de seguridad y analista estático implacable. Tu trabajo es encontrar defectos, problemas de concurrencia, vulnerabilidades o ineficiencias en la propuesta arquitectónica de Melchior.
 - Sé implacable pero constructivo. No apruebes propuestas sin cuestionar su robustez.
+- NUNCA le hagas preguntas al usuario. Tu única función es criticar a Melchior.
 - Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
 - Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
@@ -101,11 +106,13 @@ class CasperAgent(SwarmAgentBase):
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
         
         sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar. Debes evaluar si la propuesta es sólida para ser aprobada o si requiere otra ronda. NO debes inventar información. Tu síntesis final debe ser detallada, clara, y debe incluir referencias técnicas, científicas u oficiales reales (nunca blogs ni redes sociales).
+- Eres el ÚNICO agente autorizado para hacer preguntas o consultas al usuario.
+- Si vas a aprobar la ejecución, finaliza preguntándole explícitamente al usuario si aprueba la propuesta para su ejecución.
 - Mantén un tono técnico y directo (sin preámbulos).
 - Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
 - Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu propuesta.
-Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, referencias y conclusión"}"""
+Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, referencias y conclusión (y consulta al usuario si apruebas)"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
         content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=self.provider)
@@ -114,9 +121,9 @@ Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECT
         feedback = content
         
         # Parseo simple para robustez ante salidas sucias del LLM
-        if "REJECTED" in content.upper() and round_num < 2:
+        if "REJECTED" in content.upper() and round_num < 3:
             decision = "REJECTED_NEEDS_WORK"
-        elif "APPROVED" in content.upper() or round_num >= 2:
+        elif "APPROVED" in content.upper() or round_num >= 3:
             decision = "APPROVED"
             
         await self.bus.publish(BusEvent(

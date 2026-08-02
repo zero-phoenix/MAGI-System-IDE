@@ -11,8 +11,10 @@ function App() {
   const [selectedProject, setSelectedProject] = useState("");
   const [inputVal, setInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
-  
-  const { connected, messages, addMessage, terminalOutput, sysCommand, projects, metrics, telemetry } = useMagiStore();
+  const { 
+    connected, messages, addMessage, terminalOutput, sysCommand, projects, metrics, telemetry,
+    activeConversationId, startNewConversation
+  } = useMagiStore();
   const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
@@ -35,7 +37,7 @@ function App() {
   const handleExecute = () => {
     if(!inputVal.trim()) return;
     sysCommand(inputVal);
-    sendCommand(inputVal);
+    sendCommand(inputVal, activeConversationId);
     
     // Echo in chat
     addMessage({
@@ -45,10 +47,44 @@ function App() {
       provider: "Local",
       content: inputVal,
       changes: 0,
-      stats: ""
+      stats: "",
+      task_id: activeConversationId
     });
     
     setInputVal("");
+  };
+
+  const runHostScript = (code: string) => {
+    setActiveTab("Terminal");
+    sysCommand(`SYS_EXEC_HOST \n${code}`);
+    sendCommand(`SYS_EXEC_HOST \n${code}`, activeConversationId);
+  };
+
+  const renderCode = ({node, inline, className, children, ...props}: any) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const codeString = String(children).replace(/\n$/, '');
+    
+    if (!inline && match) {
+      const isExecutable = ['bash', 'powershell', 'python', 'sh', 'cmd', 'ps1'].includes(match[1].toLowerCase());
+      return (
+        <div style={{ position: 'relative', marginTop: '10px', marginBottom: '10px' }}>
+          <div style={{ background: '#1a1a1a', padding: '10px', borderRadius: '4px', overflowX: 'auto' }}>
+            <code className={className} style={{ color: '#00ff00', fontFamily: 'monospace' }} {...props}>
+              {children}
+            </code>
+          </div>
+          {isExecutable && (
+            <button 
+              onClick={() => runHostScript(codeString)}
+              style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--acc)', color: '#000', border: 'none', padding: '4px 8px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              ▶ Ejecutar en PC
+            </button>
+          )}
+        </div>
+      );
+    }
+    return <code className={className} style={{background: '#333', padding: '2px 4px', borderRadius: '2px'}} {...props}>{children}</code>;
   };
 
   const handleGitPush = () => {
@@ -139,7 +175,7 @@ function App() {
             placeholder="Buscar proyectos…"
           />
           <div className="sc">
-            <div className="lbl">REPOSITORIOS (scratch/)</div>
+            <div className="sect">Proyectos detectados</div>
             {filteredProjects.length > 0 ? filteredProjects.map((item, idx) => (
               <div 
                 key={idx} 
@@ -154,6 +190,16 @@ function App() {
                 Sin proyectos locales válidos.
               </div>
             )}
+            
+            <div style={{ marginTop: '20px', padding: '10px 15px' }}>
+              <button 
+                className="bt go" 
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
+                onClick={() => startNewConversation()}
+              >
+                <span>+</span> Nueva Consulta (Limpiar Contexto)
+              </button>
+            </div>
           </div>
 
           <div style={{ marginTop: "15px", borderTop: "1px solid var(--gr)", paddingTop: "10px" }}>
@@ -227,8 +273,11 @@ function App() {
                     </span>
                   )}
                 </div>
-                <div className="pl markdown-body">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <div className="pl markdown-body" style={{ color: "var(--ink)", padding: "10px 0" }}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{ code: renderCode }}
+                  >
                     {msg.content}
                   </ReactMarkdown>
                 </div>

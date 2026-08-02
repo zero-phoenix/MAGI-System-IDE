@@ -160,6 +160,23 @@ class Kernel:
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"{out_msg}\n[Subida completada con código {process.returncode}]"))
             return
 
+        if isinstance(command, str) and command.startswith("SYS_EXEC_HOST"):
+            script = command.replace("SYS_EXEC_HOST", "", 1).strip()
+            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+            
+            await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="Ejecutando script local en host (ZCode Mode)..."))
+            
+            process = await asyncio.create_subprocess_shell(
+                script,
+                cwd=str(scratch_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            out_msg = (stdout.decode() + "\n" + stderr.decode()).strip()
+            await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"{out_msg}\n[Ejecución completada con código {process.returncode}]"))
+            return
+
         # Siempre generar un id único si es task_0 o vacío
         if not raw_id or raw_id == "task_0":
             task_id = f"task_{uuid.uuid4().hex[:8]}"

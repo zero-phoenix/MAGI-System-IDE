@@ -26,8 +26,15 @@ interface MagiState {
   connected: boolean;
   setConnected: (status: boolean) => void;
   
-  messages: AgentMessage[];
-  addMessage: (msg: AgentMessage) => void;
+  activeConversationId: string;
+  setActiveConversationId: (id: string) => void;
+  conversations: Record<string, AgentMessage[]>;
+  
+  // Getter derivado para compatibilidad
+  messages: AgentMessage[]; 
+  
+  addMessage: (msg: AgentMessage & { task_id?: string }) => void;
+  startNewConversation: (id?: string) => void;
   
   terminalOutput: string;
   appendTerminal: (text: string) => void;
@@ -48,8 +55,34 @@ export const useMagiStore = create<MagiState>((set) => ({
   connected: false,
   setConnected: (status) => set({ connected: status }),
   
+  activeConversationId: "default",
+  conversations: { "default": [] },
   messages: [],
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+  
+  setActiveConversationId: (id) => set((state) => ({ 
+    activeConversationId: id,
+    messages: state.conversations[id] || []
+  })),
+  
+  startNewConversation: (id) => set((state) => {
+    const newId = id || `task_${Math.random().toString(36).substring(2, 10)}`;
+    return {
+      activeConversationId: newId,
+      conversations: { ...state.conversations, [newId]: [] },
+      messages: []
+    };
+  }),
+
+  addMessage: (msg) => set((state) => {
+    const targetId = msg.task_id || state.activeConversationId;
+    const currentList = state.conversations[targetId] || [];
+    const newConversations = { ...state.conversations, [targetId]: [...currentList, msg] };
+    
+    return { 
+      conversations: newConversations,
+      messages: newConversations[state.activeConversationId] || []
+    };
+  }),
   
   terminalOutput: "",
   appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),
