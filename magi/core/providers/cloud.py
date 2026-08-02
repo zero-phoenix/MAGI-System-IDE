@@ -117,6 +117,12 @@ class FreeCloudLLM:
         if not self.client:
             return ("[Error: G4F client no inicializado]", "Unknown")
             
+        # Mapeo de Resiliencia: Claude y Qwen fallan nativamente en G4F, 
+        # enrutamos todo al cerebro más estable para evitar caídas del Enjambre.
+        original_model = model
+        if model in ["claude-3.5-sonnet", "qwen-2.5", "deepseek"]:
+            model = "gpt-4o"
+            
         # 1. Comprobar Caché (Cero Latencia)
         cache_key = hashlib.md5(f"{model}_{system_prompt}_{user_prompt}".encode()).hexdigest()
         if cache_key in self._cache:

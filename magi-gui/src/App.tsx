@@ -13,16 +13,20 @@ function App() {
   const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll terminal
+  // Auto-scroll terminal y conversacion
   useEffect(() => {
     if (activeTab === "Terminal" && terminalEndRef.current) {
       terminalEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
     if (activeTab === "Telemetría del Enjambre") {
       fetchTelemetry();
     }
-  }, [terminalOutput, activeTab, fetchTelemetry]);
+  }, [terminalOutput, messages, activeTab, fetchTelemetry]);
 
   const handleExecute = () => {
     if(!inputVal.trim()) return;
