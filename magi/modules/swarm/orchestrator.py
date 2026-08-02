@@ -46,7 +46,9 @@ class SwarmOrchestrator:
             logger.info(f"[SWARM] Iniciando Ronda {current_round} para {task_id}")
             
             # 1. Melchior Propone
-            proposal = await self.melchior.generate_proposal(task_id, state["command"], current_round)
+            last_proposal = state.get("last_proposal")
+            last_critique = state.get("last_critique")
+            proposal = await self.melchior.generate_proposal(task_id, state["command"], current_round, last_proposal, last_critique)
             self.blackboard.post(f"{task_id}.proposal", proposal)
             
             # 2. Balthasar Critica
@@ -65,6 +67,8 @@ class SwarmOrchestrator:
                 ))
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 state["round"] += 1
+                state["last_proposal"] = proposal
+                state["last_critique"] = critique
                 state["command"] = f"Revisar propuesta considerando crítica: {verdict['feedback']}"
                 # Pequeña pausa antes de la siguiente ronda
                 await asyncio.sleep(1.0)

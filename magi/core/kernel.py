@@ -122,14 +122,54 @@ class Kernel:
 
     async def _handle_sys_exec(self, payload, websocket):
         import uuid
+        import os
+        from pathlib import Path
+        import asyncio
+        
         command = payload.get("command", "") if isinstance(payload, dict) else payload
         raw_id = payload.get("id", "task_0") if isinstance(payload, dict) else "task_0"
         
+        # interceptar comando GIT_PUSH_TO_GITHUB
+        if isinstance(command, str) and command.startswith("GIT_PUSH_TO_GITHUB"):
+            repo_url = command.split(" ", 1)[1] if " " in command else ""
+            if not repo_url:
+                await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="URL de GitHub requerida para push."))
+                return
+                
+            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+            
+            await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"Iniciando subida a GitHub: {repo_url}"))
+            
+            script = f"""
+            git init
+            git add .
+            git commit -m "Auto-commit by MAGI"
+            git branch -M main
+            git remote add origin {repo_url}
+            git push -u origin main -f
+            """
+            
+            process = await asyncio.create_subprocess_shell(
+                script,
+                cwd=str(scratch_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            out_msg = (stdout.decode() + "\n" + stderr.decode()).strip()
+            await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"{out_msg}\n[Subida completada con código {process.returncode}]"))
+            return
+
         # Siempre generar un id único si es task_0 o vacío
         if not raw_id or raw_id == "task_0":
             task_id = f"task_{uuid.uuid4().hex[:8]}"
         else:
             task_id = raw_id
+            
+        # Generar un proyecto automático si es una conversación nueva
+        # Para simular "cada vez que inicie una conversacion", creamos la carpeta
+        new_proj_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch") / f"project_{task_id}"
+        new_proj_dir.mkdir(parents=True, exist_ok=True)
         
         # Publicar en el bus para que el Logger lo intercepte
         await self.bus.publish(BusEvent(

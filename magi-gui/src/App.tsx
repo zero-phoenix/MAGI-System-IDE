@@ -9,7 +9,7 @@ function App() {
   const [inputVal, setInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
   
-  const { connected, messages, terminalOutput, sysCommand, projects, metrics, telemetry } = useMagiStore();
+  const { connected, messages, addMessage, terminalOutput, sysCommand, projects, metrics, telemetry } = useMagiStore();
   const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -32,7 +32,28 @@ function App() {
     if(!inputVal.trim()) return;
     sysCommand(inputVal);
     sendCommand(inputVal);
+    
+    // Echo in chat
+    addMessage({
+      id: Date.now().toString(),
+      agent: "Usuario",
+      role: "comando",
+      provider: "Local",
+      content: inputVal,
+      changes: 0,
+      stats: ""
+    });
+    
     setInputVal("");
+  };
+
+  const handleGitPush = () => {
+    if(!gitUrl.trim()) return;
+    setActiveTab("Terminal");
+    // Send RPC for git push
+    sysCommand(`GIT_PUSH_TO_GITHUB ${gitUrl}`);
+    sendCommand(`GIT_PUSH_TO_GITHUB ${gitUrl}`);
+    setGitUrl("");
   };
 
   const handleGitClone = () => {
@@ -59,6 +80,19 @@ function App() {
   const balthasarData = getAgentData("BALTHASAR", "prov-c");
   const casperData = getAgentData("CASPER", "prov-a");
   const melchiorData = getAgentData("MELCHIOR", "prov-b");
+  
+  // Consensus Colors
+  const casperMsgs = messages.filter(m => m.agent === 'CASPER');
+  const lastCasper = casperMsgs[casperMsgs.length - 1];
+  const isApproved = lastCasper?.stats?.includes("APPROVED");
+  const isRejected = lastCasper?.stats?.includes("REJECTED");
+  
+  const casperColor = isApproved ? "#0f0" : (isRejected ? "#f55" : "");
+  const melchiorColor = isApproved ? "#0f0" : "";
+  const balthasarColor = isRejected ? "#f55" : (isApproved ? "#0f0" : "");
+  
+  // Filter Projects
+  const filteredProjects = projects ? projects.filter(p => !p.name.includes('__pycache__') && p.name !== 'agentic-awesome-skills') : [];
 
   return (
     <>
@@ -91,7 +125,7 @@ function App() {
           />
           <div className="sc">
             <div className="lbl">REPOSITORIOS (scratch/)</div>
-            {projects && projects.length > 0 ? projects.map((item, idx) => (
+            {filteredProjects.length > 0 ? filteredProjects.map((item, idx) => (
               <div 
                 key={idx} 
                 className={`th ${selectedProject === item.name ? 'on' : ''}`}
@@ -102,20 +136,23 @@ function App() {
               </div>
             )) : (
               <div style={{ padding: "10px", fontSize: "10px", color: "#5f7378" }}>
-                Sin proyectos locales.
+                Sin proyectos locales válidos.
               </div>
             )}
           </div>
 
           <div style={{ marginTop: "15px", borderTop: "1px solid var(--gr)", paddingTop: "10px" }}>
-             <div className="lbl" style={{ marginBottom: "5px" }}>CLONAR DESDE GITHUB</div>
+             <div className="lbl" style={{ marginBottom: "5px" }}>CLONAR / SUBIR A GITHUB</div>
              <input 
                 placeholder="https://github.com/..."
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 style={{ width: "100%", background: "#050a0b", border: "1px solid var(--gr)", color: "#cfe0e4", padding: "4px", fontSize: "10px", marginBottom: "5px" }}
              />
-             <button className="bt go" style={{ width: "100%" }} onClick={handleGitClone}>Ejecutar git clone ▸</button>
+             <div style={{ display: "flex", gap: "5px" }}>
+               <button className="bt go" style={{ flex: 1, padding: "2px 0" }} onClick={handleGitClone}>Clone ↓</button>
+               <button className="bt go" style={{ flex: 1, padding: "2px 0" }} onClick={handleGitPush}>Push ↑</button>
+             </div>
           </div>
         </div>
 
@@ -130,7 +167,7 @@ function App() {
 
           <div className="tri" style={{ paddingBottom: "10px" }}>
             <div className="nd b">
-              <div className="fx">el que busca fallos</div>
+              <div className="fx" style={{ color: balthasarColor }}>el que busca fallos</div>
               <div className="nm">BALTHASAR · 2</div>
               <div className="md">{balthasarData.provider} · {balthasarData.latency}</div>
             </div>
@@ -141,12 +178,12 @@ function App() {
               <div className="r">ENJAMBRE ACTIVO</div>
             </div>
             <div className="nd c">
-              <div className="fx">el que decide</div>
+              <div className="fx" style={{ color: casperColor }}>el que decide</div>
               <div className="nm">CASPER · 3</div>
               <div className="md">{casperData.provider} · {casperData.latency}</div>
             </div>
             <div className="nd m1">
-              <div className="fx">el que propone</div>
+              <div className="fx" style={{ color: melchiorColor }}>el que propone</div>
               <div className="nm">MELCHIOR · 1</div>
               <div className="md">{melchiorData.provider} · {melchiorData.latency}</div>
             </div>
@@ -162,8 +199,8 @@ function App() {
               <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`} style={{ userSelect: "text", WebkitUserSelect: "text" }}>
                 <div className="ch">
                   <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <span className="dot" style={{ background: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}></span>
-                    <b style={{ color: msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)') }}>{msg.agent}</b>
+                    <span className="dot" style={{ background: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}></span>
+                    <b style={{ color: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}>{msg.agent}</b>
                     <span style={{ color: "#6d8288" }}>{msg.role}</span>
                   </span>
                 </div>
