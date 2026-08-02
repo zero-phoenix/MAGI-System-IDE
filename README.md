@@ -19,96 +19,82 @@ El siguiente diagrama detalla minuciosamente el ciclo de vida, integrando cada d
 ```mermaid
 graph TD
     %% -- ESTILOS --
-    classDef user fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#ecf0f1
-    classDef gui fill:#2980b9,stroke:#3498db,stroke-width:2px,color:#fff
-    classDef kernel fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#fff
-    classDef orch fill:#d35400,stroke:#e67e22,stroke-width:2px,color:#fff
-    classDef melchior fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
-    classDef balthasar fill:#c0392b,stroke:#e74c3c,stroke-width:2px,color:#fff
-    classDef casper fill:#f39c12,stroke:#f1c40f,stroke-width:2px,color:#fff
-    classDef g4f fill:#34495e,stroke:#7f8c8d,stroke-width:2px,color:#ecf0f1
-    classDef os fill:#16a085,stroke:#1abc9c,stroke-width:2px,color:#fff
-    classDef db fill:#7f8c8d,stroke:#bdc3c7,stroke-width:2px,color:#fff
+    classDef mainNode fill:#2c3e50,stroke:#34495e,stroke-width:3px,color:#fff,font-weight:bold
+    classDef subNode fill:#2980b9,stroke:#3498db,stroke-width:2px,color:#fff
+    classDef swarmNode fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#fff
+    classDef cloudNode fill:#34495e,stroke:#7f8c8d,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
+    classDef action fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
+    classDef db fill:#f39c12,stroke:#f1c40f,stroke-width:2px,color:#fff
+    classDef terminal fill:#000,stroke:#0f0,stroke-width:2px,color:#0f0
 
-    subgraph "NIVEL 0: ENTRADA Y PERSISTENCIA (HOST LOCAL)"
-        U(("1. Usuario (Windows)")):::user
-        GUI["2. Interfaz Frontend (React)
-        • Recibe Instrucción del usuario
-        • Renderiza Markdown/JSON
-        • Gestiona Pestañas de Historial"]:::gui
-        KERNEL["3. Kernel Backend (Python)
-        • Intercepta Comandos 
-        • Mantiene Bus de Eventos WebSocket"]:::kernel
-        DB[("4. Base de Datos Local
-        • Persistencia SQLite
-        • INSERT OR REPLACE (tasks.id)")]:::db
+    %% -- EJE VERTICAL PRINCIPAL --
+    Start((Inicio)):::mainNode --> F1[1. Recepción & UI]:::mainNode
+    F1 --> F2[2. Kernel & Persistencia]:::mainNode
+    F2 --> F3[3. Orquestación del Enjambre]:::mainNode
+    F3 --> F4[4. Debate Tripartito Asíncrono]:::mainNode
+    F4 --> F5[5. Veredicto Final & Aprobación]:::mainNode
+    F5 --> F6[6. Auto-Ejecución Nativa]:::mainNode
+    F6 --> End((Fin)):::mainNode
 
-        U -->|Ingresa Instrucción| GUI
-        GUI -->|JSON RPC (WS)| KERNEL
-        KERNEL -->|Registra/Recupera Tarea| DB
+    %% -- DETALLES HORIZONTALES (Sub-grafos) --
+    
+    subgraph "1. Interfaz Gráfica (Frontend React)"
+        direction LR
+        UI_Input[/Ingreso de Comando/]:::subNode --> UI_Parse[Parseo React]:::subNode
+        UI_Parse --> UI_WS{WebSocket}:::subNode
     end
+    F1 -.-> UI_Input
+    UI_WS -.-> F2
 
-    subgraph "NIVEL 1: ORQUESTACIÓN Y ENJAMBRE (SWARM)"
-        ORCH["5. Swarm Orchestrator (Área 16)
-        • Modula a los Agentes
-        • Obliga a un mínimo de 3 Rondas
-        • Verifica estado: IN_PROGRESS / WAITING"]:::orch
-        
-        MELCHIOR["6. 🧠 MELCHIOR (Arquitecto)
-        • Formula la Propuesta Técnica
-        • Escribe Código / Scripts
-        • No hace preguntas al usuario"]:::melchior
-        
-        BALTHASAR["7. 🛡️ BALTHASAR (Crítico)
-        • Falsacionismo Riguroso
-        • Busca Vulnerabilidades y Cuellos de Botella
-        • Ataca el código de Melchior"]:::balthasar
-        
-        CASPER["8. ⚖️ CASPER (Árbitro Final)
-        • Inteligencia Científica Superior
-        • Corrige a Balthasar si es necesario
-        • Emite Veredicto Final / JSON Limpio"]:::casper
-
-        KERNEL -->|Despacha| ORCH
-        ORCH -->|1ra Fase: Crea Plan| MELCHIOR
-        MELCHIOR -->|Devuelve Plan| ORCH
-        ORCH -->|2da Fase: Critica Plan| BALTHASAR
-        BALTHASAR -->|Devuelve Crítica| ORCH
-        ORCH -->|Bucle Iterativo Forzado| MELCHIOR
-        ORCH -->|3ra Fase (Ronda 3+): Solicita Cierre| CASPER
+    subgraph "2. Backend Local (Python)"
+        direction LR
+        K_WS[Recepción WebSocket]:::subNode --> K_Bus((MagiBus)):::subNode
+        K_Bus --> K_DB[(SQLite Guardado)]:::db
+        K_Bus --> K_Queue[Cola de Tareas]:::subNode
     end
+    F2 -.-> K_WS
+    K_Queue -.-> F3
 
-    subgraph "NIVEL 2: CONEXIÓN CLOUD (PASARELAS)"
-        G4F_1["Pasarela (DeepSeek)"]:::g4f
-        G4F_2["Pasarela (Claude 3.5 Sonnet)"]:::g4f
-        G4F_3["Pasarela (Qwen 2.5)"]:::g4f
-        
-        MELCHIOR -.->|Petición Async| G4F_1
-        BALTHASAR -.->|Petición Async| G4F_2
-        CASPER -.->|Petición Async| G4F_3
+    subgraph "3. Preparación del Enjambre (Swarm)"
+        direction LR
+        O_Init[Init Área 16]:::swarmNode --> O_Rule[Establecer Reglas]:::swarmNode
+        O_Rule --> O_Context[Cargar Contexto]:::swarmNode
     end
+    F3 -.-> O_Init
+    O_Context -.-> F4
 
-    subgraph "NIVEL 3: RESOLUCIÓN Y AUTO-EJECUCIÓN NATIVA"
-        INTERACTIVE["9. Pausa Interactiva (Casper)
-        • Único Agente que habla con el Usuario
-        • Solicita Aprobación ('sí')"]:::casper
+    subgraph "4. Interacción de Agentes (Cloud Auto-Routing)"
+        direction LR
+        A1(MELCHIOR)---A1_Task[Propone Código]:::action
+        A2(BALTHASAR)---A2_Task[Critica Vulnerabilidades]:::action
+        A3(CASPER)---A3_Task[Arbitra Soluciones]:::action
         
-        AUTO_EXEC["10. Extracción y Ejecución
-        • Regex extrae bloques (.py, .ps1, .bat)
-        • Auto-crea scripts temporales
-        • Ejecuta silenciosamente en 2do Plano"]:::os
+        C1((DeepSeek)):::cloudNode
+        C2((Claude 3.5)):::cloudNode
+        C3((Qwen 2.5)):::cloudNode
         
-        DISCO[("11. Host OS (Windows)
-        • Archivos y Ejecutables Finales")]:::os
-
-        CASPER -->|Decisión: APPROVED| INTERACTIVE
-        INTERACTIVE -->|Muestra Feedback Limpio| GUI
-        U -->|Escribe 'sí' o 'ejecuta'| GUI
-        GUI -->|Transmite Aprobación| KERNEL
-        KERNEL -->|Activa Ejecutor| AUTO_EXEC
-        AUTO_EXEC -->|Modifica/Ejecuta| DISCO
-        AUTO_EXEC -->|Envía Log de Éxito| GUI
+        A1_Task -.->|Evasión 429| C1
+        A2_Task -.->|Fallback| C2
+        A3_Task -.->|Conexión| C3
     end
+    F4 -.-> A1
+    
+    subgraph "5. Resolución Interactiva"
+        direction LR
+        R_Format[JSON Limpio]:::swarmNode --> R_UI[Renderizado GUI]:::subNode
+        R_UI --> R_Wait{¿Usuario Aprueba?}:::action
+        R_Wait -->|Escribe 'sí'| R_Pass[Aprobado]:::action
+    end
+    F5 -.-> R_Format
+    R_Pass -.-> F6
+
+    subgraph "6. Modificación del Sistema Operativo"
+        direction LR
+        E_Regex[Regex Extracción]:::subNode --> E_Files[Crea Temp Scripts]:::subNode
+        E_Files --> E_Run>Ejecución Shell / PS]:::terminal
+        E_Run --> E_Disk[(Disco Local)]:::db
+    end
+    F6 -.-> E_Regex
 ```
 
 ## 📦 Compilación
