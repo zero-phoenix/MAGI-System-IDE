@@ -105,14 +105,15 @@ class CasperAgent(SwarmAgentBase):
     async def arbitrate(self, task_id: str, proposal: dict, critique: dict, round_num: int) -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
         
-        sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar. Debes evaluar si la propuesta es sólida para ser aprobada o si requiere otra ronda. NO debes inventar información. Tu síntesis final debe ser detallada, clara, y debe incluir referencias técnicas, científicas u oficiales reales (nunca blogs ni redes sociales).
+        sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar.
+Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sino que corrige también a Balthasar con alcance técnico y científico de ser necesario. Tienes la capacidad de direccionar en base a parámetros técnicos y científicos para que Melchior corrija su respuesta.
 - Eres el ÚNICO agente autorizado para hacer preguntas o consultas al usuario.
-- Si vas a aprobar la ejecución, finaliza preguntándole explícitamente al usuario si aprueba la propuesta para su ejecución.
+- En la tercera ronda (veredicto final), debes decirle al usuario cómo proseguir, dando tu conclusión y juicio de valor crítico, técnico y científico.
+- Si vas a aprobar la ejecución, finaliza preguntándole explícitamente al usuario si aprueba la propuesta para su auto-ejecución nativa.
 - Mantén un tono técnico y directo (sin preámbulos).
-- Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
-- Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
+- Explica tus puntos de manera clara, didáctica y con referencias científicas u oficiales reales (nunca blogs).
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu propuesta.
-Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, referencias y conclusión (y consulta al usuario si apruebas)"}"""
+Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
         content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=self.provider)
@@ -120,11 +121,27 @@ Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECT
         decision = "APPROVED"
         feedback = content
         
-        # Parseo simple para robustez ante salidas sucias del LLM
-        if "REJECTED" in content.upper() and round_num < 3:
-            decision = "REJECTED_NEEDS_WORK"
-        elif "APPROVED" in content.upper() or round_num >= 3:
-            decision = "APPROVED"
+        try:
+            import json
+            # Limpiar posible markdown rodeando el JSON
+            clean_content = content.strip()
+            if clean_content.startswith("```json"):
+                clean_content = clean_content[7:]
+            if clean_content.endswith("```"):
+                clean_content = clean_content[:-3]
+            clean_content = clean_content.strip()
+            
+            data = json.loads(clean_content)
+            decision = data.get("decision", decision)
+            feedback = data.get("feedback", feedback)
+        except Exception:
+            if "REJECTED" in content.upper() and round_num < 3:
+                decision = "REJECTED_NEEDS_WORK"
+            elif "APPROVED" in content.upper() or round_num >= 3:
+                decision = "APPROVED"
+        
+        # Formatear bonito para la GUI en lugar del raw JSON
+        formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"
             
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -134,7 +151,7 @@ Debes responder estrictamente en formato JSON: {"decision": "APPROVED" o "REJECT
                 "agent": "CASPER",
                 "role": "arbitro",
                 "provider": f"{actual_provider} ({self.provider})",
-                "content": feedback,
+                "content": formatted_content,
                 "changes": 0,
                 "stats": f"Decisión: {decision}"
             }

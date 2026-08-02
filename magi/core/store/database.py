@@ -123,7 +123,7 @@ class MagiDatabase:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO tasks (id, command, status) VALUES (?, ?, ?)",
+                    "INSERT OR REPLACE INTO tasks (id, command, status) VALUES (?, ?, ?)",
                     (task_id, command, status)
                 )
                 conn.commit()

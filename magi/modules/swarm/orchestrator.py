@@ -26,12 +26,61 @@ class SwarmOrchestrator:
         if task_id in self.active_tasks:
             state = self.active_tasks[task_id]
             if state["status"] == "WAITING_USER_APPROVAL":
-                if any(word in command.lower() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes"]):
+                if any(word in command.lower() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes", "claro"]):
                     state["status"] = "completed"
                     await self.bus.publish(BusEvent(
                         topic="TERMINAL_OUT",
-                        payload={"content": f"[SWARM] Aprobación recibida. Tarea {task_id} finalizada. Usa el botón 'Ejecutar en PC' para proceder."}
+                        payload={"content": f"[SWARM] Aprobación recibida. Tarea {task_id} finalizada. Iniciando Auto-Ejecución Nativa en el host..."}
                     ))
+                    
+                    import re
+                    content = state.get("last_proposal", {}).get("content", "")
+                    blocks = re.findall(r'```(\w+)?\n(.*?)```', content, re.IGNORECASE | re.DOTALL)
+                    
+                    if blocks:
+                        from pathlib import Path
+                        import asyncio
+                        import os
+                        
+                        async def _auto_exec():
+                            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+                            os.makedirs(scratch_dir, exist_ok=True)
+                            
+                            for i, (lang, code) in enumerate(blocks):
+                                lang = lang.lower().strip() if lang else ""
+                                await self.bus.publish(BusEvent(
+                                    topic="TERMINAL_OUT", 
+                                    payload={"content": f"[AUTO-EXEC] Ejecutando bloque {i+1} ({lang or 'shell'})..."}
+                                ))
+                                
+                                if lang in ["python", "py"]:
+                                    temp_file = scratch_dir / f"auto_script_{i}.py"
+                                    temp_file.write_text(code, encoding="utf-8")
+                                    cmd = f"python {temp_file.name}"
+                                else:
+                                    temp_file = scratch_dir / f"auto_script_{i}.ps1"
+                                    temp_file.write_text(code, encoding="utf-8")
+                                    cmd = f"powershell -ExecutionPolicy Bypass -File {temp_file.name}"
+                                    
+                                process = await asyncio.create_subprocess_shell(
+                                    cmd,
+                                    cwd=str(scratch_dir),
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE
+                                )
+                                stdout, stderr = await process.communicate()
+                                out_msg = (stdout.decode() + "\n" + stderr.decode()).strip()
+                                await self.bus.publish(BusEvent(
+                                    topic="TERMINAL_OUT", 
+                                    payload={"content": f"Salida del bloque {i+1}:\n{out_msg}\n[Finalizado con código {process.returncode}]"}
+                                ))
+                                
+                        asyncio.create_task(_auto_exec())
+                    else:
+                        await self.bus.publish(BusEvent(
+                            topic="TERMINAL_OUT",
+                            payload={"content": "[SWARM] No se detectaron bloques de código ejecutables en la propuesta final."}
+                        ))
                 else:
                     state["status"] = "in_progress"
                     state["command"] = f"El usuario rechazó la versión final o pidió cambios: {command}"
