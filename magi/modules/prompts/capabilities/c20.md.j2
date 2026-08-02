@@ -1,0 +1,14 @@
+CAPACIDAD: C20 - Análisis de ciclos macroeconómicos y de deuda
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `statsmodels` (filtros Hodrick-Prescott y Baxter-King, VAR), `pandas`, series aportadas por el usuario; fechado de ciclos por regla determinista (Bry-Boschan)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Cronología de ciclos con sus fases
+
+CRITERIO DE VERIFICACIÓN
+Sobre 3 series con cronología de referencia publicada y cargada: coincidencia de puntos de giro dentro de ±**2 periodos** en ≥ 80 %

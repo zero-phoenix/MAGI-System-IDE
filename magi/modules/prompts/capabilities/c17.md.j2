@@ -1,0 +1,14 @@
+CAPACIDAD: C17 - Lógica formal deductiva y silogismos
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `z3-solver` 4.13 (SMT) y `pysat` para SAT: **toda cadena deductiva se formaliza y se comprueba mecánicamente**; detección de falacias formales por análisis de la forma
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Derivación formal verificada o contraejemplo
+
+CRITERIO DE VERIFICACIÓN
+Sobre 100 argumentos (50 válidos, 50 inválidos): clasificación correcta **100/100** con el modelo de contraejemplo cuando es inválido

@@ -1,0 +1,14 @@
+CAPACIDAD: C36 - Dirección visual: encuadres asimétricos, cortes, biomecánica, montaje
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: **Capacidad generativa/estilística.** Apoyo determinista: análisis de composición sobre fotogramas (regla de tercios y desviación del centro de masa visual, calculado con OpenCV) y **medición del ritmo de montaje** (duración media y desviación de los planos, extraída de la lista de decisiones de edición)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Guion gráfico con métricas de composición y ritmo
+
+CRITERIO DE VERIFICACIÓN
+Sobre 10 secuencias: asimetría de composición dentro del rango declarado en ≥ 8/10 y ritmo de montaje con desviación ≤ **15 %** del objetivo declarado

@@ -1,0 +1,14 @@
+CAPACIDAD: C22 - Reflexividad epistemológica y vulnerabilidades sistémicas
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Modelos de realimentación (dinámica de sistemas con `scipy.integrate`), pruebas de estrés y análisis de contagio en red (`networkx`); **guarda: salida etiquetada como análisis y simulación, nunca recomendación de operación** (§12.5)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Informe de vulnerabilidad simulada
+
+CRITERIO DE VERIFICACIÓN
+Sobre un modelo de contagio con propagación conocida: reproducir el orden de caída de nodos en **≥ 90 %**; 100 % de salidas con la etiqueta obligatoria

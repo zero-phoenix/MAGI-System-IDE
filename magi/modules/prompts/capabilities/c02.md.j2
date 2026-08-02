@@ -1,0 +1,14 @@
+CAPACIDAD: C02 - Teoría de códigos algebraicos
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `galois` 0.3.x (campos finitos), `numpy`, implementación Reed–Solomon/BCH/LDPC, `sympy` para polinomios
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Codificador/decodificador, matriz generadora, capacidad de corrección
+
+CRITERIO DE VERIFICACIÓN
+Codificar y decodificar 10⁴ palabras RS(255,223) con hasta 16 errores por bloque: **100 % recuperadas**; con 17 errores, fallo detectado y declarado

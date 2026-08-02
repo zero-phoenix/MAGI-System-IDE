@@ -1,0 +1,14 @@
+CAPACIDAD: C37 - Talento rítmico y vocal: orquestación por beatboxing e imitación
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: **Capacidad generativa/estilística con verificación determinista:** `librosa` 0.10 (detección de pulso, tempo y tono), `aubio` 0.4 (onset y pitch), `music21` 9.x (análisis armónico), `mido` para MIDI; el sistema transcribe el audio a MIDI y **verifica** afinación y ritmo
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Transcripción MIDI + arreglo + informe de afinación
+
+CRITERIO DE VERIFICACIÓN
+Sobre 20 muestras: desviación de tempo ≤ **2 %** frente al pulso de referencia y desviación de afinación ≤ **30 cents** en ≥ 90 % de las notas detectadas

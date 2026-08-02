@@ -1,0 +1,14 @@
+CAPACIDAD: C01 - Matemática pura: geometría diferencial, topología, invariantes
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `sympy` 1.13 (`diffgeom`), `numpy` 2.0, `networkx` 3.3, `gudhi` 3.9 (homología persistente), `scipy.spatial`
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Demostración simbólica, invariante calculado, diagrama de persistencia
+
+CRITERIO DE VERIFICACIÓN
+Calcular la característica de Euler y los números de Betti de 20 complejos simpliciales conocidos: **20/20 exactos**; verificar el tensor de curvatura de una métrica dada contra el resultado simbólico esperado

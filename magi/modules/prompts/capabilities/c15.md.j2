@@ -1,0 +1,14 @@
+CAPACIDAD: C15 - Traducción a narrativa de divulgación accesible
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Métricas de legibilidad en español (índice de perspicuidad de Szigriszt-Pazos e índice Fernández-Huerta, implementados en `modules/lang/readability.py`), verificador de que **toda cifra del texto divulgativo existe en el documento técnico origen**
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Texto divulgativo con equivalencias
+
+CRITERIO DE VERIFICACIÓN
+Sobre 20 informes técnicos: índice de perspicuidad ≥ **60** (nivel "normal") y **0 cifras** sin correspondencia en el origen

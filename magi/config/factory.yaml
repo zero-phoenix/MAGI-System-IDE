@@ -1,0 +1,26 @@
+# MAGI System IDE - Factory Defaults (Capa 1)
+# Este archivo es de solo lectura y representa la base de configuración inmutable (fábrica).
+
+debate:
+  rounds:
+    min: 3
+    max: 12
+  rubric:
+    weight:
+      accuracy: 40
+      speed: 30
+      safety: 30
+
+safety:
+  quarantine:
+    disable: false
+  r3:
+    automatic: false
+
+route:
+  privacy:
+    disable_classes: false
+
+hardware:
+  limits:
+    override: false

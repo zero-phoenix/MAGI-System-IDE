@@ -1,0 +1,14 @@
+CAPACIDAD: C09 - Modelado estadístico
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `statsmodels` 0.14 (GLM, series temporales, ARIMA), `scipy.stats`, comprobación de supuestos automatizada (normalidad, homocedasticidad, autocorrelación)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Modelo con diagnósticos e intervalos
+
+CRITERIO DE VERIFICACIÓN
+Sobre 20 conjuntos con modelo generador conocido: recuperar los coeficientes dentro del **IC del 95 %** en ≥ 18/20; 100 % de los informes incluyen diagnóstico de supuestos

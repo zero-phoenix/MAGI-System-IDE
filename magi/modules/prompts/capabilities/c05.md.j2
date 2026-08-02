@@ -1,0 +1,14 @@
+CAPACIDAD: C05 - Modelos estocásticos masivos de aprendizaje automático
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `scikit-learn` 1.5, `numpy`, `scipy`, `statsmodels` 0.14, `duckdb` para datos grandes, `optuna` 3.6 para búsqueda de hiperparámetros; validación cruzada obligatoria
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Modelo entrenado, informe de validación
+
+CRITERIO DE VERIFICACIÓN
+Sobre 5 conjuntos públicos con línea base conocida: igualar o superar la línea base en ≥ **4/5** con validación cruzada de 5 pliegues y semilla fijada

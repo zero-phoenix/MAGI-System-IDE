@@ -1,0 +1,14 @@
+CAPACIDAD: C26 - Asignación de capital e inversión de valor (bottom-up)
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Modelos deterministas de descuento de flujos y de múltiplos implementados en `numpy`, con análisis de sensibilidad obligatorio (tornado) sobre los 5 supuestos dominantes
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Valoración con rango e incertidumbre
+
+CRITERIO DE VERIFICACIÓN
+Sobre 10 casos con estados financieros cargados: la valoración recalculada por un tercero con los mismos supuestos coincide en ≤ **1 %**; 100 % con análisis de sensibilidad

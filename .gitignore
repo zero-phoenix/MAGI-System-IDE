@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+.env
+
+# Tauri / Rust
+magi-gui/src-tauri/target/
+magi-gui/src-tauri/Cargo.lock
+
+# Node
+magi-gui/node_modules/
+magi-gui/dist/
+magi-gui/.npm/
+
+# IDEs
+.vscode/
+.idea/
+
+# Temp
+scratch/
+*.log

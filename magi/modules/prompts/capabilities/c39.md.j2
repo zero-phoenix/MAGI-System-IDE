@@ -1,0 +1,14 @@
+CAPACIDAD: C39 - Presencia escénica: sincronía de movimiento, sonido e innovación
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: **Capacidad generativa/estilística con verificación determinista:** correlación temporal entre los onsets de audio (`aubio`) y los picos de movimiento de la pose (`mediapipe`), midiendo el desfase medio y su dispersión
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Pieza sincronizada + informe de desfase
+
+CRITERIO DE VERIFICACIÓN
+Desfase medio audio↔movimiento ≤ **40 ms** y desviación típica ≤ 25 ms sobre 3 min de material, en ≥ 8/10 piezas

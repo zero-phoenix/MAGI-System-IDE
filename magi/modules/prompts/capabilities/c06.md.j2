@@ -1,0 +1,14 @@
+CAPACIDAD: C06 - Corrección matemática de errores en transmisión digital
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Implementación CRC-8/16/32, Hamming, RS; `crcmod`; banco de pruebas con canal simulado (BSC, AWGN) en `numpy`
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Esquema de trama con FEC, tasa de error residual
+
+CRITERIO DE VERIFICACIÓN
+Con BER de entrada 10⁻³ y RS(255,223): BER de salida medida ≤ **10⁻⁹** en 10⁷ bits simulados

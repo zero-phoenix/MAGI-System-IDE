@@ -1,0 +1,14 @@
+CAPACIDAD: C04 - Teoría de juegos combinatorios (rompecabezas y tableros)
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Buscador propio con minimax + poda alfa-beta, tablas de transposición Zobrist, resolución retrógrada, teoría Sprague-Grundy (`numpy`), SAT/SMT (`z3-solver` 4.13) para rompecabezas de restricciones
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Valor de la posición, jugada óptima, número de Grundy
+
+CRITERIO DE VERIFICACIÓN
+Resolver 50 posiciones de finales con valor conocido: **50/50 correctas**; calcular los números de Grundy de un juego de Nim compuesto: exactos

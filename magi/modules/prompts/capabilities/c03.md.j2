@@ -1,0 +1,14 @@
+CAPACIDAD: C03 - Teoría de la información
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `scipy.stats.entropy`, implementación propia de entropía condicional e información mutua, `zstandard` para límites empíricos de compresión
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Entropía, tasa, límite de canal, análisis de compresibilidad
+
+CRITERIO DE VERIFICACIÓN
+Estimar la entropía de 20 fuentes sintéticas con entropía conocida: error ≤ **2 %**; el límite de Shannon calculado nunca es superado por ningún esquema propuesto (verificación automática)

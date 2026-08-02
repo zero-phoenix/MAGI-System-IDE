@@ -1,0 +1,14 @@
+CAPACIDAD: C16 - Categorización taxonómica y sistematización empírica
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Clustering jerárquico (`scipy.cluster.hierarchy`), construcción de taxonomías con `networkx`, validación por coeficiente de silueta y por estabilidad ante remuestreo
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Taxonomía con criterios de pertenencia
+
+CRITERIO DE VERIFICACIÓN
+Sobre 300 elementos con taxonomía de referencia: **índice de Rand ajustado ≥ 0,75**; estabilidad ≥ 0,8 en 20 remuestreos

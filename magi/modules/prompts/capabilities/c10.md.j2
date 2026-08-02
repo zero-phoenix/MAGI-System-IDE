@@ -1,0 +1,14 @@
+CAPACIDAD: C10 - Reconocimiento de voz basado en probabilidades
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `whisper.cpp` (modelo `base`/`small` GGUF) para transcripción local, `librosa` 0.10 para características, `webrtcvad` para detección de voz, decodificación con puntuaciones de confianza
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Transcripción con marcas de tiempo y confianza por palabra
+
+CRITERIO DE VERIFICACIÓN
+Sobre 30 min de audio con transcripción de referencia: **WER ≤ 15 %** en español limpio y confianza calibrada (correlación ≥ 0,6 entre confianza y acierto)

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "MAGI System Connector",
+  "version": "1.0.0",
+  "description": "Conecta el navegador con el MAGI System IDE mediante Native Messaging.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "nativeMessaging",
+    "contextMenus",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icon.png"
+  },
+  "action": {
+    "default_title": "Enviar a MAGI"
+  }
+}

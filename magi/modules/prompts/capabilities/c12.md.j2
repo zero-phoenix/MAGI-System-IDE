@@ -1,0 +1,14 @@
+CAPACIDAD: C12 - Cálculo físico, tensorial y geométrico "en la imaginación"
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `sympy.tensor` y `einsteinpy` 0.4 para tensores; `numpy` para verificación numérica; **regla: todo resultado simbólico se comprueba numéricamente en el sandbox**
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Derivación simbólica con verificación numérica
+
+CRITERIO DE VERIFICACIÓN
+Derivar los símbolos de Christoffel y el tensor de Ricci de 10 métricas conocidas: **10/10** coincidiendo con la referencia simbólica **y** con la comprobación numérica en 100 puntos aleatorios

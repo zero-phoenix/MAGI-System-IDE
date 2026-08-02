@@ -1,0 +1,14 @@
+CAPACIDAD: C24 - Paridad de riesgo
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Optimización de contribución al riesgo (`scipy.optimize`, `numpy` sobre matriz de covarianzas), con `cvxpy` 1.5 para la formulación convexa
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Pesos con su contribución al riesgo
+
+CRITERIO DE VERIFICACIÓN
+La contribución marginal al riesgo de cada activo difiere de la media en ≤ **1 %** en 20 carteras sintéticas

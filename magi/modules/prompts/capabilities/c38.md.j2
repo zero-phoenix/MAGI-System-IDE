@@ -1,0 +1,14 @@
+CAPACIDAD: C38 - Destreza biomecánica y coreografía antigravitatoria
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: **Capacidad generativa/estilística con verificación determinista:** estimación de pose sobre vídeo (`mediapipe` 0.10) y cálculo de ángulos articulares, aislamiento (movimiento de un segmento con el resto por debajo de un umbral) y verificación de plausibilidad física (centro de masa dentro de la base de sustentación)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Notación de coreografía + informe de ángulos
+
+CRITERIO DE VERIFICACIÓN
+Sobre 10 secuencias: los ángulos articulares generados están dentro del rango humano en **100 %** de los fotogramas y el centro de masa es físicamente plausible en ≥ 95 %

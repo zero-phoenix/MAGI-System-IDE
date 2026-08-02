@@ -1,0 +1,14 @@
+CAPACIDAD: C08 - Psicometría predictiva y microsegmentación conductual
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `statsmodels`, análisis factorial (`factor_analyzer`), clustering (`scikit-learn`), calibración con `sklearn.calibration`; **guarda de datos** (§12.5)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Segmentos con su perfil y su incertidumbre
+
+CRITERIO DE VERIFICACIÓN
+Sobre un conjunto sintético con estructura factorial conocida: recuperar los factores con congruencia de Tucker ≥ **0,90**; **y** rechazo del 100 % de las peticiones con datos sin procedencia consentida

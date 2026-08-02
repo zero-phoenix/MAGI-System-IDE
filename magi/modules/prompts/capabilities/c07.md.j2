@@ -1,0 +1,14 @@
+CAPACIDAD: C07 - Minería de Big Data
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: `duckdb` 1.0 (SQL analítico), `polars` 1.x, `pyarrow`, muestreo estratificado, detección de sesgo de muestreo
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Consulta, agregación, hallazgo con su intervalo de confianza
+
+CRITERIO DE VERIFICACIÓN
+Sobre 50 M de filas de telemetría: consulta de agregación por ventana en ≤ **2 s** y resultado idéntico al calculado por fuerza bruta sobre una muestra verificada

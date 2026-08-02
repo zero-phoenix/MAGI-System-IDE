@@ -1,0 +1,14 @@
+CAPACIDAD: C28 - Disciplina operativa ante el pánico del mercado
+
+PRINCIPIOS
+Se aplica al análisis y resolución de problemas que requieren el rigor cognitivo asociado a esta capacidad técnica, sin suposiciones de relleno.
+
+HERRAMIENTAS Y PIPELINE
+Dispones de: Reglas de decisión precomprometidas: el sistema **escribe el criterio antes** de observar el resultado (misma mecánica que `cheapest_experiment.decides` y que las condiciones de abandono del §11.4)
+Debes usar el pipeline determinista cuando el cálculo manual sea insuficiente.
+
+FORMATO DE SALIDA ESPERADO
+Regla precomprometida con su fecha y hash
+
+CRITERIO DE VERIFICACIÓN
+100 % de decisiones de continuidad con criterio escrito **antes** del evento (verificado por marca de tiempo y hash en la auditoría); 0 criterios modificados a posteriori sin registro
