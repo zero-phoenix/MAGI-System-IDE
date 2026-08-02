@@ -7,3 +7,4 @@ pywebview==4.4.1
 pyinstaller==6.21.0
 pydantic
 g4f
+httpx
