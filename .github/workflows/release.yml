@@ -46,16 +46,13 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.9
-        name: "MAGI System IDE V5.0.9"
+        tag_name: v5.0.10
+        name: "MAGI System IDE V5.0.10"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.9 🚀
+          ## Novedades en V5.0.10 🚀
           
-          - **Auto-Ejecución Nativa:** Casper ahora aprueba e instruye a MAGI para que extraiga todo el código de la propuesta y lo corra automáticamente en segundo plano (Python y Scripts Shell) cuando escribes "sí", haciéndolo un verdadero IDE autónomo y sin fricción.
-          - **Formateo Limpio:** Se resolvió el error de diseño en donde Casper devolvía un código JSON crudo que rompía la UI; ahora se lee como Markdown pulcro y con su respectivo resaltado.
-          - **Inteligencia Arbítrial Mejorada:** Se ha extendido el Scope de Casper. Ya no solo resume pasivamente, sino que dirige y corrige científicamente a los otros agentes, brindando directivas sólidas a nivel de software.
-          - **Persistencia A Prueba de Fallas:** Arreglado un Crash severo al enviar varias consultas (`UNIQUE constraint failed`) por problemas de DB.
+          - **Gráfico de Arquitectura Ultra-Detallado:** Se rediseñó por completo el `README.md`. Ahora el gráfico Mermaid es 100% integral y unidireccional, abarcando gráficamente y con alto detalle toda la explicación horizontal de los procesos en 4 Niveles interconectados (Host, Orquestación, Cloud y Auto-Ejecución).
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
