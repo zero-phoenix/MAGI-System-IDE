@@ -32,6 +32,22 @@ html, body {
   overflow: hidden;
 }
 
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dim);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--node);
+}
+
 body {
   background: var(--bg);
   color: #cfe0e4;
@@ -332,6 +348,7 @@ body {
   border: 1px solid var(--gr);
   background: var(--sf);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .ch {

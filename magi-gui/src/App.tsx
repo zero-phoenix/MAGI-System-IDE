@@ -47,6 +47,19 @@ function App() {
     sendCommand("KILL_ALL_PROCESSES");
   };
 
+  const getAgentData = (agentName: string, defaultProv: string) => {
+    const msgs = messages.filter(m => m.agent === agentName);
+    const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+    const provider = lastMsg?.provider || defaultProv;
+    const tel = telemetry?.find(t => t.provider === provider);
+    const latency = tel ? `${tel.avg_latency_ms.toFixed(0)}ms` : '---';
+    return { provider, latency };
+  };
+
+  const balthasarData = getAgentData("BALTHASAR", "prov-c");
+  const casperData = getAgentData("CASPER", "prov-a");
+  const melchiorData = getAgentData("MELCHIOR", "prov-b");
+
   return (
     <>
       <div className="tt">
@@ -119,7 +132,7 @@ function App() {
             <div className="nd b">
               <div className="fx">el que busca fallos</div>
               <div className="nm">BALTHASAR · 2</div>
-              <div className="md">prov-c · nube · activo</div>
+              <div className="md">{balthasarData.provider} · {balthasarData.latency}</div>
             </div>
             <div className="cn k1"></div>
             <div className="cn k2"></div>
@@ -130,12 +143,12 @@ function App() {
             <div className="nd c">
               <div className="fx">el que decide</div>
               <div className="nm">CASPER · 3</div>
-              <div className="md">prov-a · nube · analizando</div>
+              <div className="md">{casperData.provider} · {casperData.latency}</div>
             </div>
             <div className="nd m1">
               <div className="fx">el que propone</div>
               <div className="nm">MELCHIOR · 1</div>
-              <div className="md">prov-b · rotando proxy</div>
+              <div className="md">{melchiorData.provider} · {melchiorData.latency}</div>
             </div>
           </div>
 
@@ -154,8 +167,13 @@ function App() {
                     <span style={{ color: "#6d8288" }}>{msg.role}</span>
                   </span>
                 </div>
-                <div className="mid">
-                  <b>{msg.provider}</b> · modelo enjambre
+                <div className="mid" style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span><b>{msg.provider}</b> · modelo enjambre</span>
+                  {telemetry?.find(t => t.provider === msg.provider) && (
+                    <span style={{ color: "var(--ok)", opacity: 0.8 }}>
+                      {telemetry.find(t => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
+                    </span>
+                  )}
                 </div>
                 <div className="pl">«{msg.content}»</div>
                 <div className="sec">

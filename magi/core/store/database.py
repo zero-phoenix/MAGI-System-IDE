@@ -13,9 +13,15 @@ class MagiDatabase:
     Maneja el almacenamiento inmutable de tareas y debates del enjambre.
     """
     def __init__(self, db_path: str = "magi_brain.db"):
-        self.db_path = db_path
-        self._init_db()
-        
+        import os
+        if db_path == "magi_brain.db":
+            home_dir = os.path.expanduser("~")
+            magi_dir = os.path.join(home_dir, ".magi")
+            os.makedirs(magi_dir, exist_ok=True)
+            self.db_path = os.path.join(magi_dir, "magi_brain.db")
+        else:
+            self.db_path = db_path
+        self._init_db()        
     def _get_connection(self):
         # check_same_thread=False para poder operar asíncronamente con to_thread
         return sqlite3.connect(self.db_path, check_same_thread=False)
