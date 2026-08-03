@@ -56,10 +56,10 @@ jobs:
         body: |
           ## Novedades en ${{ github.ref_name }} 🚀
           
-          - **Pegar Capturas Directamente desde el Portapapeles (Ctrl+V):** Integrado capturador global de portapapeles. Al usar la Herramienta de Recorte de Windows (`Win+Shift+S`) y presionar `Ctrl+V` en cualquier parte de la app, la imagen se adjunta automáticamente en Naoko.
-          - **Solución Definitiva de Resiliencia del Enjambre (`orchestrator.py`):** Corregida la llamada a `self.bus.publish` en bloques de excepción del orquestador, evitando que tareas colapsen silenciosamente en `in_progress`.
-          - **Unificación de Tipografía e Inspección de Negritas (`App.css` & `App.tsx`):** Enforzada tipografía uniforme sans-serif (`Inter`) de 13px y normalizado el parser de etiquetas markdown para evitar fugas de estilo negrita en tarjetas.
-          - **Control Estricto de Capas y Acordeón Desplegable (`z-index: 10`):** Asegurado que la expansión de tarjetas ocurra dentro del contenedor `.conv` sin desplazar o sobreponerse a la barra inferior de ejecución `SYS_EXEC`.
+          - **Icono del Ejecutable Nativo en Windows 100% Cuadrado 1:1 RGBA (`assets/icon.ico`):** Re-generado `assets/icon.ico` con dimensiones cuadradas exactas (256x256, 128x128, 64x64, 48x48, 32x32, 16x16) en formato RGBA, solucionando el problema donde el explorador de Windows rechazaba el icono ejecutable por dimensiones no cuadradas.
+          - **Eliminación Total de Texto Negrita Indeseado (`AgentMessageCard`):** Eliminado el prefijo markdown `###` de las conclusiones que forzaba a la interfaz a renderizar todo el cuerpo de la tarjeta como un encabezado `<h3>` negrita. Ahora el texto usa peso normal (400) y solo resalta en negrita las palabras clave intencionadas.
+          - **Barra de Desplazamiento Permanente Visible (`.conv`):** Enforzado `overflow-y: scroll !important` con reglas WebKit/Firefox dedicadas (`scrollbar-width: thin`), haciendo visible la barra vertical de desplazamiento en Windows PyWebView sin depender de interacciones de hover.
+          - **Insignia "💡 CONCLUSIÓN SÍNTESIS":** Añadida una etiqueta visual distintiva que encabeza cada síntesis sin alterar la tipografía del cuerpo del mensaje.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

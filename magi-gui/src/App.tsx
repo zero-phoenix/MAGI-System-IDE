@@ -22,28 +22,21 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   } else {
     let rawContent = (msg.content || "").trim();
 
-    if (/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/i.test(rawContent)) {
-      rawContent = rawContent.replace(/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/i, '### CONCLUSIÓN\n');
-    }
+    // Strip leading header markers so ReactMarkdown renders a regular paragraph instead of an h3 heading
+    rawContent = rawContent.replace(/^(?:###\s*)?\*\*?CONCLUSIÓ[NN](?:\s*FINAL\s*CONSOLIDADA)?:?\*\*?\s*/i, '');
 
-    if (rawContent.includes('### CONCLUSIÓN')) {
-      const parts = rawContent.split('### CONCLUSIÓN');
-      body = parts[0].trim();
-      conclusion = '### CONCLUSIÓN ' + parts.slice(1).join('### CONCLUSIÓN').trim();
+    const paragraphs = rawContent.split(/\n\s*\n/);
+    if (paragraphs.length > 1) {
+      conclusion = paragraphs[paragraphs.length - 1].trim();
+      body = paragraphs.slice(0, paragraphs.length - 1).join('\n\n').trim();
     } else {
-      const paragraphs = rawContent.split(/\n\s*\n/);
-      if (paragraphs.length > 1) {
-        conclusion = paragraphs[paragraphs.length - 1].trim();
-        body = paragraphs.slice(0, paragraphs.length - 1).join('\n\n').trim();
-      } else {
-        conclusion = rawContent;
-        body = "";
-      }
+      conclusion = rawContent;
+      body = "";
     }
   }
 
   return (
-    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
       <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid var(--dim)', fontSize: '11px', color: 'var(--dim)' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <strong style={{ color: msg.agent === 'MELCHIOR' ? 'var(--var)' : msg.agent === 'BALTHASAR' ? 'var(--acc)' : msg.agent === 'CASPER' ? 'var(--fn)' : '#fff' }}>
@@ -69,13 +62,18 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
           </div>
         ) : (
           <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--acc)', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <span>💡 CONCLUSIÓN SÍNTESIS</span>
+            </div>
+
             {conclusion && (
-              <div style={{ marginBottom: body ? '8px' : '0' }}>
+              <div className="card-conclusion-text" style={{ marginBottom: body ? '8px' : '0', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
                   {conclusion}
                 </ReactMarkdown>
               </div>
             )}
+
             {body && (
               <div style={{ marginTop: '8px' }}>
                 <button 
@@ -85,7 +83,7 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
                   {isExpanded ? 'Ocultar análisis ▴' : 'Ver análisis completo ▾'}
                 </button>
                 {isExpanded && (
-                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--dim)' }}>
+                  <div className="card-body-text" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--dim)', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
                       {body}
                     </ReactMarkdown>
