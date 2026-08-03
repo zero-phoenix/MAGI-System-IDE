@@ -16,7 +16,7 @@ class CloudAPIProvider(BaseProvider):
     def name(self) -> str:
         return self._name
         
-    async def generate(self, prompt: str, context: Dict[str, Any] = None) -> str:
+    async def generate(self, prompt: str, context: Dict[str, Any] | None = None) -> str:
         logger.info(f"[{self._name}] Enviando solicitud HTTP REST al cloud...")
         await asyncio.sleep(0.3)
         return f"[{self._name} API Responde] Analizado: {prompt[:30]}..."

@@ -74,7 +74,7 @@ Responde a las preguntas del usuario sobre el estado del sistema o las reparacio
             return # Ya estamos reparando algo
             
         self.is_fixing = True
-        error_details = str(event.payload if hasattr(event, 'payload') else event.data)
+        error_details = str(getattr(event, 'payload', getattr(event, 'data', str(event))))
         logger.warning(f"[NAOKO] Error detectado: {error_details}")
         
         await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Diagnosticando..."}))

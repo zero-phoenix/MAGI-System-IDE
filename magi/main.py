@@ -187,8 +187,7 @@ def main():
         width=1280,
         height=800,
         frameless=False,
-        easy_drag=False,
-        icon=get_resource_path("assets/icon.ico")
+        easy_drag=False
     )
     
     # Esto bloqueará hasta que el usuario cierre la ventana

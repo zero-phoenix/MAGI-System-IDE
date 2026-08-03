@@ -74,36 +74,34 @@ class FreeCloudLLM:
         asyncio.create_task(self.db.log_provider_failure(name))
 
     async def _fetch_from_provider(self, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
-        """Intenta obtener una respuesta rotando proveedores manualmente."""
+        """Intenta obtener una respuesta usando auto-routing dinámico de G4F y rotación de modelos si falla."""
         if not self.client:
             raise ValueError("G4F client no inicializado")
             
-        logger.debug(f"[Enjambre] G4F Routing manual para el modelo {model} (Intento {attempt})...")
-        
         start_t = time.time()
         
-        # Iterar sobre provider_swarm
-        for provider in self.provider_swarm:
-            if not self._is_alive(provider):
-                continue
-                
+        # Lista de candidatos a intentar en orden de preferencia
+        candidate_models = [model]
+        for m in ["gpt-4o", "gpt-4o-mini", "gpt-4", "llama-3.1-70b", "qwen-2.5-coder"]:
+            if m not in candidate_models:
+                candidate_models.append(m)
+            
+        for cand in candidate_models:
             try:
+                logger.debug(f"[Enjambre] Petición G4F Auto-Router con modelo '{cand}' (Intento {attempt})...")
                 response = await self.client.chat.completions.create(
-                    model=model,
-                    provider=provider,
+                    model=cand,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ]
                 )
-                content = response.choices[0].message.content
-                
+                content = response.choices[0].message.content if response and response.choices else None
                 if content:
                     latency_ms = (time.time() - start_t) * 1000
-                    provider_name = provider.__name__
-                    logger.info(f"[Enjambre] ¡VICTORIA! El proveedor {provider_name} completó la tarea en ({latency_ms:.2f}ms).")
+                    provider_name = f"G4F_Auto_Router({cand})"
+                    logger.info(f"[Enjambre] ¡VICTORIA! {provider_name} completó la tarea en ({latency_ms:.2f}ms).")
                     
-                    # Calcular telemetría empírica (Inteligencia/Complejidad)
                     has_code = "```" in content
                     word_count = len(content.split())
                     role = "Generación" if "MELCHIOR" in system_prompt else "Análisis" if "BALTHASAR" in system_prompt else "Arbitraje"
@@ -112,18 +110,15 @@ class FreeCloudLLM:
                     
                     return (content, provider_name)
             except Exception as e:
-                logger.debug(f"[Enjambre] Proveedor {provider.__name__} falló: {e}")
-                self._mark_failure(provider)
+                logger.debug(f"[Enjambre] Falló modelo {cand} en G4F Auto-Router: {e}")
                 
-        raise ValueError("Todos los proveedores del enjambre fallaron. No hay respuesta válida.")
+        raise ValueError("Todos los intentos con el enjambre de modelos fallaron. No hay respuesta válida.")
 
     async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-4o") -> tuple[str, str]:
         if not self.client:
             return ("[Error: G4F client no inicializado]", "Unknown")
             
-        # Mapeo de Resiliencia: Claude y Qwen fallan nativamente en G4F, 
-        # enrutamos todo al cerebro más estable para evitar caídas del Enjambre.
-        original_model = model
+        # Mapeo de Resiliencia
         if model in ["claude-3.5-sonnet", "qwen-2.5", "deepseek"]:
             model = "gpt-4o"
             
@@ -172,10 +167,10 @@ class FreeCloudLLM:
                 
                 if attempt >= max_retries:
                     logger.critical(f"[SISTEMA] Abortando tras {max_retries} intentos fallidos con {model}.")
-                    raise e
+                    return (f"[Fallo Crítico: El Enjambre completo ha colapsado tras {max_retries} intentos. Detalle: {e}]", "SYSTEM_ERROR")
                     
-                delay = base_delay * (2 ** min(attempt-1, 4)) + random.uniform(5, 15)
-                logger.critical(f"[AUTO-REPARACIÓN] - Sistema colapsado por Rate Limit. Congelando hilo por {delay:.2f}s para forzar el enfriamiento de IP y rotación interna de G4F...")
+                delay = base_delay * (2 ** min(attempt-1, 4)) + random.uniform(1, 3)
+                logger.critical(f"[AUTO-REPARACIÓN] - Pausa por enfriamiento de IP ({delay:.2f}s)...")
                 await asyncio.sleep(delay)
                 logger.info("[AUTO-REPARACIÓN COMPLETADA] - Reiniciando peticiones al Enjambre.")
                 attempt += 1
