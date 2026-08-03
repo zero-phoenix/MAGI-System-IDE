@@ -466,7 +466,10 @@ export default function App() {
                         borderRadius: "8px",
                         alignSelf: msg.agent === "USER" ? "flex-end" : "flex-start",
                         maxWidth: "80%",
-                        fontSize: "13px"
+                        fontSize: "13px",
+                        wordWrap: "break-word",
+                        whiteSpace: "pre-wrap",
+                        overflowX: "auto"
                       }}>
                         <div style={{ fontSize: "11px", color: "var(--dim)", marginBottom: "5px" }}>{msg.agent}</div>
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>

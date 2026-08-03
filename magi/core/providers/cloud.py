@@ -170,6 +170,10 @@ class FreeCloudLLM:
                 logger.warning(f"[VERIFICACIÓN] - Fallo Crítico en intento {attempt}. Motivo: {e}")
                 asyncio.create_task(self.db.log_provider_failure("G4F_Auto_Router"))
                 
+                if attempt >= max_retries:
+                    logger.critical(f"[SISTEMA] Abortando tras {max_retries} intentos fallidos con {model}.")
+                    raise e
+                    
                 delay = base_delay * (2 ** min(attempt-1, 4)) + random.uniform(5, 15)
                 logger.critical(f"[AUTO-REPARACIÓN] - Sistema colapsado por Rate Limit. Congelando hilo por {delay:.2f}s para forzar el enfriamiento de IP y rotación interna de G4F...")
                 await asyncio.sleep(delay)

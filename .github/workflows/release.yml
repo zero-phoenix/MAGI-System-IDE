@@ -41,16 +41,16 @@ jobs:
 
     - name: Build Executable (PyInstaller)
       run: |
-        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.16
-        name: "MAGI System IDE V5.0.16"
+        tag_name: v5.0.17
+        name: "MAGI System IDE V5.0.17"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.16 🚀
+          ## Novedades en V5.0.17 🚀
           
           - **Nueva IA Autónoma (Naoko):** Se ha integrado una cuarta IA (Naoko) que actúa como DevOps de infraestructura. Naoko monitorea continuamente los errores del sistema y, sin necesidad de permisos, aplica auto-reparaciones al código local y sube las actualizaciones directamente a GitHub.
           - **Pestaña Exclusiva Naoko:** Se agregó una pestaña dedicada en la interfaz gráfica para interactuar con Naoko, ver sus logs en tiempo real y el estado de sus auto-reparaciones.
