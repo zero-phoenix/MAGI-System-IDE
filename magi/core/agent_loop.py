@@ -145,13 +145,40 @@ def _trim(messages: list[Message], keep_recent: int = 12,
     """
     Poda de contexto. Los proveedores gratuitos tienen ventanas pequeñas e
     impredecibles; sin esto el bucle revienta a la 4ª o 5ª iteración.
-    Conserva siempre el system y la petición original.
+
+    Descartar mensajes enteros no basta: la salida de un run_tests o de un
+    read_file puede ocupar 40 000 caracteres ella sola, y el bucle antiguo no
+    podía bajar de 4 mensajes por muy grandes que fueran. Se descarta primero
+    y, si aún no cabe, se recortan los cuerpos.
     """
-    if len(messages) <= keep_recent + 2:
+    if len(messages) <= keep_recent + 2 and \
+            sum(len(str(m.content)) for m in messages) <= max_chars:
         return messages
-    head, tail = messages[:2], messages[-keep_recent:]
-    total = sum(len(str(m.content)) for m in head + tail)
-    while total > max_chars and len(tail) > 4:
-        dropped = tail.pop(0)
-        total -= len(str(dropped.content))
-    return head + [Message("user", "[…contexto intermedio podado…]")] + tail
+
+    head = messages[:2]                       # system + petición original
+    tail = list(messages[-keep_recent:]) if len(messages) > 2 else []
+
+    def size(msgs) -> int:
+        return sum(len(str(m.content)) for m in msgs)
+
+    # 1) descartar los más antiguos de la cola
+    while size(head + tail) > max_chars and len(tail) > 2:
+        tail.pop(0)
+
+    # 2) si sigue sin caber, recortar cuerpos empezando por los más grandes
+    budget = max_chars - size(head)
+    if budget > 0 and size(tail) > budget:
+        per_msg = max(500, budget // max(1, len(tail)))
+        for i, m in enumerate(tail):
+            body = str(m.content)
+            if len(body) > per_msg:
+                keep = per_msg // 2
+                tail[i] = Message(
+                    m.role,
+                    f"{body[:keep]}\n\n[…{len(body) - per_msg} caracteres "
+                    f"recortados…]\n\n{body[-keep:]}",
+                    m.tool_call_id, m.name)
+
+    marker = [Message("user", "[…contexto intermedio podado…]")] \
+        if len(messages) > len(head) + len(tail) else []
+    return head + marker + tail

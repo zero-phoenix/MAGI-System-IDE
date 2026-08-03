@@ -131,7 +131,11 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **98 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **134 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
+| **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
+| **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
+| **Memoria del debate** | Cuatro subsistemas de memoria instanciados y nunca llamados | Memoria episódica que inyecta lo ya refutado en la ronda siguiente |
 | **Módulos aleatorios** | `quantum_oracle` devolvía `random.choice`; `quant/simulator` devolvía `np.random` como índice de riesgo | Retirados a [`magi/_attic/`](magi/_attic/) con nota de por qué |
 
 ### Reglas de trabajo
@@ -158,7 +162,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 98 tests, sin red
+python -m pytest tests/ -v        # 134 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -170,13 +174,17 @@ ruff check magi/ tests/           # lint
 (§1.2), anclaje de rutas (§1.3), estado persistente (§1.4), tests y CI (§1.5),
 higiene del repositorio (§1.6).
 
-**Fase 2 en curso** — bucle de herramientas (§2.2), enrutamiento adaptativo
-(§2.3), estilo narrativo conectado (§2.7). Pendiente: paralelismo de propuestas
-(§2.4), verificación ejecutable antes del arbitraje (§2.5), memoria conectada
-(§2.6).
+**Fase 2 completa** — bucle de herramientas (§2.2), enrutamiento adaptativo
+(§2.3), paralelismo de propuestas y crítica multi-eje (§2.4), verificación
+ejecutable antes del arbitraje (§2.5), memoria episódica (§2.6), estilo
+narrativo conectado (§2.7).
 
-**Siguiente** — ciclo completo de reparación verificada de Naoko (§3.1),
-toolchain de ingeniería inversa para emuladores (§5.3), fábrica de artefactos (§5).
+**Fase 3 en curso** — el ciclo `VerifiedRepair` de Naoko ya está conectado
+(§3.1-§3.3). Pendiente: observabilidad proactiva (§3.4) y banco de evaluación
+para auto-mejora medible (§3.5).
+
+**Siguiente** — toolchain de ingeniería inversa para emuladores (§5.3) y fábrica
+de artefactos (§5).
 
 ---
 

@@ -3,6 +3,11 @@ import logging
 from magi.core.blackboard import Blackboard
 from magi.core.bus import MagiBus, BusEvent
 from .agents import MelchiorAgent, BalthasarAgent, CasperAgent
+from .parallel import (
+    critique_multi_axis, format_variants_for_critic, generate_variants,
+)
+from magi.core.verification import ProposalVerifier
+from magi.modules.memory.episodic import EpisodicMemory
 from magi.core.paths import project_root, workspace_dir
 
 logger = logging.getLogger(__name__)
@@ -22,12 +27,20 @@ class SwarmOrchestrator:
         self.store = store if store is not None else TaskStore()
         self.active_tasks = {}
         self.latest_task_id = None
-        self._rehydrate()
-        
-        # Inicializar agentes
+        self._memory: dict[str, EpisodicMemory] = {}
+
+        # Agentes ANTES de rehidratar: _rehydrate puede reanudar una tarea.
         self.melchior = MelchiorAgent(self.blackboard, self.bus)
         self.balthasar = BalthasarAgent(self.blackboard, self.bus)
         self.casper = CasperAgent(self.blackboard, self.bus)
+
+        self._rehydrate()
+
+    def memory_for(self, task_id: str) -> EpisodicMemory:
+        """Memoria episódica de la tarea (§2.6). Persistida en task_event."""
+        if task_id not in self._memory:
+            self._memory[task_id] = EpisodicMemory(task_id, store=self.store)
+        return self._memory[task_id]
 
     def _rehydrate(self) -> None:
         """Recupera las tareas reanudables al arrancar."""
@@ -200,23 +213,90 @@ class SwarmOrchestrator:
                 
                 engine = state.get("engine", "fast")
                 style = state.get("narrative_style", "tecnico")
+                # Explorar cuesta cuota: solo la ruta build genera 3 enfoques.
+                n_variants = {"build": 3, "task": 2}.get(
+                    state.get("route", "task"), 1)
                 
-                # 1. Melchior Propone
                 last_proposal = state.get("last_proposal")
                 last_critique = state.get("last_critique")
-                proposal = await self.melchior.generate_proposal(
-                    task_id, state["command"], current_round,
-                    last_proposal, last_critique, engine, style)
+
+                # ---- 1. MELCHIOR: N enfoques EN PARALELO (§2.4) -------------
+                # Antes: una sola propuesta secuencial. Ahora varias variantes
+                # con semillas distintas; el tiempo de pared es el de una.
+                memory = self.memory_for(task_id)
+                history = memory.render_for_prompt()
+                command_with_memory = (
+                    f"{state['command']}\n\n{history}" if history else state["command"])
+
+                variants = await generate_variants(
+                    self.melchior, task_id=task_id, command=command_with_memory,
+                    round_num=current_round, n=n_variants, engine=engine,
+                    narrative_style=style, last_proposal=last_proposal,
+                    last_critique=last_critique)
+
+                # ---- 2. VERIFICACIÓN EJECUTABLE (§2.5) ----------------------
+                # Ninguna propuesta con código llega al crítico sin ejecutarse.
+                # Elimina la clase de fallo más cara: tres rondas debatiendo
+                # elegantemente sobre código que no compila.
+                verifier = ProposalVerifier()
+                reports = await asyncio.gather(
+                    *(verifier.verify(v.content) for v in variants))
+                for v, rep in zip(variants, reports):
+                    v.verified = rep.ok
+                    v.verification = rep.render()
+
+                good = [v for v in variants if v.verified]
+                if not good and any(r.had_code for r in reports):
+                    # Todas fallan: vuelve a Melchior con el traceback SIN
+                    # gastar una ronda de debate.
+                    worst = reports[0]
+                    await self.bus.publish(BusEvent(
+                        topic="TERMINAL_OUT",
+                        payload={"content": "[VERIFICACIÓN] El código propuesto no "
+                                            "arranca. Devuelto a Melchior sin gastar ronda."}))
+                    await self.bus.publish(BusEvent(
+                        topic="swarm.verification_failed",
+                        payload={"task_id": task_id, "round": current_round,
+                                 "detail": worst.render()[:2000]}))
+                    for v, rep in zip(variants, reports):
+                        memory.record(round_num=current_round, approach=v.content,
+                                      outcome="no_verifica",
+                                      reason=(rep.failures[0].detail
+                                              if rep.failures else "no arranca"))
+                    state["command"] = (f"{state['command']}\n\n"
+                                        f"{worst.feedback_for_author()}")
+                    await asyncio.sleep(0.5)
+                    continue
+
+                chosen = good or variants
+                proposal = {"content": format_variants_for_critic(chosen),
+                            "changes": 1 if current_round > 1 else 0,
+                            "variants": len(chosen)}
                 self.blackboard.post(f"{task_id}.proposal", proposal)
                 state["last_proposal"] = proposal
                 self._persist(task_id)
                 if "SYS_EMERGENCY_STOP" in proposal["content"]:
                     await self._trigger_emergency_stop(task_id, state)
                     break
-                
-                # 2. Balthasar Critica
-                critique = await self.balthasar.generate_critique(
-                    task_id, proposal, current_round, engine, style)
+
+                evidence = "\n\n".join(
+                    f"[{v.label}] {v.verification}" for v in chosen if v.verification)
+
+                # ---- 3. BALTHASAR: crítica multi-eje EN PARALELO (§2.4) -----
+                multi = await critique_multi_axis(
+                    self.balthasar, task_id=task_id,
+                    proposal_text=proposal["content"], round_num=current_round,
+                    engine=engine, narrative_style=style,
+                    evidence=("\n\n--- EVIDENCIA DE EJECUCIÓN ---\n" + evidence)
+                    if evidence else "")
+                critique = {"content": multi.render(), "status": "CRITIQUE_GENERATED",
+                            "axes": multi.axes_ok}
+                await self.bus.publish(BusEvent(topic="AGENT_POST", payload={
+                    "type": "AGENT_POST", "task_id": task_id, "agent": "BALTHASAR",
+                    "role": "critica", "provider": self.balthasar.family,
+                    "family": self.balthasar.family,
+                    "content": critique["content"], "changes": 0,
+                    "stats": f"{multi.axes_ok} ejes"}))
                 self.blackboard.post(f"{task_id}.critique", critique)
                 state["last_critique"] = critique
                 self._persist(task_id)
@@ -251,6 +331,11 @@ class SwarmOrchestrator:
                 ))
                 break # Pausar el bucle hasta recibir input del usuario
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
+                self.memory_for(task_id).record(
+                    round_num=current_round,
+                    approach=state.get("last_proposal", {}).get("content", ""),
+                    outcome="refutado",
+                    reason=verdict.get("feedback", ""))
                 state["round"] += 1
                 state["command"] = f"Revisar propuesta considerando crítica: {verdict['feedback']}"
                 await asyncio.sleep(1.0)

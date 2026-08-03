@@ -34,7 +34,7 @@ class SwarmAgentBase:
 
     async def _ask(self, sys_prompt: str, user_prompt: str, *,
                    engine: str = "fast", narrative_style: str = "tecnico",
-                   temperature: float = 0.4) -> tuple[str, str]:
+                   temperature: float = 0.4) -> tuple[str, str, str]:
         """
         Llamada única de todos los nodos.
 
@@ -53,14 +53,27 @@ class SwarmAgentBase:
             get_context().render(),
         ])
         temp = temperature if engine == "fast" else max(0.1, temperature - 0.2)
-        return await self.llm.generate(
+        content, provider_id = await self.llm.generate(
             full_sys, user_prompt,
             family=self.family, temperature=temp, seed=self.seed)
+        return content, provider_id, self._family_of(provider_id)
+
+    @staticmethod
+    def _family_of(provider_id: str) -> str:
+        """
+        Familia REAL a partir del id del proveedor que respondió.
+
+        Si la familia del nodo estaba caída, el registro conmuta a otra. Publicar
+        self.family en ese caso sería mentir en la interfaz — exactamente lo que
+        hacía v5.0.28 con "G4F_Auto_Router(gpt-4o) (deepseek)".
+        """
+        pid = (provider_id or "").split(":")[0]
+        return pid[4:] if pid.startswith("g4f-") else pid or "desconocida"
 
     async def _ask_stream(self, sys_prompt: str, user_prompt: str, *,
                           task_id: str, engine: str = "fast",
                           narrative_style: str = "tecnico",
-                          temperature: float = 0.4) -> tuple[str, str]:
+                          temperature: float = 0.4) -> tuple[str, str, str]:
         """
         Igual que _ask pero publicando deltas en el bus (MAGI 9.0 §1.2).
 
@@ -96,7 +109,8 @@ class SwarmAgentBase:
                     await self.bus.publish(BusEvent(
                         topic="agent.delta",
                         payload={"task_id": task_id, "agent": self.role_name,
-                                 "family": self.family, "provider": provider_id,
+                                 "family": self._family_of(provider_id),
+                                 "provider": provider_id,
                                  "text": delta.text, "seq": delta.seq}))
                 if delta.done:
                     await self.bus.publish(BusEvent(
@@ -111,9 +125,9 @@ class SwarmAgentBase:
                          "aborted": True}))
             return await self._ask(sys_prompt, user_prompt, engine=engine,
                                    narrative_style=narrative_style,
-                                   temperature=temperature)
+                                   temperature=temperature)  # ya devuelve 3-tupla
 
-        return "".join(chunks), provider_id
+        return "".join(chunks), provider_id, self._family_of(provider_id)
 
 class MelchiorAgent(SwarmAgentBase):
     """Melchior - El Arquitecto (Propone soluciones)"""
@@ -152,7 +166,7 @@ class MelchiorAgent(SwarmAgentBase):
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
         
-        content, actual_provider = await self._ask_stream(
+        content, actual_provider, actual_family = await self._ask_stream(
             sys_prompt, user_prompt, task_id=task_id, engine=engine,
             narrative_style=narrative_style)
         
@@ -164,7 +178,10 @@ class MelchiorAgent(SwarmAgentBase):
                 "agent": "MELCHIOR",
                 "role": "propone",
                 "provider": actual_provider,
-                "family": self.family,
+                "family": actual_family,
+                "family_expected": self.family,
+                "degraded": (None if actual_family == self.family
+                             else f"{self.family} no disponible; respondió {actual_family}"),
                 "content": content,
                 "changes": 1 if round_num > 1 else 0,
                 "stats": "N/A"
@@ -195,7 +212,7 @@ class BalthasarAgent(SwarmAgentBase):
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
         
-        content, actual_provider = await self._ask_stream(
+        content, actual_provider, actual_family = await self._ask_stream(
             sys_prompt, user_prompt, task_id=task_id, engine=engine,
             narrative_style=narrative_style)
             
@@ -207,7 +224,10 @@ class BalthasarAgent(SwarmAgentBase):
                 "agent": "BALTHASAR",
                 "role": "critica",
                 "provider": actual_provider,
-                "family": self.family,
+                "family": actual_family,
+                "family_expected": self.family,
+                "degraded": (None if actual_family == self.family
+                             else f"{self.family} no disponible; respondió {actual_family}"),
                 "content": content,
                 "changes": 0,
                 "stats": "N/A"
@@ -242,7 +262,7 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
-        content, actual_provider = await self._ask_stream(
+        content, actual_provider, actual_family = await self._ask_stream(
             sys_prompt, user_prompt, task_id=task_id, engine=engine,
             narrative_style=narrative_style)
         
@@ -279,7 +299,10 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
                 "agent": "CASPER",
                 "role": "arbitro",
                 "provider": actual_provider,
-                "family": self.family,
+                "family": actual_family,
+                "family_expected": self.family,
+                "degraded": (None if actual_family == self.family
+                             else f"{self.family} no disponible; respondió {actual_family}"),
                 "content": formatted_content,
                 "changes": 0,
                 "stats": f"Decisión: {decision}"
@@ -308,7 +331,7 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
         
         user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
         
-        content, actual_provider = await self._ask_stream(
+        content, actual_provider, actual_family = await self._ask_stream(
             sys_prompt, user_prompt, task_id=task_id, engine=engine,
             narrative_style=narrative_style)
         
@@ -320,7 +343,10 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
                 "agent": "CASPER",
                 "role": "resultado_final",
                 "provider": actual_provider,
-                "family": self.family,
+                "family": actual_family,
+                "family_expected": self.family,
+                "degraded": (None if actual_family == self.family
+                             else f"{self.family} no disponible; respondió {actual_family}"),
                 "content": content,
                 "changes": 0,
                 "stats": "FINALIZADO"

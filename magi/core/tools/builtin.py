@@ -237,8 +237,11 @@ def build_registry() -> ToolRegistry:
                               else f"rc={proc.returncode}",
                               meta={"rc": proc.returncode})
         except asyncio.TimeoutError:
+            # kill() sin wait() deja el transporte sin limpiar: el proceso queda
+            # zombi y asyncio lanza "Event loop is closed" al recolectarlo.
             try:
                 proc.kill()
+                await proc.wait()
             except Exception:
                 pass
             return ToolResult(False, "", error=f"timeout tras {timeout}s")

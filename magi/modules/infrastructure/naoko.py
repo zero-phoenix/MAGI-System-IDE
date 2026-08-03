@@ -137,23 +137,60 @@ Devuelve tu diagnóstico y tu parche."""
             diagnostic = await self._generate_with_rotation(system_prompt, f"Error:\n{error_details}")
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"### Diagnóstico\n{diagnostic}"}))
             
-            # Buscar script
-            code_blocks = re.findall(r'```(powershell|python)\n(.*?)\n```', diagnostic, re.DOTALL)
-            if code_blocks:
-                await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Aplicando Parche..."}))
-                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "Aplicando parche local..."}))
-                lang, code = code_blocks[0]
-                await self._apply_patch(lang, code)
-                
-                # Git Commit & Push
-                await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Comiteando..."}))
-                await self._git_push("Auto-reparación aplicada por Naoko: " + error_details[:50])
-                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "✅ Sistema parcheado y actualizado en GitHub exitosamente."}))
-                await self.db.log_naoko_memory(error_details, diagnostic, "Código inyectado y pusheado.")
+            # MAGI 9.0 §3.1 — reparación VERIFICADA.
+            #
+            # v5.0.28 hacía: regex sobre la respuesta del LLM -> ejecutar el
+            # script con powershell -File sin revisarlo -> git add . -> commit
+            # -> tag -> push. Sin reproducir el fallo, sin tests, y sin saber si
+            # el parche arreglaba algo o rompía otra cosa.
+            #
+            # Ahora el ciclo es reproducir -> localizar -> parchear en rama ->
+            # VERIFICAR con la suite -> decidir. Si los tests quedan rojos, se
+            # revierte y se prueba la siguiente hipótesis.
+            from magi.modules.infrastructure.naoko_repair import VerifiedRepair
+            from magi.core.agent_loop import run_agent
+            from magi.core.tools import ToolContext, registry_for_role
+            from magi.core.tools.journal import WriteJournal
+            from magi.core.paths import project_root
+            from magi.core.providers.cloud import get_registry
+            from magi.core.prompts import build_system_prompt
+            from magi.core.context import get_context
+
+            task_id = f"naoko-{int(__import__('time').time())}"
+            provider_reg = await get_registry()
+            tools = registry_for_role("MELCHIOR")   # Naoko necesita escribir
+            ctx = ToolContext(task_id=task_id, cwd=project_root(),
+                              journal=WriteJournal(task_id=task_id))
+
+            async def _agent(prompt: str):
+                return await run_agent(
+                    registry=provider_reg, tools=tools,
+                    system_prompt=build_system_prompt(
+                        "NAOKO", execution_context=get_context().render()),
+                    user_prompt=prompt, ctx=ctx, agent_name="NAOKO",
+                    max_iters=14,
+                    on_event=lambda topic, payload: self.bus.publish(BusEvent(
+                        topic="naoko.trace",
+                        payload={"topic": topic, **payload})))
+
+            report = await VerifiedRepair(project_root()).repair(
+                error_details=error_details, agent_runner=_agent, task_id=task_id)
+
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                "agent": "NAOKO", "content": f"### Reparación\n{report.render()}"}))
+
+            if report.success:
+                await self.bus.publish(BusEvent(topic="naoko.status",
+                                                payload={"status": "Publicando..."}))
+                await self._git_push(report.hypothesis[:60] or "reparación verificada")
+                await self.db.log_naoko_memory(
+                    error_details, report.hypothesis,
+                    f"Verificado con tests. Ficheros: {', '.join(report.files_touched)}")
             else:
-                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "No se requiere parche automático de código."}))
-                await self.db.log_naoko_memory(error_details, diagnostic, "Solo diagnóstico verbal.")
-                
+                await self.db.log_naoko_memory(
+                    error_details, diagnostic,
+                    f"No aplicado ({report.outcome.value}); nada quedó modificado.")
+
         except Exception as e:
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error durante la auto-reparación: {e}"}))
         finally:
@@ -161,25 +198,21 @@ Devuelve tu diagnóstico y tu parche."""
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Vigilando"}))
 
     async def _apply_patch(self, lang: str, code: str):
-        import tempfile
-        ext = ".ps1" if lang == "powershell" else ".py"
-        cmd = ["powershell", "-File"] if lang == "powershell" else ["python"]
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext, mode='w', encoding='utf-8') as f:
-            f.write(code)
-            temp_path = f.name
-            
-        cmd.append(temp_path)
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(project_root())
-        )
-        stdout, stderr = await process.communicate()
-        os.remove(temp_path)
-        logger.info(f"[NAOKO] Parche aplicado. Salida: {stdout.decode()} {stderr.decode()}")
-        
+        """
+        RETIRADO (MAGI 9.0 §3.2).
+
+        Ejecutaba con `powershell -File` / `python` un script generado por un
+        LLM que nadie había revisado, sin forma de deshacerlo y sin comprobar
+        después si había arreglado algo.
+
+        Naoko usa ahora las mismas herramientas que los agentes (edit_file), de
+        modo que cada cambio es un diff revisable y reversible por el journal.
+        Ver naoko_repair.VerifiedRepair.
+        """
+        raise NotImplementedError(
+            "Vía retirada: usa VerifiedRepair, que parchea con edit_file en una "
+            "rama y verifica con la suite de tests antes de conservar el cambio.")
+
     async def _git_push(self, message: str):
         """
         Publicación segura (Plan MAGI 9.0 §3.3).
