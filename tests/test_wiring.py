@@ -79,6 +79,7 @@ WIRING = [
     ("canary_probe",        "magi/modules/infrastructure/naoko.py", "§3.4 sonda de deriva"),
     ("default_bench",       "magi/modules/infrastructure/naoko.py", "§3.5 banco de evaluación"),
     ("run_self_improvement","magi/core/kernel.py",                  "§3.5 auto-mejora invocable"),
+    ("register_reverse_tools", "magi/core/tools/builtin.py",        "§5.3 toolchain de RE en el enjambre"),
 ]
 
 

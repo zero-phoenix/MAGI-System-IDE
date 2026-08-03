@@ -69,6 +69,42 @@ Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que l
 da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
 ejecutado el caso** vale mucho más que una que lo sospecha.
 
+### Ingeniería inversa y emuladores
+
+Diez herramientas que el enjambre puede invocar directamente:
+
+| Herramienta | Qué hace |
+|---|---|
+| `binary_identify` | formato, ISA, endianness, punto de entrada, consola probable |
+| `console_profile` | CPU, RAM, GPU, base de carga y formatos de PSP, NDS, Vita, GBA, PSX, N64, 3DS |
+| `disassemble` | Capstone: MIPS y ARM, con modo Thumb y endianness explícitos |
+| `binary_strings` | cadenas ASCII con desplazamiento |
+| `emulate_code` | ejecuta un fragmento con Unicorn y devuelve los registros |
+| `differential_test` | compara tu emulador contra Unicorn y localiza la instrucción que diverge |
+| `compare_consoles` | tabla de contraste entre consolas |
+| `analyze_port` | qué cuesta portar un emulador de una consola a otra, subsistema a subsistema |
+| `suggest_port_base` | qué emulador conviene como base, ordenado por reutilización real |
+| `re_toolchain_status` | qué está instalado |
+
+Funciona con `capstone` y `unicorn` (paquetes pip). Ghidra y radare2 se detectan
+si están y añaden decompilación a C y xrefs globales, pero **no son necesarios**.
+
+Ejemplo de lo que responde `analyze_port psp vita`:
+
+```
+gpu              irreducible    pipeline fijo -> programable: el backend
+                                gráfico se reescribe entero, no se adapta
+dynarec          reemplazar     frontend de mips y emisión para arm; la IR
+                                intermedia sí se reutiliza
+frontend         reutilizable   interfaz, configuración, entrada y grabación
+--------------------------------------------------------------------------
+reutilización estimada: 55%
+```
+
+Y `suggest_port_base vita` responde **Nintendo 3DS** (71%) antes que PSP (55%),
+porque ARMv6K→ARMv7-A con shaders en ambas reutiliza más que MIPS→ARM con
+pipeline fijo — aunque PPSSPP sea el emulador más conocido.
+
 ### Enrutamiento adaptativo
 
 No todo merece un debate de tres rondas.
@@ -132,7 +168,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **198 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **232 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -180,7 +216,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 198 tests, sin red
+python -m pytest tests/ -v        # 232 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -201,8 +237,11 @@ narrativo conectado (§2.7).
 (§3.2), versionado seguro (§3.3), observabilidad proactiva (§3.4) y auto-mejora
 medible (§3.5).
 
-**Siguiente** — Fase 4: contexto de ejecución ampliado, toolchain de ingeniería
-inversa para emuladores (§5.3) y fábrica de artefactos (§5).
+**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3)
+completo y conectado al enjambre.
+
+**Siguiente** — resto de la fábrica de artefactos (§5): juegos con bucle de
+observación, imagen y manga, documentos.
 
 ### Sobre la auto-mejora
 

@@ -292,13 +292,30 @@ def build_registry() -> ToolRegistry:
         except Exception as e:
             return ToolResult(False, "", error=str(e))
 
+    # §5.3 — toolchain de ingeniería inversa y emuladores.
+    # Se registra aquí para que los tres nodos del enjambre lo tengan: sin este
+    # enganche, todo magi/modules/reverse/ sería código correcto que ningún
+    # agente puede invocar.
+    try:
+        from magi.modules.reverse.tools import register_reverse_tools
+        register_reverse_tools(reg)
+    except Exception as e:            # pragma: no cover
+        import logging
+        logging.getLogger(__name__).warning(
+            "[tools] toolchain de RE no disponible: %s", e)
+
     return reg
 
 
 # Perfiles por rol (Plan MAGI 9.0 §2.2).
 MELCHIOR_TOOLS = None                      # todo: propone y construye
 BALTHASAR_DENY = {"write"}                 # lee y ejecuta, no escribe
-CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests", "run_command"}
+CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
+                "run_command",
+                # el árbitro necesita poder comprobar afirmaciones sobre
+                # arquitecturas sin fiarse de lo que digan los otros dos
+                "binary_identify", "console_profile", "analyze_port",
+                "compare_consoles"}
 
 
 def registry_for_role(role: str) -> ToolRegistry:
