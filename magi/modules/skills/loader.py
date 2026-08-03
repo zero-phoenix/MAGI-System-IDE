@@ -14,7 +14,9 @@ class AASLoader:
     Escanea el directorio de skills clonado e indexa sus metadatos básicos
     para hacerlos disponibles al Enjambre a través de la pizarra (Blackboard).
     """
-    def __init__(self, repo_path: str = "d:/PROYECTOS/MAGI System IDE/scratch/agentic-awesome-skills"):
+    def __init__(self, repo_path: str | None = None):
+        from magi.core.paths import workspace_dir
+        repo_path = repo_path or str(workspace_dir() / "agentic-awesome-skills")
         self.repo_path = Path(repo_path)
         self.skills = {}
         self.skill_ids = []

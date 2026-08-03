@@ -5,6 +5,7 @@ import websockets
 from typing import Callable, Awaitable, Any, Set
 from magi.core.bus import MagiBus, BusEvent  # type: ignore
 from magi.core.store.database import MagiDatabase
+from magi.core.paths import project_root, workspace_dir
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class WSServer:
         import os
         from pathlib import Path
         
-        base_dir = Path("D:/PROYECTOS/MAGI System IDE")
+        base_dir = project_root()
         
         def build_tree(dir_path):
             tree = []

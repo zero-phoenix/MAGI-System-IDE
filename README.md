@@ -1,118 +1,164 @@
 # MAGI System IDE 🖥️🤖
 
-MAGI System IDE es un Entorno de Desarrollo Integrado (IDE) revolucionario, diseñado con una arquitectura de Enjambre de Inteligencias Artificiales colaborativas. Está construido para actuar como un compañero de programación altamente autónomo, analítico, seguro y resiliente.
+Entorno de desarrollo con un **enjambre de tres inteligencias que debaten** antes
+de actuar, y **herramientas reales sobre tu máquina** para ejecutar lo que deciden.
+
+Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
+sin suscripciones.
 
 ---
 
-## 🏗️ Arquitectura Completa del Sistema (Diagrama Unidireccional & Ramificaciones Horizontales)
-
-El siguiente gráfico ilustra la arquitectura de **MAGI System IDE**, con un flujo unidireccional vertical de alto nivel que se ramifica horizontalmente en cada proceso y subproceso clave:
+## Cómo funciona
 
 ```mermaid
 graph TD
-    %% Estilos Globales
-    classDef frontend fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4;
-    classDef kernel fill:#181825,stroke:#cba6f7,stroke-width:2px,color:#cdd6f4;
+    classDef ui fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4;
+    classDef core fill:#181825,stroke:#cba6f7,stroke-width:2px,color:#cdd6f4;
     classDef swarm fill:#11111b,stroke:#fab387,stroke-width:2px,color:#cdd6f4;
-    classDef cloud fill:#181825,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4;
-    classDef devops fill:#1e1e2e,stroke:#f38ba8,stroke-width:2px,color:#cdd6f4;
-    classDef storage fill:#11111b,stroke:#94e2d5,stroke-width:2px,color:#cdd6f4;
+    classDef infra fill:#181825,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4;
 
-    %% 1. FRONTEND PROCESS
-    subgraph P1["🖥️ Proceso 1: Capa de Presentación (Frontend UI)"]
+    subgraph UI["🖥️ Interfaz (React + Vite + Monaco)"]
         direction LR
-        UI1["React + Vite UI"] --> UI2["Monaco Code Editor"]
-        UI1 --> UI3["Naoko Terminal & Logs"]
-        UI1 --> UI4["WebSocket Client (useMagiSocket)"]
+        U1["Editor"] --- U2["Terminal"] --- U3["WebSocket"]
     end
-    class P1,UI1,UI2,UI3,UI4 frontend;
+    class UI,U1,U2,U3 ui;
 
-    %% 2. KERNEL & EVENT BUS PROCESS
-    subgraph P2["⚙️ Proceso 2: Núcleo del Sistema (Kernel & Bus Central)"]
+    subgraph CORE["⚙️ Núcleo (Python asyncio)"]
         direction LR
-        K1["PyWebView App Window"] --> K2["GUIServer (HTTP Static)"]
-        K1 --> K3["Kernel Core"]
-        K3 --> K4["MagiBus (Event Router)"]
-        K4 --> K5["WSServer (JSON RPC Port 20128)"]
+        K1["Kernel"] --> K2["MagiBus"]
+        K1 --> K3["Router adaptativo"]
+        K1 --> K4["Estado + SQLite"]
     end
-    class P2,K1,K2,K3,K4,K5 kernel;
+    class CORE,K1,K2,K3,K4 core;
 
-    %% 3. SWARM DEBATE PROCESS
-    subgraph P3["🧠 Proceso 3: Orquestador del Enjambre (Swarm Popperiano)"]
+    subgraph SWARM["🧠 Enjambre — una familia de modelo por nodo"]
         direction LR
-        S1["SwarmOrchestrator"] --> S2["Melchior Agent<br/>(Arquitecto / Propuestas)"]
-        S1 --> S3["Balthasar Agent<br/>(Crítico / Seguridad)"]
-        S1 --> S4["Casper Agent<br/>(Árbitro / Decisión Final)"]
-        S1 --> S5["Blackboard Memory<br/>(Estado del Debate)"]
+        S1["MELCHIOR<br/>arquitecto · deepseek"]
+        S2["BALTHASAR<br/>crítico · claude"]
+        S3["CASPER<br/>árbitro · qwen"]
+        S4["Bucle de herramientas<br/>leer · escribir · ejecutar · verificar"]
+        S1 --- S4
+        S2 --- S4
+        S3 --- S4
     end
-    class P3,S1,S2,S3,S4,S5 swarm;
+    class SWARM,S1,S2,S3,S4 swarm;
 
-    %% 4. CLOUD PROVIDER PROCESS
-    subgraph P4["☁️ Proceso 4: Red Cloud LLM (FreeCloudLLM & Resiliencia)"]
+    subgraph INFRA["🛠️ Infraestructura"]
         direction LR
-        C1["FreeCloudLLM Engine"] --> C2["G4F Auto-Router"]
-        C2 --> C3["Candidate Model Pool<br/>(gpt-4o / gpt-4o-mini / gpt-4 / llama-3.1 / qwen-2.5)"]
-        C2 --> C4["IP Backoff & Cooloff"]
-        C2 --> C5["In-Memory Zero-Latency Cache"]
+        N1["ProviderRegistry<br/>familias · cortacircuitos · caché"]
+        N2["Journal de deshacer"]
+        N3["Naoko — reparación verificada"]
     end
-    class P4,C1,C2,C3,C4,C5 cloud;
+    class INFRA,N1,N2,N3 infra;
 
-    %% 5. NAOKO DEVOPS PROCESS
-    subgraph P5["🛠️ Proceso 5: Naoko DevOps Autónoma (Mantenimiento & Auto-Patch)"]
-        direction LR
-        N1["NaokoAgent Listener"] --> N2["Error Diagnostician"]
-        N2 --> N3["Local Patch Applicator<br/>(Python / PowerShell)"]
-        N3 --> N4["Automated Git Engine<br/>(Add / Commit / Tag / Push)"]
-    end
-    class P5,N1,N2,N3,N4 devops;
+    UI -->|JSON-RPC| CORE
+    CORE -->|BusEvent| SWARM
+    SWARM -->|inferencia| INFRA
+    SWARM -->|acciones reversibles| N2
+```
 
-    %% 6. PERSISTENCE PROCESS
-    subgraph P6["💾 Proceso 6: Memoria & Persistencia (MagiDatabase)"]
-        direction LR
-        DB1["MagiDatabase (SQLite)"] --> DB2["Tasks & Debates Logs"]
-        DB1 --> DB3["Provider Telemetry & Health"]
-        DB1 --> DB4["Naoko Memory Table"]
-    end
-    class P6,DB1,DB2,DB3,DB4 storage;
+### El enjambre
 
-    %% FLUJO VERTICAL PRINCIPAL UNIDIRECCIONAL
-    P1 -->|1. Interacción de Usuario / Eventos RPC| P2
-    P2 -->|2. Despacho de Tareas vía MagiBus| P3
-    P3 -->|3. Consultas Cognitivas a LLMs| P4
-    P4 -->|4. Reporte de Métricas y Fallos de Red| P6
-    P2 -->|5. Suscripción a Errores Críticos| P5
-    P5 -->|6. Actualización Autónoma de Código & Release| P6
+| Nodo | Rol popperiano | Familia | Puede |
+|---|---|---|---|
+| **MELCHIOR • 1** | Creador / sintetizador | `deepseek` | leer, escribir, ejecutar |
+| **BALTHASAR • 2** | Crítico hostil / falsacionista | `claude` | leer y **ejecutar**, no escribir |
+| **CASPER • 3** | Juez / árbitro de concordia | `qwen` | leer y verificar tests |
+
+Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que le
+da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
+ejecutado el caso** vale mucho más que una que lo sospecha.
+
+### Enrutamiento adaptativo
+
+No todo merece un debate de tres rondas.
+
+| Ruta | Cuándo | Coste |
+|---|---|---|
+| `chat` | saludo, confirmación | 1 llamada |
+| `lookup` | pregunta factual | 1 llamada + web |
+| `task` | acción concreta sobre ficheros o código | Melchior + verificación |
+| `build` | proyecto, juego, emulador, investigación | debate completo iterado |
+
+---
+
+## Instalación
+
+Descarga la última versión de **[Releases](https://github.com/4n0th1ng/MAGI-System-IDE/releases)**,
+extrae y ejecuta el `.exe`. No hay que configurar claves ni descargar modelos.
+
+Desde el código:
+
+```bash
+pip install -r requirements.txt
+cd magi-gui && npm install && npm run build && cd ..
+python -m magi.main
 ```
 
 ---
 
-## Características Principales 🚀
+## Tecnologías
 
-- **Enjambre de IAs (Swarm):** MAGI no utiliza una sola IA. Integra un enjambre colaborativo (**Melchior**, **Balthasar**, **Casper**) que debaten y analizan el código desde múltiples perspectivas antes de emitir una propuesta final para el usuario.
-- **Naoko (DevOps Autónoma):** Una IA de infraestructura independiente (`Naoko`) que supervisa la salud del sistema. Si detecta fallos, caídas de red o excepciones en caliente, **Naoko investiga el error, auto-repara el código fuente localmente y realiza los `git push` a GitHub automáticamente**.
-- **Auto-Router Gratuito en la Nube:** MAGI utiliza motores LLM gratuitos en la nube (`G4F`) y los enruta automáticamente. Si una API aplica Rate Limit (429), MAGI aplica enfriamiento inteligente de IP y conmuta suavemente entre modelos candidata (`gpt-4o`, `gpt-4o-mini`, `gpt-4`, `llama-3.1-70b`, `qwen-2.5-coder`).
-- **Resiliencia & GUI Integrado:** Aplicación de ventana nativa de alta respuesta basada en `pywebview` y frontend empaquetado en React/Vite.
-
----
-
-## Instalación y Ejecución ⚡
-
-1. Ve a la pestaña **[Releases](https://github.com/4n0th1ng/MAGI-System-IDE/releases)** en el repositorio de GitHub.
-2. Descarga la última versión empaquetada (ej. `MAGI-IDE-v5.zip`).
-3. Extrae el archivo ZIP ejecutable.
-4. Ejecuta `MAGI-IDE-v5.exe` autónomo.
-5. ¡Disfruta del enjambre colaborativo!
+**Núcleo:** Python 3.10+ · asyncio · pydantic · SQLite · WebSockets · PyWebView
+**Interfaz:** React 19 · TypeScript · Vite · Monaco Editor · xterm.js · Zustand
+**Inferencia:** g4f — nube gratuita sin claves, con proveedor fijado por familia
 
 ---
 
-## Tecnologías 🛠️
+## Estado del proyecto — MAGI 9.0
 
-- **Backend:** Python 3.10 (Asyncio, SQLite, PyInstaller, WebSockets, PyWebView)
-- **Frontend:** React (Vite), TypeScript, TailwindCSS, Monaco Editor
-- **IA:** g4f (Auto-routing para motores en la nube como GPT-4o, Claude 3.5, Qwen, Llama 3.1)
+Esta versión es una **reconstrucción del núcleo**. El diagnóstico que la motivó,
+con la evidencia de cada punto, está en [`PLAN-MAGI-9.md`](PLAN-MAGI-9.md).
+
+Lo que se arregló, y qué había antes:
+
+| Área | v5.0.28 | Ahora |
+|---|---|---|
+| **Diversidad del enjambre** | `cloud.py:122` reescribía `deepseek`, `claude-3.5-sonnet` y `qwen-2.5` a `gpt-4o`: los tres nodos eran **el mismo modelo** | Proveedor g4f fijado por familia; **10 familias** disponibles, 3 repartidas |
+| **Herramientas** | Los agentes solo emitían texto; la única acción era un regex que ejecutaba bloques ` ``` ` a ciegas | Bucle de herramientas: leer, escribir, ejecutar, verificar |
+| **Reversibilidad** | Ninguna | Journal de escrituras + `undo` por operación o por tarea |
+| **Timeouts** | Ninguno: un proveedor colgado congelaba el sistema | Timeout duro por llamada, con failover |
+| **Cortacircuitos** | `_is_alive` y `_mark_failure` definidos, **cero sitios de llamada** | Implementado y llamado, con p50/p95 por proveedor |
+| **Caché** | `dict` sin límite → fuga de memoria | LRU + TTL acotada |
+| **Rutas** | `D:/PROYECTOS/MAGI System IDE` en 8 sitios: el `.exe` solo arrancaba en una máquina | `magi.core.paths`, verificado en CI |
+| **Base de datos** | `magi_brain.db` commiteado con datos reales | En el directorio de datos del usuario |
+| **Estilo narrativo** | `<select>` que no enviaba su valor a ninguna parte | Llega al prompt de los tres agentes y persiste |
+| **Selector de motor** | `kernel.py:216` no pasaba `engine` a `submit_task` | Propagado |
+| **Aprobación por diff** | Los `sendCommand` estaban comentados: pulsar «Aprobar» no llegaba al backend | Reconectado |
+| **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
+| **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
+| **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **77 tests** versionados, CI en Linux y Windows |
+| **Módulos aleatorios** | `quantum_oracle` devolvía `random.choice`; `quant/simulator` devolvía `np.random` como índice de riesgo | Retirados a [`magi/_attic/`](magi/_attic/) con nota de por qué |
+
+### Regla de trabajo
+
+> **Cada cambio conecta o borra. Nunca añade sin conectar.**
+
+Si un módulo no tiene sitio de llamada y un test, no entra. En v5.0.28 doce
+subsistemas se instanciaban en `main.py` y diez tenían **cero** llamadas: existían
+para imprimir su propio nombre en el arranque.
 
 ---
-*MAGI System IDE - Enjambre Autónomo de Inteligencias Artificiales.*
 
+## Desarrollo
 
-> **Actualización Autónoma (v1.0.0):** Auto-reparación aplicada por Naoko: {'message': '[CRITICAL] magi.core.providers.cloud:
+```bash
+python -m pytest tests/ -v        # 77 tests, sin red
+ruff check magi/ tests/           # lint
+```
+
+---
+
+## Hoja de ruta
+
+Completado: fundamentos (§1), bucle de herramientas (§2.2), enrutamiento (§2.3),
+reversibilidad (§4.2), contexto de ejecución (§4.3), versionado de Naoko (§3.3).
+
+Siguiente: streaming en la interfaz (§1.2), estado persistente entre reinicios
+(§1.4), ciclo completo de reparación verificada de Naoko (§3.1), toolchain de
+ingeniería inversa para emuladores (§5.3), y fábrica de artefactos (§5).
+
+---
+
+*MAGI System IDE — enjambre de inteligencias con manos.*

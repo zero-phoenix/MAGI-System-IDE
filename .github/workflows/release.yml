@@ -9,8 +9,29 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio httpx g4f pydantic
+    - name: Run test suite
+      run: python -m pytest tests/ -v
+    - name: Verify no absolute machine paths
+      run: |
+        ! grep -rn "D:/PROYECTOS\|d:/PROYECTOS" --include="*.py" magi/ \
+          --exclude=paths.py --exclude=naoko_repair.py || \
+          (echo "Ruta absoluta detectada: el .exe no arrancaría en otra maquina" && exit 1)
+
   build:
     runs-on: windows-latest
+    needs: test          # sin tests verdes no hay release
 
     steps:
     - name: Checkout repository

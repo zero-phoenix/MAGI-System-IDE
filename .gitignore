@@ -28,3 +28,11 @@ build/
 *.spec
 
 release/
+
+# Base de datos local (contiene datos reales del usuario)
+magi_brain.db
+*.db-wal
+*.db-shm
+
+# Journal de deshacer
+journal/

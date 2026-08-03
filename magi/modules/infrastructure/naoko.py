@@ -7,6 +7,7 @@ import subprocess
 from magi.core.bus import MagiBus, BusEvent
 from magi.core.providers.cloud import FreeCloudLLM
 from magi.core.store.database import MagiDatabase
+from magi.core.paths import project_root, workspace_dir
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ INSTRUCCIONES CLAVE DE RESPUESTA:
         
         system_prompt = """Eres Naoko, IA Devops de MAGI System. 
 Has detectado un error. Analiza el error, y si es necesario ejecutar un script de python o powershell para parchear dependencias o el código, debes incluir un bloque de código marcado como ```powershell o ```python.
-Tu script se ejecutará en la máquina local. Si creas código python, que sea un script que modifique los archivos de MAGI directamente. MAGI está en d:/PROYECTOS/MAGI System IDE.
+Tienes herramientas reales sobre esta máquina. Usa edit_file para cambios quirúrgicos y revisables; no generes scripts que reescriban ficheros a bulto. La raíz del proyecto te llega en el bloque de CONTEXTO DE EJECUCIÓN.
 Si no se requiere código, simplemente explica el problema.
 Devuelve tu diagnóstico y tu parche."""
         
@@ -173,75 +174,68 @@ Devuelve tu diagnóstico y tu parche."""
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd="d:/PROYECTOS/MAGI System IDE"
+            cwd=str(project_root())
         )
         stdout, stderr = await process.communicate()
         os.remove(temp_path)
         logger.info(f"[NAOKO] Parche aplicado. Salida: {stdout.decode()} {stderr.decode()}")
         
     async def _git_push(self, message: str):
-        import re
-        import os
-        
-        cwd = "d:/PROYECTOS/MAGI System IDE"
-        release_yml_path = os.path.join(cwd, ".github", "workflows", "release.yml")
-        readme_path = os.path.join(cwd, "README.md")
-        
-        # 1. Update version in release.yml
-        new_tag = "v1.0.0"
-        if os.path.exists(release_yml_path):
-            with open(release_yml_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            match = re.search(r'tag_name:\s*(v\d+\.\d+\.)(\d+)', content)
-            if match:
-                prefix = match.group(1)
-                patch = int(match.group(2))
-                new_patch = patch + 1
-                new_tag = f"{prefix}{new_patch}"
-                
-                # Replace tag_name and name
-                content = re.sub(r'tag_name:\s*v\d+\.\d+\.\d+', f'tag_name: {new_tag}', content)
-                content = re.sub(r'name:\s*"MAGI System IDE V\d+\.\d+\.\d+"', f'name: "MAGI System IDE {new_tag.upper()}"', content)
-                
-                # Update body
-                body_replacement = f"body: |\n          ## Novedades en {new_tag.upper()} 🚀\n          \n          - **Auto-reparación por Naoko:** {message}\n"
-                content = re.sub(r'body:\s*\|.*?(?=\s*draft:)', body_replacement, content, flags=re.DOTALL)
-                
-                with open(release_yml_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-        
-        # 2. Check and fix README.md Mermaid errors
-        if os.path.exists(readme_path):
-            with open(readme_path, 'r', encoding='utf-8') as f:
-                readme_content = f.read()
-            
-            # Remove the known mermaid error if it accidentally got there
-            bad_text = "Unable to render rich display\n\nCannot read properties of undefined (reading 'x')"
-            if bad_text in readme_content:
-                readme_content = readme_content.replace(bad_text, "")
-            
-            # Append Naoko's update
-            readme_content += f"\n\n> **Actualización Autónoma ({new_tag}):** {message}\n"
-            with open(readme_path, 'w', encoding='utf-8') as f:
-                f.write(readme_content)
-                
-        # 3. Commit, tag and push
-        commands = [
-            'git add .',
-            f'git commit -m "Auto-reparación Naoko: {new_tag} - {message}"',
-            f'git tag {new_tag}',
-            'git push origin HEAD',
-            f'git push origin {new_tag}'
-        ]
-        
-        for cmd in commands:
-            process = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
-            )
-            await process.communicate()
-            
-        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"🚀 Nueva versión {new_tag} pusheada a GitHub y release disparado."}))
+        """
+        Publicación segura (Plan MAGI 9.0 §3.3).
+
+        v5.0.28 hacía:  new_tag = "v1.0.0"  (línea 191) y si el regex de
+        release.yml fallaba, usaba ese default. Resultado real en el historial:
+        commit 1eb7e87 etiquetó v1.0.0 ENTRE v5.0.24 y v5.0.25 — una regresión
+        de versión. Además appendeaba al README en cada reparación, dejando la
+        frase cortada que todavía está al final del fichero.
+
+        Ahora: la versión sale de git, se valida que avance, y si no se puede
+        determinar NO se etiqueta nada. El README no se toca jamás.
+        """
+        from magi.modules.infrastructure.naoko_repair import (
+            current_version, next_patch_version, validate_version_bump, commit_files,
+        )
+        root = project_root()
+
+        old = current_version(root)
+        new = next_patch_version(root)
+        ok, why = validate_version_bump(old, new)
+
+        if not ok:
+            # No inventamos versión. Se commitea sin etiquetar y se avisa.
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                "agent": "NAOKO",
+                "content": f"Cambio listo, pero NO etiqueto versión: {why}. "
+                           f"Etiqueta tú cuando quieras publicar."}))
+            return None
+
+        changed = await self._changed_files(root)
+        if not changed:
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                "agent": "NAOKO", "content": "No hay cambios que publicar."}))
+            return None
+
+        await commit_files(changed, f"fix(naoko): {message[:70]}", root)
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={
+            "agent": "NAOKO",
+            "content": (f"Commit creado con {len(changed)} fichero(s). "
+                        f"Versión propuesta: {why}.\n"
+                        f"No hago push ni tag automáticos: revísalo y publica tú "
+                        f"con `git push origin HEAD && git tag {new}`.")}))
+        return new
+
+    async def _changed_files(self, root) -> list[str]:
+        """Solo los ficheros realmente modificados. v5.0.28 hacía `git add .`,
+        que arrastraba todo el árbol (incluida la base de datos con datos reales)."""
+        proc = await asyncio.create_subprocess_exec(
+            "git", "status", "--porcelain", cwd=str(root),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await proc.communicate()
+        files = []
+        for line in out.decode("utf-8", errors="replace").splitlines():
+            if len(line) > 3:
+                path = line[3:].strip().strip('"')
+                if not path.endswith((".db", ".log")) and "__pycache__" not in path:
+                    files.append(path)
+        return files

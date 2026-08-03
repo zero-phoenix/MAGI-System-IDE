@@ -1,10 +1,16 @@
-requests==2.31.0
+# MAGI System IDE — inferencia de nube gratuita, sin claves de API,
+# sin modelos locales (documento de arquitectura §I.3).
+g4f
 curl_cffi==0.5.10
+httpx
+requests==2.31.0
 websockets==12.0
+pydantic
 numpy==1.24.4
 scikit-learn==1.4.1.post1
 pywebview==4.4.1
 pyinstaller==6.21.0
-pydantic
-g4f
-httpx
+
+# Tests (CI)
+pytest>=8.0
+pytest-asyncio>=0.23

@@ -93,14 +93,23 @@ export function useMagiSocket(port: number = 20128) {
     };
   }, [port]);
 
-  const sendCommand = (cmd: string, taskId?: string, engine?: string) => {
+  // MAGI 9.0 §2.7 — narrativeStyle SÍ viaja al backend.
+  // En v5.0.28 el <select> de estilo narrativo existía en App.tsx:307 pero su
+  // valor no se enviaba nunca: esta firma no lo aceptaba. Era decorativo.
+  const sendCommand = (
+    cmd: string,
+    taskId?: string,
+    engine?: string,
+    narrativeStyle?: string,
+  ) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         type: "SYS_EXEC",
         payload: {
           command: cmd,
           id: taskId,
-          engine: engine || "fast"
+          engine: engine || "fast",
+          narrative_style: narrativeStyle || "tecnico"
         }
       }));
     }

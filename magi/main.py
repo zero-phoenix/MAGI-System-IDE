@@ -64,56 +64,45 @@ class MagiSystem:
         self.record = MemoryRecord("main_session")
         self.composer = Composer(self.record)
         
-        # Inyección de MAGI 2.0 (Amplificación)
-        from magi.core.hive import MagiHive
-        from magi.modules.memory.semantic import SemanticRAG
-        from magi.modules.memory.compression import HierarchicalMemory
-        from magi.modules.route.providers import get_provider
-        
-        self.hive = MagiHive()
-        self.semantic_rag = SemanticRAG()
-        provider = get_provider("claude-code-cli")
-        self.hierarchical_memory = HierarchicalMemory(provider)
-        
-        # Inyección de MAGI 3.0 (Enjambre SOTA 2026)
-        from magi.core.blackboard import Blackboard
-        from magi.modules.logic.verifier import SymbolicVerifier
-        from magi.modules.prompts.optimizer import PromptCompiler
-        
-        self.blackboard = Blackboard()
-        self.verifier = SymbolicVerifier()
-        self.prompt_compiler = PromptCompiler(provider)
-        
-        # Inyección de MAGI 4.0 (Singularidad / Evolución)
-        from magi.core.evolution import EvolverAgent
-        self.evolver = EvolverAgent(provider, self.verifier)
-        
-        # Inyección de MAGI 5.0 (Bio-Quantum Octopus)
-        from magi.core.octopus import CognitiveCore
-        from magi.core.quantum_oracle import QuantumOracle
-        self.cognitive_core = CognitiveCore()
-        self.quantum_oracle = QuantumOracle()
-        
-        # Inyección de MAGI 6.0 (Cellular HDC)
-        from magi.modules.memory.hyperdimensional import HyperdimensionalMemory
-        from magi.core.membrane import SkinMembrane
-        self.hdc_memory = HyperdimensionalMemory()
-        self.cellular_router = SkinMembrane()
-        
-        # Inyección de MAGI 7.0 (The Predictive Financial Twin)
-        from magi.modules.quant.simulator import MarketDigitalTwin
-        self.quant_simulator = MarketDigitalTwin(self.hdc_memory)
-        
-        logger.info("Subsistema MAGI-KEEP (Memoria Inmutable) inicializado y enlazado.")
-        logger.info("Subsistema MAGI-ROUTE (Pasarelas) inicializado y enlazado.")
-        logger.info(f"Cortacircuitos de Resiliencia configurado con {len(self.cloud_selector.available_models)} modelos cloud.")
-        logger.info("MAGI 2.0 Amplificado: [Colmena, RAG Vectorial, gRPC ready, Memoria Jerárquica]")
-        logger.info("MAGI 3.0 SOTA 2026: [Blackboard Swarm, Verificador Neuro-Simbólico, DSPy Optimizer]")
-        logger.info("MAGI 4.0 Singularidad: [Motor de Evolución Genética y Self-Modifying Code]")
-        logger.info("MAGI 5.0 Bio-Quantum: [Octopus Topology y Oráculo QML]")
-        logger.info("MAGI 6.0 Cellular HDC: [Memoria Hiperdimensional 10k-bits y Enrutador P-System]")
-        logger.info("MAGI 7.0 Predictive Twin: [CFD HFT, Montecarlo y Risk-Off Geopolítico]")
-        
+        # ---------------------------------------------------------------
+        # MAGI 9.0 — Regla "conecta o borra".
+        #
+        # v5.0.28 instanciaba aquí doce subsistemas (MagiHive, SemanticRAG,
+        # HierarchicalMemory, SymbolicVerifier, PromptCompiler, EvolverAgent,
+        # CognitiveCore, QuantumOracle, HyperdimensionalMemory, SkinMembrane,
+        # MarketDigitalTwin...). Conteo real de sitios de llamada:
+        #
+        #     self.semantic_rag.*        -> 0     self.cognitive_core.*  -> 0
+        #     self.hierarchical_memory.* -> 0     self.quantum_oracle.*  -> 0
+        #     self.prompt_compiler.*     -> 0     self.hdc_memory.*      -> 0
+        #     self.evolver.*             -> 0     self.quant_simulator.* -> 0
+        #     self.hive.*                -> 1  (solo .shutdown())
+        #     self.cellular_router.*     -> 1  (solo .shutdown())
+        #
+        # Los dos únicos que se usaban, se usaban para APAGARLOS. Existían para
+        # que se imprimieran las líneas "MAGI 5.0 Bio-Quantum", "MAGI 7.0
+        # Predictive Twin", etc.
+        #
+        # Se retiran. Lo que queda está conectado y tiene tests.
+        # ---------------------------------------------------------------
+        from magi.core.providers.cloud import get_registry
+        from magi.core.context import refresh_context
+
+        self.provider_registry = await get_registry()
+        self.exec_context = refresh_context(
+            provider_health=self.provider_registry.telemetry())
+
+        assignment = self.provider_registry.select_for_swarm()
+        logger.info("Enjambre: %s", " · ".join(
+            f"{r}={assignment.families.get(r, 'n/d')}" for r in assignment.by_role))
+        if assignment.diversity != "full":
+            logger.warning("Diversidad %s: %s", assignment.diversity, assignment.note)
+
+        fams = self.provider_registry.families_available()
+        logger.info("Inferencia: %d familias de nube gratuita sanas -> %s",
+                    len(fams), ", ".join(fams) or "NINGUNA")
+        logger.info("Datos en: %s", __import__("magi.core.paths", fromlist=["x"]).data_dir())
+
         logger.info("SISTEMA MAGI OPERATIVO Y ESPERANDO CONEXIONES.")
         
         # 4. Mantener vivo hasta apagado
@@ -131,14 +120,9 @@ class MagiSystem:
 
     async def stop(self):
         logger.info("Deteniendo el sistema MAGI...")
-        if hasattr(self, 'hive') and self.hive:
-            self.hive.shutdown()
-            
         if hasattr(self, 'kernel') and self.kernel:
             await self.kernel.shutdown()
             logger.info("Sistema apagado correctamente.")
-            if hasattr(self, 'cellular_router'):
-                self.cellular_router.shutdown()
 
 def _start_magi_background(magi, loop):
     """Ejecuta el loop asyncio en un hilo secundario"""

@@ -12,6 +12,7 @@ from magi.core.obs.bus_log_handler import BusLogHandler
 from magi.modules.memgraph import MemGraphAdapter
 from magi.modules.skills.loader import AASLoader
 from magi.modules.infrastructure.naoko import NaokoAgent
+from magi.core.paths import project_root, workspace_dir
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class Kernel:
         if not repo_url:
             return {"status": "error", "message": "URL requerida"}
             
-        scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+        scratch_dir = workspace_dir()
         scratch_dir.mkdir(parents=True, exist_ok=True)
         
         # Publicar inicio en terminal
@@ -108,8 +109,8 @@ class Kernel:
         import os
         from pathlib import Path
         
-        # Escanear proyectos reales en D:\PROYECTOS\MAGI System IDE\scratch
-        base_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+        # Escanear proyectos reales en el workspace del usuario
+        base_dir = workspace_dir()
         real_projects = []
         if base_dir.exists():
             for child in base_dir.iterdir():
@@ -145,7 +146,7 @@ class Kernel:
                 await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="URL de GitHub requerida para push."))
                 return
                 
-            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+            scratch_dir = workspace_dir()
             
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"Iniciando subida a GitHub: {repo_url}"))
             
@@ -171,7 +172,7 @@ class Kernel:
 
         if isinstance(command, str) and command.startswith("SYS_EXEC_HOST"):
             script = command.replace("SYS_EXEC_HOST", "", 1).strip()
-            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+            scratch_dir = workspace_dir()
             
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="Ejecutando script local en host (ZCode Mode)..."))
             
@@ -193,10 +194,13 @@ class Kernel:
             task_id = raw_id
             
         engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"
+        # MAGI 9.0 §2.7: el estilo narrativo llega de la GUI y se propaga al enjambre.
+        narrative_style = (payload.get("narrative_style", "tecnico")
+                           if isinstance(payload, dict) else "tecnico")
             
         # Generar un proyecto automático si es una conversación nueva
         # Para simular "cada vez que inicie una conversacion", creamos la carpeta
-        new_proj_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch") / f"project_{task_id}"
+        new_proj_dir = workspace_dir() / f"project_{task_id}"
         new_proj_dir.mkdir(parents=True, exist_ok=True)
         
         await self.bus.publish(BusEvent(
@@ -207,12 +211,16 @@ class Kernel:
         # Publicar en el bus para que el Logger lo intercepte
         await self.bus.publish(BusEvent(
             topic="SYS_EXEC",
-            payload={"task_id": task_id, "command": command, "engine": engine}
+            payload={"task_id": task_id, "command": command, "engine": engine,
+                     "narrative_style": narrative_style}
         ))
         
         # Delegamos el control al Orquestador del Enjambre (Área 16)
         # El orquestador publicará los avances en el MagiBus que la GUI consumirá
-        await self.swarm.submit_task(task_id, command)
+        # v5.0.28 llamaba a submit_task(task_id, command) sin pasar engine:
+        # el selector de motor de la GUI tampoco tenía efecto.
+        await self.swarm.submit_task(task_id, command, engine=engine,
+                                     narrative_style=narrative_style)
 
     async def start(self):
         logger.info("Iniciando MAGI Kernel...")

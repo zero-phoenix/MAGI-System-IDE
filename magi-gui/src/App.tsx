@@ -115,7 +115,8 @@ export default function App() {
   const [naokoImage, setNaokoImage] = useState<string | null>(null);
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
-  const [narrativeStyle, setNarrativeStyle] = useState("tecnico");
+  const [narrativeStyle, setNarrativeStyle] = useState(
+    () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.narrativeStyle")) || "tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
@@ -176,7 +177,7 @@ export default function App() {
   const handleExecute = () => {
     if(!inputVal.trim()) return;
     sysCommand(inputVal);
-    sendCommand(inputVal, activeConversationId, engine);
+    sendCommand(inputVal, activeConversationId, engine, narrativeStyle);
     
     // Add to conversations
     addMessage({
@@ -305,7 +306,7 @@ export default function App() {
           </select>
           <select 
             value={narrativeStyle} 
-            onChange={(e) => setNarrativeStyle(e.target.value)}
+            onChange={(e) => { setNarrativeStyle(e.target.value); try { window.localStorage?.setItem("magi.narrativeStyle", e.target.value); } catch {} }}
             style={{ background: "#000", color: "var(--acc)", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
           >
             <option value="tecnico">ESTILO: Técnico (Ingeniería)</option>
@@ -434,7 +435,7 @@ export default function App() {
                   style={{ padding: "5px 12px", fontWeight: "bold", background: "var(--acc)", color: "#000", cursor: "pointer" }}
                   onClick={() => {
                     sysCommand("sí");
-                    sendCommand("sí", activeConversationId, engine);
+                    sendCommand("sí", activeConversationId, engine, narrativeStyle);
                     addMessage({ id: Math.random().toString(36), agent: "USER", role: "comando", provider: "local", content: "sí", changes: 0, stats: "", task_id: activeConversationId });
                     setPendingApproval(null);
                   }}
@@ -455,7 +456,7 @@ export default function App() {
                   style={{ padding: "5px 10px", background: "var(--dang)", color: "#000", fontWeight: "bold", cursor: "pointer" }}
                   onClick={() => {
                     sysCommand("cancelar");
-                    sendCommand("cancelar", activeConversationId, engine);
+                    sendCommand("cancelar", activeConversationId, engine, narrativeStyle);
                     setPendingApproval(null);
                   }}
                 >
@@ -815,13 +816,13 @@ export default function App() {
                  newCode={pendingApproval} 
                  onApprove={() => {
                    sysCommand("SI");
-                   // sendCommand("SI", activeConversationId, engine);
+                   sendCommand("SI", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
                    setActiveTab("Terminal");
                  }}
                  onReject={() => {
                    sysCommand("NO");
-                   // sendCommand("NO", activeConversationId, engine);
+                   sendCommand("NO", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
                    setActiveTab("Terminal");
                  }}

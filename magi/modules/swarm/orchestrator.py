@@ -3,6 +3,7 @@ import logging
 from magi.core.blackboard import Blackboard
 from magi.core.bus import MagiBus, BusEvent
 from .agents import MelchiorAgent, BalthasarAgent, CasperAgent
+from magi.core.paths import project_root, workspace_dir
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,8 @@ class SwarmOrchestrator:
         self.balthasar = BalthasarAgent(self.blackboard, self.bus)
         self.casper = CasperAgent(self.blackboard, self.bus)
 
-    async def submit_task(self, task_id: str, command: str, engine: str = "fast"):
+    async def submit_task(self, task_id: str, command: str, engine: str = "fast",
+                          narrative_style: str = "tecnico"):
         """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
         # Reutilizar la tarea activa si existe una pendiente de aprobación o en progreso
         if task_id not in self.active_tasks and self.latest_task_id and self.latest_task_id in self.active_tasks:
@@ -49,7 +51,7 @@ class SwarmOrchestrator:
                         import os
                         
                         async def _auto_exec():
-                            scratch_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch")
+                            scratch_dir = workspace_dir()
                             os.makedirs(scratch_dir, exist_ok=True)
                             
                             for i, (lang, code) in enumerate(blocks):
@@ -115,7 +117,8 @@ class SwarmOrchestrator:
             "command": command,
             "round": 1,
             "status": "in_progress",
-            "engine": engine
+            "engine": engine,
+            "narrative_style": narrative_style,
         }
         
         await self.bus.publish(BusEvent(

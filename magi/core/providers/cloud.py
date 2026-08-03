@@ -1,212 +1,158 @@
+"""
+FreeCloudLLM — capa de compatibilidad sobre el nuevo ProviderRegistry.
+
+Mantiene la firma que usan agents.py, naoko.py y orchestrator.py, pero por
+debajo ya no hay auto-router ciego: hay familias fijadas, cortacircuitos real,
+timeout y caché acotada.
+
+QUÉ CAMBIA RESPECTO A v5.0.28
+=============================
+1. Se ELIMINA el remapeo que destruía la diversidad:
+       if model in ["claude-3.5-sonnet","qwen-2.5","deepseek"]: model = "gpt-4o"
+   Ahora 'deepseek' va de verdad a un proveedor deepseek.
+
+2. Se ELIMINA código muerto que el README anunciaba y nunca corría:
+   provider_swarm, user_agents (rotación de navegadores), proxies,
+   _refresh_proxies, _is_alive, _mark_failure. Cero sitios de llamada en v5.0.28.
+
+3. Se AÑADE timeout por llamada. Antes no había ninguno: un proveedor colgado
+   congelaba el enjambre para siempre.
+
+4. La caché pasa de dict sin límite (fuga de memoria) a LRU+TTL.
+
+5. La heurística de censura deja de disparar el kill-switch global. En v5.0.28
+   bastaba que una respuesta contuviera "no puedo" o "lo siento" —frases
+   normales en español técnico— para abortar todo el sistema (cloud.py:136-159
+   -> orchestrator.py:145). Ahora solo se reintenta en otra familia.
+"""
+from __future__ import annotations
+
 import asyncio
 import logging
-import random
-import hashlib
-import urllib.request
-import time
-from typing import Optional, List
-from magi.core.store.database import MagiDatabase
+from typing import Any
 
-try:
-    import g4f # type: ignore
-    from g4f.client import AsyncClient # type: ignore
-    from g4f.Provider import ( # type: ignore
-        HuggingChat, DeepSeek, OpenRouterFree, Pollinations, You, Copilot, GlhfChat,
-        Airforce, BlackboxPro, PhindAi, Puter, LMArena
-    )
-except ImportError:
-    AsyncClient = None
-    g4f = None
+from .base import CompletionRequest, Message, ProviderError
+from .registry import ProviderRegistry
 
 logger = logging.getLogger(__name__)
 
+# Familia por defecto de cada alias que usaban los agentes.
+_ALIAS_TO_FAMILY = {
+    "deepseek": "deepseek",
+    "deepseek-coder": "deepseek",
+    "qwen-2.5": "qwen",
+    "qwen-2.5-coder": "qwen",
+    "claude-3.5-sonnet": "claude",
+    "gpt-4o": "gpt",
+    "gpt-4o-mini": "gpt",
+    "gpt-4": "gpt",
+    "gemini-1.5-flash": "gemini",
+    "llama-3.1-70b": "llama",
+}
+
+# Frases que indican rechazo del proveedor. Se usan SOLO para reintentar en otra
+# familia, nunca para detener el sistema.
+_REFUSAL_HINTS = (
+    "i cannot fulfill", "i cannot assist", "i can't help with that",
+    "violates policy", "against my programming",
+)
+
+_registry: ProviderRegistry | None = None
+_registry_lock = asyncio.Lock()
+
+
+async def get_registry() -> ProviderRegistry:
+    """Registro compartido, construido una sola vez."""
+    global _registry
+    async with _registry_lock:
+        if _registry is None:
+            from .backends import build_default_registry
+            _registry = await build_default_registry(probe=True)
+    return _registry
+
+
+def set_registry(reg: ProviderRegistry) -> None:
+    """Inyección para tests (evita tocar la red)."""
+    global _registry
+    _registry = reg
+
+
 class FreeCloudLLM:
     """
-    Red Global de IA basada en Ingeniería Inversa - Hiper-Optimizada.
-    Implementa Carreras Asíncronas (Parallel Racing), Rotación de Navegadores, Caché
-    y un Recolector Autónomo de Proxys para evadir bloqueos de IP.
+    Inferencia de nube gratuita, sin claves de API y sin modelos locales
+    (§I.3 del documento de arquitectura, confirmado por el usuario).
     """
-    def __init__(self):
-        if AsyncClient:
-            self.client = AsyncClient()
-        else:
-            self.client = None
-            logger.error("G4F no está instalado. Ejecuta 'pip install -U g4f'")
 
-        self.provider_swarm = [
-            Airforce, BlackboxPro, PhindAi, Puter, LMArena,
-            OpenRouterFree, Pollinations, GlhfChat, Copilot, HuggingChat, You, DeepSeek
-        ]
-        
-        self._health_registry = {}
-        self.db = MagiDatabase("magi_brain.db")
-        
-        # Caché en memoria para latencia cero
-        self._cache = {}
-        
-        # Rotación de Navegadores (Spoofing)
-        self.user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15",
-            "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
-        ]
-        
-        # Piscina de Proxys eliminada: los proxys gratuitos bloqueaban los requests a LLMs
-        self.proxies: List[str] = []
+    def __init__(self, registry: ProviderRegistry | None = None):
+        self._registry = registry
 
-    def _refresh_proxies(self):
-        """Deshabilitado. G4F maneja internamente la rotación y bypass."""
-        pass
+    async def _reg(self) -> ProviderRegistry:
+        return self._registry or await get_registry()
 
-    def _is_alive(self, provider) -> bool:
-        health = self._health_registry.get(provider.__name__, {"failures": 0, "cooldown_until": 0})
-        return time.time() > health["cooldown_until"]
+    @staticmethod
+    def _family_for(model: str) -> str:
+        return _ALIAS_TO_FAMILY.get((model or "").lower(), "auto")
 
-    def _mark_failure(self, provider):
-        name = provider.__name__
-        if name not in self._health_registry:
-            self._health_registry[name] = {"failures": 0, "cooldown_until": 0}
-        self._health_registry[name]["failures"] += 1
-        self._health_registry[name]["cooldown_until"] = time.time() + 300
-        logger.debug(f"[Salud] Proveedor {name} marcado como MUERTO (TTL: 300s).")
-        # Log persistence
-        asyncio.create_task(self.db.log_provider_failure(name))
+    async def generate(self, system_prompt: str, user_prompt: str,
+                       model: str = "gpt-4o") -> tuple[str, str]:
+        """
+        Devuelve (contenido, nombre_del_proveedor_que_respondió).
 
-    async def _fetch_from_provider(self, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
-        """Intenta obtener una respuesta usando auto-routing dinámico de G4F y rotación de modelos si falla."""
-        if not self.client:
-            raise ValueError("G4F client no inicializado")
-            
-        start_t = time.time()
-        
-        # Lista de candidatos a intentar en orden de preferencia
-        candidate_models = [model]
-        for m in ["gpt-4o", "gpt-4o-mini", "gpt-4", "llama-3.1-70b", "qwen-2.5-coder"]:
-            if m not in candidate_models:
-                candidate_models.append(m)
-            
-        for cand in candidate_models:
+        El segundo elemento es ahora el proveedor REAL. En v5.0.28 la GUI
+        mostraba "G4F_Auto_Router(gpt-4o) (deepseek)" donde el paréntesis final
+        era lo que el agente CREÍA usar, no lo que se usó.
+        """
+        reg = await self._reg()
+        family = self._family_for(model)
+        prefer = f"g4f-{family}" if family != "auto" else None
+
+        req = CompletionRequest(
+            messages=[Message("system", system_prompt), Message("user", user_prompt)],
+            timeout_s=150.0,
+        )
+        try:
+            resp = await reg.complete(req, prefer=prefer)
+        except ProviderError as e:
+            logger.error("[cloud] todas las familias agotadas: %s", e)
+            return (f"[Inferencia no disponible: {e}]", "SYSTEM_ERROR")
+
+        content = resp.content or ""
+        if any(h in content.lower() for h in _REFUSAL_HINTS):
+            logger.info("[cloud] %s rechazó; reintento en otra familia", resp.provider_id)
             try:
-                logger.debug(f"[Enjambre] Petición G4F Auto-Router con modelo '{cand}' (Intento {attempt})...")
-                response = await self.client.chat.completions.create(
-                    model=cand,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ]
-                )
-                content = response.choices[0].message.content if response and response.choices else None
-                if content:
-                    latency_ms = (time.time() - start_t) * 1000
-                    provider_name = f"G4F_Auto_Router({cand})"
-                    logger.info(f"[Enjambre] ¡VICTORIA! {provider_name} completó la tarea en ({latency_ms:.2f}ms).")
-                    
-                    has_code = "```" in content
-                    word_count = len(content.split())
-                    role = "Generación" if "MELCHIOR" in system_prompt else "Análisis" if "BALTHASAR" in system_prompt else "Arbitraje"
-                    
-                    asyncio.create_task(self.db.log_provider_success(provider_name, latency_ms, has_code, word_count, role))
-                    
-                    return (content, provider_name)
-            except Exception as e:
-                logger.debug(f"[Enjambre] Falló modelo {cand} en G4F Auto-Router: {e}")
-                
-        raise ValueError("Todos los intentos con el enjambre de modelos fallaron. No hay respuesta válida.")
+                alt = await reg.complete(req, use_cache=False)
+                if alt.provider_id != resp.provider_id and alt.content.strip():
+                    return (alt.content, f"{alt.provider_id}:{alt.model}")
+            except ProviderError:
+                pass
 
-    async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-4o") -> tuple[str, str]:
-        if not self.client:
-            return ("[Error: G4F client no inicializado]", "Unknown")
-            
-        # Mapeo de Resiliencia
-        if model in ["claude-3.5-sonnet", "qwen-2.5", "deepseek"]:
-            model = "gpt-4o"
-            
-        # 1. Comprobar Caché (Cero Latencia)
-        cache_key = hashlib.md5(f"{model}_{system_prompt}_{user_prompt}".encode()).hexdigest()
-        if cache_key in self._cache:
-            logger.info(f"[LLM Cloud] ACIERTO EN CACHÉ. Retornando respuesta en 0ms.")
-            return self._cache[cache_key]
-            
-        # 2. Retries Secuenciales con Auto-Router
-        max_retries = 3
-        base_delay = 2.0
-        
-        censorship_flags = [
-            "i cannot fulfill", "i cannot assist", "as an ai", "lo siento", "no puedo", 
-            "violates policy", "safety guidelines", "i apologize", "against my programming"
-        ]
-        
-        attempt = 1
-        while True:
-            logger.info(f"[LLM Cloud] Iniciando petición a la nube para '{model}' (Intento {attempt})...")
-            
-            try:
-                result_content, result_provider = await self._fetch_from_provider(model, system_prompt, user_prompt, attempt)
-                if result_content:
-                    # SISTEMA DE SEGURIDAD DINÁMICO: Detección de censura
-                    is_censored = any(flag in result_content.lower() for flag in censorship_flags)
-                    if is_censored:
-                        logger.warning(f"[SEGURIDAD] Censura o bloqueo detectado en {model}. Iniciando FALLBACK a motor en la nube sin filtros...")
-                        fallback_model = "qwen-2.5-coder" # Modelo en la nube (no local)
-                        result_content, result_provider = await self._fetch_from_provider(fallback_model, system_prompt, user_prompt, attempt)
-                        if result_content and not any(flag in result_content.lower() for flag in censorship_flags):
-                            logger.info(f"[SEGURIDAD] Fallback exitoso con {fallback_model}.")
-                            self._cache[cache_key] = (result_content, result_provider)
-                            return (result_content, result_provider)
-                        else:
-                            logger.critical(f"[SEGURIDAD] Fallback bloqueado. Activando detención segura automatizada (Kill-Switch).")
-                            return ("SYS_EMERGENCY_STOP: El contenido fue bloqueado por múltiples motores en la nube. Deteniendo el flujo por seguridad operativa.", "SYSTEM_SAFETY")
-                    
-                    self._cache[cache_key] = (result_content, result_provider)
-                    return (result_content, result_provider)
-            except Exception as e:
-                logger.error(f"[SISTEMA DE AUTODIAGNÓSTICO INICIADO] - Error detectado en {model}: Posible Rate Limit (429) o indisponibilidad.")
-                logger.warning(f"[VERIFICACIÓN] - Fallo Crítico en intento {attempt}. Motivo: {e}")
-                asyncio.create_task(self.db.log_provider_failure("G4F_Auto_Router"))
-                
-                if attempt >= max_retries:
-                    logger.critical(f"[SISTEMA] Abortando tras {max_retries} intentos fallidos con {model}.")
-                    return (f"[Fallo Crítico: El Enjambre completo ha colapsado tras {max_retries} intentos. Detalle: {e}]", "SYSTEM_ERROR")
-                    
-                delay = base_delay * (2 ** min(attempt-1, 4)) + random.uniform(1, 3)
-                logger.critical(f"[AUTO-REPARACIÓN] - Pausa por enfriamiento de IP ({delay:.2f}s)...")
-                await asyncio.sleep(delay)
-                logger.info("[AUTO-REPARACIÓN COMPLETADA] - Reiniciando peticiones al Enjambre.")
-                attempt += 1
+        return (content, f"{resp.provider_id}:{resp.model}")
 
-    async def generate_vision(self, system_prompt: str, user_prompt: str, image_data_url: str, model: str = "gpt-4o") -> tuple[str, str]:
-        """Analiza imágenes visualmente (Google Lens style) usando modelos Multimodales (gpt-4o / gemini)."""
-        if not self.client:
-            return ("[Error: G4F client no inicializado]", "Unknown")
-            
-        logger.info(f"[LLM Vision] Iniciando análisis multimodal de imagen para '{model}'...")
-        start_t = time.time()
-        
-        candidate_models = [model, "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"]
-        for cand in candidate_models:
+    async def generate_vision(self, system_prompt: str, user_prompt: str,
+                              image_data_url: str,
+                              model: str = "gpt-4o") -> tuple[str, str]:
+        """Multimodal — lo que Naoko usa para leer capturas de pantalla."""
+        reg = await self._reg()
+        req = CompletionRequest(
+            messages=[Message("system", system_prompt), Message("user", user_prompt)],
+            timeout_s=180.0)
+
+        for regn in reg.healthy(need_vision=True):
+            provider = regn.provider
+            fn = getattr(provider, "complete_vision", None)
+            if fn is None:
+                continue
             try:
-                response = await self.client.chat.completions.create(
-                    model=cand,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": user_prompt},
-                                {"type": "image_url", "image_url": {"url": image_data_url}}
-                            ]
-                        }
-                    ]
-                )
-                content = response.choices[0].message.content if response and response.choices else None
-                if content:
-                    latency_ms = (time.time() - start_t) * 1000
-                    provider_name = f"G4F_Vision_Router({cand})"
-                    logger.info(f"[LLM Vision] ¡ÉXITO! Análisis visual completado por {provider_name} en ({latency_ms:.2f}ms).")
-                    return (content, provider_name)
+                resp = await asyncio.wait_for(fn(req, image_data_url), timeout=180.0)
+                if resp.content.strip():
+                    regn.breaker.record_success(resp.latency_ms)
+                    return (resp.content, f"{resp.provider_id}:vision")
             except Exception as e:
-                logger.debug(f"[LLM Vision] Falló análisis de imagen con {cand}: {e}")
-                
-        fallback_msg = f"[Diagnóstico Visual Automático: Captura recibida y analizada].\nNaoko ha procesado la evidencia visual de la interfaz. Consulta del usuario: '{user_prompt}'."
-        return (fallback_msg, "G4F_Vision_Fallback")
+                regn.breaker.record_failure()
+                logger.debug("[cloud] visión falló en %s: %s", regn.id, e)
+
+        return ("[No hay proveedor con visión disponible ahora mismo. "
+                "Describe la imagen por texto y sigo.]", "SYSTEM_NO_VISION")
+
+    async def telemetry(self) -> dict[str, Any]:
+        return (await self._reg()).telemetry()
