@@ -38,27 +38,39 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
         </div>
       </div>
       <div className="card-body" style={{ padding: '12px', fontSize: '13px' }}>
-        <div style={{ maxHeight: isExpanded ? 'none' : '60px', overflow: 'hidden', maskImage: isExpanded ? 'none' : 'linear-gradient(to bottom, black 50%, transparent 100%)' }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-            {body}
-          </ReactMarkdown>
-        </div>
-        {!isExpanded && (
-           <button onClick={() => setIsExpanded(true)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', marginTop: '5px' }}>
-             Ver análisis completo ▾
-           </button>
-        )}
-        {isExpanded && (
-           <button onClick={() => setIsExpanded(false)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', marginTop: '10px' }}>
-             Ocultar análisis ▴
-           </button>
-        )}
-        {conclusion && (
-          <div style={{ marginTop: '15px', paddingTop: '10px', borderTop: '1px dashed var(--dim)' }}>
+        {msg.agent === 'USER' ? (
+          <div>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-              {conclusion}
+              {msg.content}
             </ReactMarkdown>
           </div>
+        ) : (
+          <>
+            {isExpanded && (
+              <div style={{ marginBottom: '10px' }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                  {body}
+                </ReactMarkdown>
+              </div>
+            )}
+            {!isExpanded && body.trim() && (
+               <button onClick={() => setIsExpanded(true)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0 }}>
+                 Ver análisis completo ▾
+               </button>
+            )}
+            {isExpanded && body.trim() && (
+               <button onClick={() => setIsExpanded(false)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0, marginTop: '10px' }}>
+                 Ocultar análisis ▴
+               </button>
+            )}
+            {conclusion && (
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: isExpanded ? '1px dashed var(--dim)' : 'none' }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                  {conclusion}
+                </ReactMarkdown>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

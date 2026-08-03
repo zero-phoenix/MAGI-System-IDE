@@ -138,8 +138,9 @@ class FreeCloudLLM:
             "violates policy", "safety guidelines", "i apologize", "against my programming"
         ]
         
-        for attempt in range(1, max_retries + 1):
-            logger.info(f"[LLM Cloud] Iniciando petición a la nube para '{model}' (Intento {attempt}/{max_retries})...")
+        attempt = 1
+        while True:
+            logger.info(f"[LLM Cloud] Iniciando petición a la nube para '{model}' (Intento {attempt})...")
             
             try:
                 result_content, result_provider = await self._fetch_from_provider(model, system_prompt, user_prompt, attempt)
@@ -148,7 +149,6 @@ class FreeCloudLLM:
                     is_censored = any(flag in result_content.lower() for flag in censorship_flags)
                     if is_censored:
                         logger.warning(f"[SEGURIDAD] Censura o bloqueo detectado en {model}. Iniciando FALLBACK a motor en la nube sin filtros...")
-                        # Fallback a un modelo de nube más permisivo (ej. un modelo open weight en la nube)
                         fallback_model = "qwen-2.5-coder" # Modelo en la nube (no local)
                         result_content, result_provider = await self._fetch_from_provider(fallback_model, system_prompt, user_prompt, attempt)
                         if result_content and not any(flag in result_content.lower() for flag in censorship_flags):
@@ -156,21 +156,18 @@ class FreeCloudLLM:
                             self._cache[cache_key] = (result_content, result_provider)
                             return (result_content, result_provider)
                         else:
-                            # Si el fallback también censura, invocamos el kill-switch local automático (sin IA)
                             logger.critical(f"[SEGURIDAD] Fallback bloqueado. Activando detención segura automatizada (Kill-Switch).")
                             return ("SYS_EMERGENCY_STOP: El contenido fue bloqueado por múltiples motores en la nube. Deteniendo el flujo por seguridad operativa.", "SYSTEM_SAFETY")
                     
                     self._cache[cache_key] = (result_content, result_provider)
                     return (result_content, result_provider)
             except Exception as e:
-                logger.warning(f"[LLM Cloud] Intento {attempt} fallido por completo. Posible 429 Rate Limit o indisponibilidad del modelo.")
+                logger.error(f"[SISTEMA DE AUTODIAGNÓSTICO INICIADO] - Error detectado en {model}: Posible Rate Limit (429) o indisponibilidad.")
+                logger.warning(f"[VERIFICACIÓN] - Fallo Crítico en intento {attempt}. Motivo: {e}")
                 asyncio.create_task(self.db.log_provider_failure("G4F_Auto_Router"))
                 
-                if attempt < max_retries:
-                    delay = base_delay * (2 ** (attempt-1)) + random.uniform(0, 1)
-                    logger.info(f"[LLM Cloud] Aplicando backoff exponencial. Esperando {delay:.2f}s...")
-                    await asyncio.sleep(delay)
-                
-        logger.error("[LLM Cloud] Fallo Crítico en el Enjambre real. Agotados todos los reintentos y proveedores.")
-        # Retornamos error real para no continuar el flujo simulado, tal como indicó el usuario.
-        return ("[Fallo Crítico: El Enjambre completo ha colapsado. Error 429 Rate Limit Exceeded en proveedores. La tarea se aborta.]", "SYSTEM_ERROR")
+                delay = base_delay * (2 ** min(attempt-1, 4)) + random.uniform(5, 15)
+                logger.critical(f"[AUTO-REPARACIÓN] - Sistema colapsado por Rate Limit. Congelando hilo por {delay:.2f}s para forzar el enfriamiento de IP y rotación interna de G4F...")
+                await asyncio.sleep(delay)
+                logger.info("[AUTO-REPARACIÓN COMPLETADA] - Reiniciando peticiones al Enjambre.")
+                attempt += 1

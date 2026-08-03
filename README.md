@@ -51,22 +51,22 @@ graph TD
     %% --------------------------------------------------------
     subgraph Fase3 ["3. Debate del Enjambre (Auto-Routing)"]
         direction LR
-        K_Queue --> O_Init[Orquestador Central]:::agent
-        O_Init --> Melchior(🧠 MELCHIOR - Arquitecto):::agent
-        Melchior -->|Propuesta Código| Balthasar(🛡️ BALTHASAR - Crítico):::agent
-        Balthasar -->|Auditoría| Casper(⚖️ CASPER - Árbitro):::agent
-        Casper -->|Decisión Final| O_End[Veredicto]:::agent
+        K_Queue --> O_Init["Orquestador Central"]:::agent
+        O_Init --> Melchior["🧠 MELCHIOR - Arquitecto"]:::agent
+        Melchior -->|"Propuesta Código"| Balthasar["🛡️ BALTHASAR - Crítico"]:::agent
+        Balthasar -->|"Auditoría"| Casper["⚖️ CASPER - Árbitro"]:::agent
+        Casper -->|"Decisión Final"| O_End["Veredicto"]:::agent
         
         %% Conexiones G4F
-        Cloud1((DeepSeek / LLaMA3)):::cloud
-        Cloud2((Claude 3.5)):::cloud
-        Cloud3((GPT-4o / Fallback)):::cloud
+        Cloud1(("DeepSeek / LLaMA3")):::cloud
+        Cloud2(("Claude 3.5")):::cloud
+        Cloud3(("GPT-4o / Fallback")):::cloud
         
-        Melchior -.->|Petición principal| Cloud1
-        Balthasar -.->|Petición principal| Cloud2
-        Melchior -.->|Falla 429 -> Enrutamiento dinámico| Cloud3
-        Balthasar -.->|Falla 429 -> Enrutamiento dinámico| Cloud3
-        Casper -.->|Petición segura| Cloud3
+        Melchior -.->|"Petición principal"| Cloud1
+        Balthasar -.->|"Petición principal"| Cloud2
+        Melchior -.->|"Falla 429 -> Enrutamiento dinámico"| Cloud3
+        Balthasar -.->|"Falla 429 -> Enrutamiento dinámico"| Cloud3
+        Casper -.->|"Petición segura"| Cloud3
     end
 
     %% --------------------------------------------------------
@@ -74,10 +74,10 @@ graph TD
     %% --------------------------------------------------------
     subgraph Fase4 ["4. Aprobación y Visualización (Diff)"]
         direction LR
-        O_End --> V_Format[Formateo de Cambios]:::ui
-        V_Format --> V_Diff{Usuario Revisa Diff Viewer}:::ui
-        V_Diff -->|Rechaza| V_Reject[Retorno al Enjambre]:::agent
-        V_Diff -->|Aprueba| V_Pass[Autorizado]:::kernel
+        O_End --> V_Format["Formateo de Cambios"]:::ui
+        V_Format --> V_Diff{"Usuario Revisa Diff Viewer"}:::ui
+        V_Diff -->|"Rechaza"| V_Reject["Retorno al Enjambre"]:::agent
+        V_Diff -->|"Aprueba"| V_Pass["Autorizado"]:::kernel
         V_Reject -.-> Fase3
     end
 
@@ -86,10 +86,10 @@ graph TD
     %% --------------------------------------------------------
     subgraph Fase5 ["5. Ejecución Host & SO"]
         direction LR
-        V_Pass --> OS_Extract[Extracción Regex JS/PY/PS]:::os
-        OS_Extract --> OS_Script[Generación Scratch Temp]:::os
-        OS_Script --> OS_Run>Ejecución Popen Terminal]:::db
-        OS_Run --> OS_Save[(Guardado en Disco / Repositorio)]:::db
+        V_Pass --> OS_Extract["Extracción Regex JS/PY/PS"]:::os
+        OS_Extract --> OS_Script["Generación Scratch Temp"]:::os
+        OS_Script --> OS_Run["Ejecución Popen Terminal"]:::db
+        OS_Run --> OS_Save[("Guardado en Disco / Repositorio")]:::db
     end
 
     %% -- Flujo principal vertical --

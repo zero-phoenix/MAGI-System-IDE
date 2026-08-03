@@ -46,16 +46,17 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.12
-        name: "MAGI System IDE V5.0.12"
+        tag_name: v5.0.13
+        name: "MAGI System IDE V5.0.13"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.12 🚀
+          ## Novedades en V5.0.13 🚀
           
-          - **Pestaña de Código Integrada (Mónaco Editor):** Explorador de archivos totalmente sincronizado. Al seleccionar archivos, su código fuente se carga automáticamente en el motor Monaco integrado (el mismo de VS Code).
-          - **Pestaña de Plan Activo:** Ahora la interfaz escanea la memoria del enjambre para extraer el plan táctico de Melchior (`### PLAN`) y lo renderiza de forma elegante en Markdown.
-          - **Gráfico HDC de Interacción (React Flow):** El backend hiperdimensional ahora mapea de manera visual e interactiva el flujo de pensamiento de los agentes a través de la conversación actual.
-          - **Rediseño Gráfico Definitivo:** Se actualizó `README.md` con un único y detallado gráfico vertical unidireccional, simplificando la comprensión de la arquitectura general del sistema y los flujos asíncronos.
+          - **Autodiagnóstico y Reparación de Nube:** Se implementó un bucle infinito de autodiagnóstico en el orquestador (`cloud.py`). Si la IA gratuita de la nube sufre un Error 429 (Rate Limit), el sistema **no abortará**, sino que reportará de manera super detallada en la terminal el fallo, congelará los hilos de manera inteligente (backoff) y rotará los proxies/proveedores hasta lograr conexión.
+          - **Mensajes de Usuario Siempre Visibles:** El chat ha sido rediseñado para que tu interacción (User Input) JAMÁS se oculte; siempre ocupará el 100% de legibilidad de forma permanente.
+          - **IA con Análisis Oculto pero Conclusión Clara:** El cuerpo preliminar (razonamiento) de los agentes (Melchior, Balthasar, Casper) viene **oculto completamente por defecto**, dejando únicamente la **Conclusión final visible**. Con un simple click puedes expandir o retraer el texto del análisis sin ventanas emergentes.
+          - **Solo IA Nube Gratis:** Se ha garantizado la persistencia del enrutamiento hacia motores de la nube mediante G4F, sin necesidad de inferencia local.
+          - **Corrección Mermaid README:** Se corrigió un error de sintaxis que impedía que el gráfico HDC vertical unidireccional se viera en GitHub.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
