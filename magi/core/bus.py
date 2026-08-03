@@ -18,10 +18,10 @@ class MagiBus:
     """
     def __init__(self):
         self.subscribers: Dict[str, List[asyncio.Queue]] = {}
-        self.handlers: Dict[asyncio.Queue, Callable[[BusEvent], Awaitable[None]]] = {}
+        self.handlers: Dict[asyncio.Queue, Callable[[BusEvent], Any]] = {}
         self.dropped_counts: Dict[str, int] = {}
         
-    def subscribe(self, topic_glob: str, handler: Callable[[BusEvent], Awaitable[None]], maxsize: int = 1024) -> str:
+    def subscribe(self, topic_glob: str, handler: Callable[[BusEvent], Any], maxsize: int = 1024) -> str:
         queue = asyncio.Queue(maxsize=maxsize)
         if topic_glob not in self.subscribers:
             self.subscribers[topic_glob] = []
@@ -69,7 +69,9 @@ class MagiBus:
         while True:
             event = await queue.get()
             try:
-                await handler(event)
+                res = handler(event)
+                if asyncio.iscoroutine(res) or hasattr(res, '__await__'):
+                    await res
             except Exception as e:
                 logger.error(f"Error en handler para evento {event.topic}: {e}")
             finally:

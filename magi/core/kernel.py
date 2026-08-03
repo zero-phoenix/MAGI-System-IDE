@@ -29,7 +29,7 @@ class Kernel:
         self.swarm = SwarmOrchestrator(self.blackboard, self.bus)
         self.policy = PolicyEngine()
         self.memgraph = MemGraphAdapter(self.bus)
-        self.naoko = NaokoAgent(self.bus, self.db)
+        self.naoko = NaokoAgent(self.bus, self.db, swarm=self.swarm)
         
         # Cargar catálogo de Skills
         self.skills_loader = AASLoader()

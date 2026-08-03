@@ -15,12 +15,31 @@ class NaokoAgent:
     IA de Infraestructura y Mantenimiento.
     Supervisa el sistema en busca de errores y los soluciona autónomamente.
     """
-    def __init__(self, bus: MagiBus, db: MagiDatabase):
+    def __init__(self, bus: MagiBus, db: MagiDatabase, swarm=None):
         self.bus = bus
         self.db = db
+        self.swarm = swarm
         self.llm = FreeCloudLLM()
         self.is_fixing = False
+
+    def _get_swarm_status_summary(self) -> str:
+        if not self.swarm or not hasattr(self.swarm, 'active_tasks'):
+            return "Estado del Enjambre: No conectado o sin tareas activas registadas."
         
+        tasks = self.swarm.active_tasks
+        if not tasks:
+            return "Estado del Enjambre: Sin tareas en progreso. Todo el flujo está inactivo y saludable."
+            
+        summary = ["Estado Actual de Tareas del Enjambre (Swarm):"]
+        for tid, tdata in tasks.items():
+            status = tdata.get("status", "desconocido")
+            rnum = tdata.get("round", 1)
+            cmd = tdata.get("command", "")[:80]
+            summary.append(f"- Tarea [{tid}]: Estado='{status}', Ronda={rnum}, Orden='{cmd}'")
+            if status == "WAITING_USER_APPROVAL":
+                summary.append("  -> ALERTA DE FLUJO: La tarea está actualmente PAUSADA esperando que el usuario apruebe ('sí' / 'apruebo') o entregue cambios adicionales.")
+        return "\n".join(summary)
+
     async def start(self):
         # Suscribirse a eventos de error (desde Kernel o Providers)
         self.bus.subscribe("naoko.user_message", self._handle_user_message)
@@ -33,16 +52,27 @@ class NaokoAgent:
         user_msg = event.payload.get("message", "")
         await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": user_msg}))
         
-        # Recuperar memoria
+        # Recuperar memoria y estado del enjambre
         memories = await self.db.get_naoko_memory(limit=5)
         mem_text = json.dumps(memories, indent=2)
+        swarm_summary = self._get_swarm_status_summary()
         
-        system_prompt = f"""Eres Naoko, la IA de infraestructura de MAGI System.
-Tu objetivo es asegurar la resiliencia del sistema. No eres parte del enjambre de código, eres la devops autónoma.
-Memoria reciente de errores:
+        system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
+Tu objetivo es asegurar la resiliencia técnica y la fluidez del flujo de trabajo de todo el sistema.
+No eres un agente de generación de código del Enjambre (Melchior, Balthasar, Casper), sino la supervisora autónoma global.
+
+ESTADO REAL DEL SISTEMA EN TIEMPO REAL:
+---
+[Memoria Reciente de Errores Técnicos]
 {mem_text}
 
-Responde a las preguntas del usuario sobre el estado del sistema o las reparaciones que has hecho."""
+[{swarm_summary}]
+---
+
+INSTRUCCIONES CLAVE DE RESPUESTA:
+- Si el usuario te pregunta por qué una orden o el Enjambre no avanza (ej. tras escribir "sí" o dar una orden), examina el [Estado Actual de Tareas del Enjambre] arriba, explica exactamente en qué estado está la tarea (ej. si estaba esperando aprobación o finalizó) y dale un diagnóstico directo y amigable de resiliencia del flujo.
+- Si el usuario pregunta por el estado general del sistema o reparaciones, responde con precisión técnica sobre la salud global de MAGI.
+- Mantén un tono profesional, técnico, directo y seguro."""
         
         try:
             response = await self._generate_with_rotation(system_prompt, user_msg)

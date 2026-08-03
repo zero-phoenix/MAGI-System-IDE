@@ -161,3 +161,38 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
         ))
         
         return {"decision": decision, "feedback": feedback}
+
+    async def generate_final_resolution(self, task_id: str, command: str, proposal: dict | None = None, critique: dict | None = None, engine: str = "fast") -> str:
+        logger.info(f"[CASPER] Generando respuesta final contextualizada y detallada para {task_id}...")
+        
+        sys_prompt = """Eres CASPER, el Árbitro Supremo del sistema MAGI. El usuario ha APROBADO la reformulación del plan acordado por el Enjambre.
+Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTAMENTE CONTEXTUALIZADA.
+- Proporciona la explicación técnica, conceptual o de código en su máxima extensión, claridad y detalle.
+- Integra la perspectiva inicial de Melchior, la crítica de Balthasar y la síntesis aprobada.
+- No omitas ningún detalle técnico o conceptual importante.
+- Estructura la respuesta de manera elegante y didáctica con Markdown claro.
+- OBLIGATORIO: Finaliza con el encabezado '### CONCLUSIÓN FINAL CONSOLIDADA'."""
+        
+        prop_content = proposal.get("content", "") if proposal else "N/A"
+        crit_content = critique.get("content", "") if critique else "N/A"
+        
+        user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
+        
+        target_model = "gpt-4o"
+        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
+        
+        await self.bus.publish(BusEvent(
+            topic="AGENT_POST",
+            payload={
+                "type": "AGENT_POST",
+                "task_id": task_id,
+                "agent": "CASPER",
+                "role": "resultado_final",
+                "provider": f"{actual_provider} ({self.provider})",
+                "content": content,
+                "changes": 0,
+                "stats": "FINALIZADO"
+            }
+        ))
+        
+        return content
