@@ -168,7 +168,18 @@ def main():
     magi_thread = threading.Thread(target=_start_magi_background, args=(magi, magi_loop), daemon=True)
     magi_thread.start()
     
-    # 3. Lanzar WebView en el Hilo Principal (Bloqueante)
+    import sys
+    import os
+    
+    def get_resource_path(relative_path):
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
+
     logger.info("Iniciando ventana nativa de MAGI...")
     webview.create_window(
         title="MAGI System IDE",
@@ -176,7 +187,8 @@ def main():
         width=1280,
         height=800,
         frameless=False,
-        easy_drag=False
+        easy_drag=False,
+        icon=get_resource_path("assets/icon.ico")
     )
     
     # Esto bloqueará hasta que el usuario cierre la ventana

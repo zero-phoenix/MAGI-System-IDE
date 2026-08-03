@@ -41,7 +41,7 @@ jobs:
 
     - name: Build Executable (PyInstaller)
       run: |
-        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "assets;assets" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
     - name: Zip Release
       run: |
@@ -50,11 +50,11 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.19
-        name: "MAGI System IDE V5.0.19"
+        tag_name: v5.0.20
+        name: "MAGI System IDE V5.0.20"
         files: dist/MAGI-IDE-v5.zip
         body: |
-          ## Novedades en V5.0.19 🚀
+          ## Novedades en V5.0.20 🚀
           
           - **Retorno al formato Single Portable EXE:** El ejecutable vuelve a ser un único archivo autónomo y portable dentro del ZIP, sin la carpeta `_internal`.
           - **Solución del Bug -1 de Numpy:** Se aplicó un parche profundo de dependencias (rollback de librerías DLL masivas de cálculo matricial) que soluciona definitivamente el error `decompression resulted in return code -1!` en Windows, manteniendo el modo portable `--onefile`.
