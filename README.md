@@ -132,11 +132,14 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **150 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **185 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
 | **Memoria del debate** | Cuatro subsistemas de memoria instanciados y nunca llamados | Memoria episódica que inyecta lo ya refutado en la ronda siguiente |
+| **Observabilidad** | Naoko solo se enteraba de excepciones: un proveedor a 25 s o una herramienta fallando el 40 % eran invisibles | Latencias p50/p95/p99, tasas de fallo y alertas con acción automática |
+| **Deriva de proveedor** | Especificada en §I.8 desde la primera versión del plan, nunca implementada | Sonda canaria periódica: 3 preguntas con respuesta conocida a temperatura 0 |
+| **Auto-mejora** | `EvolverAgent` con "Motor de Evolución Genética" en el log de arranque, instanciado y nunca llamado | Banco de 10 tareas verificables por código; un cambio solo se conserva si mejora sin regresiones |
 | **Módulos aleatorios** | `quantum_oracle` devolvía `random.choice`; `quant/simulator` devolvía `np.random` como índice de riesgo | Retirados a [`magi/_attic/`](magi/_attic/) con nota de por qué |
 
 ### Reglas de trabajo
@@ -172,7 +175,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 150 tests, sin red
+python -m pytest tests/ -v        # 185 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -189,12 +192,22 @@ higiene del repositorio (§1.6).
 ejecutable antes del arbitraje (§2.5), memoria episódica (§2.6), estilo
 narrativo conectado (§2.7).
 
-**Fase 3 en curso** — el ciclo `VerifiedRepair` de Naoko ya está conectado
-(§3.1-§3.3). Pendiente: observabilidad proactiva (§3.4) y banco de evaluación
-para auto-mejora medible (§3.5).
+**Fase 3 completa** — reparación verificada (§3.1), ediciones quirúrgicas
+(§3.2), versionado seguro (§3.3), observabilidad proactiva (§3.4) y auto-mejora
+medible (§3.5).
 
-**Siguiente** — toolchain de ingeniería inversa para emuladores (§5.3) y fábrica
-de artefactos (§5).
+**Siguiente** — Fase 4: contexto de ejecución ampliado, toolchain de ingeniería
+inversa para emuladores (§5.3) y fábrica de artefactos (§5).
+
+### Sobre la auto-mejora
+
+Pediste que el sistema se hiciera perfectible a sí mismo. La forma honesta de
+conseguirlo no es un motor de evolución genética: es un banco con solución
+**comprobable por código**, medir antes y después, y conservar el cambio solo si
+mejora sin romper nada. Un sistema que solo se modifica deriva; uno que mide si
+mejoró, mejora. La regla de decisión es deliberadamente conservadora — cualquier
+regresión rechaza el cambio, porque romper algo que funcionaba pesa más que
+arreglar algo que no.
 
 ---
 

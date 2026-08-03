@@ -95,6 +95,11 @@ async def run_agent(
 
         if not calls:
             await emit("agent.done", {"iterations": i, "provider": provider_id})
+            await emit("agent.turn_done", {
+                "iterations": i, "provider": provider_id, "family": family,
+                "elapsed_s": time.monotonic() - started,
+                "tokens": tokens_in + tokens_out,
+                "tools_used": len(used)})
             return AgentTurn(
                 text=visible or resp.content, iterations=i, tool_calls=used,
                 provider_id=provider_id, family=family, model=model,

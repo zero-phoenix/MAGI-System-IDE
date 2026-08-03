@@ -80,8 +80,12 @@ class ProviderRegistry:
     Todo lo que en v5.0.28 estaba definido-pero-no-llamado, aquí se llama.
     """
 
-    def __init__(self, cache_maxsize: int = 500, cache_ttl_s: float = 3600.0):
+    def __init__(self, cache_maxsize: int = 500, cache_ttl_s: float = 3600.0,
+                 metrics=None):
         self._regs: dict[str, Registration] = {}
+        # §3.4: colector opcional. Sin él, el registro funciona igual; con él,
+        # Naoko ve latencias y tasas de fallo en vez de solo excepciones.
+        self.metrics = metrics
         self.cache: TTLCache[CompletionResponse] = TTLCache(cache_maxsize, cache_ttl_s)
         self._probe_lock = asyncio.Lock()
 
@@ -229,19 +233,25 @@ class ProviderRegistry:
             try:
                 resp = await asyncio.wait_for(
                     reg.provider.complete(req), timeout=req.timeout_s)
-            except asyncio.TimeoutError as e:
+            except asyncio.TimeoutError:
                 reg.breaker.record_failure()
+                if self.metrics is not None:
+                    self.metrics.record_provider(reg.id, 0.0, ok=False)
                 last_err = ProviderTimeout(f"{reg.id} excedió {req.timeout_s}s")
                 logger.warning("[registry] %s TIMEOUT (%.0fs)", reg.id, req.timeout_s)
                 continue
             except Exception as e:
                 reg.breaker.record_failure()
+                if self.metrics is not None:
+                    self.metrics.record_provider(reg.id, 0.0, ok=False)
                 last_err = e
                 logger.warning("[registry] %s falló: %s", reg.id, e)
                 continue
 
             latency = (time.monotonic() - started) * 1000.0
             reg.breaker.record_success(latency)
+            if self.metrics is not None:
+                self.metrics.record_provider(reg.id, latency, ok=True)
             reg.calls += 1
             reg.tokens_in += resp.usage.prompt_tokens
             reg.tokens_out += resp.usage.completion_tokens

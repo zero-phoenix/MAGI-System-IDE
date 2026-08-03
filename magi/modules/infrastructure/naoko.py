@@ -16,12 +16,17 @@ class NaokoAgent:
     IA de Infraestructura y Mantenimiento.
     Supervisa el sistema en busca de errores y los soluciona autónomamente.
     """
-    def __init__(self, bus: MagiBus, db: MagiDatabase, swarm=None):
+    def __init__(self, bus: MagiBus, db: MagiDatabase, swarm=None, metrics=None):
         self.bus = bus
         self.db = db
         self.swarm = swarm
         self.llm = FreeCloudLLM()
         self.is_fixing = False
+        # §3.4: sin colector, Naoko solo ve excepciones — que es como estaba en
+        # v5.0.28. Con él ve latencias, tasas de fallo de herramientas y deriva
+        # de proveedor, o sea lo que de verdad degrada el sistema día a día.
+        self.metrics = metrics
+        self._watch_task = None
 
     def _get_swarm_status_summary(self) -> str:
         if not self.swarm or not hasattr(self.swarm, 'active_tasks'):
@@ -47,6 +52,10 @@ class NaokoAgent:
         self.bus.subscribe("error.critical", self._handle_error_event)
         self.bus.subscribe("provider.fail", self._handle_error_event)
         self.bus.subscribe("system.crash", self._handle_error_event)
+        # §3.4 — de reactiva a proactiva.
+        self.bus.subscribe("obs.alert", self._handle_alert)
+        if self.metrics is not None:
+            self._watch_task = asyncio.create_task(self._watch_loop())
 
     async def _handle_user_message(self, event: BusEvent):
         """Conversación directa con el usuario desde la UI"""
@@ -63,6 +72,8 @@ class NaokoAgent:
         memories = await self.db.get_naoko_memory(limit=5)
         mem_text = json.dumps(memories, indent=2)
         swarm_summary = self._get_swarm_status_summary()
+        health = (self.metrics.health_summary() if self.metrics is not None
+                  else "Colector de métricas no enganchado.")
         
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
 Tu objetivo es asegurar la resiliencia técnica, la salud visual del GUI y la fluidez del flujo de trabajo de todo el sistema.
@@ -74,6 +85,9 @@ ESTADO REAL DEL SISTEMA EN TIEMPO REAL:
 {mem_text}
 
 [{swarm_summary}]
+
+[SALUD DEL SISTEMA]
+{health}
 
 [ARQUITECTURA VISUAL DE LA INTERFAZ DE USUARIO (GUI React)]
 - Layout Maestro: 4 Columnas horizontales fijas con altura de pantalla 100vh.
@@ -114,6 +128,114 @@ INSTRUCCIONES CLAVE DE RESPUESTA:
         await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Agotada - Pausa 60s"}))
         await asyncio.sleep(60)
         raise Exception("Todos los modelos gratuitos fallaron.")
+
+    async def _handle_alert(self, event: BusEvent):
+        """
+        Alerta de degradación (§3.4). No es una excepción: es un indicador que
+        se salió de rango. v5.0.28 no veía nada de esto.
+        """
+        p = getattr(event, "payload", {}) or {}
+        kind, subject = p.get("kind"), p.get("subject")
+        detail, severity = p.get("detail", ""), p.get("severity", "warning")
+
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={
+            "agent": "NAOKO",
+            "content": f"{'ALERTA CRÍTICA' if severity == 'critical' else 'Aviso'}: {detail}"}))
+
+        # Acción automática: un proveedor caído o demasiado lento sale de
+        # rotación abriendo su cortacircuitos. Es reversible: se reabre solo
+        # tras el enfriamiento.
+        if kind in ("provider_down", "latency") and subject:
+            try:
+                from magi.core.providers.cloud import get_registry
+                reg = (await get_registry()).get(subject)
+                if reg is not None:
+                    for _ in range(reg.breaker.threshold):
+                        reg.breaker.record_failure()
+                    await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                        "agent": "NAOKO",
+                        "content": f"He sacado {subject} de rotación. "
+                                   f"Volverá a probarse en "
+                                   f"{reg.breaker.cooldown_s/60:.0f} min."}))
+            except Exception as e:
+                logger.debug("[naoko] no pude aislar %s: %s", subject, e)
+
+    async def _watch_loop(self, interval_s: float = 180.0):
+        """Vigilancia periódica: deriva de proveedor y salud general."""
+        while True:
+            try:
+                await asyncio.sleep(interval_s)
+                await self._check_drift()
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.debug("[naoko] vigilancia: %s", e)
+
+    async def _check_drift(self):
+        """
+        Sonda canaria (§I.8 del documento de arquitectura, nunca implementada).
+
+        Un proveedor puede cambiar el modelo detrás del mismo nombre sin avisar.
+        Eso rompe en silencio la comparabilidad entre dos ejecuciones.
+        """
+        from magi.core.obs.metrics import canary_probe
+        from magi.core.providers.cloud import get_registry
+
+        registry = await get_registry()
+        for reg in registry.healthy()[:3]:
+            report = await canary_probe(registry, reg.id)
+            if report.drifted:
+                await self.bus.publish(BusEvent(
+                    topic="provider.model_drift", payload=report.to_dict(),
+                    critical=True))
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                    "agent": "NAOKO",
+                    "content": f"Deriva detectada en {reg.id}: solo "
+                               f"{report.matched}/{report.total} respuestas "
+                               f"canarias correctas. Las comparaciones con "
+                               f"resultados anteriores dejan de ser válidas."}))
+
+    async def run_self_improvement(self, hypothesis: str,
+                                   apply_change, revert_change) -> str:
+        """
+        Auto-mejora MEDIBLE (§3.5).
+
+        v5.0.28 tenía EvolverAgent con "Motor de Evolución Genética" en el log
+        de arranque, instanciado y nunca llamado. Aunque se hubiera llamado, no
+        habría servido: modificaba sin medir. Un sistema que solo se modifica
+        deriva; uno que mide si mejoró, mejora.
+
+        `apply_change` / `revert_change` son callables async que aplican y
+        deshacen el cambio propuesto.
+        """
+        from magi.core.eval import default_bench, compare
+
+        bench = default_bench()
+
+        async def runner(prompt: str) -> str:
+            content, _ = await self.llm.generate(
+                "Responde de forma directa y precisa.", prompt)
+            return content
+
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={
+            "agent": "NAOKO",
+            "content": f"Midiendo antes del cambio: {hypothesis[:80]}"}))
+        before = await bench.run(runner, label="antes")
+
+        await apply_change()
+        after = await bench.run(runner, label="después")
+        result = compare(before, after)
+
+        if not result.significant:
+            await revert_change()
+            verdict = f"Revertido.\n{result.render()}"
+        else:
+            verdict = f"Conservado.\n{result.render()}"
+
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={
+            "agent": "NAOKO", "content": f"### Auto-mejora\n{verdict}"}))
+        await self.db.log_naoko_memory(hypothesis, result.render(), verdict[:200])
+        return verdict
 
     async def _handle_error_event(self, event: BusEvent):
         """Disparador autónomo ante errores del sistema"""

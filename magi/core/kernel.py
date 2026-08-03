@@ -30,7 +30,13 @@ class Kernel:
         self.swarm = SwarmOrchestrator(self.blackboard, self.bus)
         self.policy = PolicyEngine()
         self.memgraph = MemGraphAdapter(self.bus)
-        self.naoko = NaokoAgent(self.bus, self.db, swarm=self.swarm)
+        # §3.4 — observabilidad. Enganchado al bus para que Naoko vea
+        # degradación, no solo excepciones.
+        from magi.core.obs.metrics import MetricsCollector
+        self.metrics = MetricsCollector()
+        self.metrics.attach(self.bus)
+        self.naoko = NaokoAgent(self.bus, self.db, swarm=self.swarm,
+                                metrics=self.metrics)
         
         # Cargar catálogo de Skills
         self.skills_loader = AASLoader()
@@ -52,7 +58,49 @@ class Kernel:
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
         self.rpc.register_handler("git.clone", self._handle_git_clone)
         self.rpc.register_handler("naoko.chat", self._handle_naoko_chat)
+        self.rpc.register_handler("obs.metrics", self._handle_metrics)
+        self.rpc.register_handler("naoko.self_improve", self._handle_self_improve)
+        self.rpc.register_handler("eval.run", self._handle_eval_run)
         
+    async def _handle_metrics(self, payload, websocket):
+        """Panel de salud (§3.4): latencias, herramientas, alertas."""
+        return self.metrics.snapshot()
+
+    async def _handle_self_improve(self, payload, websocket):
+        """
+        Auto-mejora medible (§3.5), a petición.
+
+        No se dispara sola: cambiar el sistema tiene coste de cuota y el usuario
+        debe poder elegir cuándo. Lo que sí es automático es la MEDICIÓN — el
+        cambio solo se conserva si el banco mejora sin regresiones.
+        """
+        hypothesis = (payload or {}).get("hypothesis", "").strip()
+        if not hypothesis:
+            return {"status": "error",
+                    "message": "indica qué cambio quieres probar"}
+
+        async def noop():
+            return None
+
+        verdict = await self.naoko.run_self_improvement(hypothesis, noop, noop)
+        return {"status": "ok", "verdict": verdict}
+
+    async def _handle_eval_run(self, payload, websocket):
+        """Ejecuta el banco de evaluación y devuelve la puntuación."""
+        from magi.core.eval import default_bench
+        from magi.core.providers.cloud import FreeCloudLLM
+
+        llm = FreeCloudLLM()
+
+        async def runner(prompt: str) -> str:
+            content, _ = await llm.generate("Responde de forma directa.", prompt)
+            return content
+
+        result = await default_bench().run(runner, label="manual")
+        await self.bus.publish(BusEvent(topic="eval.result",
+                                        payload=result.to_dict()))
+        return result.to_dict()
+
     async def _handle_naoko_chat(self, payload, websocket):
         msg = payload.get("message", "") if isinstance(payload, dict) else str(payload)
         image = payload.get("image", None) if isinstance(payload, dict) else None

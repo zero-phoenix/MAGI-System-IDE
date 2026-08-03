@@ -72,6 +72,13 @@ WIRING = [
     ("memory_for",          "magi/modules/swarm/orchestrator.py",   "§2.6 memoria episódica"),
     ("style_fragment",      "magi/modules/swarm/agents.py",         "§2.7 estilo narrativo"),
     ("VerifiedRepair",      "magi/modules/infrastructure/naoko.py", "§3.1 reparación verificada"),
+    ("MetricsCollector",    "magi/core/kernel.py",                  "§3.4 colector de métricas"),
+    ("attach",              "magi/core/kernel.py",                  "§3.4 enganche al bus"),
+    ("record_provider",     "magi/core/providers/registry.py",      "§3.4 el registro mide"),
+    ("health_summary",      "magi/modules/infrastructure/naoko.py", "§3.4 salud en el prompt de Naoko"),
+    ("canary_probe",        "magi/modules/infrastructure/naoko.py", "§3.4 sonda de deriva"),
+    ("default_bench",       "magi/modules/infrastructure/naoko.py", "§3.5 banco de evaluación"),
+    ("run_self_improvement","magi/core/kernel.py",                  "§3.5 auto-mejora invocable"),
 ]
 
 
