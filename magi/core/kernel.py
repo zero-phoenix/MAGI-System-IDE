@@ -318,6 +318,8 @@ class Kernel:
         logger.info("Kernel listo.")
         
     async def shutdown(self):
+        if getattr(self, "naoko", None) is not None:
+            await self.naoko.stop()
         logger.info("Apagando Kernel...")
         await self.rpc.close()
 

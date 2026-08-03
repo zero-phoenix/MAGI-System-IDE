@@ -20,6 +20,9 @@ class MagiBus:
         self.subscribers: Dict[str, List[asyncio.Queue]] = {}
         self.handlers: Dict[asyncio.Queue, Callable[[BusEvent], Any]] = {}
         self.dropped_counts: Dict[str, int] = {}
+        # Workers cuya creación quedó pendiente por no haber bucle de eventos.
+        self._pending_workers: List[asyncio.Queue] = []
+        self._worker_tasks: List[asyncio.Task] = []
         
     def subscribe(self, topic_glob: str, handler: Callable[[BusEvent], Any], maxsize: int = 1024) -> str:
         queue = asyncio.Queue(maxsize=maxsize)
@@ -27,12 +30,50 @@ class MagiBus:
             self.subscribers[topic_glob] = []
         self.subscribers[topic_glob].append(queue)
         self.handlers[queue] = handler
-        
-        # Iniciar worker para este suscriptor
-        asyncio.create_task(self._worker(queue))
+
+        # subscribe() se llama desde constructores SÍNCRONOS (Kernel, Naoko,
+        # WSServer, MetricsCollector...). Si no hay bucle todavía,
+        # asyncio.create_task revienta con "no running event loop" y el kernel
+        # ni siquiera se construye. El worker queda pendiente y arranca en
+        # cuanto haya bucle.
+        self._spawn_worker(queue)
         return str(id(queue))
+
+    def _spawn_worker(self, queue: asyncio.Queue) -> bool:
+        # Comprobar el bucle ANTES de crear la corrutina: si se crea y luego
+        # falla create_task, queda un objeto sin await y Python avisa con
+        # RuntimeWarning en cada suscripción.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            if queue not in self._pending_workers:
+                self._pending_workers.append(queue)
+            return False
+        self._worker_tasks.append(asyncio.create_task(self._worker(queue)))
+        return True
+
+    def start_pending_workers(self) -> int:
+        """Arranca los workers que quedaron en cola. Idempotente."""
+        started = 0
+        for queue in list(self._pending_workers):
+            if self._spawn_worker(queue):
+                self._pending_workers.remove(queue)
+                started += 1
+        if started:
+            logger.debug("[bus] %d worker(s) arrancados de forma diferida", started)
+        return started
+
+    async def shutdown(self) -> None:
+        """Cancela los workers. Sin esto quedaban vivos toda la sesión."""
+        for t in self._worker_tasks:
+            t.cancel()
+        if self._worker_tasks:
+            await asyncio.gather(*self._worker_tasks, return_exceptions=True)
+        self._worker_tasks.clear()
         
     async def publish(self, event: BusEvent) -> None:
+        if self._pending_workers:
+            self.start_pending_workers()
         if event.critical:
             # TODO: persist in event_log before broadcasting (SQLite)
             logger.debug(f"Event {event.topic} is critical. Should persist to WAL.")

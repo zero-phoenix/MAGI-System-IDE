@@ -132,7 +132,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **185 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **198 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -150,6 +150,8 @@ Lo que se arregló, y qué había antes:
 
 > **3. Toda pieza necesita una prueba de CABLEADO, no solo de comportamiento.**
 
+> **4. Arrancar el sistema encuentra bugs que leerlo no encuentra.**
+
 La segunda regla salió de un error real cometido durante esta misma
 reconstrucción: la diversidad se arregló en `ProviderRegistry`, los tests
 unitarios de `select_for_swarm()` pasaban en verde... y el enjambre seguía
@@ -161,10 +163,13 @@ Naoko seguía ejecutando scripts a ciegas, y el bucle de herramientas conectado
 solo a Naoko mientras los tres nodos del enjambre seguían sin poder abrir un
 fichero. En los tres casos los tests unitarios estaban en verde.
 
-Por eso hay dos capas de defensa: `tests/test_swarm_integration.py` recorre
-orquestador → agentes → proveedor y comprueba el resultado observable, y
-`tests/test_wiring.py` audita el **grafo de llamadas con AST** — no mira si una
-función funciona, mira si el sistema la invoca.
+Por eso hay tres capas de defensa: `tests/test_swarm_integration.py` recorre
+orquestador → agentes → proveedor y comprueba el resultado observable,
+`tests/test_wiring.py` audita el **grafo de llamadas con AST** —no mira si una
+función funciona, mira si el sistema la invoca—, y `tests/test_bugfixes_2.py`
+construye el kernel de verdad y compara el **contrato de eventos entre backend y
+frontend**, porque una alerta que solo llega al log del servidor es una función
+invisible.
 
 Si un módulo no tiene sitio de llamada y un test, no entra. En v5.0.28 doce
 subsistemas se instanciaban en `main.py` y diez tenían **cero** llamadas: existían
@@ -175,7 +180,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 185 tests, sin red
+python -m pytest tests/ -v        # 198 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 

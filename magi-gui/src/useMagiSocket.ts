@@ -42,6 +42,27 @@ export function useMagiSocket(port: number = 20128) {
                 useMagiStore.getState().addToolUse(payload);
               } else if (topic === 'agent.tool_result') {
                 useMagiStore.getState().addToolResult(payload);
+              } else if (topic === 'obs.alert') {
+                // §3.4 — degradación visible: un proveedor a 25 s o una
+                // herramienta fallando el 40 % no lanzan excepción, pero
+                // arruinan la experiencia igual.
+                useMagiStore.getState().addAlert(payload);
+              } else if (topic === 'provider.model_drift') {
+                useMagiStore.getState().addAlert({
+                  kind: 'drift', subject: payload.provider, severity: 'warning',
+                  detail: `${payload.provider} cambió de comportamiento `
+                    + `(${payload.matched}/${payload.total} sondas correctas). `
+                    + `Las comparaciones con resultados anteriores dejan de ser válidas.`,
+                });
+              } else if (topic === 'swarm.verification_failed') {
+                appendTerminal(
+                  `[VERIFICACIÓN] Ronda ${payload.round}: el código propuesto `
+                  + `no arranca. Devuelto al autor sin gastar ronda.\n`
+                  + (payload.detail || ''));
+              } else if (topic === 'eval.result') {
+                appendTerminal(
+                  `[BANCO] ${payload.passed}/${payload.total} `
+                  + `(${Math.round((payload.score || 0) * 100)}%)`);
               } else if (topic === 'swarm.routed') {
                 useMagiStore.getState().setRoute(payload);
               } else if (topic === 'agent.delta_end') {

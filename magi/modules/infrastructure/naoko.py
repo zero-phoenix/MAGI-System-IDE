@@ -129,6 +129,16 @@ INSTRUCCIONES CLAVE DE RESPUESTA:
         await asyncio.sleep(60)
         raise Exception("Todos los modelos gratuitos fallaron.")
 
+    async def stop(self):
+        """Cancela la vigilancia periódica. Sin esto la tarea vivía para siempre."""
+        if self._watch_task is not None:
+            self._watch_task.cancel()
+            try:
+                await self._watch_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._watch_task = None
+
     async def _handle_alert(self, event: BusEvent):
         """
         Alerta de degradación (§3.4). No es una excepción: es un indicador que

@@ -967,3 +967,17 @@ body {
 .tool-run { color: var(--dim); font-style: italic; }
 .tool-ok { color: #7ddc7d; }
 .tool-err { color: var(--dang); }
+
+
+/* MAGI 9.0 §3.4 — alertas de degradación */
+.alerts { margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+.alert { display: flex; align-items: center; gap: 8px; font-size: 10px;
+         padding: 5px 8px; background: rgba(255,180,60,0.10);
+         border-left: 2px solid #e0a44a; }
+.alert.crit { background: rgba(255,70,70,0.12); border-left-color: var(--dang); }
+.alert-kind { color: #e0a44a; text-transform: uppercase; min-width: 84px;
+              font-weight: bold; }
+.alert.crit .alert-kind { color: var(--dang); }
+.alert-detail { flex: 1; color: #ddd; }
+.alert-x { background: none; border: none; color: var(--dim); cursor: pointer;
+           font-size: 13px; padding: 0 4px; }

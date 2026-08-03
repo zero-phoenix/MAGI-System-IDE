@@ -45,6 +45,10 @@ interface MagiState {
   // §2.3 — por qué ruta fue la petición
   route: { route: string; reason: string; max_rounds: number } | null;
   setRoute: (r: any) => void;
+  // §3.4 — la observabilidad es inútil si el usuario no la ve
+  alerts: Array<{ id: string; kind: string; subject: string; detail: string; severity: string }>;
+  addAlert: (a: any) => void;
+  dismissAlert: (id: string) => void;
   startNewConversation: (id?: string) => void;
   
   terminalOutput: string;
@@ -163,6 +167,16 @@ export const useMagiStore = create<MagiState>((set) => ({
 
   route: null,
   setRoute: (r) => set({ route: r }),
+
+  alerts: [],
+  addAlert: (a) => set((state) => ({
+    alerts: [...state.alerts.filter(
+      (x) => !(x.kind === a.kind && x.subject === a.subject)).slice(-9),
+      { id: Math.random().toString(36), ...a }],
+  })),
+  dismissAlert: (id) => set((state) => ({
+    alerts: state.alerts.filter((a) => a.id !== id),
+  })),
 
   terminalOutput: "",
   appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),

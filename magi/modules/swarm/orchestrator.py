@@ -49,6 +49,8 @@ class SwarmOrchestrator:
                 self.active_tasks[st.task_id] = {
                     "command": st.command, "round": st.round, "status": st.status,
                     "engine": st.engine, "narrative_style": st.narrative_style,
+                    "route": st.route, "max_rounds": st.max_rounds,
+                    "use_tools": st.use_tools,
                     "last_proposal": st.last_proposal,
                     "last_critique": st.last_critique,
                 }
@@ -74,6 +76,9 @@ class SwarmOrchestrator:
                 round=state.get("round", 1),
                 engine=state.get("engine", "fast"),
                 narrative_style=state.get("narrative_style", "tecnico"),
+                route=state.get("route", "task"),
+                max_rounds=state.get("max_rounds", 3),
+                use_tools=state.get("use_tools", True),
                 last_proposal=state.get("last_proposal"),
                 last_critique=state.get("last_critique"),
                 created_at=existing.created_at if existing else __import__("time").time(),

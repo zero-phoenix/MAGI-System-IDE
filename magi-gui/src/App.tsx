@@ -107,7 +107,7 @@ export default function App() {
     metrics, telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
-    sysCommand, conversations, streaming, toolTrace, route
+    sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
@@ -422,6 +422,20 @@ export default function App() {
             {messages.map((msg, i) => (
               <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
             ))}
+
+            {/* MAGI 9.0 §3.4 — alertas de degradación */}
+            {alerts.length > 0 && (
+              <div className="alerts">
+                {alerts.map((a: any) => (
+                  <div key={a.id}
+                       className={a.severity === 'critical' ? 'alert crit' : 'alert'}>
+                    <span className="alert-kind">{a.kind}</span>
+                    <span className="alert-detail">{a.detail}</span>
+                    <button className="alert-x" onClick={() => dismissAlert(a.id)}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* MAGI 9.0 §2.2 — traza de herramientas del turno en curso */}
             {toolTrace.filter((t: any) => t.task_id === activeConversationId)

@@ -55,6 +55,10 @@ class MagiSystem:
         # 1. Setup de señales
         await self._setup_signal_handlers()
         
+        # Los suscriptores registrados en constructores síncronos (colector de
+        # métricas, logger del bus) tienen su worker pendiente hasta aquí.
+        self.bus.start_pending_workers()
+
         # 2. Levantar el Kernel (Área 0)
         await self.kernel.start()
         
@@ -120,6 +124,8 @@ class MagiSystem:
 
     async def stop(self):
         logger.info("Deteniendo el sistema MAGI...")
+        if hasattr(self, 'bus') and self.bus:
+            await self.bus.shutdown()
         if hasattr(self, 'kernel') and self.kernel:
             await self.kernel.shutdown()
             logger.info("Sistema apagado correctamente.")

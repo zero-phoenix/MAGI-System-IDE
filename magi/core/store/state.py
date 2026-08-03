@@ -41,6 +41,8 @@ class TaskState:
     engine: str = "fast"
     narrative_style: str = "tecnico"
     route: str = "task"
+    max_rounds: int = 3
+    use_tools: bool = True
     last_proposal: dict | None = None
     last_critique: dict | None = None
     created_at: float = field(default_factory=time.time)
@@ -59,6 +61,7 @@ class TaskState:
             task_id=row["task_id"], command=row["command"], status=row["status"],
             round=row["round_num"], engine=row["engine"],
             narrative_style=row["narrative_style"], route=row["route"],
+            max_rounds=row["max_rounds"], use_tools=bool(row["use_tools"]),
             last_proposal=json.loads(row["last_proposal"]) if row["last_proposal"] else None,
             last_critique=json.loads(row["last_critique"]) if row["last_critique"] else None,
             created_at=row["created_at"], updated_at=row["updated_at"],
@@ -77,6 +80,15 @@ class TaskStore:
         c.row_factory = sqlite3.Row
         return c
 
+    def _migrate(self, c) -> None:
+        """Añade columnas nuevas a bases existentes sin perder datos."""
+        cols = {r["name"] for r in c.execute("PRAGMA table_info(task_state)")}
+        for col, ddl in (("max_rounds", "INTEGER NOT NULL DEFAULT 3"),
+                         ("use_tools", "INTEGER NOT NULL DEFAULT 1")):
+            if cols and col not in cols:
+                c.execute(f"ALTER TABLE task_state ADD COLUMN {col} {ddl}")
+                logger.info("[store] migración: columna %s añadida", col)
+
     def _init(self) -> None:
         with self._conn() as c:
             c.executescript("""
@@ -88,6 +100,8 @@ class TaskStore:
                     engine          TEXT NOT NULL DEFAULT 'fast',
                     narrative_style TEXT NOT NULL DEFAULT 'tecnico',
                     route           TEXT NOT NULL DEFAULT 'task',
+                    max_rounds      INTEGER NOT NULL DEFAULT 3,
+                    use_tools       INTEGER NOT NULL DEFAULT 1,
                     last_proposal   TEXT,
                     last_critique   TEXT,
                     created_at      REAL NOT NULL,
@@ -120,6 +134,7 @@ class TaskStore:
                 CREATE INDEX IF NOT EXISTS idx_token_ledger_task
                     ON token_ledger(task_id, ts);
             """)
+            self._migrate(c)
 
     # ---------------------------------------------------------------- tareas
 
@@ -128,19 +143,21 @@ class TaskStore:
         with self._conn() as c:
             c.execute("""
                 INSERT INTO task_state (task_id, command, status, round_num, engine,
-                    narrative_style, route, last_proposal, last_critique,
-                    created_at, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    narrative_style, route, max_rounds, use_tools,
+                    last_proposal, last_critique, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     command=excluded.command, status=excluded.status,
                     round_num=excluded.round_num, engine=excluded.engine,
                     narrative_style=excluded.narrative_style, route=excluded.route,
+                    max_rounds=excluded.max_rounds, use_tools=excluded.use_tools,
                     last_proposal=excluded.last_proposal,
                     last_critique=excluded.last_critique,
                     updated_at=excluded.updated_at
             """, (
                 state.task_id, state.command, state.status, state.round,
                 state.engine, state.narrative_style, state.route,
+                state.max_rounds, int(state.use_tools),
                 json.dumps(state.last_proposal, ensure_ascii=False) if state.last_proposal else None,
                 json.dumps(state.last_critique, ensure_ascii=False) if state.last_critique else None,
                 state.created_at, state.updated_at,
