@@ -17,18 +17,23 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   let body = "";
   let conclusion = "";
 
+  const cleanText = (str: string) => {
+    return str
+      .replace(/^(?:###\s*)?\*\*?CONCLUSIÓ[NN](?:\s*FINAL\s*CONSOLIDADA)?:?\*\*?\s*/gi, '')
+      .replace(/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/gi, '')
+      .trim();
+  };
+
   if (msg.agent === 'USER') {
     body = msg.content || "";
   } else {
     let rawContent = (msg.content || "").trim();
-
-    // Strip leading header markers so ReactMarkdown renders a regular paragraph instead of an h3 heading
-    rawContent = rawContent.replace(/^(?:###\s*)?\*\*?CONCLUSIÓ[NN](?:\s*FINAL\s*CONSOLIDADA)?:?\*\*?\s*/i, '');
+    rawContent = cleanText(rawContent);
 
     const paragraphs = rawContent.split(/\n\s*\n/);
     if (paragraphs.length > 1) {
-      conclusion = paragraphs[paragraphs.length - 1].trim();
-      body = paragraphs.slice(0, paragraphs.length - 1).join('\n\n').trim();
+      conclusion = cleanText(paragraphs[paragraphs.length - 1]);
+      body = cleanText(paragraphs.slice(0, paragraphs.length - 1).join('\n\n'));
     } else {
       conclusion = rawContent;
       body = "";
@@ -36,7 +41,7 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   }
 
   return (
-    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
+    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '12px', borderRadius: '8px', overflow: 'hidden', width: '100%', boxSizing: 'border-box', flex: '0 0 auto' }}>
       <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid var(--dim)', fontSize: '11px', color: 'var(--dim)' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <strong style={{ color: msg.agent === 'MELCHIOR' ? 'var(--var)' : msg.agent === 'BALTHASAR' ? 'var(--acc)' : msg.agent === 'CASPER' ? 'var(--fn)' : '#fff' }}>
@@ -62,10 +67,6 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--acc)', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '6px' }}>
-              <span>💡 CONCLUSIÓN SÍNTESIS</span>
-            </div>
-
             {conclusion && (
               <div className="card-conclusion-text" style={{ marginBottom: body ? '8px' : '0', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
@@ -394,7 +395,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="conv" style={{ flex: 1, minHeight: 0, overflowY: "auto", userSelect: "text" }}>
+          <div className="conv">
             <div className="you">
               <div className="w">SISTEMA</div>
               Conectado a la Pasarela Global. Esperando flujos del Enjambre para {activeConversationId}...

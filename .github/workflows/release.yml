@@ -56,10 +56,10 @@ jobs:
         body: |
           ## Novedades en ${{ github.ref_name }} 🚀
           
-          - **Icono del Ejecutable Nativo en Windows 100% Cuadrado 1:1 RGBA (`assets/icon.ico`):** Re-generado `assets/icon.ico` con dimensiones cuadradas exactas (256x256, 128x128, 64x64, 48x48, 32x32, 16x16) en formato RGBA, solucionando el problema donde el explorador de Windows rechazaba el icono ejecutable por dimensiones no cuadradas.
-          - **Eliminación Total de Texto Negrita Indeseado (`AgentMessageCard`):** Eliminado el prefijo markdown `###` de las conclusiones que forzaba a la interfaz a renderizar todo el cuerpo de la tarjeta como un encabezado `<h3>` negrita. Ahora el texto usa peso normal (400) y solo resalta en negrita las palabras clave intencionadas.
-          - **Barra de Desplazamiento Permanente Visible (`.conv`):** Enforzado `overflow-y: scroll !important` con reglas WebKit/Firefox dedicadas (`scrollbar-width: thin`), haciendo visible la barra vertical de desplazamiento en Windows PyWebView sin depender de interacciones de hover.
-          - **Insignia "💡 CONCLUSIÓN SÍNTESIS":** Añadida una etiqueta visual distintiva que encabeza cada síntesis sin alterar la tipografía del cuerpo del mensaje.
+          - **Eliminación Total de Redundancia "CONCLUSIÓN" (`AgentMessageCard`):** Limpieza exhaustiva de patrones repetitivos (`CONCLUSIÓN`, `CONCLUSIÓN SÍNTESIS`, `### CONCLUSIÓN`). Las tarjetas comienzan directamente con la respuesta limpia sin duplicar encabezados.
+          - **Scroll Vertical Ilimitado Permanente en Enjambre (`.conv`):** Habilitada barra de desplazamiento continua (`overflow-y: scroll !important`, `scrollbar-width: thin`), permitiendo navegar por todo el historial sin bloqueos ni límites de altura.
+          - **Aislamiento de Capas e Inmunidad de Márgenes (`z-index: 10`):** Al desplegar `Ver análisis completo ▾`, las tarjetas expanden su altura dentro del flujo interno de la columna central sin empujar la barra superior ni solaparse con la caja de texto inferior `SYS_EXEC`.
+          - **Tipografía Limpia Sans-Serif en Párrafos (Peso 400):** Normalizadas las reglas CSS para garantizar que solo las palabras clave marcadas intencionalmente se rendericen en negrita (`strong`).
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

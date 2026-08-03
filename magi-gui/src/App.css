@@ -878,13 +878,41 @@ body {
 .conv {
   flex: 1 1 0%;
   min-height: 0;
-  overflow-y: auto !important;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: scroll !important;
   overflow-x: hidden;
-  padding: 9px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
   scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--acc) #050a0b;
+  box-sizing: border-box;
+  width: 100%;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.conv::-webkit-scrollbar {
+  width: 10px !important;
+  display: block !important;
+}
+
+.conv::-webkit-scrollbar-track {
+  background: #050a0b !important;
+  border-left: 1px solid var(--gr);
+}
+
+.conv::-webkit-scrollbar-thumb {
+  background: var(--acc) !important;
+  border-radius: 4px;
+  border: 2px solid #050a0b;
+}
+
+.conv::-webkit-scrollbar-thumb:hover {
+  background: var(--node) !important;
 }
 
 .card-body {
@@ -895,13 +923,20 @@ body {
   color: #cfe0e4 !important;
 }
 
-.card-body p, .card-body div, .card-body li {
-  font-family: inherit;
-  font-weight: 400;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #cfe0e4;
-  margin-bottom: 6px;
+.card-body p, .card-body span, .card-body li {
+  font-family: Inter, system-ui, "Segoe UI", sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  color: #cfe0e4 !important;
+  margin-bottom: 6px !important;
+}
+
+.card-body h1, .card-body h2, .card-body h3, .card-body h4, .card-body h5, .card-body h6 {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--acc) !important;
+  margin: 6px 0 4px 0 !important;
 }
 
 .card-body strong, .card-body b {
@@ -910,7 +945,9 @@ body {
 }
 
 .comp {
+  flex: 0 0 auto;
   position: relative;
   z-index: 10;
   background: var(--bg);
+  border-top: 1px solid var(--gr);
 }
