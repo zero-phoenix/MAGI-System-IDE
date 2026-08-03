@@ -115,7 +115,8 @@ Lo que se arregló, y qué había antes:
 | Área | v5.0.28 | Ahora |
 |---|---|---|
 | **Diversidad del enjambre** | `cloud.py:122` reescribía los alias a `gpt-4o` **y** `agents.py` pedía `model="gpt-4o-mini"` en los tres nodos: dos capas colapsando al mismo modelo | Cada nodo declara su familia y la pide explícitamente. Verificado de extremo a extremo, no solo en el registro |
-| **Herramientas** | Los agentes solo emitían texto; la única acción era un regex que ejecutaba bloques ` ``` ` a ciegas | Bucle de herramientas: leer, escribir, ejecutar, verificar |
+| **Herramientas** | Los agentes solo emitían texto; la única acción era un regex que ejecutaba bloques ` ``` ` a ciegas | Bucle de herramientas en los tres nodos: leer, escribir, ejecutar, verificar. Traza visible en la interfaz |
+| **Enrutamiento** | Toda petición pagaba el debate completo: "hola" costaba 9 llamadas y 90 s | 4 rutas con presupuesto de rondas y herramientas propio |
 | **Reversibilidad** | Ninguna | Journal de escrituras + `undo` por operación o por tarea |
 | **Timeouts** | Ninguno: un proveedor colgado congelaba el sistema | Timeout duro por llamada, con failover |
 | **Cortacircuitos** | `_is_alive` y `_mark_failure` definidos, **cero sitios de llamada** | Implementado y llamado, con p50/p95 por proveedor |
@@ -131,7 +132,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **134 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **150 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -144,14 +145,23 @@ Lo que se arregló, y qué había antes:
 
 > **2. Un test sobre una pieza aislada no demuestra que el sistema la use.**
 
+> **3. Toda pieza necesita una prueba de CABLEADO, no solo de comportamiento.**
+
 La segunda regla salió de un error real cometido durante esta misma
 reconstrucción: la diversidad se arregló en `ProviderRegistry`, los tests
 unitarios de `select_for_swarm()` pasaban en verde... y el enjambre seguía
 colapsando a una sola familia, porque nunca llamaba a esa función. Iba por
 `agents.py`, que pedía `model="gpt-4o-mini"` en los tres nodos.
 
-Por eso `tests/test_swarm_integration.py` recorre orquestador → agentes →
-proveedor y comprueba el resultado observable, no la pieza.
+Volvió a pasar dos veces más: `VerifiedRepair` escrito y sin conectar mientras
+Naoko seguía ejecutando scripts a ciegas, y el bucle de herramientas conectado
+solo a Naoko mientras los tres nodos del enjambre seguían sin poder abrir un
+fichero. En los tres casos los tests unitarios estaban en verde.
+
+Por eso hay dos capas de defensa: `tests/test_swarm_integration.py` recorre
+orquestador → agentes → proveedor y comprueba el resultado observable, y
+`tests/test_wiring.py` audita el **grafo de llamadas con AST** — no mira si una
+función funciona, mira si el sistema la invoca.
 
 Si un módulo no tiene sitio de llamada y un test, no entra. En v5.0.28 doce
 subsistemas se instanciaban en `main.py` y diez tenían **cero** llamadas: existían
@@ -162,7 +172,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 134 tests, sin red
+python -m pytest tests/ -v        # 150 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 

@@ -38,6 +38,13 @@ interface MagiState {
   streaming: Record<string, { agent: string; text: string; provider: string; family: string }>;
   appendDelta: (d: { task_id: string; agent: string; text: string; provider?: string; family?: string }) => void;
   endDelta: (d: { task_id: string; agent: string }) => void;
+  // §2.2 — traza de herramientas: convierte una caja negra en un colaborador
+  toolTrace: Array<{ id: string; task_id: string; agent: string; tool: string; ok?: boolean; error?: string | null }>;
+  addToolUse: (d: { task_id: string; agent: string; calls: any[] }) => void;
+  addToolResult: (d: { task_id: string; agent: string; results: any[] }) => void;
+  // §2.3 — por qué ruta fue la petición
+  route: { route: string; reason: string; max_rounds: number } | null;
+  setRoute: (r: any) => void;
   startNewConversation: (id?: string) => void;
   
   terminalOutput: string;
@@ -128,6 +135,34 @@ export const useMagiStore = create<MagiState>((set) => ({
     delete next[`${d.task_id}:${d.agent}`];
     return { streaming: next };
   }),
+
+  toolTrace: [],
+  addToolUse: (d) => set((state) => ({
+    toolTrace: [
+      ...state.toolTrace.slice(-80),
+      ...d.calls.map((c: any) => ({
+        id: Math.random().toString(36),
+        task_id: d.task_id, agent: d.agent, tool: c.tool,
+      })),
+    ],
+  })),
+  addToolResult: (d) => set((state) => {
+    // Marca los últimos usos pendientes de este agente con su resultado.
+    const trace = [...state.toolTrace];
+    for (const r of d.results) {
+      for (let i = trace.length - 1; i >= 0; i--) {
+        if (trace[i].agent === d.agent && trace[i].tool === r.tool
+            && trace[i].ok === undefined) {
+          trace[i] = { ...trace[i], ok: r.ok, error: r.error };
+          break;
+        }
+      }
+    }
+    return { toolTrace: trace };
+  }),
+
+  route: null,
+  setRoute: (r) => set({ route: r }),
 
   terminalOutput: "",
   appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),

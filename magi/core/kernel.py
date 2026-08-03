@@ -217,10 +217,35 @@ class Kernel:
         
         # Delegamos el control al Orquestador del Enjambre (Área 16)
         # El orquestador publicará los avances en el MagiBus que la GUI consumirá
+        # MAGI 9.0 §2.3 — enrutamiento adaptativo.
+        #
+        # Estaba escrito y con tests, y NO se llamaba desde ningún sitio: toda
+        # petición seguía pasando por el debate popperiano completo. Preguntar
+        # "¿qué hora es?" costaba 9 llamadas a la nube y 60-90 s.
+        from magi.core.router import classify
+        from magi.core.providers.cloud import get_registry
+
+        try:
+            decision = await classify(command, await get_registry())
+        except Exception as e:
+            logger.warning("[kernel] clasificador falló (%s); ruta task", e)
+            from magi.core.router import RoutingDecision, Route
+            decision = RoutingDecision(Route.TASK, 0.5, "fallo del clasificador",
+                                       2, True)
+
+        logger.info("[kernel] ruta=%s (%s, confianza %.2f)",
+                    decision.route.value, decision.reason, decision.confidence)
+        await self.bus.publish(BusEvent(
+            topic="swarm.routed",
+            payload={"task_id": task_id, **decision.to_dict()}))
+
         # v5.0.28 llamaba a submit_task(task_id, command) sin pasar engine:
         # el selector de motor de la GUI tampoco tenía efecto.
         await self.swarm.submit_task(task_id, command, engine=engine,
-                                     narrative_style=narrative_style)
+                                     narrative_style=narrative_style,
+                                     route=decision.route.value,
+                                     max_rounds=decision.max_rounds,
+                                     use_tools=decision.use_tools)
 
     async def start(self):
         logger.info("Iniciando MAGI Kernel...")

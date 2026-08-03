@@ -36,6 +36,14 @@ export function useMagiSocket(port: number = 20128) {
                   provider: payload.provider,
                   family: payload.family,
                 });
+              } else if (topic === 'agent.tool_use') {
+                // §2.2 — ver "leyendo dynarec.cpp:412" convierte una caja negra
+                // en un colaborador cuyo razonamiento se puede seguir.
+                useMagiStore.getState().addToolUse(payload);
+              } else if (topic === 'agent.tool_result') {
+                useMagiStore.getState().addToolResult(payload);
+              } else if (topic === 'swarm.routed') {
+                useMagiStore.getState().setRoute(payload);
               } else if (topic === 'agent.delta_end') {
                 useMagiStore.getState().endDelta({
                   task_id: payload.task_id,

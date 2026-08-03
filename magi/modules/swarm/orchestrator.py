@@ -82,7 +82,9 @@ class SwarmOrchestrator:
             logger.warning("[SWARM] no se pudo persistir %s: %s", task_id, e)
 
     async def submit_task(self, task_id: str, command: str, engine: str = "fast",
-                          narrative_style: str = "tecnico"):
+                          narrative_style: str = "tecnico",
+                          route: str = "task", max_rounds: int = 3,
+                          use_tools: bool = True):
         """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
         # Reutilizar la tarea activa si existe una pendiente de aprobación o en progreso
         if task_id not in self.active_tasks and self.latest_task_id and self.latest_task_id in self.active_tasks:
@@ -97,6 +99,9 @@ class SwarmOrchestrator:
             # se perdían en silencio.
             state["engine"] = engine
             state["narrative_style"] = narrative_style
+            state["route"] = route
+            state["max_rounds"] = max_rounds
+            state["use_tools"] = use_tools
             self._persist(task_id)
             if state["status"] == "WAITING_USER_APPROVAL":
                 if any(word in command.lower().strip() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes", "claro"]):
@@ -169,6 +174,7 @@ class SwarmOrchestrator:
                                 state.get("last_critique"),
                                 engine=state.get("engine", "fast"),
                                 narrative_style=state.get("narrative_style", "tecnico"),
+                                use_tools=state.get("use_tools", False),
                             )
                         )
                 else:
@@ -192,6 +198,9 @@ class SwarmOrchestrator:
             "status": "in_progress",
             "engine": engine,
             "narrative_style": narrative_style,
+            "route": route,
+            "max_rounds": max_rounds,
+            "use_tools": use_tools,
         }
         self._persist(task_id)
         
@@ -216,6 +225,7 @@ class SwarmOrchestrator:
                 # Explorar cuesta cuota: solo la ruta build genera 3 enfoques.
                 n_variants = {"build": 3, "task": 2}.get(
                     state.get("route", "task"), 1)
+                use_tools = state.get("use_tools", True)
                 
                 last_proposal = state.get("last_proposal")
                 last_critique = state.get("last_critique")
@@ -232,7 +242,7 @@ class SwarmOrchestrator:
                     self.melchior, task_id=task_id, command=command_with_memory,
                     round_num=current_round, n=n_variants, engine=engine,
                     narrative_style=style, last_proposal=last_proposal,
-                    last_critique=last_critique)
+                    last_critique=last_critique, use_tools=use_tools)
 
                 # ---- 2. VERIFICACIÓN EJECUTABLE (§2.5) ----------------------
                 # Ninguna propuesta con código llega al crítico sin ejecutarse.
@@ -286,7 +296,7 @@ class SwarmOrchestrator:
                 multi = await critique_multi_axis(
                     self.balthasar, task_id=task_id,
                     proposal_text=proposal["content"], round_num=current_round,
-                    engine=engine, narrative_style=style,
+                    engine=engine, narrative_style=style, use_tools=use_tools,
                     evidence=("\n\n--- EVIDENCIA DE EJECUCIÓN ---\n" + evidence)
                     if evidence else "")
                 critique = {"content": multi.render(), "status": "CRITIQUE_GENERATED",
@@ -306,7 +316,8 @@ class SwarmOrchestrator:
                 
                 # 3. Casper Arbitra
                 verdict = await self.casper.arbitrate(
-                    task_id, proposal, critique, current_round, engine, style)
+                    task_id, proposal, critique, current_round, engine, style,
+                    use_tools=use_tools)
                 self.blackboard.post(f"{task_id}.verdict", verdict)
                 if "SYS_EMERGENCY_STOP" in verdict.get("feedback", ""):
                     await self._trigger_emergency_stop(task_id, state)
@@ -322,7 +333,7 @@ class SwarmOrchestrator:
             feedback_text = verdict.get("feedback", "").upper()
             is_asking_approval = "¿APRUEBAS" in feedback_text or "APRUEBAS" in feedback_text or verdict["decision"] == "APPROVED"
             
-            if is_asking_approval or current_round >= 3:
+            if is_asking_approval or current_round >= state.get("max_rounds", 3):
                 state["status"] = "WAITING_USER_APPROVAL"
                 self._persist(task_id)
                 await self.bus.publish(BusEvent(

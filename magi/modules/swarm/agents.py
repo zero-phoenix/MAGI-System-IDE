@@ -26,6 +26,9 @@ class SwarmAgentBase:
     role_name: str = "AGENT"
     #: semilla fija: fuerza divergencia si solo hay una familia sana
     seed: int | None = None
+    #: perfil de herramientas (MELCHIOR escribe, BALTHASAR ejecuta sin escribir,
+    #: CASPER solo lee y verifica). Ver core/tools/builtin.py.
+    tool_role: str = "CASPER"
 
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         self.blackboard = blackboard
@@ -69,6 +72,53 @@ class SwarmAgentBase:
         """
         pid = (provider_id or "").split(":")[0]
         return pid[4:] if pid.startswith("g4f-") else pid or "desconocida"
+
+    async def _ask_with_tools(self, sys_prompt: str, user_prompt: str, *,
+                              task_id: str, engine: str = "fast",
+                              narrative_style: str = "tecnico",
+                              max_iters: int = 10) -> tuple[str, str, str]:
+        """
+        Turno CON HERRAMIENTAS reales (§2.2).
+
+        Este era el hueco más grave del sistema: run_agent existía, tenía tests,
+        y solo lo usaba Naoko. Los tres nodos del enjambre seguían limitados a
+        emitir texto — Melchior escribía planes para analizar ficheros sin poder
+        abrirlos, y Balthasar "criticaba" sin poder ejecutar nada.
+
+        Cada rol recibe su catálogo: Melchior escribe, Balthasar lee y ejecuta
+        pero no escribe (lo que le permite aportar evidencia en vez de
+        sospechas), Casper lee y corre tests.
+        """
+        from magi.core.agent_loop import run_agent
+        from magi.core.prompts import style_fragment
+        from magi.core.context import get_context
+        from magi.core.tools import ToolContext, registry_for_role
+        from magi.core.tools.journal import WriteJournal
+        from magi.core.paths import workspace_dir
+
+        full_sys = "\n\n".join([
+            sys_prompt, style_fragment(narrative_style), get_context().render()])
+
+        ctx = ToolContext(task_id=task_id,
+                          cwd=workspace_dir(),
+                          journal=WriteJournal(task_id=task_id))
+
+        async def on_event(topic: str, payload: dict) -> None:
+            await self.bus.publish(BusEvent(
+                topic=topic, payload={"task_id": task_id, **payload}))
+
+        registry = await self.llm._reg()
+        turn = await run_agent(
+            registry=registry,
+            tools=registry_for_role(self.tool_role),
+            system_prompt=full_sys, user_prompt=user_prompt, ctx=ctx,
+            prefer_provider=f"g4f-{self.family}",
+            max_iters=max_iters,
+            temperature=0.4 if engine == "fast" else 0.2,
+            seed=self.seed, on_event=on_event, agent_name=self.role_name)
+
+        logger.info("[%s] %s", self.role_name, turn.summary())
+        return turn.text, turn.provider_id, self._family_of(turn.provider_id)
 
     async def _ask_stream(self, sys_prompt: str, user_prompt: str, *,
                           task_id: str, engine: str = "fast",
@@ -133,6 +183,7 @@ class MelchiorAgent(SwarmAgentBase):
     """Melchior - El Arquitecto (Propone soluciones)"""
     family = "deepseek"
     role_name = "MELCHIOR"
+    tool_role = "MELCHIOR"
     seed = 11
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
@@ -142,7 +193,8 @@ class MelchiorAgent(SwarmAgentBase):
                                 last_proposal: dict | None = None,
                                 last_critique: dict | None = None,
                                 engine: str = "fast",
-                                narrative_style: str = "tecnico") -> dict:
+                                narrative_style: str = "tecnico",
+                                use_tools: bool = False) -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
         
         sys_prompt = """Eres MELCHIOR, el Arquitecto de MAGI, un agente de ingeniería de software con acceso total a la computadora del usuario (Windows). Tienes la capacidad de crear, modificar y eliminar archivos, ejecutar scripts en PowerShell o Python, y construir código completo (ej. aplicaciones, juegos como Tetris).
@@ -166,9 +218,14 @@ class MelchiorAgent(SwarmAgentBase):
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
         
-        content, actual_provider, actual_family = await self._ask_stream(
-            sys_prompt, user_prompt, task_id=task_id, engine=engine,
-            narrative_style=narrative_style)
+        if use_tools:
+            content, actual_provider, actual_family = await self._ask_with_tools(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
+        else:
+            content, actual_provider, actual_family = await self._ask_stream(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -194,6 +251,7 @@ class BalthasarAgent(SwarmAgentBase):
     """Balthasar - El Crítico (Busca fallas en la propuesta)"""
     family = "claude"
     role_name = "BALTHASAR"
+    tool_role = "BALTHASAR"
     seed = 22
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
@@ -201,7 +259,8 @@ class BalthasarAgent(SwarmAgentBase):
         
     async def generate_critique(self, task_id: str, proposal: dict, round_num: int,
                                 engine: str = "fast",
-                                narrative_style: str = "tecnico") -> dict:
+                                narrative_style: str = "tecnico",
+                                use_tools: bool = False) -> dict:
         logger.info(f"[BALTHASAR] Criticando propuesta con {self.provider}...")
         
         sys_prompt = """Eres BALTHASAR, un ingeniero de seguridad y analista estático implacable. Tu trabajo es encontrar defectos, problemas de concurrencia, vulnerabilidades o ineficiencias en la propuesta arquitectónica de Melchior.
@@ -212,9 +271,14 @@ class BalthasarAgent(SwarmAgentBase):
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
         
-        content, actual_provider, actual_family = await self._ask_stream(
-            sys_prompt, user_prompt, task_id=task_id, engine=engine,
-            narrative_style=narrative_style)
+        if use_tools:
+            content, actual_provider, actual_family = await self._ask_with_tools(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
+        else:
+            content, actual_provider, actual_family = await self._ask_stream(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
             
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -241,6 +305,7 @@ class CasperAgent(SwarmAgentBase):
     """Casper - El Árbitro (Toma la decisión final o fuerza otra ronda)"""
     family = "qwen"
     role_name = "CASPER"
+    tool_role = "CASPER"
     seed = 33
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
@@ -248,7 +313,8 @@ class CasperAgent(SwarmAgentBase):
         
     async def arbitrate(self, task_id: str, proposal: dict, critique: dict,
                         round_num: int, engine: str = "fast",
-                        narrative_style: str = "tecnico") -> dict:
+                        narrative_style: str = "tecnico",
+                        use_tools: bool = False) -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
         
         sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar.
@@ -262,9 +328,14 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
-        content, actual_provider, actual_family = await self._ask_stream(
-            sys_prompt, user_prompt, task_id=task_id, engine=engine,
-            narrative_style=narrative_style)
+        if use_tools:
+            content, actual_provider, actual_family = await self._ask_with_tools(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
+        else:
+            content, actual_provider, actual_family = await self._ask_stream(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
         
         decision = "APPROVED"
         feedback = content
@@ -315,7 +386,8 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
                                         proposal: dict | None = None,
                                         critique: dict | None = None,
                                         engine: str = "fast",
-                                        narrative_style: str = "tecnico") -> str:
+                                        narrative_style: str = "tecnico",
+                                        use_tools: bool = False) -> str:
         logger.info(f"[CASPER] Generando respuesta final contextualizada y detallada para {task_id}...")
         
         sys_prompt = """Eres CASPER, el Árbitro Supremo del sistema MAGI. El usuario ha APROBADO la reformulación del plan acordado por el Enjambre.
@@ -331,9 +403,14 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
         
         user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
         
-        content, actual_provider, actual_family = await self._ask_stream(
-            sys_prompt, user_prompt, task_id=task_id, engine=engine,
-            narrative_style=narrative_style)
+        if use_tools:
+            content, actual_provider, actual_family = await self._ask_with_tools(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
+        else:
+            content, actual_provider, actual_family = await self._ask_stream(
+                sys_prompt, user_prompt, task_id=task_id, engine=engine,
+                narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",

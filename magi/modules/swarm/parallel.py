@@ -48,6 +48,11 @@ CRITIQUE_AXES: dict[str, str] = {
 }
 
 
+# Ejes donde ejecutar aporta evidencia real. Seguridad y rendimiento se razonan
+# mejor leyendo que corriendo, y ahorran cuota.
+_AXES_WITH_TOOLS = {"correccion", "plataforma"}
+
+
 @dataclass
 class Proposal:
     content: str
@@ -85,7 +90,8 @@ class MultiCritique:
 async def generate_variants(agent, *, task_id: str, command: str, round_num: int,
                             n: int = 2, engine: str = "fast",
                             narrative_style: str = "tecnico",
-                            last_proposal=None, last_critique=None) -> list[Proposal]:
+                            last_proposal=None, last_critique=None,
+                            use_tools: bool = False) -> list[Proposal]:
     """
     N propuestas simultáneas del mismo agente, con semillas distintas.
 
@@ -103,7 +109,7 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
             agent.seed = base_seed + variant * 101
             result = await agent.generate_proposal(
                 task_id, command, round_num, last_proposal, last_critique,
-                engine, narrative_style)
+                engine, narrative_style, use_tools)
             return Proposal(content=result["content"], variant=variant,
                             provider=result.get("provider", ""),
                             family=result.get("family", agent.family))
@@ -126,7 +132,8 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
                               round_num: int, engine: str = "fast",
                               narrative_style: str = "tecnico",
                               axes: list[str] | None = None,
-                              evidence: str = "") -> MultiCritique:
+                              evidence: str = "",
+                              use_tools: bool = False) -> MultiCritique:
     """
     Los ejes de crítica van en paralelo y se funden.
 
@@ -148,8 +155,17 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
         if evidence:
             user += f"\n{evidence}"
         try:
-            content, _, _ = await agent._ask(
-                sys_prompt, user, engine=engine, narrative_style=narrative_style)
+            if use_tools and axis in _AXES_WITH_TOOLS:
+                # Los ejes de corrección y plataforma se benefician de EJECUTAR:
+                # una objeción con el traceback delante vale mucho más que una
+                # sospecha. Balthasar puede leer y ejecutar, no escribir.
+                content, _, _ = await agent._ask_with_tools(
+                    sys_prompt, user, task_id=task_id, engine=engine,
+                    narrative_style=narrative_style, max_iters=6)
+            else:
+                content, _, _ = await agent._ask(
+                    sys_prompt, user, engine=engine,
+                    narrative_style=narrative_style)
             return axis, content, None
         except Exception as e:
             return axis, None, str(e)

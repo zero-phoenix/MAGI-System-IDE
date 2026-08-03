@@ -107,7 +107,7 @@ export default function App() {
     metrics, telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
-    sysCommand, conversations, streaming
+    sysCommand, conversations, streaming, toolTrace, route
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
@@ -314,6 +314,12 @@ export default function App() {
             <option value="creativo">ESTILO: Creativo (Innovación)</option>
             <option value="analitico">ESTILO: Analítico (Profundo)</option>
           </select>
+          {route && (
+            <span title={route.reason} style={{ marginRight: 10 }}>
+              ruta <b style={{ color: "var(--acc)" }}>{route.route}</b>
+              <span style={{ color: "var(--dim)" }}> · {route.max_rounds}r</span>
+            </span>
+          )}
           <span>prov-a <b>{metrics?.prov_a || "0/0"}</b></span>
           <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
@@ -416,6 +422,24 @@ export default function App() {
             {messages.map((msg, i) => (
               <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
             ))}
+
+            {/* MAGI 9.0 §2.2 — traza de herramientas del turno en curso */}
+            {toolTrace.filter((t: any) => t.task_id === activeConversationId)
+                      .slice(-6).length > 0 && (
+              <div className="tool-trace">
+                {toolTrace.filter((t: any) => t.task_id === activeConversationId)
+                          .slice(-6).map((t: any) => (
+                  <div key={t.id} className="tool-line">
+                    <span className="tool-agent">{t.agent}</span>
+                    <span className="tool-name">{t.tool}</span>
+                    <span className={t.ok === undefined ? "tool-run"
+                                     : t.ok ? "tool-ok" : "tool-err"}>
+                      {t.ok === undefined ? "ejecutando…" : t.ok ? "ok" : (t.error || "falló")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* MAGI 9.0 §1.2 — tarjeta en vivo mientras el agente escribe.
                 Antes la pantalla se quedaba quieta 30-90 s por turno. */}

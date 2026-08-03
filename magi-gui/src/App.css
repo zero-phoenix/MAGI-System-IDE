@@ -956,3 +956,14 @@ body {
 @keyframes magi-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .cursor-blink { animation: magi-blink 1s step-end infinite; color: var(--acc); }
 .card.streaming { border-left: 2px solid var(--acc); }
+
+
+/* MAGI 9.0 §2.2 — traza de herramientas */
+.tool-trace { border-left: 2px solid var(--dim); margin: 6px 0 6px 4px;
+              padding: 4px 0 4px 10px; font-size: 10px; font-family: monospace; }
+.tool-line { display: flex; gap: 8px; align-items: center; line-height: 1.6; }
+.tool-agent { color: var(--dim); min-width: 72px; }
+.tool-name { color: var(--acc); }
+.tool-run { color: var(--dim); font-style: italic; }
+.tool-ok { color: #7ddc7d; }
+.tool-err { color: var(--dang); }
