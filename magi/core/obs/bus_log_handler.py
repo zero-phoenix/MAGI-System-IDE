@@ -32,5 +32,13 @@ class BusLogHandler(logging.Handler):
                     payload={"message": msg}
                 ))
             )
+            
+            if record.levelno >= logging.ERROR and "NAOKO" not in record.name and "NAOKO" not in msg:
+                asyncio.create_task(
+                    self.bus.publish(BusEvent(
+                        topic="error.critical",
+                        payload={"message": msg}
+                    ))
+                )
         except Exception:
             self.handleError(record)

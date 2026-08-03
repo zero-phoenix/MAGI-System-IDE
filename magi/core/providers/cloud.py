@@ -74,44 +74,48 @@ class FreeCloudLLM:
         asyncio.create_task(self.db.log_provider_failure(name))
 
     async def _fetch_from_provider(self, model: str, system_prompt: str, user_prompt: str, attempt: int) -> tuple[str, str]:
-        """Intenta obtener una respuesta usando el motor de auto-enrutamiento de G4F."""
+        """Intenta obtener una respuesta rotando proveedores manualmente."""
         if not self.client:
             raise ValueError("G4F client no inicializado")
             
-        logger.debug(f"[Enjambre] G4F Auto-Routing para el modelo {model} (Intento {attempt})...")
+        logger.debug(f"[Enjambre] G4F Routing manual para el modelo {model} (Intento {attempt})...")
         
         start_t = time.time()
-        try:
-            # Quitamos el parámetro 'provider' para que G4F seleccione automáticamente el mejor
-            # proveedor libre (OpenCode style / Auto-fallback).
-            response = await self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
-            )
-            content = response.choices[0].message.content
-            latency_ms = (time.time() - start_t) * 1000
-            
-            if content:
-                # G4F puede ocultar qué provider exacto usó si hace auto-fallback, 
-                # usaremos 'G4F_Auto_Router' para la telemetría empírica.
-                provider_name = "G4F_Auto_Router"
-                logger.info(f"[Enjambre] ¡VICTORIA! El auto-router completó la tarea en ({latency_ms:.2f}ms).")
+        
+        # Iterar sobre provider_swarm
+        for provider in self.provider_swarm:
+            if not self._is_alive(provider):
+                continue
                 
-                # Calcular telemetría empírica (Inteligencia/Complejidad)
-                has_code = "```" in content
-                word_count = len(content.split())
-                role = "Generación" if "MELCHIOR" in system_prompt else "Análisis" if "BALTHASAR" in system_prompt else "Arbitraje"
+            try:
+                response = await self.client.chat.completions.create(
+                    model=model,
+                    provider=provider,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ]
+                )
+                content = response.choices[0].message.content
                 
-                asyncio.create_task(self.db.log_provider_success(provider_name, latency_ms, has_code, word_count, role))
+                if content:
+                    latency_ms = (time.time() - start_t) * 1000
+                    provider_name = provider.__name__
+                    logger.info(f"[Enjambre] ¡VICTORIA! El proveedor {provider_name} completó la tarea en ({latency_ms:.2f}ms).")
+                    
+                    # Calcular telemetría empírica (Inteligencia/Complejidad)
+                    has_code = "```" in content
+                    word_count = len(content.split())
+                    role = "Generación" if "MELCHIOR" in system_prompt else "Análisis" if "BALTHASAR" in system_prompt else "Arbitraje"
+                    
+                    asyncio.create_task(self.db.log_provider_success(provider_name, latency_ms, has_code, word_count, role))
+                    
+                    return (content, provider_name)
+            except Exception as e:
+                logger.debug(f"[Enjambre] Proveedor {provider.__name__} falló: {e}")
+                self._mark_failure(provider)
                 
-                return (content, provider_name)
-            raise ValueError("Respuesta vacía")
-        except Exception as e:
-            logger.debug(f"[Enjambre] Auto-router falló en intento {attempt}: {e}")
-            raise e
+        raise ValueError("Todos los proveedores del enjambre fallaron. No hay respuesta válida.")
 
     async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-4o") -> tuple[str, str]:
         if not self.client:
