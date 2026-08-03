@@ -102,7 +102,8 @@ export function useMagiSocket(port: number = 20128) {
   const fetchTelemetry = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
-        type: "GET_TELEMETRY"
+        type: "GET_TELEMETRY",
+        id: "req_telemetry"
       }));
     }
   };

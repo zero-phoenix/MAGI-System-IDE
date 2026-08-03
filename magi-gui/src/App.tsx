@@ -6,102 +6,58 @@ import { useMagiAudio } from "./useMagiAudio";
 import { FileTreeSidebar } from "./FileTreeSidebar";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import React from 'react';
-
-function splitMessageContent(content: string) {
-    if (!content) return { collapsible: "", conclusion: "" };
-    const match = content.match(/(### Conclusión|### Veredicto|### Decisión|\*\*Conclusión\*\*|\*\*Veredicto\*\*|### Resumen)/i);
-    if (match && match.index) {
-        return {
-            collapsible: content.slice(0, match.index),
-            conclusion: content.slice(match.index)
-        };
-    }
-    const jsonMatch = content.lastIndexOf("```json");
-    if (jsonMatch !== -1 && jsonMatch > content.length * 0.4) {
-        return {
-            collapsible: content.slice(0, jsonMatch),
-            conclusion: content.slice(jsonMatch)
-        };
-    }
-    if (content.length > 500) {
-        const lastPara = content.lastIndexOf("\n\n");
-        if (lastPara !== -1) {
-            return {
-                collapsible: content.slice(0, lastPara),
-                conclusion: content.slice(lastPara)
-            };
-        }
-    }
-    return {
-        collapsible: content,
-        conclusion: ""
-    };
-}
+import DiffViewer from './DiffViewer';
 
 const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
-  const [collapsed, setCollapsed] = React.useState(true);
-  const { collapsible, conclusion } = splitMessageContent(msg.content);
-
-  const hasCollapsible = collapsible.length > 0 && conclusion.length > 0;
-  const isTooLong = !hasCollapsible && msg.content && msg.content.length > 800;
+  const [isExpanded, setIsExpanded] = useState(false);
   
+  // Extract conclusion (from "### CONCLUSIÓN" onwards)
+  const parts = msg.content.split('### CONCLUSIÓN');
+  const body = parts[0];
+  const conclusion = parts.length > 1 ? '### CONCLUSIÓN' + parts[1] : '';
+
   return (
-    <div className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`} style={{ userSelect: "text", WebkitUserSelect: "text" }}>
-      <div className="ch" style={{ cursor: "pointer" }} onClick={() => setCollapsed(!collapsed)}>
-        <span style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
-          <span className="dot" style={{ background: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}></span>
-          <b style={{ color: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}>{msg.agent}</b>
-          <span style={{ color: "#6d8288" }}>{msg.role}</span>
-          <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--dim)" }}>
-             {collapsed ? "▼ Expandir (mostrando conclusión)" : "▲ Ocultar análisis"}
-          </span>
-        </span>
+    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden' }}>
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid var(--dim)', fontSize: '11px', color: 'var(--dim)' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <strong style={{ color: msg.agent === 'MELCHIOR' ? 'var(--var)' : msg.agent === 'BALTHASAR' ? 'var(--acc)' : msg.agent === 'CASPER' ? 'var(--fn)' : '#fff' }}>
+            {msg.agent}
+          </strong>
+          <span>[{msg.role}]</span>
+        </div>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <span>⚙️ {msg.provider}</span>
+          {telemetry?.find((t: any) => t.provider === msg.provider) && (
+            <span style={{ color: 'var(--node)' }}>
+              ⚡ {telemetry.find((t: any) => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
+            </span>
+          )}
+        </div>
       </div>
-      <div className="mid" style={{ display: "flex", justifyContent: "space-between" }}>
-        <span><b>{msg.provider}</b> · modelo enjambre</span>
-        {telemetry?.find((t: any) => t.provider === msg.provider) && (
-          <span style={{ color: "var(--ok)", opacity: 0.8 }}>
-            {telemetry.find((t: any) => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
-          </span>
+      <div className="card-body" style={{ padding: '12px', fontSize: '13px' }}>
+        <div style={{ maxHeight: isExpanded ? 'none' : '60px', overflow: 'hidden', maskImage: isExpanded ? 'none' : 'linear-gradient(to bottom, black 50%, transparent 100%)' }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+            {body}
+          </ReactMarkdown>
+        </div>
+        {!isExpanded && (
+           <button onClick={() => setIsExpanded(true)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', marginTop: '5px' }}>
+             Ver análisis completo ▾
+           </button>
+        )}
+        {isExpanded && (
+           <button onClick={() => setIsExpanded(false)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', marginTop: '10px' }}>
+             Ocultar análisis ▴
+           </button>
+        )}
+        {conclusion && (
+          <div style={{ marginTop: '15px', paddingTop: '10px', borderTop: '1px dashed var(--dim)' }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+              {conclusion}
+            </ReactMarkdown>
+          </div>
         )}
       </div>
-      
-      <div className="pl markdown-body" style={{ color: "#cfe0e4", padding: "10px 0" }}>
-        {hasCollapsible ? (
-          <>
-            {!collapsed && (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                {collapsible}
-              </ReactMarkdown>
-            )}
-            <div style={{ borderTop: !collapsed ? "1px dashed #34495e" : "none", marginTop: !collapsed ? "10px" : "0", paddingTop: !collapsed ? "10px" : "0" }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                {conclusion}
-              </ReactMarkdown>
-            </div>
-          </>
-        ) : (
-           <>
-             {isTooLong && collapsed ? (
-                <>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                    {msg.content.slice(0, 300) + "...\n\n*(Análisis largo oculto, expandir para leer)*"}
-                  </ReactMarkdown>
-                </>
-             ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                  {msg.content || ""}
-                </ReactMarkdown>
-             )}
-           </>
-        )}
-      </div>
-      
-      <div className="sec">
-        Cambios propuestos <span style={{ color: "#5f7378" }}>{msg.changes || 0}</span>
-      </div>
-      {msg.stats && <div className="ft">{msg.stats}</div>}
     </div>
   );
 };
@@ -111,6 +67,7 @@ export default function App() {
   const [inputVal, setInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
+  const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   const { 
     connected, messages, addMessage, terminalOutput, sysCommand, metrics, telemetry,
     activeConversationId, setActiveConversationId, conversations, startNewConversation
@@ -129,10 +86,21 @@ export default function App() {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-    if (activeTab === "Telemetría del Enjambre") {
+    if (activeTab === "Estado de Motores IA") {
       fetchTelemetry();
     }
   }, [terminalOutput, messages, activeTab, fetchTelemetry]);
+
+  useEffect(() => {
+    if (terminalOutput.includes("Esperando aprobación interactiva del usuario") && !pendingApproval) {
+      // Find the last proposal by Melchior or Balthasar
+      const props = [...messages].reverse().find(m => m.role === 'propone' || m.role === 'critica');
+      if (props) {
+        setPendingApproval(props.content);
+        setActiveTab("Diff (Aprobación)");
+      }
+    }
+  }, [terminalOutput, messages, pendingApproval]);
 
   const handleExecute = () => {
     if(!inputVal.trim()) return;
@@ -408,13 +376,13 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Configuración", "Gráfico HDC", "Telemetría del Enjambre"].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...(pendingApproval ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab}
+                {tab === "Diff (Aprobación)" ? "⚠️ " + tab : tab}
               </div>
             ))}
           </div>
@@ -463,7 +431,7 @@ export default function App() {
               </div>
             )}
             
-             {activeTab === "Configuración" && (
+             {activeTab === "Estado de Motores IA" && (
                <div style={{ flex: 1, background: "#050a0b", border: "1px solid var(--dim)", padding: "20px", color: "#cfe0e4", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
                   <h2 style={{ color: "var(--acc)", marginBottom: "15px" }}>Estado de Inteligencias Artificiales</h2>
                   <p style={{ color: "var(--dim)", marginBottom: "20px" }}>Resumen de la arquitectura del Enjambre y modelos utilizados por MAGI a través del G4F Auto-Router.</p>
@@ -479,19 +447,19 @@ export default function App() {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--node)", fontWeight: "bold" }}>🧠 MELCHIOR (Arquitecto)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--var)", fontWeight: "bold" }}>🧠 MELCHIOR (Arquitecto)</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>DeepSeek / LLaMA 3</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
                       </tr>
                       <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--dang)", fontWeight: "bold" }}>🛡️ BALTHASAR (Crítico)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--acc)", fontWeight: "bold" }}>🛡️ BALTHASAR (Crítico)</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Claude 3.5 Sonnet</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
                       </tr>
                       <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--warn)", fontWeight: "bold" }}>⚖️ CASPER (Árbitro)</td>
+                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--fn)", fontWeight: "bold" }}>⚖️ CASPER (Árbitro)</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Qwen 2.5</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
                         <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
@@ -499,9 +467,34 @@ export default function App() {
                     </tbody>
                   </table>
                   
-                  <p style={{ color: "#8fa4aa", fontSize: "11px", fontStyle: "italic", marginTop: "20px" }}>
-                    * El enrutador G4F intercepta automáticamente las caídas de los modelos principales (por ej. cuando Claude 3.5 o DeepSeek imponen límites de uso) y redirige de forma transparente la solicitud hacia el ecosistema GPT-4o para garantizar que el Enjambre nunca se detenga. No se requieren API Keys locales.
+                  <p style={{ color: "#8fa4aa", fontSize: "11px", fontStyle: "italic", marginBottom: "30px" }}>
+                    * El enrutador intercepta caídas de los modelos principales y redirige hacia el ecosistema GPT-4o / Qwen. No se usan APIs locales. En caso extremo, se usa un mecanismo automatizado de detención segura.
                   </p>
+
+                  <h2 style={{ color: "var(--acc)", marginBottom: "20px" }}>Dashboard de Telemetría (Empírica)</h2>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                    {telemetry && telemetry.length > 0 ? telemetry.map((prov, i) => (
+                      <div key={i} style={{
+                        background: "rgba(10, 20, 25, 0.7)", 
+                        border: "1px solid var(--dim)",
+                        borderRadius: "6px",
+                        padding: "10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "5px",
+                        boxShadow: "0 4px 6px rgba(0,0,0,0.3)"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <h3 style={{ margin: 0, color: "var(--node)", fontSize: "14px" }}>{prov.provider}</h3>
+                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "10px", background: prov.success_count > 0 ? "rgba(0,255,100,0.1)" : "rgba(255,50,50,0.1)", color: prov.success_count > 0 ? "#0f0" : "#f55" }}>
+                            {prov.success_count > 0 ? "ALIVE" : "DEAD"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--dim)" }}>Latencia media: <span style={{ color: "#cfe0e4" }}>{prov.avg_latency_ms.toFixed(0)} ms</span></div>
+                        <div style={{ fontSize: "11px", color: "var(--dim)" }}>Éxitos / Fallos: <span style={{ color: "#cfe0e4" }}>{prov.success_count} / {prov.failure_count}</span></div>
+                      </div>
+                    )) : <span style={{ color: "var(--dim)", fontSize: "12px" }}>Esperando datos de la red G4F...</span>}
+                  </div>
                </div>
             )}
             
@@ -526,40 +519,23 @@ export default function App() {
                </div>
             )}
 
-            {activeTab === "Telemetría del Enjambre" && (
-              <div style={{ flex: 1, padding: "20px", overflowY: "auto", background: "#050a0b", color: "#cfe0e4" }}>
-                <h2 style={{ color: "var(--acc)", marginBottom: "20px" }}>Dashboard de Telemetría (Empírica)</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
-                  {telemetry && telemetry.length > 0 ? telemetry.map((prov, i) => (
-                    <div key={i} style={{
-                      background: "rgba(10, 20, 25, 0.7)", 
-                      border: "1px solid var(--dim)",
-                      borderRadius: "6px",
-                      padding: "10px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "5px",
-                      boxShadow: "0 4px 6px rgba(0,0,0,0.3)"
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <h3 style={{ margin: 0, color: "var(--node)", fontSize: "14px" }}>{prov.provider}</h3>
-                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "10px", background: prov.success_count > 0 ? "rgba(0,255,100,0.1)" : "rgba(255,50,50,0.1)", color: prov.success_count > 0 ? "#0f0" : "#f55" }}>
-                          {prov.success_count > 0 ? "ALIVE" : "DEAD"}
-                        </span>
-                      </div>
-                      
-                      <div style={{ fontSize: "11px", display: "flex", flexDirection: "column", gap: "2px", color: "var(--dim)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Aciertos:</span><b style={{ color: "#0f0" }}>{prov.success_count}</b></div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Fallos:</span><b style={{ color: "#f55" }}>{prov.failure_count}</b></div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Latencia:</span><b>{prov.avg_latency_ms.toFixed(0)} ms</b></div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Complejidad:</span><b>{prov.avg_word_count.toFixed(0)} pal.</b></div>
-                      </div>
-                    </div>
-                  )) : (
-                    <div style={{ color: "var(--dim)" }}>Sin datos de telemetría reales.</div>
-                  )}
-                </div>
-              </div>
+            {activeTab === "Diff (Aprobación)" && pendingApproval && (
+               <DiffViewer 
+                 originalCode="" 
+                 newCode={pendingApproval} 
+                 onApprove={() => {
+                   sysCommand("SI");
+                   // sendCommand("SI", activeConversationId, engine);
+                   setPendingApproval(null);
+                   setActiveTab("Terminal");
+                 }}
+                 onReject={() => {
+                   sysCommand("NO");
+                   // sendCommand("NO", activeConversationId, engine);
+                   setPendingApproval(null);
+                   setActiveTab("Terminal");
+                 }}
+               />
             )}
 
           </div>
