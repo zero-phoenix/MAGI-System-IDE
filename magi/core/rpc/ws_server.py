@@ -23,6 +23,7 @@ class WSServer:
         
         # Registramos endpoints internos
         self.register_handler("GET_TELEMETRY", self._handle_get_telemetry)
+        self.register_handler("GET_FILE_TREE", self._handle_get_file_tree)
         
     def register_handler(self, method: str, handler: Callable[[Any, Any], Awaitable[Any]]):
         self.handlers[method] = handler
@@ -102,6 +103,28 @@ class WSServer:
 
     async def _handle_get_telemetry(self, payload: Any, websocket: Any) -> Any:
         return await self.db.get_telemetry()
+
+    async def _handle_get_file_tree(self, payload: Any, websocket: Any) -> Any:
+        import os
+        from pathlib import Path
+        
+        base_dir = Path("D:/PROYECTOS/MAGI System IDE")
+        
+        def build_tree(dir_path):
+            tree = []
+            try:
+                for entry in sorted(os.scandir(dir_path), key=lambda e: (not e.is_dir(), e.name)):
+                    if entry.name in ('.git', 'node_modules', '__pycache__', 'dist', 'build', '.gemini'):
+                        continue
+                    if entry.is_dir():
+                        tree.append({"name": entry.name, "type": "folder", "children": build_tree(entry.path)})
+                    else:
+                        tree.append({"name": entry.name, "type": "file"})
+            except PermissionError:
+                pass
+            return tree
+            
+        return build_tree(base_dir)
 
     async def simulate_message_from_gui(self, message: str) -> str:
         """Helper para pruebas unitarias sin levantar el websocket real."""

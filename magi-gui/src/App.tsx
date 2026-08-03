@@ -3,13 +3,114 @@ import "./App.css";
 import { useMagiStore } from "./store";
 import { useMagiSocket } from "./useMagiSocket";
 import { useMagiAudio } from "./useMagiAudio";
+import { FileTreeSidebar } from "./FileTreeSidebar";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import React from 'react';
 
-function App() {
+function splitMessageContent(content: string) {
+    if (!content) return { collapsible: "", conclusion: "" };
+    const match = content.match(/(### Conclusión|### Veredicto|### Decisión|\*\*Conclusión\*\*|\*\*Veredicto\*\*|### Resumen)/i);
+    if (match && match.index) {
+        return {
+            collapsible: content.slice(0, match.index),
+            conclusion: content.slice(match.index)
+        };
+    }
+    const jsonMatch = content.lastIndexOf("```json");
+    if (jsonMatch !== -1 && jsonMatch > content.length * 0.4) {
+        return {
+            collapsible: content.slice(0, jsonMatch),
+            conclusion: content.slice(jsonMatch)
+        };
+    }
+    if (content.length > 500) {
+        const lastPara = content.lastIndexOf("\n\n");
+        if (lastPara !== -1) {
+            return {
+                collapsible: content.slice(0, lastPara),
+                conclusion: content.slice(lastPara)
+            };
+        }
+    }
+    return {
+        collapsible: content,
+        conclusion: ""
+    };
+}
+
+const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
+  const [collapsed, setCollapsed] = React.useState(true);
+  const { collapsible, conclusion } = splitMessageContent(msg.content);
+
+  const hasCollapsible = collapsible.length > 0 && conclusion.length > 0;
+  const isTooLong = !hasCollapsible && msg.content && msg.content.length > 800;
+  
+  return (
+    <div className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`} style={{ userSelect: "text", WebkitUserSelect: "text" }}>
+      <div className="ch" style={{ cursor: "pointer" }} onClick={() => setCollapsed(!collapsed)}>
+        <span style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
+          <span className="dot" style={{ background: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}></span>
+          <b style={{ color: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}>{msg.agent}</b>
+          <span style={{ color: "#6d8288" }}>{msg.role}</span>
+          <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--dim)" }}>
+             {collapsed ? "▼ Expandir (mostrando conclusión)" : "▲ Ocultar análisis"}
+          </span>
+        </span>
+      </div>
+      <div className="mid" style={{ display: "flex", justifyContent: "space-between" }}>
+        <span><b>{msg.provider}</b> · modelo enjambre</span>
+        {telemetry?.find((t: any) => t.provider === msg.provider) && (
+          <span style={{ color: "var(--ok)", opacity: 0.8 }}>
+            {telemetry.find((t: any) => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
+          </span>
+        )}
+      </div>
+      
+      <div className="pl markdown-body" style={{ color: "#cfe0e4", padding: "10px 0" }}>
+        {hasCollapsible ? (
+          <>
+            {!collapsed && (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                {collapsible}
+              </ReactMarkdown>
+            )}
+            <div style={{ borderTop: !collapsed ? "1px dashed #34495e" : "none", marginTop: !collapsed ? "10px" : "0", paddingTop: !collapsed ? "10px" : "0" }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                {conclusion}
+              </ReactMarkdown>
+            </div>
+          </>
+        ) : (
+           <>
+             {isTooLong && collapsed ? (
+                <>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                    {msg.content.slice(0, 300) + "...\n\n*(Análisis largo oculto, expandir para leer)*"}
+                  </ReactMarkdown>
+                </>
+             ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                  {msg.content || ""}
+                </ReactMarkdown>
+             )}
+           </>
+        )}
+      </div>
+      
+      <div className="sec">
+        Cambios propuestos <span style={{ color: "#5f7378" }}>{msg.changes || 0}</span>
+      </div>
+      {msg.stats && <div className="ft">{msg.stats}</div>}
+    </div>
+  );
+};
+
+export default function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
   const [inputVal, setInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
+  const [engine, setEngine] = useState("fast");
   const { 
     connected, messages, addMessage, terminalOutput, sysCommand, metrics, telemetry,
     activeConversationId, setActiveConversationId, conversations, startNewConversation
@@ -36,14 +137,14 @@ function App() {
   const handleExecute = () => {
     if(!inputVal.trim()) return;
     sysCommand(inputVal);
-    sendCommand(inputVal, activeConversationId);
+    sendCommand(inputVal, activeConversationId, engine);
     
-    // Echo in chat
+    // Add to conversations
     addMessage({
-      id: Date.now().toString(),
-      agent: "Usuario",
+      id: Math.random().toString(36),
+      agent: "USER",
       role: "comando",
-      provider: "Local",
+      provider: "local",
       content: inputVal,
       changes: 0,
       stats: "",
@@ -155,8 +256,15 @@ function App() {
           <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
         </div>
         <div className="q">
+          <select 
+            value={engine} 
+            onChange={(e) => setEngine(e.target.value)}
+            style={{ background: "#000", color: "#cfe0e4", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
+          >
+            <option value="fast">MOTOR: Inferencia Optimizada</option>
+            <option value="deep">MOTOR: Razonamiento Superior (Seguro)</option>
+          </select>
           <span>prov-a <b>{metrics?.prov_a || "0/0"}</b></span>
-          <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
           <span style={{cursor: "pointer"}} onClick={() => setActiveTab("Configuración")}>⚙</span>
@@ -164,10 +272,13 @@ function App() {
         </div>
       </div>
 
-      {/* MASTER LAYOUT: 3 COLUMNAS */}
+      {/* MASTER LAYOUT: 4 COLUMNAS */}
       <div className="app" style={{ display: "flex", width: "100%", overflow: "hidden" }}>
         
-        {/* COLUMNA IZQUIERDA: SIDEBAR / PROYECTOS */}
+        {/* COLUMNA 0: ÁRBOL DE ARCHIVOS */}
+        <FileTreeSidebar />
+
+        {/* COLUMNA 1: GESTOR DE PROYECTOS / ESTADO */}
         <div className="col rail" style={{ width: "260px", minWidth: "260px" }}>
           <input
             style={{ width: "100%", background: "#050a0b", border: "1px solid var(--gr)", color: "#cfe0e4", padding: "4px 6px", font: "inherit", fontSize: "11px", marginBottom: "8px" }}
@@ -256,35 +367,7 @@ function App() {
             </div>
 
             {messages.map((msg, i) => (
-              <div key={i} className={`card ${msg.role === 'propone' ? 'prop' : (msg.role === 'critica' ? 'crit' : 'arb')}`} style={{ userSelect: "text", WebkitUserSelect: "text" }}>
-                <div className="ch">
-                  <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <span className="dot" style={{ background: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}></span>
-                    <b style={{ color: msg.role === 'comando' ? '#fff' : (msg.role === 'propone' ? 'var(--node)' : (msg.role === 'critica' ? 'var(--dang)' : 'var(--warn)')) }}>{msg.agent}</b>
-                    <span style={{ color: "#6d8288" }}>{msg.role}</span>
-                  </span>
-                </div>
-                <div className="mid" style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span><b>{msg.provider}</b> · modelo enjambre</span>
-                  {telemetry?.find(t => t.provider === msg.provider) && (
-                    <span style={{ color: "var(--ok)", opacity: 0.8 }}>
-                      {telemetry.find(t => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
-                    </span>
-                  )}
-                </div>
-                <div className="pl markdown-body" style={{ color: "#cfe0e4", padding: "10px 0" }}>
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{ code: renderCode }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-                <div className="sec">
-                  Cambios propuestos <span style={{ color: "#5f7378" }}>{msg.changes || 0}</span>
-                </div>
-                {msg.stats && <div className="ft">{msg.stats}</div>}
-              </div>
+              <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
             ))}
           </div>
 
@@ -338,8 +421,38 @@ function App() {
           <div className="cbody" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             
             {activeTab === "Vista previa" && (
-              <div className="pv" style={{ border: "1px dashed var(--dim)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dim)" }}>
-                [Vista previa vacía]
+              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <div style={{ padding: "10px", background: "#050a0b", borderBottom: "1px solid var(--dim)", display: "flex", gap: "10px" }}>
+                  <span style={{ color: "var(--dim)", fontSize: "12px", alignSelf: "center" }}>URL:</span>
+                  <input 
+                    type="text" 
+                    id="previewUrl"
+                    defaultValue="http://localhost:3000"
+                    style={{ flex: 1, background: "#000", border: "1px solid var(--gr)", color: "#cfe0e4", padding: "4px 8px", fontSize: "12px" }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const iframe = document.getElementById('previewIframe') as HTMLIFrameElement;
+                        if (iframe) iframe.src = e.currentTarget.value;
+                      }
+                    }}
+                  />
+                  <button 
+                    className="bt go" 
+                    onClick={() => {
+                      const input = document.getElementById('previewUrl') as HTMLInputElement;
+                      const iframe = document.getElementById('previewIframe') as HTMLIFrameElement;
+                      if (iframe && input) iframe.src = input.value;
+                    }}
+                  >
+                    Actualizar
+                  </button>
+                </div>
+                <iframe 
+                  id="previewIframe"
+                  src="http://localhost:3000" 
+                  style={{ flex: 1, width: "100%", border: "none", background: "#fff" }}
+                  title="Live Preview"
+                />
               </div>
             )}
             
@@ -463,4 +576,3 @@ function App() {
   );
 }
 
-export default App;

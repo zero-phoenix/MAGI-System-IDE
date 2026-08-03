@@ -49,6 +49,9 @@ interface MagiState {
 
   telemetry: any[];
   setTelemetry: (data: any[]) => void;
+
+  fileTree: any[];
+  setFileTree: (tree: any[]) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -98,5 +101,8 @@ export const useMagiStore = create<MagiState>((set) => ({
   setMetrics: (metrics) => set({ metrics }),
 
   telemetry: [],
-  setTelemetry: (telemetry) => set({ telemetry })
+  setTelemetry: (telemetry) => set({ telemetry }),
+
+  fileTree: [],
+  setFileTree: (fileTree) => set({ fileTree })
 }));

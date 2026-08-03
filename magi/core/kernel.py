@@ -183,6 +183,8 @@ class Kernel:
         else:
             task_id = raw_id
             
+        engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"
+            
         # Generar un proyecto automático si es una conversación nueva
         # Para simular "cada vez que inicie una conversacion", creamos la carpeta
         new_proj_dir = Path("D:/PROYECTOS/MAGI System IDE/scratch") / f"project_{task_id}"
@@ -196,7 +198,7 @@ class Kernel:
         # Publicar en el bus para que el Logger lo intercepte
         await self.bus.publish(BusEvent(
             topic="SYS_EXEC",
-            payload={"task_id": task_id, "command": command}
+            payload={"task_id": task_id, "command": command, "engine": engine}
         ))
         
         # Delegamos el control al Orquestador del Enjambre (Área 16)

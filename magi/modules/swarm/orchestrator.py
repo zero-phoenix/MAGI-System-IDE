@@ -21,7 +21,7 @@ class SwarmOrchestrator:
         self.balthasar = BalthasarAgent(self.blackboard, self.bus)
         self.casper = CasperAgent(self.blackboard, self.bus)
 
-    async def submit_task(self, task_id: str, command: str):
+    async def submit_task(self, task_id: str, command: str, engine: str = "fast"):
         """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
         if task_id in self.active_tasks:
             state = self.active_tasks[task_id]
@@ -97,7 +97,8 @@ class SwarmOrchestrator:
         self.active_tasks[task_id] = {
             "command": command,
             "round": 1,
-            "status": "in_progress"
+            "status": "in_progress",
+            "engine": engine
         }
         
         await self.bus.publish(BusEvent(
@@ -115,19 +116,30 @@ class SwarmOrchestrator:
             current_round = state["round"]
             logger.info(f"[SWARM] Iniciando Ronda {current_round} para {task_id}")
             
+            engine = state.get("engine", "fast")
+            
             # 1. Melchior Propone
             last_proposal = state.get("last_proposal")
             last_critique = state.get("last_critique")
-            proposal = await self.melchior.generate_proposal(task_id, state["command"], current_round, last_proposal, last_critique)
+            proposal = await self.melchior.generate_proposal(task_id, state["command"], current_round, last_proposal, last_critique, engine)
             self.blackboard.post(f"{task_id}.proposal", proposal)
+            if "SYS_EMERGENCY_STOP" in proposal["content"]:
+                await self._trigger_emergency_stop(task_id, state)
+                break
             
             # 2. Balthasar Critica
-            critique = await self.balthasar.generate_critique(task_id, proposal, current_round)
+            critique = await self.balthasar.generate_critique(task_id, proposal, current_round, engine)
             self.blackboard.post(f"{task_id}.critique", critique)
+            if "SYS_EMERGENCY_STOP" in critique["content"]:
+                await self._trigger_emergency_stop(task_id, state)
+                break
             
             # 3. Casper Arbitra
-            verdict = await self.casper.arbitrate(task_id, proposal, critique, current_round)
+            verdict = await self.casper.arbitrate(task_id, proposal, critique, current_round, engine)
             self.blackboard.post(f"{task_id}.verdict", verdict)
+            if "SYS_EMERGENCY_STOP" in verdict.get("feedback", ""):
+                await self._trigger_emergency_stop(task_id, state)
+                break
             
             if verdict["decision"] == "APPROVED":
                 if current_round < 3:
@@ -156,3 +168,12 @@ class SwarmOrchestrator:
                     topic="TERMINAL_OUT",
                     payload={"content": f"[SWARM] Tarea fallida tras {current_round} rondas."}
                 ))
+
+    async def _trigger_emergency_stop(self, task_id: str, state: dict):
+        logger.critical(f"[SWARM] EMERGENCY STOP TRIGGERED FOR TASK {task_id}")
+        state["status"] = "failed"
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"content": f"\n[!!!] CONTINGENCIA DE SEGURIDAD ACTIVADA [!!!]\nEl motor cognitivo superior fue censurado y el motor de fallback confirmó riesgo operativo.\nAbortando operaciones del Enjambre inmediatamente y aplicando kill-switch local automatizado.\n"}
+        ))
+        await self.bus.publish(BusEvent(topic="EMERGENCY_STOP", payload={}))

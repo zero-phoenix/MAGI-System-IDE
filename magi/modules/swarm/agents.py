@@ -18,7 +18,7 @@ class MelchiorAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.provider = "deepseek" # DeepSeek-Coder (China)
         
-    async def generate_proposal(self, task_id: str, command: str, round_num: int, last_proposal: dict | None = None, last_critique: dict | None = None) -> dict:
+    async def generate_proposal(self, task_id: str, command: str, round_num: int, last_proposal: dict | None = None, last_critique: dict | None = None, engine: str = "fast") -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
         
         sys_prompt = """Eres MELCHIOR, el Arquitecto de MAGI, un agente de ingeniería de software con acceso total a la computadora del usuario (Windows). Tienes la capacidad de crear, modificar y eliminar archivos, ejecutar scripts en PowerShell o Python, y construir código completo (ej. aplicaciones, juegos como Tetris).
@@ -42,7 +42,8 @@ class MelchiorAgent(SwarmAgentBase):
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
         
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=self.provider)
+        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
+        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -66,7 +67,7 @@ class BalthasarAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.provider = "claude-3.5-sonnet" # Anthropic Claude (USA)
         
-    async def generate_critique(self, task_id: str, proposal: dict, round_num: int) -> dict:
+    async def generate_critique(self, task_id: str, proposal: dict, round_num: int, engine: str = "fast") -> dict:
         logger.info(f"[BALTHASAR] Criticando propuesta con {self.provider}...")
         
         sys_prompt = """Eres BALTHASAR, un ingeniero de seguridad y analista estático implacable. Tu trabajo es encontrar defectos, problemas de concurrencia, vulnerabilidades o ineficiencias en la propuesta arquitectónica de Melchior.
@@ -77,7 +78,8 @@ class BalthasarAgent(SwarmAgentBase):
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
         
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=self.provider)
+        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
+        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
             
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -102,7 +104,7 @@ class CasperAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.provider = "qwen-2.5" # Qwen Alibaba (China)
         
-    async def arbitrate(self, task_id: str, proposal: dict, critique: dict, round_num: int) -> dict:
+    async def arbitrate(self, task_id: str, proposal: dict, critique: dict, round_num: int, engine: str = "fast") -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
         
         sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar.
@@ -116,7 +118,8 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=self.provider)
+        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
+        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
         
         decision = "APPROVED"
         feedback = content

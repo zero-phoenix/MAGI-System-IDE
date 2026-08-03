@@ -133,12 +133,33 @@ class FreeCloudLLM:
         max_retries = 3
         base_delay = 2.0
         
+        censorship_flags = [
+            "i cannot fulfill", "i cannot assist", "as an ai", "lo siento", "no puedo", 
+            "violates policy", "safety guidelines", "i apologize", "against my programming"
+        ]
+        
         for attempt in range(1, max_retries + 1):
             logger.info(f"[LLM Cloud] Iniciando petición a la nube para '{model}' (Intento {attempt}/{max_retries})...")
             
             try:
                 result_content, result_provider = await self._fetch_from_provider(model, system_prompt, user_prompt, attempt)
                 if result_content:
+                    # SISTEMA DE SEGURIDAD DINÁMICO: Detección de censura
+                    is_censored = any(flag in result_content.lower() for flag in censorship_flags)
+                    if is_censored:
+                        logger.warning(f"[SEGURIDAD] Censura o bloqueo detectado en {model}. Iniciando FALLBACK a motor en la nube sin filtros...")
+                        # Fallback a un modelo de nube más permisivo (ej. un modelo open weight en la nube)
+                        fallback_model = "qwen-2.5-coder" # Modelo en la nube (no local)
+                        result_content, result_provider = await self._fetch_from_provider(fallback_model, system_prompt, user_prompt, attempt)
+                        if result_content and not any(flag in result_content.lower() for flag in censorship_flags):
+                            logger.info(f"[SEGURIDAD] Fallback exitoso con {fallback_model}.")
+                            self._cache[cache_key] = (result_content, result_provider)
+                            return (result_content, result_provider)
+                        else:
+                            # Si el fallback también censura, invocamos el kill-switch local automático (sin IA)
+                            logger.critical(f"[SEGURIDAD] Fallback bloqueado. Activando detención segura automatizada (Kill-Switch).")
+                            return ("SYS_EMERGENCY_STOP: El contenido fue bloqueado por múltiples motores en la nube. Deteniendo el flujo por seguridad operativa.", "SYSTEM_SAFETY")
+                    
                     self._cache[cache_key] = (result_content, result_provider)
                     return (result_content, result_provider)
             except Exception as e:

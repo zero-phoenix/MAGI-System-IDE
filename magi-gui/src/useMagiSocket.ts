@@ -15,6 +15,7 @@ export function useMagiSocket(port: number = 20128) {
           appendTerminal(`[NETWORK] Conexión WebSocket establecida en puerto ${port}`);
           // Solicitar estado real inicial
           ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
+          ws.current?.send(JSON.stringify({ type: 'GET_FILE_TREE', id: 'file_tree_0' }));
         };
 
         ws.current.onmessage = (event) => {
@@ -50,6 +51,8 @@ export function useMagiSocket(port: number = 20128) {
                  }
                } else if (data.id === 'req_telemetry' && data.result) {
                  useMagiStore.getState().setTelemetry(data.result);
+               } else if (data.id === 'file_tree_0' && data.result) {
+                 useMagiStore.getState().setFileTree(data.result);
                }
             }
           } catch (e) {
@@ -74,13 +77,14 @@ export function useMagiSocket(port: number = 20128) {
     };
   }, [port]);
 
-  const sendCommand = (cmd: string, taskId?: string) => {
+  const sendCommand = (cmd: string, taskId?: string, engine?: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         type: "SYS_EXEC",
         payload: {
           command: cmd,
-          id: taskId
+          id: taskId,
+          engine: engine || "fast"
         }
       }));
     }
