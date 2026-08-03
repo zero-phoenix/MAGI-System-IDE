@@ -56,11 +56,10 @@ jobs:
         body: |
           ## Novedades en ${{ github.ref_name }} 🚀
           
-          - **Solución al Crash de Inicio GUI (`main.py`):** Eliminado el argumento `icon=` no soportado en `webview.create_window()`, solucionando la excepción fatal `TypeError` al iniciar el ejecutable.
-          - **Restauración Total de Motores de IA (`FreeCloudLLM`):** Reemplazada la iteración sobre proveedores fallidos por auto-enrutamiento dinámico en G4F y rotación de modelos (`gpt-4o` -> `gpt-4o-mini` -> `gpt-4` -> `llama-3.1-70b` -> `qwen-2.5-coder`).
-          - **Operatividad del Enjambre (Melchior, Balthasar, Casper) y Naoko:** Todos los agentes vuelven a generar propuestas, críticas, arbitrajes y diagnósticos autónomos sin colapsos ni demoras.
-          - **Estabilidad y Corrección de Linters:** Parche de lectura segura de payloads en `NaokoAgent` y tipado en `CloudAPIProvider`.
-          - **Documentación:** README actualizado con diagrama unidireccional vertical y ramificaciones horizontales de arquitectura.
+          - **Solución del Scroll en Conversación (`.conv`):** Habilitada barra de desplazamiento visible (`::-webkit-scrollbar`), `overflow-y: auto` dinámico y autoscroll suave `chatEndRef` para navegación continua por todas las tarjetas del Enjambre.
+          - **Autoconciencia de Interfaz Gráfica en Naoko (`NaokoAgent`):** Naoko fue dotada de conocimiento completo sobre el Layout Maestro (4 columnas, tarjetas de agentes, pestañas y paneles), permitiéndole diagnosticar temas de navegación visual reportados por el usuario.
+          - **Icono del Ejecutable Nativo en Escritorio de Windows (PyInstaller `.spec`):** Embebido el recurso RGBA multi-tamaño `assets/icon.ico` directamente en los archivos `.spec` de PyInstaller, garantizando que el logo oficial de MAGI aparezca en el icono `.exe` fuera y dentro del sistema.
+          - **Respuesta Final Contextualizada:** Al responder "sí" a las propuestas, Casper entrega la explicación/código completo, profundo y detallado.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -345,7 +345,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="conv" style={{ flex: 1 }}>
+          <div className="conv" style={{ flex: 1, minHeight: 0, overflowY: "auto", userSelect: "text" }}>
             <div className="you">
               <div className="w">SISTEMA</div>
               Conectado a la Pasarela Global. Esperando flujos del Enjambre para {activeConversationId}...
@@ -354,6 +354,7 @@ export default function App() {
             {messages.map((msg, i) => (
               <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
             ))}
+            <div ref={chatEndRef} />
           </div>
 
           <div className="comp">
