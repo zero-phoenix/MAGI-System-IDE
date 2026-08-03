@@ -115,6 +115,7 @@ export default function App() {
   const [naokoImage, setNaokoImage] = useState<string | null>(null);
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
+  const [narrativeStyle, setNarrativeStyle] = useState("tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
@@ -302,6 +303,16 @@ export default function App() {
             <option value="fast">MOTOR: Inferencia Optimizada</option>
             <option value="deep">MOTOR: Razonamiento Superior (Seguro)</option>
           </select>
+          <select 
+            value={narrativeStyle} 
+            onChange={(e) => setNarrativeStyle(e.target.value)}
+            style={{ background: "#000", color: "var(--acc)", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
+          >
+            <option value="tecnico">ESTILO: Técnico (Ingeniería)</option>
+            <option value="sintetico">ESTILO: Sintético (Resumido)</option>
+            <option value="creativo">ESTILO: Creativo (Innovación)</option>
+            <option value="analitico">ESTILO: Analítico (Profundo)</option>
+          </select>
           <span>prov-a <b>{metrics?.prov_a || "0/0"}</b></span>
           <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
@@ -406,6 +417,53 @@ export default function App() {
             ))}
             <div ref={chatEndRef} />
           </div>
+
+          {/* BANNER PERSISTENTE DE APROBACIÓN CON BOTONES RÁPIDOS */}
+          {(pendingApproval || terminalOutput.includes("Esperando aprobación interactiva del usuario")) && (
+            <div className="approval-banner" style={{ background: "rgba(0, 30, 40, 0.95)", borderTop: "2px solid var(--acc)", borderBottom: "1px solid var(--dim)", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", zIndex: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px", color: "var(--acc)" }}>⚡</span>
+                <div>
+                  <div style={{ fontSize: "12px", fontWeight: "bold", color: "#fff" }}>PROPUESTA LISTA PARA EJECUCIÓN NATIVA</div>
+                  <div style={{ fontSize: "10px", color: "var(--dim)" }}>El Enjambre completó la deliberación. Haz clic en una acción rápida:</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button 
+                  className="bt go" 
+                  style={{ padding: "5px 12px", fontWeight: "bold", background: "var(--acc)", color: "#000", cursor: "pointer" }}
+                  onClick={() => {
+                    sysCommand("sí");
+                    sendCommand("sí", activeConversationId, engine);
+                    addMessage({ id: Math.random().toString(36), agent: "USER", role: "comando", provider: "local", content: "sí", changes: 0, stats: "", task_id: activeConversationId });
+                    setPendingApproval(null);
+                  }}
+                >
+                  ✅ Apruebo (Ejecutar)
+                </button>
+                <button 
+                  className="bt" 
+                  style={{ padding: "5px 10px", background: "#222", color: "#fff", border: "1px solid var(--dim)", cursor: "pointer" }}
+                  onClick={() => {
+                    setInputVal("Modificar: ");
+                  }}
+                >
+                  ✏️ Modificar
+                </button>
+                <button 
+                  className="bt stop" 
+                  style={{ padding: "5px 10px", background: "var(--dang)", color: "#000", fontWeight: "bold", cursor: "pointer" }}
+                  onClick={() => {
+                    sysCommand("cancelar");
+                    sendCommand("cancelar", activeConversationId, engine);
+                    setPendingApproval(null);
+                  }}
+                >
+                  🛑 Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="comp">
             <div className="cr">

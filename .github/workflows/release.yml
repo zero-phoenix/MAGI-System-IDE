@@ -56,10 +56,10 @@ jobs:
         body: |
           ## Novedades en ${{ github.ref_name }} 🚀
           
-          - **Eliminación Total de Redundancia "CONCLUSIÓN" (`AgentMessageCard`):** Limpieza exhaustiva de patrones repetitivos (`CONCLUSIÓN`, `CONCLUSIÓN SÍNTESIS`, `### CONCLUSIÓN`). Las tarjetas comienzan directamente con la respuesta limpia sin duplicar encabezados.
-          - **Scroll Vertical Ilimitado Permanente en Enjambre (`.conv`):** Habilitada barra de desplazamiento continua (`overflow-y: scroll !important`, `scrollbar-width: thin`), permitiendo navegar por todo el historial sin bloqueos ni límites de altura.
-          - **Aislamiento de Capas e Inmunidad de Márgenes (`z-index: 10`):** Al desplegar `Ver análisis completo ▾`, las tarjetas expanden su altura dentro del flujo interno de la columna central sin empujar la barra superior ni solaparse con la caja de texto inferior `SYS_EXEC`.
-          - **Tipografía Limpia Sans-Serif en Párrafos (Peso 400):** Normalizadas las reglas CSS para garantizar que solo las palabras clave marcadas intencionalmente se rendericen en negrita (`strong`).
+          - **Banner Persistente de Aprobación Interactiva con Botones Rápida de 1-Clic:** Al entrar en `WAITING_USER_APPROVAL`, la interfaz muestra un banner persistente sobre la barra de entrada con acciones rápidas: `✅ Apruebo (Ejecutar)`, `✏️ Modificar` y `🛑 Cancelar`.
+          - **Selector de Estilo Narrativo Configurable:** Integrado selector en la barra superior con 4 modos narrativos: `Técnico (Ingeniería)`, `Sintético (Resumido)`, `Creativo (Innovación)` y `Analítico (Profundo)`.
+          - **Soporte de Pegado Global de Portapapeles (Ctrl+V):** Pega cualquier captura tomada con Snipping Tool (`Win+Shift+S`) directamente en la app para enviarla a Naoko.
+          - **Eliminación Total de Redundancia de Encabezados & Tipografía 400 Normal:** Garantizado que el cuerpo de las respuestas use texto sans-serif limpio en peso normal (400) sin encabezados `<h3>` duplicados.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
