@@ -53,6 +53,10 @@ export function useMagiSocket(port: number = 20128) {
                  useMagiStore.getState().setTelemetry(data.result);
                } else if (data.id === 'file_tree_0' && data.result) {
                  useMagiStore.getState().setFileTree(data.result);
+               } else if (data.id === 'req_file_content' && data.result) {
+                 if (data.result.content !== undefined) {
+                   useMagiStore.getState().setActiveFile(data.result.path, data.result.content);
+                 }
                }
             }
           } catch (e) {
@@ -99,6 +103,16 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
+  const requestFileContent = (path: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "GET_FILE_CONTENT",
+        id: "req_file_content",
+        payload: { path }
+      }));
+    }
+  };
+
   const fetchTelemetry = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
@@ -108,5 +122,5 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, fetchTelemetry };
+  return { sendCommand, sendGitClone, fetchTelemetry, requestFileContent };
 }

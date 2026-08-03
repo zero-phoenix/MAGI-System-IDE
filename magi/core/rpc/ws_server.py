@@ -24,6 +24,7 @@ class WSServer:
         # Registramos endpoints internos
         self.register_handler("GET_TELEMETRY", self._handle_get_telemetry)
         self.register_handler("GET_FILE_TREE", self._handle_get_file_tree)
+        self.register_handler("GET_FILE_CONTENT", self._handle_get_file_content)
         
     def register_handler(self, method: str, handler: Callable[[Any, Any], Awaitable[Any]]):
         self.handlers[method] = handler
@@ -117,14 +118,25 @@ class WSServer:
                     if entry.name in ('.git', 'node_modules', '__pycache__', 'dist', 'build', '.gemini'):
                         continue
                     if entry.is_dir():
-                        tree.append({"name": entry.name, "type": "folder", "children": build_tree(entry.path)})
+                        tree.append({"name": entry.name, "type": "folder", "path": entry.path, "children": build_tree(entry.path)})
                     else:
-                        tree.append({"name": entry.name, "type": "file"})
+                        tree.append({"name": entry.name, "type": "file", "path": entry.path})
             except PermissionError:
                 pass
             return tree
             
         return build_tree(base_dir)
+
+    async def _handle_get_file_content(self, payload: Any, websocket: Any) -> Any:
+        import os
+        path = payload.get("path")
+        if not path or not os.path.exists(path) or not os.path.isfile(path):
+            return {"error": "File not found or invalid path"}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return {"path": path, "content": f.read()}
+        except Exception as e:
+            return {"error": str(e)}
 
     async def simulate_message_from_gui(self, message: str) -> str:
         """Helper para pruebas unitarias sin levantar el websocket real."""

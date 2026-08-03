@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMagiStore } from './store';
 
-const FileTreeNode = ({ node, level }: { node: any, level: number }) => {
+const FileTreeNode = ({ node, level, onFileClick }: { node: any, level: number, onFileClick: (path: string) => void }) => {
   const [isOpen, setIsOpen] = useState(false);
   const isFolder = node.type === 'folder';
 
@@ -10,14 +10,20 @@ const FileTreeNode = ({ node, level }: { node: any, level: number }) => {
       <div 
         style={{ 
           paddingLeft: `${level * 10}px`, 
-          cursor: isFolder ? 'pointer' : 'default',
+          cursor: 'pointer',
           color: isFolder ? 'var(--node)' : '#cfe0e4',
           display: 'flex',
           alignItems: 'center',
           padding: '2px 0',
           fontSize: '12px'
         }}
-        onClick={() => isFolder && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (isFolder) {
+            setIsOpen(!isOpen);
+          } else if (node.path) {
+            onFileClick(node.path);
+          }
+        }}
         className="file-node-hover"
       >
         <span style={{ width: '16px', display: 'inline-block', marginRight: '4px', textAlign: 'center' }}>
@@ -28,7 +34,7 @@ const FileTreeNode = ({ node, level }: { node: any, level: number }) => {
       {isFolder && isOpen && node.children && (
         <div>
           {node.children.map((child: any, idx: number) => (
-            <FileTreeNode key={idx} node={child} level={level + 1} />
+            <FileTreeNode key={idx} node={child} level={level + 1} onFileClick={onFileClick} />
           ))}
         </div>
       )}
@@ -36,7 +42,7 @@ const FileTreeNode = ({ node, level }: { node: any, level: number }) => {
   );
 };
 
-export const FileTreeSidebar = () => {
+export const FileTreeSidebar = ({ onFileClick }: { onFileClick: (path: string) => void }) => {
   const { fileTree } = useMagiStore();
 
   return (
@@ -47,7 +53,7 @@ export const FileTreeSidebar = () => {
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
         {fileTree.length > 0 ? (
           fileTree.map((node: any, idx: number) => (
-            <FileTreeNode key={idx} node={node} level={0} />
+            <FileTreeNode key={idx} node={node} level={0} onFileClick={onFileClick} />
           ))
         ) : (
           <div style={{ color: 'var(--dim)', fontSize: '12px' }}>Cargando árbol de archivos...</div>

@@ -46,17 +46,16 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.11
-        name: "MAGI System IDE V5.0.11"
+        tag_name: v5.0.12
+        name: "MAGI System IDE V5.0.12"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.11 🚀
+          ## Novedades en V5.0.12 🚀
           
-          - **Pestaña de Estado de Motores IA (G4F Auto-Routing):** Se agregó visualización interactiva del Estado de las IAs, latencia, aciertos y fallos de la telemetría, y configuración del Auto-Routing.
-          - **Diff Viewer (Aprobación Interactiva):** Ahora cuando MELCHIOR o BALTHASAR proponen código, se activa un Diff Viewer de validación antes de ejecutar los comandos locales.
-          - **Rediseño Gráfico README:** El `README.md` se actualizó a un único diagrama vertical de arquitectura ultra-detallado, como se solicitó.
-          - **Sonidos Locales:** Reactivación de los beeps custom para decisiones (C:\Users\D\Desktop\Nueva carpeta\reelsvideo (mp3cut.net).mp3).
-          - **Selector de Motores AI:** Dinamismo mejorado para elegir entre "fast" (GPT-4o mini) o "smart" (GPT-4o).
+          - **Pestaña de Código Integrada (Mónaco Editor):** Explorador de archivos totalmente sincronizado. Al seleccionar archivos, su código fuente se carga automáticamente en el motor Monaco integrado (el mismo de VS Code).
+          - **Pestaña de Plan Activo:** Ahora la interfaz escanea la memoria del enjambre para extraer el plan táctico de Melchior (`### PLAN`) y lo renderiza de forma elegante en Markdown.
+          - **Gráfico HDC de Interacción (React Flow):** El backend hiperdimensional ahora mapea de manera visual e interactiva el flujo de pensamiento de los agentes a través de la conversación actual.
+          - **Rediseño Gráfico Definitivo:** Se actualizó `README.md` con un único y detallado gráfico vertical unidireccional, simplificando la comprensión de la arquitectura general del sistema y los flujos asíncronos.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

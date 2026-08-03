@@ -7,6 +7,9 @@ import { FileTreeSidebar } from "./FileTreeSidebar";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
+import Editor from '@monaco-editor/react';
+import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -70,9 +73,9 @@ export default function App() {
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   const { 
     connected, messages, addMessage, terminalOutput, sysCommand, metrics, telemetry,
-    activeConversationId, setActiveConversationId, conversations, startNewConversation
+    activeConversationId, setActiveConversationId, conversations, startNewConversation, activeFilePath, activeFileContent
   } = useMagiStore();
-  const { sendCommand, fetchTelemetry, sendGitClone } = useMagiSocket(20128);
+  const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -243,9 +246,6 @@ export default function App() {
       {/* MASTER LAYOUT: 4 COLUMNAS */}
       <div className="app" style={{ display: "flex", width: "100%", overflow: "hidden" }}>
         
-        {/* COLUMNA 0: ÁRBOL DE ARCHIVOS */}
-        <FileTreeSidebar />
-
         {/* COLUMNA 1: GESTOR DE PROYECTOS / ESTADO */}
         <div className="col rail" style={{ width: "260px", minWidth: "260px" }}>
           <input
@@ -499,25 +499,107 @@ export default function App() {
             )}
             
             {activeTab === "Código" && (
-               <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#d4d4d4", overflowY: "auto" }}>
-                  <div className="sect">Árbol de Directorios</div>
-                  <div style={{ padding: "10px", fontSize: "11px" }}>
-                    <span style={{ color: "var(--dim)" }}>[Esperando sincronización de árbol de archivos para {activeConversationId}]</span>
+               <div style={{ flex: 1, display: 'flex', background: "#1e1e1e", border: "1px solid var(--dim)", color: "#d4d4d4", overflow: "hidden" }}>
+                  <FileTreeSidebar onFileClick={requestFileContent} />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '8px', background: '#252526', borderBottom: '1px solid var(--dim)', fontSize: '12px', color: 'var(--acc)' }}>
+                      {activeFilePath || 'Ningún archivo seleccionado'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      {activeFilePath ? (
+                        <Editor
+                          height="100%"
+                          theme="vs-dark"
+                          path={activeFilePath}
+                          value={activeFileContent}
+                          options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13 }}
+                        />
+                      ) : (
+                        <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)' }}>
+                          Selecciona un archivo del explorador
+                        </div>
+                      )}
+                    </div>
                   </div>
                </div>
             )}
 
-            {activeTab === "Plan" && (
-               <div style={{ flex: 1, padding: "10px", color: "#cfe0e4", overflowY: "auto", border: "1px dashed var(--dim)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "var(--dim)" }}>[Sin plan de ejecución activo]</span>
-               </div>
-            )}
+            {activeTab === "Plan" && (() => {
+               const latestPlanMsg = [...messages].reverse().find(m => m.content.includes('### PLAN'));
+               let planContent = null;
+               if (latestPlanMsg) {
+                 const parts = latestPlanMsg.content.split('### PLAN');
+                 if (parts.length > 1) {
+                   planContent = parts[1].split('###')[0].trim();
+                 }
+               }
+               return (
+                 <div style={{ flex: 1, padding: "20px", color: "#cfe0e4", overflowY: "auto", background: "#050a0b" }}>
+                   {planContent ? (
+                     <div>
+                       <h2 style={{ color: "var(--acc)", borderBottom: "1px solid var(--dim)", paddingBottom: "10px" }}>Plan de Ejecución Activo</h2>
+                       <div className="markdown-body">
+                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{planContent}</ReactMarkdown>
+                       </div>
+                     </div>
+                   ) : (
+                     <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", border: "1px dashed var(--dim)" }}>
+                       <span style={{ color: "var(--dim)" }}>[Sin plan de ejecución activo]</span>
+                     </div>
+                   )}
+                 </div>
+               );
+            })()}
 
-            {activeTab === "Gráfico HDC" && (
-               <div style={{ flex: 1, padding: "10px", border: "1px dashed var(--dim)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--node)", textAlign: "center" }}>
-                  [Renderizador WebGL de Memoria Hiperdimensional - Esperando Datos de Vector DB]
-               </div>
-            )}
+            {activeTab === "Gráfico HDC" && (() => {
+               const nodes: Node[] = [];
+               const edges: Edge[] = [];
+               
+               nodes.push({
+                 id: 'user',
+                 position: { x: 250, y: 20 },
+                 data: { label: '👤 Usuario (Input)' },
+                 style: { background: '#2c3e50', color: 'white', border: '1px solid #34495e', borderRadius: '8px' }
+               });
+               
+               let prevId = 'user';
+               let yPos = 100;
+               
+               messages.forEach((msg, idx) => {
+                 const id = `msg_${idx}`;
+                 let color = '#2980b9';
+                 if (msg.agent === 'MELCHIOR') color = 'var(--var)';
+                 if (msg.agent === 'BALTHASAR') color = 'var(--acc)';
+                 if (msg.agent === 'CASPER') color = 'var(--fn)';
+                 
+                 nodes.push({
+                   id,
+                   position: { x: 250, y: yPos },
+                   data: { label: `${msg.agent} [${msg.role}]` },
+                   style: { background: 'rgba(10,20,25,0.9)', color, border: `1px solid ${color}`, borderRadius: '8px' }
+                 });
+                 
+                 edges.push({
+                   id: `e_${prevId}_${id}`,
+                   source: prevId,
+                   target: id,
+                   animated: true,
+                   style: { stroke: 'var(--dim)' }
+                 });
+                 
+                 prevId = id;
+                 yPos += 80;
+               });
+
+               return (
+                 <div style={{ flex: 1, height: '100%', background: '#050a0b' }}>
+                   <ReactFlow nodes={nodes} edges={edges} fitView>
+                     <Background color="#222" gap={16} />
+                     <Controls />
+                   </ReactFlow>
+                 </div>
+               );
+            })()}
 
             {activeTab === "Diff (Aprobación)" && pendingApproval && (
                <DiffViewer 

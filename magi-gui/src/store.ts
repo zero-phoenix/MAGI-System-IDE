@@ -52,6 +52,10 @@ interface MagiState {
 
   fileTree: any[];
   setFileTree: (tree: any[]) => void;
+
+  activeFilePath: string | null;
+  activeFileContent: string;
+  setActiveFile: (path: string, content: string) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -104,5 +108,9 @@ export const useMagiStore = create<MagiState>((set) => ({
   setTelemetry: (telemetry) => set({ telemetry }),
 
   fileTree: [],
-  setFileTree: (fileTree) => set({ fileTree })
+  setFileTree: (fileTree) => set({ fileTree }),
+
+  activeFilePath: null,
+  activeFileContent: "",
+  setActiveFile: (path, content) => set({ activeFilePath: path, activeFileContent: content })
 }));
