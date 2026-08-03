@@ -54,7 +54,7 @@ class Kernel:
         
     async def _handle_naoko_chat(self, payload, websocket):
         msg = payload.get("message", "")
-        self.bus.post("naoko.user_message", {"message": msg})
+        await self.bus.publish(BusEvent(topic="naoko.user_message", payload={"message": msg}))
         return {"status": "ok"}
         
     async def _handle_hello(self, payload, websocket):
@@ -224,6 +224,7 @@ class Kernel:
         logging.getLogger().addHandler(bus_handler)
         
         await self.memgraph.start()
+        await self.naoko.start()
         await self.rpc.start()
         
         await self.bus.publish(BusEvent(

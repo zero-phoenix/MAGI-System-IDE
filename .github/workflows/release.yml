@@ -46,11 +46,11 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.14
-        name: "MAGI System IDE V5.0.14"
+        tag_name: v5.0.15
+        name: "MAGI System IDE V5.0.15"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.14 🚀
+          ## Novedades en V5.0.15 🚀
           
           - **Nueva IA Autónoma (Naoko):** Se ha integrado una cuarta IA (Naoko) que actúa como DevOps de infraestructura. Naoko monitorea continuamente los errores del sistema y, sin necesidad de permisos, aplica auto-reparaciones al código local y sube las actualizaciones directamente a GitHub.
           - **Pestaña Exclusiva Naoko:** Se agregó una pestaña dedicada en la interfaz gráfica para interactuar con Naoko, ver sus logs en tiempo real y el estado de sus auto-reparaciones.

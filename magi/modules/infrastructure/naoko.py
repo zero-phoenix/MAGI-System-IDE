@@ -21,6 +21,7 @@ class NaokoAgent:
         self.llm = FreeCloudLLM()
         self.is_fixing = False
         
+    async def start(self):
         # Suscribirse a eventos de error (desde Kernel o Providers)
         self.bus.subscribe("naoko.user_message", self._handle_user_message)
         self.bus.subscribe("error.critical", self._handle_error_event)
@@ -29,8 +30,8 @@ class NaokoAgent:
 
     async def _handle_user_message(self, event: BusEvent):
         """Conversación directa con el usuario desde la UI"""
-        user_msg = event.data.get("message", "")
-        self.bus.post("naoko.log", {"agent": "USER", "content": user_msg})
+        user_msg = event.payload.get("message", "")
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": user_msg}))
         
         # Recuperar memoria
         memories = await self.db.get_naoko_memory(limit=5)
@@ -44,13 +45,28 @@ Memoria reciente de errores:
 Responde a las preguntas del usuario sobre el estado del sistema o las reparaciones que has hecho."""
         
         try:
-            self.bus.post("naoko.status", {"status": "Pensando..."})
-            response, _ = await self.llm.generate(system_prompt, user_msg)
-            self.bus.post("naoko.log", {"agent": "NAOKO", "content": response})
-            self.bus.post("naoko.status", {"status": "Inactiva"})
+            response = await self._generate_with_rotation(system_prompt, user_msg)
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": response}))
+            await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Inactiva"}))
         except Exception as e:
-            self.bus.post("naoko.log", {"agent": "NAOKO", "content": f"Error interno en Naoko: {e}"})
-            self.bus.post("naoko.status", {"status": "Error"})
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error interno en Naoko: {e}"}))
+            await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Error"}))
+
+    async def _generate_with_rotation(self, system_prompt: str, user_prompt: str) -> str:
+        models = ["gpt-4o", "claude-3.5-sonnet", "qwen-2.5-coder", "deepseek"]
+        for model in models:
+            await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
+            try:
+                response, _ = await self.llm.generate(system_prompt, user_prompt, model=model)
+                if not response.startswith("SYS_EMERGENCY_STOP"):
+                    return response
+            except Exception as e:
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"⚠️ Fallo en {model}: {e}. Rotando a siguiente IA en la nube..."}))
+                
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "⛔ Todas las IAs gratuitas agotadas. Entrando en enfriamiento de 60 segundos..."}))
+        await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Agotada - Pausa 60s"}))
+        await asyncio.sleep(60)
+        raise Exception("Todos los modelos gratuitos fallaron.")
 
     async def _handle_error_event(self, event: BusEvent):
         """Disparador autónomo ante errores del sistema"""
@@ -58,11 +74,11 @@ Responde a las preguntas del usuario sobre el estado del sistema o las reparacio
             return # Ya estamos reparando algo
             
         self.is_fixing = True
-        error_details = str(event.data)
+        error_details = str(event.payload if hasattr(event, 'payload') else event.data)
         logger.warning(f"[NAOKO] Error detectado: {error_details}")
         
-        self.bus.post("naoko.status", {"status": "Diagnosticando..."})
-        self.bus.post("naoko.log", {"agent": "NAOKO", "content": f"⚠️ He detectado una anomalía en el sistema:\n```\n{error_details}\n```\nIniciando diagnóstico..."})
+        await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Diagnosticando..."}))
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"⚠️ He detectado una anomalía en el sistema:\n```\n{error_details}\n```\nIniciando diagnóstico..."}))
         
         system_prompt = """Eres Naoko, IA Devops de MAGI System. 
 Has detectado un error. Analiza el error, y si es necesario ejecutar un script de python o powershell para parchear dependencias o el código, debes incluir un bloque de código marcado como ```powershell o ```python.
@@ -71,31 +87,31 @@ Si no se requiere código, simplemente explica el problema.
 Devuelve tu diagnóstico y tu parche."""
         
         try:
-            diagnostic, _ = await self.llm.generate(system_prompt, f"Error:\n{error_details}")
-            self.bus.post("naoko.log", {"agent": "NAOKO", "content": f"### Diagnóstico\n{diagnostic}"})
+            diagnostic = await self._generate_with_rotation(system_prompt, f"Error:\n{error_details}")
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"### Diagnóstico\n{diagnostic}"}))
             
             # Buscar script
             code_blocks = re.findall(r'```(powershell|python)\n(.*?)\n```', diagnostic, re.DOTALL)
             if code_blocks:
-                self.bus.post("naoko.status", {"status": "Aplicando Parche..."})
-                self.bus.post("naoko.log", {"agent": "NAOKO", "content": "Aplicando parche local..."})
+                await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Aplicando Parche..."}))
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "Aplicando parche local..."}))
                 lang, code = code_blocks[0]
                 await self._apply_patch(lang, code)
                 
                 # Git Commit & Push
-                self.bus.post("naoko.status", {"status": "Comiteando..."})
+                await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Comiteando..."}))
                 await self._git_push("Auto-reparación aplicada por Naoko: " + error_details[:50])
-                self.bus.post("naoko.log", {"agent": "NAOKO", "content": "✅ Sistema parcheado y actualizado en GitHub exitosamente."})
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "✅ Sistema parcheado y actualizado en GitHub exitosamente."}))
                 await self.db.log_naoko_memory(error_details, diagnostic, "Código inyectado y pusheado.")
             else:
-                self.bus.post("naoko.log", {"agent": "NAOKO", "content": "No se requiere parche automático de código."})
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "No se requiere parche automático de código."}))
                 await self.db.log_naoko_memory(error_details, diagnostic, "Solo diagnóstico verbal.")
                 
         except Exception as e:
-            self.bus.post("naoko.log", {"agent": "NAOKO", "content": f"Error durante la auto-reparación: {e}"})
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error durante la auto-reparación: {e}"}))
         finally:
             self.is_fixing = False
-            self.bus.post("naoko.status", {"status": "Vigilando"})
+            await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Vigilando"}))
 
     async def _apply_patch(self, lang: str, code: str):
         import tempfile
@@ -182,4 +198,4 @@ Devuelve tu diagnóstico y tu parche."""
             )
             await process.communicate()
             
-        self.bus.post("naoko.log", {"agent": "NAOKO", "content": f"🚀 Nueva versión {new_tag} pusheada a GitHub y release disparado."})
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"🚀 Nueva versión {new_tag} pusheada a GitHub y release disparado."}))
