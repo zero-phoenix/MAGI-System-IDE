@@ -14,9 +14,28 @@ import '@xyflow/react/dist/style.css';
 const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const parts = msg.content ? msg.content.split('### CONCLUSIÓN') : [""];
-  const body = parts[0];
-  const conclusion = parts.length > 1 ? '### CONCLUSIÓN' + parts[1] : '';
+  let body = "";
+  let conclusion = "";
+
+  if (msg.agent === 'USER') {
+    body = msg.content || "";
+  } else {
+    const rawContent = msg.content || "";
+    if (rawContent.includes('### CONCLUSIÓN')) {
+      const parts = rawContent.split('### CONCLUSIÓN');
+      body = parts[0].trim();
+      conclusion = '### CONCLUSIÓN ' + parts.slice(1).join('### CONCLUSIÓN').trim();
+    } else {
+      const paragraphs = rawContent.trim().split(/\n\s*\n/);
+      if (paragraphs.length > 1) {
+        conclusion = paragraphs[paragraphs.length - 1].trim();
+        body = paragraphs.slice(0, paragraphs.length - 1).join('\n\n').trim();
+      } else {
+        conclusion = rawContent.trim();
+        body = "";
+      }
+    }
+  }
 
   return (
     <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden' }}>
@@ -36,7 +55,7 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
           )}
         </div>
       </div>
-      <div className="card-body" style={{ padding: '12px', fontSize: '13px' }}>
+      <div className="card-body" style={{ padding: '12px', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
         {msg.agent === 'USER' ? (
           <div>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
@@ -45,28 +64,28 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
           </div>
         ) : (
           <>
-            {isExpanded && (
-              <div style={{ marginBottom: '10px' }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                  {body}
-                </ReactMarkdown>
-              </div>
-            )}
-            {!isExpanded && body.trim() && (
-               <button onClick={() => setIsExpanded(true)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0 }}>
-                 Ver análisis completo ▾
-               </button>
-            )}
-            {isExpanded && body.trim() && (
-               <button onClick={() => setIsExpanded(false)} style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0, marginTop: '10px' }}>
-                 Ocultar análisis ▴
-               </button>
-            )}
             {conclusion && (
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: isExpanded ? '1px dashed var(--dim)' : 'none' }}>
+              <div style={{ marginBottom: body ? '8px' : '0' }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
                   {conclusion}
                 </ReactMarkdown>
+              </div>
+            )}
+            {body && (
+              <div style={{ marginTop: '8px' }}>
+                <button 
+                  onClick={() => setIsExpanded(!isExpanded)} 
+                  style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0, fontWeight: 'bold' }}
+                >
+                  {isExpanded ? 'Ocultar análisis ▴' : 'Ver análisis completo ▾'}
+                </button>
+                {isExpanded && (
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--dim)' }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                      {body}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -89,6 +108,7 @@ export default function App() {
 
   const [inputVal, setInputVal] = useState("");
   const [naokoInputVal, setNaokoInputVal] = useState("");
+  const [naokoImage, setNaokoImage] = useState<string | null>(null);
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
@@ -452,7 +472,7 @@ export default function App() {
             {activeTab === "Naoko" && (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#050a0b", border: "1px solid var(--dim)" }}>
                  <div style={{ padding: "10px", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid var(--dim)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                   <div style={{ color: "#d2a8ff", fontWeight: "bold" }}>NAOKO [DevOps Autónoma]</div>
+                   <div style={{ color: "#d2a8ff", fontWeight: "bold" }}>NAOKO [DevOps Autónoma & Visión Multimodal]</div>
                    <div style={{ color: naokoStatus === "Inactiva" ? "var(--dim)" : "var(--acc)", fontSize: "12px" }}>
                      Estado: {naokoStatus}
                    </div>
@@ -466,11 +486,10 @@ export default function App() {
                         padding: "10px", 
                         borderRadius: "8px",
                         alignSelf: msg.agent === "USER" ? "flex-end" : "flex-start",
-                        maxWidth: "80%",
+                        maxWidth: "85%",
                         fontSize: "13px",
-                        wordWrap: "break-word",
-                        whiteSpace: "pre-wrap",
-                        overflowX: "auto"
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere"
                       }}>
                         <div style={{ fontSize: "11px", color: "var(--dim)", marginBottom: "5px" }}>{msg.agent}</div>
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
@@ -481,29 +500,52 @@ export default function App() {
                  </div>
                  
                  <div className="comp" style={{ padding: "10px", borderTop: "1px solid var(--dim)" }}>
-                    <div className="cr" style={{ margin: 0 }}>
+                    {naokoImage && (
+                      <div style={{ position: 'relative', display: 'inline-block', marginBottom: '8px' }}>
+                        <img src={naokoImage} alt="Adjunto Naoko" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid var(--acc)' }} />
+                        <button 
+                          onClick={() => setNaokoImage(null)}
+                          style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--dang)', color: '#000', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    <div className="cr" style={{ margin: 0, gap: '6px' }}>
+                      <label className="chip" style={{ borderStyle: "dashed", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", fontSize: "11px", background: "rgba(210,168,255,0.1)", color: "#d2a8ff", border: "1px dashed #d2a8ff", borderRadius: "4px" }}>
+                        📷 <input type="file" accept="image/*" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setNaokoImage(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }} style={{ display: 'none' }} />
+                      </label>
                       <textarea
                         className="pf"
                         rows={1}
-                        placeholder="Pregunta a Naoko sobre el estado o reparaciones..."
+                        placeholder="Pregunta a Naoko o adjunta una captura visual..."
                         value={naokoInputVal}
                         onChange={(e) => setNaokoInputVal(e.target.value)}
                         onKeyDown={(e) => {
                           if(e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
-                            if(naokoInputVal.trim()){
-                               sendNaokoChat(naokoInputVal.trim());
+                            if(naokoInputVal.trim() || naokoImage){
+                               sendNaokoChat(naokoInputVal.trim() || "Analizar captura de pantalla adjunta", naokoImage);
                                setNaokoInputVal("");
+                               setNaokoImage(null);
                             }
                           }
                         }}
                       ></textarea>
                       <button className="bt go" onClick={() => {
-                        if(naokoInputVal.trim()){
-                           sendNaokoChat(naokoInputVal.trim());
+                        if(naokoInputVal.trim() || naokoImage){
+                           sendNaokoChat(naokoInputVal.trim() || "Analizar captura de pantalla adjunta", naokoImage);
                            setNaokoInputVal("");
+                           setNaokoImage(null);
                         }
-                      }}>Enviar</button>
+                      }}>Enviar ▸</button>
                     </div>
                  </div>
               </div>

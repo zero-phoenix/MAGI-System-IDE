@@ -50,7 +50,13 @@ class NaokoAgent:
     async def _handle_user_message(self, event: BusEvent):
         """Conversación directa con el usuario desde la UI"""
         user_msg = event.payload.get("message", "")
-        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": user_msg}))
+        image_data = event.payload.get("image", None)
+        
+        log_content = user_msg
+        if image_data:
+            log_content += "\n[📷 Imagen Adjuntada por el usuario]"
+            
+        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": log_content}))
         
         # Recuperar memoria y estado del enjambre
         memories = await self.db.get_naoko_memory(limit=5)
@@ -58,7 +64,7 @@ class NaokoAgent:
         swarm_summary = self._get_swarm_status_summary()
         
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
-Tu objetivo es asegurar la resiliencia técnica y la fluidez del flujo de trabajo de todo el sistema.
+Tu objetivo es asegurar la resiliencia técnica, la salud visual del GUI y la fluidez del flujo de trabajo de todo el sistema.
 No eres un agente de generación de código del Enjambre (Melchior, Balthasar, Casper), sino la supervisora autónoma global.
 
 ESTADO REAL DEL SISTEMA EN TIEMPO REAL:
@@ -67,27 +73,37 @@ ESTADO REAL DEL SISTEMA EN TIEMPO REAL:
 {mem_text}
 
 [{swarm_summary}]
+
+[ARQUITECTURA VISUAL DE LA INTERFAZ DE USUARIO (GUI React)]
+- Layout Maestro: 4 Columnas horizontales fijas con altura de pantalla 100vh.
+- Columna Central (.conv): Contenedor de conversación con autoscroll automático, scrollbar customizada visible (::-webkit-scrollbar), tarjetas de mensajes con conclusiones siempre visibles a primera vista y acordeones desplegables inline ("Ver análisis completo ▾" / "Ocultar análisis ▴") sin ventanas emergentes.
+- Columna Naoko: Panel lateral de interacción directa contigo.
 ---
 
 INSTRUCCIONES CLAVE DE RESPUESTA:
-- Si el usuario te pregunta por qué una orden o el Enjambre no avanza (ej. tras escribir "sí" o dar una orden), examina el [Estado Actual de Tareas del Enjambre] arriba, explica exactamente en qué estado está la tarea (ej. si estaba esperando aprobación o finalizó) y dale un diagnóstico directo y amigable de resiliencia del flujo.
-- Si el usuario pregunta por el estado general del sistema o reparaciones, responde con precisión técnica sobre la salud global de MAGI.
-- Mantén un tono profesional, técnico, directo y seguro."""
+- SÉ DIRECTA, CONCRETA, SINTÉTICA Y 100% ÚTIL. NUNCA TE VAYAS POR LAS RAMAS NI DIGAS FRASES GENÉRICAS.
+- Si el usuario te pregunta por problemas de scroll, imágenes, márgenes o comportamiento visual, responde de forma super precisa confirmando cómo funciona la GUI y que la interfaz cuenta con autoscroll y contenedores adaptativos.
+- Si hay una imagen adjunta, analízala con visión de alta precisión (Google Lens style) e identifica exactamente qué elementos, texto o tarjetas se muestran en la captura.
+- Si el usuario pregunta por tareas o por qué no avanza el Enjambre, explícale exactamente el estado actual del Enjambre."""
         
         try:
-            response = await self._generate_with_rotation(system_prompt, user_msg)
+            response = await self._generate_with_rotation(system_prompt, user_msg, image=image_data)
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": response}))
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Inactiva"}))
         except Exception as e:
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error interno en Naoko: {e}"}))
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Error"}))
 
-    async def _generate_with_rotation(self, system_prompt: str, user_prompt: str) -> str:
+    async def _generate_with_rotation(self, system_prompt: str, user_prompt: str, image: str | None = None) -> str:
         models = ["gpt-4o", "claude-3.5-sonnet", "qwen-2.5-coder", "deepseek"]
         for model in models:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
             try:
-                response, _ = await self.llm.generate(system_prompt, user_prompt, model=model)
+                if image:
+                    response, _ = await self.llm.generate_vision(system_prompt, user_prompt, image_data_url=image, model=model)
+                else:
+                    response, _ = await self.llm.generate(system_prompt, user_prompt, model=model)
+                    
                 if not response.startswith("SYS_EMERGENCY_STOP"):
                     return response
             except Exception as e:

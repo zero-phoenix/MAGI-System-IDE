@@ -134,11 +134,11 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  const sendNaokoChat = (message: string) => {
+  const sendNaokoChat = (message: string, image?: string | null) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         type: "naoko.chat",
-        payload: { message }
+        payload: { message, image: image || null }
       }));
     }
   };

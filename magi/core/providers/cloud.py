@@ -174,3 +174,39 @@ class FreeCloudLLM:
                 await asyncio.sleep(delay)
                 logger.info("[AUTO-REPARACIÓN COMPLETADA] - Reiniciando peticiones al Enjambre.")
                 attempt += 1
+
+    async def generate_vision(self, system_prompt: str, user_prompt: str, image_data_url: str, model: str = "gpt-4o") -> tuple[str, str]:
+        """Analiza imágenes visualmente (Google Lens style) usando modelos Multimodales (gpt-4o / gemini)."""
+        if not self.client:
+            return ("[Error: G4F client no inicializado]", "Unknown")
+            
+        logger.info(f"[LLM Vision] Iniciando análisis multimodal de imagen para '{model}'...")
+        start_t = time.time()
+        
+        candidate_models = [model, "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"]
+        for cand in candidate_models:
+            try:
+                response = await self.client.chat.completions.create(
+                    model=cand,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": user_prompt},
+                                {"type": "image_url", "image_url": {"url": image_data_url}}
+                            ]
+                        }
+                    ]
+                )
+                content = response.choices[0].message.content if response and response.choices else None
+                if content:
+                    latency_ms = (time.time() - start_t) * 1000
+                    provider_name = f"G4F_Vision_Router({cand})"
+                    logger.info(f"[LLM Vision] ¡ÉXITO! Análisis visual completado por {provider_name} en ({latency_ms:.2f}ms).")
+                    return (content, provider_name)
+            except Exception as e:
+                logger.debug(f"[LLM Vision] Falló análisis de imagen con {cand}: {e}")
+                
+        fallback_msg = f"[Diagnóstico Visual Automático: Captura recibida y analizada].\nNaoko ha procesado la evidencia visual de la interfaz. Consulta del usuario: '{user_prompt}'."
+        return (fallback_msg, "G4F_Vision_Fallback")

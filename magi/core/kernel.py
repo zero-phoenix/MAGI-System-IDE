@@ -53,8 +53,9 @@ class Kernel:
         self.rpc.register_handler("naoko.chat", self._handle_naoko_chat)
         
     async def _handle_naoko_chat(self, payload, websocket):
-        msg = payload.get("message", "")
-        await self.bus.publish(BusEvent(topic="naoko.user_message", payload={"message": msg}))
+        msg = payload.get("message", "") if isinstance(payload, dict) else str(payload)
+        image = payload.get("image", None) if isinstance(payload, dict) else None
+        await self.bus.publish(BusEvent(topic="naoko.user_message", payload={"message": msg, "image": image}))
         return {"status": "ok"}
         
     async def _handle_hello(self, payload, websocket):
