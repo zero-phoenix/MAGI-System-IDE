@@ -20,18 +20,23 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   if (msg.agent === 'USER') {
     body = msg.content || "";
   } else {
-    const rawContent = msg.content || "";
+    let rawContent = (msg.content || "").trim();
+
+    if (/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/i.test(rawContent)) {
+      rawContent = rawContent.replace(/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/i, '### CONCLUSIÓN\n');
+    }
+
     if (rawContent.includes('### CONCLUSIÓN')) {
       const parts = rawContent.split('### CONCLUSIÓN');
       body = parts[0].trim();
       conclusion = '### CONCLUSIÓN ' + parts.slice(1).join('### CONCLUSIÓN').trim();
     } else {
-      const paragraphs = rawContent.trim().split(/\n\s*\n/);
+      const paragraphs = rawContent.split(/\n\s*\n/);
       if (paragraphs.length > 1) {
         conclusion = paragraphs[paragraphs.length - 1].trim();
         body = paragraphs.slice(0, paragraphs.length - 1).join('\n\n').trim();
       } else {
-        conclusion = rawContent.trim();
+        conclusion = rawContent;
         body = "";
       }
     }
@@ -117,6 +122,32 @@ export default function App() {
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Capturar imágenes pegadas desde el portapapeles (Ctrl+V con Herramienta de recorte de Windows)
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const file = items[i].getAsFile();
+            if (file) {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                setNaokoImage(reader.result as string);
+                setActiveTab("Naoko");
+              };
+              reader.readAsDataURL(file);
+              e.preventDefault();
+              break;
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => window.removeEventListener("paste", handleGlobalPaste);
+  }, []);
 
   // Auto-scroll terminal y conversacion
   useEffect(() => {

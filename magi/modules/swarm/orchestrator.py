@@ -163,9 +163,9 @@ class SwarmOrchestrator:
             except Exception as e:
                 logger.error(f"[SWARM] Error catastrófico durante orquestación: {e}")
                 error_msg = f"[SISTEMA] Error crítico en el Enjambre: {str(e)}. Las IAs podrían estar inoperativas."
-                self.bus.post("TERMINAL_OUT", {"agent": "SYSTEM", "content": error_msg})
-                state["status"] = "failed"
-                self.bus.post("swarm.task_completed", {"task_id": task_id, "result": error_msg})
+                await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload={"agent": "SYSTEM", "content": error_msg}))
+                state["status"] = "WAITING_USER_APPROVAL"
+                await self.bus.publish(BusEvent(topic="swarm.task_completed", payload={"task_id": task_id, "result": error_msg}))
                 break
             
             feedback_text = verdict.get("feedback", "").upper()

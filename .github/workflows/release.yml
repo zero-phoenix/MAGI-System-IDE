@@ -56,10 +56,10 @@ jobs:
         body: |
           ## Novedades en ${{ github.ref_name }} 🚀
           
-          - **Conclusiones Siempre Visibles & Acordeón Inline (`AgentMessageCard`):** Rediseñadas las tarjetas de las IAs (Melchior, Balthasar, Casper) para que la **Conclusión aparezca SIEMPRE visible a primera vista**. El análisis extenso se despliega inline con el botón `Ver análisis completo ▾` sin ventanas emergentes. Extracción automática de síntesis cuando los modelos omiten `### CONCLUSIÓN`.
-          - **Ajuste Total de Viewport Height & Márgenes (`App.css`):** Restringido el contenedor maestro a `100vh` con `overflow-y: auto !important` y `word-break: break-word` / `overflow-wrap: anywhere`, evitando que el texto o las tarjetas se salgan de los márgenes o bloqueen el scroll.
-          - **Naoko Multimodal con Lectura Visual de Imágenes (`FreeCloudLLM.generate_vision`):** Añadido soporte para adjuntar imágenes/capturas de pantalla en el chat de Naoko. Naoko procesa las imágenes con visión multimodal (`gpt-4o` / `gemini-1.5`) estilo Google Lens.
-          - **Autoconciencia y Diagnósticos Directos en Naoko:** Actualizado el prompt de Naoko con conocimiento explícito de la interfaz React de 4 columnas para ofrecer explicaciones concretas, directas y sintéticas ("sin irse por las ramas").
+          - **Pegar Capturas Directamente desde el Portapapeles (Ctrl+V):** Integrado capturador global de portapapeles. Al usar la Herramienta de Recorte de Windows (`Win+Shift+S`) y presionar `Ctrl+V` en cualquier parte de la app, la imagen se adjunta automáticamente en Naoko.
+          - **Solución Definitiva de Resiliencia del Enjambre (`orchestrator.py`):** Corregida la llamada a `self.bus.publish` en bloques de excepción del orquestador, evitando que tareas colapsen silenciosamente en `in_progress`.
+          - **Unificación de Tipografía e Inspección de Negritas (`App.css` & `App.tsx`):** Enforzada tipografía uniforme sans-serif (`Inter`) de 13px y normalizado el parser de etiquetas markdown para evitar fugas de estilo negrita en tarjetas.
+          - **Control Estricto de Capas y Acordeón Desplegable (`z-index: 10`):** Asegurado que la expansión de tarjetas ocurra dentro del contenedor `.conv` sin desplazar o sobreponerse a la barra inferior de ejecución `SYS_EXEC`.
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
