@@ -12,7 +12,7 @@ from magi.core.obs.bus_log_handler import BusLogHandler
 from magi.modules.memgraph import MemGraphAdapter
 from magi.modules.skills.loader import AASLoader
 from magi.modules.infrastructure.naoko import NaokoAgent
-from magi.core.paths import project_root, workspace_dir
+from magi.core.paths import project_root, workspace_dir, db_path
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class Kernel:
     """
     def __init__(self, host="127.0.0.1", port=20128):
         self.bus = MagiBus()
-        self.db = MagiDatabase(db_path="magi_brain.db")
+        self.db = MagiDatabase(db_path=str(db_path()))
         self.bus_logger = None # Se inicializa en start()
         
         self.blackboard = Blackboard()

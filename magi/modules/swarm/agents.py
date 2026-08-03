@@ -57,6 +57,64 @@ class SwarmAgentBase:
             full_sys, user_prompt,
             family=self.family, temperature=temp, seed=self.seed)
 
+    async def _ask_stream(self, sys_prompt: str, user_prompt: str, *,
+                          task_id: str, engine: str = "fast",
+                          narrative_style: str = "tecnico",
+                          temperature: float = 0.4) -> tuple[str, str]:
+        """
+        Igual que _ask pero publicando deltas en el bus (MAGI 9.0 §1.2).
+
+        v5.0.28 llamaba a create() sin stream=True: el usuario miraba una
+        pantalla quieta 30-90 s por turno y luego aparecía un muro de texto.
+        Con esto el primer token llega en un par de segundos y el debate deja
+        de *sentirse* secuencial aunque lo sea.
+
+        Si el proveedor no soporta streaming real, BaseProvider.stream() emite
+        la respuesta completa como un delta único: el camino es el mismo.
+        """
+        from magi.core.prompts import style_fragment
+        from magi.core.context import get_context
+        from magi.core.providers.base import CompletionRequest, Message
+
+        full_sys = "\n\n".join([
+            sys_prompt, style_fragment(narrative_style), get_context().render()])
+        temp = temperature if engine == "fast" else max(0.1, temperature - 0.2)
+
+        reg = await self.llm._reg()
+        req = CompletionRequest(
+            messages=[Message("system", full_sys), Message("user", user_prompt)],
+            temperature=temp, seed=self.seed, timeout_s=150.0, stream=True)
+
+        chunks: list[str] = []
+        provider_id = f"g4f-{self.family}"
+        try:
+            async for delta in reg.stream(req, prefer=f"g4f-{self.family}"):
+                if delta.provider_id:
+                    provider_id = delta.provider_id
+                if delta.text:
+                    chunks.append(delta.text)
+                    await self.bus.publish(BusEvent(
+                        topic="agent.delta",
+                        payload={"task_id": task_id, "agent": self.role_name,
+                                 "family": self.family, "provider": provider_id,
+                                 "text": delta.text, "seq": delta.seq}))
+                if delta.done:
+                    await self.bus.publish(BusEvent(
+                        topic="agent.delta_end",
+                        payload={"task_id": task_id, "agent": self.role_name}))
+        except Exception as e:
+            logger.warning("[%s] streaming falló (%s); caigo a no-streaming",
+                           self.role_name, e)
+            await self.bus.publish(BusEvent(
+                topic="agent.delta_end",
+                payload={"task_id": task_id, "agent": self.role_name,
+                         "aborted": True}))
+            return await self._ask(sys_prompt, user_prompt, engine=engine,
+                                   narrative_style=narrative_style,
+                                   temperature=temperature)
+
+        return "".join(chunks), provider_id
+
 class MelchiorAgent(SwarmAgentBase):
     """Melchior - El Arquitecto (Propone soluciones)"""
     family = "deepseek"
@@ -94,8 +152,9 @@ class MelchiorAgent(SwarmAgentBase):
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
         
-        content, actual_provider = await self._ask(
-            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
+        content, actual_provider = await self._ask_stream(
+            sys_prompt, user_prompt, task_id=task_id, engine=engine,
+            narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -136,8 +195,9 @@ class BalthasarAgent(SwarmAgentBase):
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
         
-        content, actual_provider = await self._ask(
-            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
+        content, actual_provider = await self._ask_stream(
+            sys_prompt, user_prompt, task_id=task_id, engine=engine,
+            narrative_style=narrative_style)
             
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -182,8 +242,9 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
-        content, actual_provider = await self._ask(
-            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
+        content, actual_provider = await self._ask_stream(
+            sys_prompt, user_prompt, task_id=task_id, engine=engine,
+            narrative_style=narrative_style)
         
         decision = "APPROVED"
         feedback = content
@@ -247,8 +308,9 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
         
         user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
         
-        content, actual_provider = await self._ask(
-            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
+        content, actual_provider = await self._ask_stream(
+            sys_prompt, user_prompt, task_id=task_id, engine=engine,
+            narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",

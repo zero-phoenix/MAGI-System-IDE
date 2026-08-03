@@ -5,7 +5,7 @@ import websockets
 from typing import Callable, Awaitable, Any, Set
 from magi.core.bus import MagiBus, BusEvent  # type: ignore
 from magi.core.store.database import MagiDatabase
-from magi.core.paths import project_root, workspace_dir
+from magi.core.paths import project_root, workspace_dir, db_path
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class WSServer:
         self.handlers = {}
         self.clients: Set[Any] = set()
         self.server = None
-        self.db = MagiDatabase("magi_brain.db")
+        self.db = MagiDatabase(str(db_path()))
         
         # Registramos endpoints internos
         self.register_handler("GET_TELEMETRY", self._handle_get_telemetry)

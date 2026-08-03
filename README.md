@@ -121,14 +121,17 @@ Lo que se arregló, y qué había antes:
 | **Cortacircuitos** | `_is_alive` y `_mark_failure` definidos, **cero sitios de llamada** | Implementado y llamado, con p50/p95 por proveedor |
 | **Caché** | `dict` sin límite → fuga de memoria | LRU + TTL acotada |
 | **Rutas** | `D:/PROYECTOS/MAGI System IDE` en 8 sitios: el `.exe` solo arrancaba en una máquina | `magi.core.paths`, verificado en CI |
-| **Base de datos** | `magi_brain.db` commiteado con datos reales | En el directorio de datos del usuario |
+| **Base de datos** | `magi_brain.db` commiteado con datos reales, y tres rutas distintas según cómo se instanciara | Una sola ruta vía `paths.db_path()`, fuera del repositorio |
+| **Estado entre reinicios** | `active_tasks = {}` en RAM: cerrar la ventana perdía la conversación | Persistido en SQLite y rehidratado al arrancar |
+| **Streaming** | `create()` sin `stream=True`: 30-90 s de pantalla quieta por turno | Token a token con cursor en vivo; caída a no-streaming si el proveedor no lo soporta |
+| **Contabilidad de tokens** | Ninguna | `token_ledger` por tarea, agente y familia |
 | **Estilo narrativo** | `<select>` que no enviaba su valor a ninguna parte | Llega al prompt de los tres agentes y persiste |
 | **Selector de motor** | `kernel.py:216` no pasaba `engine` a `submit_task` | Propagado |
 | **Aprobación por diff** | Los `sendCommand` estaban comentados: pulsar «Aprobar» no llegaba al backend | Reconectado |
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **86 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **98 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Módulos aleatorios** | `quantum_oracle` devolvía `random.choice`; `quant/simulator` devolvía `np.random` como índice de riesgo | Retirados a [`magi/_attic/`](magi/_attic/) con nota de por qué |
 
 ### Reglas de trabajo
@@ -155,7 +158,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 86 tests, sin red
+python -m pytest tests/ -v        # 98 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -163,12 +166,17 @@ ruff check magi/ tests/           # lint
 
 ## Hoja de ruta
 
-Completado: fundamentos (§1), bucle de herramientas (§2.2), enrutamiento (§2.3),
-reversibilidad (§4.2), contexto de ejecución (§4.3), versionado de Naoko (§3.3).
+**Fase 1 completa** — capa de proveedores (§1.1), streaming extremo a extremo
+(§1.2), anclaje de rutas (§1.3), estado persistente (§1.4), tests y CI (§1.5),
+higiene del repositorio (§1.6).
 
-Siguiente: streaming en la interfaz (§1.2), estado persistente entre reinicios
-(§1.4), ciclo completo de reparación verificada de Naoko (§3.1), toolchain de
-ingeniería inversa para emuladores (§5.3), y fábrica de artefactos (§5).
+**Fase 2 en curso** — bucle de herramientas (§2.2), enrutamiento adaptativo
+(§2.3), estilo narrativo conectado (§2.7). Pendiente: paralelismo de propuestas
+(§2.4), verificación ejecutable antes del arbitraje (§2.5), memoria conectada
+(§2.6).
+
+**Siguiente** — ciclo completo de reparación verificada de Naoko (§3.1),
+toolchain de ingeniería inversa para emuladores (§5.3), fábrica de artefactos (§5).
 
 ---
 

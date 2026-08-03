@@ -107,7 +107,7 @@ export default function App() {
     metrics, telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
-    sysCommand, conversations
+    sysCommand, conversations, streaming
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
@@ -416,6 +416,26 @@ export default function App() {
             {messages.map((msg, i) => (
               <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
             ))}
+
+            {/* MAGI 9.0 §1.2 — tarjeta en vivo mientras el agente escribe.
+                Antes la pantalla se quedaba quieta 30-90 s por turno. */}
+            {Object.entries(streaming)
+              .filter(([key]) => key.startsWith(`${activeConversationId}:`))
+              .map(([key, buf]: any) => (
+                <div key={key} className="card streaming" style={{ opacity: 0.92 }}>
+                  <div className="hd">
+                    <b>{buf.agent}</b>
+                    <span style={{ color: "var(--dim)", fontSize: "10px", marginLeft: 8 }}>
+                      {buf.family || "…"} · escribiendo
+                      <span className="cursor-blink" style={{ marginLeft: 4 }}>▊</span>
+                    </span>
+                  </div>
+                  <div className="bd" style={{ whiteSpace: "pre-wrap" }}>
+                    {buf.text}
+                  </div>
+                </div>
+              ))}
+
             <div ref={chatEndRef} />
           </div>
 

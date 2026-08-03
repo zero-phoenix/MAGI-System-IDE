@@ -26,7 +26,22 @@ export function useMagiSocket(port: number = 20128) {
               const topic = data.topic;
               const payload = data.payload;
               
-              if (topic === 'AGENT_POST') {
+              if (topic === 'agent.delta') {
+                // MAGI 9.0 §1.2 — token a token: el primer token llega en ~2 s
+                // en vez de esperar 30-90 s a la respuesta completa.
+                useMagiStore.getState().appendDelta({
+                  task_id: payload.task_id,
+                  agent: payload.agent,
+                  text: payload.text || '',
+                  provider: payload.provider,
+                  family: payload.family,
+                });
+              } else if (topic === 'agent.delta_end') {
+                useMagiStore.getState().endDelta({
+                  task_id: payload.task_id,
+                  agent: payload.agent,
+                });
+              } else if (topic === 'AGENT_POST') {
                 addMessage({
                   id: Math.random().toString(36),
                   task_id: payload.task_id,

@@ -34,6 +34,10 @@ interface MagiState {
   messages: AgentMessage[]; 
   
   addMessage: (msg: AgentMessage & { task_id?: string }) => void;
+  // MAGI 9.0 §1.2 — streaming token a token
+  streaming: Record<string, { agent: string; text: string; provider: string; family: string }>;
+  appendDelta: (d: { task_id: string; agent: string; text: string; provider?: string; family?: string }) => void;
+  endDelta: (d: { task_id: string; agent: string }) => void;
   startNewConversation: (id?: string) => void;
   
   terminalOutput: string;
@@ -89,13 +93,42 @@ export const useMagiStore = create<MagiState>((set) => ({
     const targetId = msg.task_id || state.activeConversationId;
     const currentList = state.conversations[targetId] || [];
     const newConversations = { ...state.conversations, [targetId]: [...currentList, msg] };
-    
-    return { 
+
+    // El AGENT_POST definitivo reemplaza al buffer de streaming del mismo agente.
+    const streaming = { ...state.streaming };
+    delete streaming[`${targetId}:${msg.agent}`];
+
+    return {
       conversations: newConversations,
-      messages: newConversations[state.activeConversationId] || []
+      messages: newConversations[state.activeConversationId] || [],
+      streaming,
     };
   }),
   
+  // Buffers de streaming, indexados por task_id+agente. Se vacían cuando
+  // llega el AGENT_POST definitivo con el texto completo.
+  streaming: {},
+  appendDelta: (d) => set((state) => {
+    const key = `${d.task_id}:${d.agent}`;
+    const prev = state.streaming[key];
+    return {
+      streaming: {
+        ...state.streaming,
+        [key]: {
+          agent: d.agent,
+          text: (prev?.text || "") + d.text,
+          provider: d.provider || prev?.provider || "",
+          family: d.family || prev?.family || "",
+        },
+      },
+    };
+  }),
+  endDelta: (d) => set((state) => {
+    const next = { ...state.streaming };
+    delete next[`${d.task_id}:${d.agent}`];
+    return { streaming: next };
+  }),
+
   terminalOutput: "",
   appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),
   

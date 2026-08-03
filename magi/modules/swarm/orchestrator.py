@@ -12,16 +12,61 @@ class SwarmOrchestrator:
     Controla el ciclo de vida de un debate Popperiano en el Enjambre (Área 16).
     Evita que los agentes hablen al mismo tiempo, manejando el turn-taking.
     """
-    def __init__(self, blackboard: Blackboard, bus: MagiBus):
+    def __init__(self, blackboard: Blackboard, bus: MagiBus, store=None):
         self.blackboard = blackboard
         self.bus = bus
+        # MAGI 9.0 §1.4: el estado deja de vivir solo en RAM. active_tasks se
+        # mantiene como caché caliente, pero se persiste en cada transición.
+        # Antes, cerrar la ventana perdía la conversación entera.
+        from magi.core.store.state import TaskStore
+        self.store = store if store is not None else TaskStore()
         self.active_tasks = {}
         self.latest_task_id = None
+        self._rehydrate()
         
         # Inicializar agentes
         self.melchior = MelchiorAgent(self.blackboard, self.bus)
         self.balthasar = BalthasarAgent(self.blackboard, self.bus)
         self.casper = CasperAgent(self.blackboard, self.bus)
+
+    def _rehydrate(self) -> None:
+        """Recupera las tareas reanudables al arrancar."""
+        try:
+            for st in self.store.resumable():
+                self.active_tasks[st.task_id] = {
+                    "command": st.command, "round": st.round, "status": st.status,
+                    "engine": st.engine, "narrative_style": st.narrative_style,
+                    "last_proposal": st.last_proposal,
+                    "last_critique": st.last_critique,
+                }
+                self.latest_task_id = st.task_id
+            if self.active_tasks:
+                logger.info("[SWARM] %d tarea(s) recuperadas tras reinicio: %s",
+                            len(self.active_tasks), ", ".join(self.active_tasks))
+        except Exception as e:
+            logger.warning("[SWARM] no se pudo rehidratar el estado: %s", e)
+
+    def _persist(self, task_id: str) -> None:
+        """Vuelca el estado en curso. Llamar tras cada transición."""
+        state = self.active_tasks.get(task_id)
+        if not state:
+            return
+        try:
+            from magi.core.store.state import TaskState
+            existing = self.store.load(task_id)
+            self.store.save(TaskState(
+                task_id=task_id,
+                command=state.get("command", ""),
+                status=state.get("status", "in_progress"),
+                round=state.get("round", 1),
+                engine=state.get("engine", "fast"),
+                narrative_style=state.get("narrative_style", "tecnico"),
+                last_proposal=state.get("last_proposal"),
+                last_critique=state.get("last_critique"),
+                created_at=existing.created_at if existing else __import__("time").time(),
+            ))
+        except Exception as e:
+            logger.warning("[SWARM] no se pudo persistir %s: %s", task_id, e)
 
     async def submit_task(self, task_id: str, command: str, engine: str = "fast",
                           narrative_style: str = "tecnico"):
@@ -39,9 +84,11 @@ class SwarmOrchestrator:
             # se perdían en silencio.
             state["engine"] = engine
             state["narrative_style"] = narrative_style
+            self._persist(task_id)
             if state["status"] == "WAITING_USER_APPROVAL":
                 if any(word in command.lower().strip() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes", "claro"]):
                     state["status"] = "completed"
+                    self._persist(task_id)
                     await self.bus.publish(BusEvent(
                         topic="TERMINAL_OUT",
                         payload={"content": f"[SWARM] Aprobación recibida. Tarea {task_id} finalizada exitosamente."}
@@ -133,6 +180,7 @@ class SwarmOrchestrator:
             "engine": engine,
             "narrative_style": narrative_style,
         }
+        self._persist(task_id)
         
         await self.bus.publish(BusEvent(
             topic="TERMINAL_OUT",
@@ -161,6 +209,7 @@ class SwarmOrchestrator:
                     last_proposal, last_critique, engine, style)
                 self.blackboard.post(f"{task_id}.proposal", proposal)
                 state["last_proposal"] = proposal
+                self._persist(task_id)
                 if "SYS_EMERGENCY_STOP" in proposal["content"]:
                     await self._trigger_emergency_stop(task_id, state)
                     break
@@ -170,6 +219,7 @@ class SwarmOrchestrator:
                     task_id, proposal, current_round, engine, style)
                 self.blackboard.post(f"{task_id}.critique", critique)
                 state["last_critique"] = critique
+                self._persist(task_id)
                 if "SYS_EMERGENCY_STOP" in critique["content"]:
                     await self._trigger_emergency_stop(task_id, state)
                     break
@@ -194,6 +244,7 @@ class SwarmOrchestrator:
             
             if is_asking_approval or current_round >= 3:
                 state["status"] = "WAITING_USER_APPROVAL"
+                self._persist(task_id)
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
                     payload={"content": f"[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
