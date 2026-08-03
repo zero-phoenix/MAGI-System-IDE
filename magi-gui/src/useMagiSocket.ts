@@ -39,6 +39,18 @@ export function useMagiSocket(port: number = 20128) {
                 });
               } else if (topic === 'TERMINAL_OUT') {
                 appendTerminal(payload.content || payload.message || String(payload));
+              } else if (topic === 'naoko.log') {
+                useMagiStore.getState().addNaokoMessage({
+                  id: Math.random().toString(36),
+                  agent: payload.agent,
+                  role: "DevOps",
+                  provider: "G4F",
+                  content: payload.content,
+                  changes: 0,
+                  stats: "0 ms"
+                });
+              } else if (topic === 'naoko.status') {
+                useMagiStore.getState().setNaokoStatus(payload.status);
               } else if (topic === 'system.project_created') {
                 ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
               }
@@ -122,5 +134,14 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, fetchTelemetry, requestFileContent };
+  const sendNaokoChat = (message: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "naoko.chat",
+        payload: { message }
+      }));
+    }
+  };
+
+  return { sendCommand, sendGitClone, fetchTelemetry, requestFileContent, sendNaokoChat };
 }

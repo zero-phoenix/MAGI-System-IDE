@@ -56,6 +56,11 @@ interface MagiState {
   activeFilePath: string | null;
   activeFileContent: string;
   setActiveFile: (path: string, content: string) => void;
+
+  naokoMessages: AgentMessage[];
+  addNaokoMessage: (msg: AgentMessage) => void;
+  naokoStatus: string;
+  setNaokoStatus: (status: string) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -112,5 +117,10 @@ export const useMagiStore = create<MagiState>((set) => ({
 
   activeFilePath: null,
   activeFileContent: "",
-  setActiveFile: (path, content) => set({ activeFilePath: path, activeFileContent: content })
+  setActiveFile: (path, content) => set({ activeFilePath: path, activeFileContent: content }),
+
+  naokoMessages: [],
+  naokoStatus: "Inactiva",
+  addNaokoMessage: (msg) => set((state) => ({ naokoMessages: [...state.naokoMessages, msg] })),
+  setNaokoStatus: (status) => set({ naokoStatus: status })
 }));

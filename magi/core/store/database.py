@@ -57,6 +57,16 @@ class MagiDatabase:
                     )
                 """)
                 
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS naoko_memory (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        error_type TEXT NOT NULL,
+                        diagnostic TEXT NOT NULL,
+                        solution TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
                 # --- ÁREA 13: MAGI-MEM ---
                 
                 cursor.execute("""
@@ -250,4 +260,32 @@ class MagiDatabase:
         except Exception as e:
             logger.error(f"[DB] Error leyendo telemetría: {e}")
             return []
+
+    # --- NAOKO MEMORY ---
+    async def log_naoko_memory(self, error_type: str, diagnostic: str, solution: str):
+        def _log():
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO naoko_memory (error_type, diagnostic, solution) VALUES (?, ?, ?)",
+                        (error_type, diagnostic, solution)
+                    )
+                    conn.commit()
+            except Exception as e:
+                logger.error(f"Error escribiendo en naoko_memory: {e}")
+        await asyncio.to_thread(_log)
+        
+    async def get_naoko_memory(self, limit: int = 10) -> List[Dict[str, Any]]:
+        def _get():
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT error_type, diagnostic, solution, created_at FROM naoko_memory ORDER BY created_at DESC LIMIT ?", (limit,))
+                    rows = cursor.fetchall()
+                    return [{"error_type": r[0], "diagnostic": r[1], "solution": r[2], "created_at": r[3]} for r in rows]
+            except Exception as e:
+                logger.error(f"Error leyendo naoko_memory: {e}")
+                return []
+        return await asyncio.to_thread(_get)
 

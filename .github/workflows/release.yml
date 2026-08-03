@@ -46,12 +46,15 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.13
-        name: "MAGI System IDE V5.0.13"
+        tag_name: v5.0.14
+        name: "MAGI System IDE V5.0.14"
         files: dist/MAGI-IDE-v5.exe
         body: |
-          ## Novedades en V5.0.13 🚀
+          ## Novedades en V5.0.14 🚀
           
+          - **Nueva IA Autónoma (Naoko):** Se ha integrado una cuarta IA (Naoko) que actúa como DevOps de infraestructura. Naoko monitorea continuamente los errores del sistema y, sin necesidad de permisos, aplica auto-reparaciones al código local y sube las actualizaciones directamente a GitHub.
+          - **Pestaña Exclusiva Naoko:** Se agregó una pestaña dedicada en la interfaz gráfica para interactuar con Naoko, ver sus logs en tiempo real y el estado de sus auto-reparaciones.
+          - **Memoria Persistente de Errores:** Naoko cuenta con su propia tabla SQLite (`naoko_memory`) para recordar soluciones pasadas y evitar aplicar el mismo parche dos veces.
           - **Autodiagnóstico y Reparación de Nube:** Se implementó un bucle infinito de autodiagnóstico en el orquestador (`cloud.py`). Si la IA gratuita de la nube sufre un Error 429 (Rate Limit), el sistema **no abortará**, sino que reportará de manera super detallada en la terminal el fallo, congelará los hilos de manera inteligente (backoff) y rotará los proxies/proveedores hasta lograr conexión.
           - **Mensajes de Usuario Siempre Visibles:** El chat ha sido rediseñado para que tu interacción (User Input) JAMÁS se oculte; siempre ocupará el 100% de legibilidad de forma permanente.
           - **IA con Análisis Oculto pero Conclusión Clara:** El cuerpo preliminar (razonamiento) de los agentes (Melchior, Balthasar, Casper) viene **oculto completamente por defecto**, dejando únicamente la **Conclusión final visible**. Con un simple click puedes expandir o retraer el texto del análisis sin ventanas emergentes.

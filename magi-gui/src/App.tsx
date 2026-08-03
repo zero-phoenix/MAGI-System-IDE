@@ -14,8 +14,7 @@ import '@xyflow/react/dist/style.css';
 const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Extract conclusion (from "### CONCLUSIÓN" onwards)
-  const parts = msg.content.split('### CONCLUSIÓN');
+  const parts = msg.content ? msg.content.split('### CONCLUSIÓN') : [""];
   const body = parts[0];
   const conclusion = parts.length > 1 ? '### CONCLUSIÓN' + parts[1] : '';
 
@@ -79,15 +78,21 @@ const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
+  const { 
+    connected, messages, activeConversationId, setActiveConversationId, 
+    startNewConversation, addMessage, terminalOutput, 
+    metrics, telemetry,
+    activeFileContent, activeFilePath,
+    naokoMessages, naokoStatus,
+    sysCommand, conversations
+  } = useMagiStore();
+
   const [inputVal, setInputVal] = useState("");
+  const [naokoInputVal, setNaokoInputVal] = useState("");
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
-  const { 
-    connected, messages, addMessage, terminalOutput, sysCommand, metrics, telemetry,
-    activeConversationId, setActiveConversationId, conversations, startNewConversation, activeFilePath, activeFileContent
-  } = useMagiStore();
-  const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent } = useMagiSocket(20128);
+  const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -388,7 +393,7 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...(pendingApproval ? ["Diff (Aprobación)"] : [])].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...(pendingApproval ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -440,6 +445,63 @@ export default function App() {
               <div className="selectable" style={{ flex: 1, background: "#000", border: "1px solid var(--dim)", padding: "10px", fontFamily: "monospace", color: "#0f0", whiteSpace: "pre-wrap", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
                 {terminalOutput}
                 <div ref={terminalEndRef} />
+              </div>
+            )}
+            
+            {activeTab === "Naoko" && (
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#050a0b", border: "1px solid var(--dim)" }}>
+                 <div style={{ padding: "10px", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid var(--dim)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                   <div style={{ color: "#d2a8ff", fontWeight: "bold" }}>NAOKO [DevOps Autónoma]</div>
+                   <div style={{ color: naokoStatus === "Inactiva" ? "var(--dim)" : "var(--acc)", fontSize: "12px" }}>
+                     Estado: {naokoStatus}
+                   </div>
+                 </div>
+                 
+                 <div style={{ flex: 1, padding: "15px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+                   {naokoMessages.map((msg, i) => (
+                      <div key={i} style={{ 
+                        background: msg.agent === "USER" ? "rgba(10,20,25,0.9)" : "rgba(30,20,30,0.7)", 
+                        border: `1px solid ${msg.agent === "USER" ? "var(--dim)" : "#d2a8ff"}`, 
+                        padding: "10px", 
+                        borderRadius: "8px",
+                        alignSelf: msg.agent === "USER" ? "flex-end" : "flex-start",
+                        maxWidth: "80%",
+                        fontSize: "13px"
+                      }}>
+                        <div style={{ fontSize: "11px", color: "var(--dim)", marginBottom: "5px" }}>{msg.agent}</div>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                   ))}
+                 </div>
+                 
+                 <div className="comp" style={{ padding: "10px", borderTop: "1px solid var(--dim)" }}>
+                    <div className="cr" style={{ margin: 0 }}>
+                      <textarea
+                        className="pf"
+                        rows={1}
+                        placeholder="Pregunta a Naoko sobre el estado o reparaciones..."
+                        value={naokoInputVal}
+                        onChange={(e) => setNaokoInputVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if(e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if(naokoInputVal.trim()){
+                               sendNaokoChat(naokoInputVal.trim());
+                               setNaokoInputVal("");
+                            }
+                          }
+                        }}
+                      ></textarea>
+                      <button className="bt go" onClick={() => {
+                        if(naokoInputVal.trim()){
+                           sendNaokoChat(naokoInputVal.trim());
+                           setNaokoInputVal("");
+                        }
+                      }}>Enviar</button>
+                    </div>
+                 </div>
               </div>
             )}
             

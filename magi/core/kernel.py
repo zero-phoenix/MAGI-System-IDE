@@ -11,6 +11,7 @@ from magi.core.store.logger import BusLogger
 from magi.core.obs.bus_log_handler import BusLogHandler
 from magi.modules.memgraph import MemGraphAdapter
 from magi.modules.skills.loader import AASLoader
+from magi.modules.infrastructure.naoko import NaokoAgent
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class Kernel:
         self.swarm = SwarmOrchestrator(self.blackboard, self.bus)
         self.policy = PolicyEngine()
         self.memgraph = MemGraphAdapter(self.bus)
+        self.naoko = NaokoAgent(self.bus, self.db)
         
         # Cargar catálogo de Skills
         self.skills_loader = AASLoader()
@@ -48,6 +50,12 @@ class Kernel:
         self.rpc.register_handler("SYS_EXEC", self._handle_sys_exec)
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
         self.rpc.register_handler("git.clone", self._handle_git_clone)
+        self.rpc.register_handler("naoko.chat", self._handle_naoko_chat)
+        
+    async def _handle_naoko_chat(self, payload, websocket):
+        msg = payload.get("message", "")
+        self.bus.post("naoko.user_message", {"message": msg})
+        return {"status": "ok"}
         
     async def _handle_hello(self, payload, websocket):
         return {"status": "MAGI Kernel Online", "version": "1.0"}
