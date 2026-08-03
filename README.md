@@ -114,7 +114,7 @@ Lo que se arregló, y qué había antes:
 
 | Área | v5.0.28 | Ahora |
 |---|---|---|
-| **Diversidad del enjambre** | `cloud.py:122` reescribía `deepseek`, `claude-3.5-sonnet` y `qwen-2.5` a `gpt-4o`: los tres nodos eran **el mismo modelo** | Proveedor g4f fijado por familia; **10 familias** disponibles, 3 repartidas |
+| **Diversidad del enjambre** | `cloud.py:122` reescribía los alias a `gpt-4o` **y** `agents.py` pedía `model="gpt-4o-mini"` en los tres nodos: dos capas colapsando al mismo modelo | Cada nodo declara su familia y la pide explícitamente. Verificado de extremo a extremo, no solo en el registro |
 | **Herramientas** | Los agentes solo emitían texto; la única acción era un regex que ejecutaba bloques ` ``` ` a ciegas | Bucle de herramientas: leer, escribir, ejecutar, verificar |
 | **Reversibilidad** | Ninguna | Journal de escrituras + `undo` por operación o por tarea |
 | **Timeouts** | Ninguno: un proveedor colgado congelaba el sistema | Timeout duro por llamada, con failover |
@@ -128,12 +128,23 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **77 tests** versionados, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **86 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Módulos aleatorios** | `quantum_oracle` devolvía `random.choice`; `quant/simulator` devolvía `np.random` como índice de riesgo | Retirados a [`magi/_attic/`](magi/_attic/) con nota de por qué |
 
-### Regla de trabajo
+### Reglas de trabajo
 
-> **Cada cambio conecta o borra. Nunca añade sin conectar.**
+> **1. Cada cambio conecta o borra. Nunca añade sin conectar.**
+
+> **2. Un test sobre una pieza aislada no demuestra que el sistema la use.**
+
+La segunda regla salió de un error real cometido durante esta misma
+reconstrucción: la diversidad se arregló en `ProviderRegistry`, los tests
+unitarios de `select_for_swarm()` pasaban en verde... y el enjambre seguía
+colapsando a una sola familia, porque nunca llamaba a esa función. Iba por
+`agents.py`, que pedía `model="gpt-4o-mini"` en los tres nodos.
+
+Por eso `tests/test_swarm_integration.py` recorre orquestador → agentes →
+proveedor y comprueba el resultado observable, no la pieza.
 
 Si un módulo no tiene sitio de llamada y un test, no entra. En v5.0.28 doce
 subsistemas se instanciaban en `main.py` y diez tenían **cero** llamadas: existían
@@ -144,7 +155,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 77 tests, sin red
+python -m pytest tests/ -v        # 86 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 

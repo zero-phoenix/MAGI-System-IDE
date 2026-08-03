@@ -7,18 +7,70 @@ from magi.core.providers.cloud import FreeCloudLLM # type: ignore
 logger = logging.getLogger(__name__)
 
 class SwarmAgentBase:
+    """
+    Base de los nodos del enjambre.
+
+    MAGI 9.0: cada nodo declara su FAMILIA de modelo y la pide explícitamente.
+
+    Antes, los tres nodos declaraban proveedores distintos en self.provider
+    ("deepseek", "claude-3.5-sonnet", "qwen-2.5") pero luego los tres llamaban
+    con model="gpt-4o-mini". Ese string mandaba a los tres a la misma familia,
+    así que la diversidad seguía sin existir aunque el registro por debajo ya
+    supiera repartir familias. El arreglo del registro no servía de nada porque
+    el enjambre nunca lo usaba.
+    """
+
+    #: familia de modelo de este nodo (deepseek | claude | qwen | ...)
+    family: str = "auto"
+    #: nombre del rol, para prompts y trazas
+    role_name: str = "AGENT"
+    #: semilla fija: fuerza divergencia si solo hay una familia sana
+    seed: int | None = None
+
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         self.blackboard = blackboard
         self.bus = bus
         self.llm = FreeCloudLLM()
 
+    async def _ask(self, sys_prompt: str, user_prompt: str, *,
+                   engine: str = "fast", narrative_style: str = "tecnico",
+                   temperature: float = 0.4) -> tuple[str, str]:
+        """
+        Llamada única de todos los nodos.
+
+        - `family` va explícita: cada nodo se queda en la suya.
+        - `engine` ya NO elige entre gpt-4o-mini y gpt-4o (eso colapsaba las
+          familias). Ahora ajusta temperatura y profundidad dentro de la familia.
+        - `narrative_style` se inyecta de verdad en el prompt: en v5.0.28 el
+          <select> de la GUI no enviaba su valor a ninguna parte.
+        """
+        from magi.core.prompts import style_fragment
+        from magi.core.context import get_context
+
+        full_sys = "\n\n".join([
+            sys_prompt,
+            style_fragment(narrative_style),
+            get_context().render(),
+        ])
+        temp = temperature if engine == "fast" else max(0.1, temperature - 0.2)
+        return await self.llm.generate(
+            full_sys, user_prompt,
+            family=self.family, temperature=temp, seed=self.seed)
+
 class MelchiorAgent(SwarmAgentBase):
     """Melchior - El Arquitecto (Propone soluciones)"""
+    family = "deepseek"
+    role_name = "MELCHIOR"
+    seed = 11
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "deepseek" # DeepSeek-Coder (China)
+        self.provider = "deepseek"
         
-    async def generate_proposal(self, task_id: str, command: str, round_num: int, last_proposal: dict | None = None, last_critique: dict | None = None, engine: str = "fast") -> dict:
+    async def generate_proposal(self, task_id: str, command: str, round_num: int,
+                                last_proposal: dict | None = None,
+                                last_critique: dict | None = None,
+                                engine: str = "fast",
+                                narrative_style: str = "tecnico") -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
         
         sys_prompt = """Eres MELCHIOR, el Arquitecto de MAGI, un agente de ingeniería de software con acceso total a la computadora del usuario (Windows). Tienes la capacidad de crear, modificar y eliminar archivos, ejecutar scripts en PowerShell o Python, y construir código completo (ej. aplicaciones, juegos como Tetris).
@@ -42,8 +94,8 @@ class MelchiorAgent(SwarmAgentBase):
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
         
-        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
+        content, actual_provider = await self._ask(
+            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -52,7 +104,8 @@ class MelchiorAgent(SwarmAgentBase):
                 "task_id": task_id,
                 "agent": "MELCHIOR",
                 "role": "propone",
-                "provider": f"{actual_provider} ({self.provider})",
+                "provider": actual_provider,
+                "family": self.family,
                 "content": content,
                 "changes": 1 if round_num > 1 else 0,
                 "stats": "N/A"
@@ -63,11 +116,16 @@ class MelchiorAgent(SwarmAgentBase):
 
 class BalthasarAgent(SwarmAgentBase):
     """Balthasar - El Crítico (Busca fallas en la propuesta)"""
+    family = "claude"
+    role_name = "BALTHASAR"
+    seed = 22
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "claude-3.5-sonnet" # Anthropic Claude (USA)
+        self.provider = "claude"
         
-    async def generate_critique(self, task_id: str, proposal: dict, round_num: int, engine: str = "fast") -> dict:
+    async def generate_critique(self, task_id: str, proposal: dict, round_num: int,
+                                engine: str = "fast",
+                                narrative_style: str = "tecnico") -> dict:
         logger.info(f"[BALTHASAR] Criticando propuesta con {self.provider}...")
         
         sys_prompt = """Eres BALTHASAR, un ingeniero de seguridad y analista estático implacable. Tu trabajo es encontrar defectos, problemas de concurrencia, vulnerabilidades o ineficiencias en la propuesta arquitectónica de Melchior.
@@ -78,8 +136,8 @@ class BalthasarAgent(SwarmAgentBase):
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
         
-        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
+        content, actual_provider = await self._ask(
+            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
             
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -88,7 +146,8 @@ class BalthasarAgent(SwarmAgentBase):
                 "task_id": task_id,
                 "agent": "BALTHASAR",
                 "role": "critica",
-                "provider": f"{actual_provider} ({self.provider})",
+                "provider": actual_provider,
+                "family": self.family,
                 "content": content,
                 "changes": 0,
                 "stats": "N/A"
@@ -100,11 +159,16 @@ class BalthasarAgent(SwarmAgentBase):
 
 class CasperAgent(SwarmAgentBase):
     """Casper - El Árbitro (Toma la decisión final o fuerza otra ronda)"""
+    family = "qwen"
+    role_name = "CASPER"
+    seed = 33
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "qwen-2.5" # Qwen Alibaba (China)
+        self.provider = "qwen"
         
-    async def arbitrate(self, task_id: str, proposal: dict, critique: dict, round_num: int, engine: str = "fast") -> dict:
+    async def arbitrate(self, task_id: str, proposal: dict, critique: dict,
+                        round_num: int, engine: str = "fast",
+                        narrative_style: str = "tecnico") -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
         
         sys_prompt = """Eres CASPER, el árbitro final del sistema MAGI. Tienes la propuesta de Melchior y la crítica de Balthasar.
@@ -118,8 +182,8 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis científico, conclusión y consulta al usuario"}"""
         user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
         
-        target_model = "gpt-4o-mini" if engine == "fast" else "gpt-4o"
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
+        content, actual_provider = await self._ask(
+            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
         
         decision = "APPROVED"
         feedback = content
@@ -153,7 +217,8 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
                 "task_id": task_id,
                 "agent": "CASPER",
                 "role": "arbitro",
-                "provider": f"{actual_provider} ({self.provider})",
+                "provider": actual_provider,
+                "family": self.family,
                 "content": formatted_content,
                 "changes": 0,
                 "stats": f"Decisión: {decision}"
@@ -162,7 +227,11 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
         
         return {"decision": decision, "feedback": feedback}
 
-    async def generate_final_resolution(self, task_id: str, command: str, proposal: dict | None = None, critique: dict | None = None, engine: str = "fast") -> str:
+    async def generate_final_resolution(self, task_id: str, command: str,
+                                        proposal: dict | None = None,
+                                        critique: dict | None = None,
+                                        engine: str = "fast",
+                                        narrative_style: str = "tecnico") -> str:
         logger.info(f"[CASPER] Generando respuesta final contextualizada y detallada para {task_id}...")
         
         sys_prompt = """Eres CASPER, el Árbitro Supremo del sistema MAGI. El usuario ha APROBADO la reformulación del plan acordado por el Enjambre.
@@ -178,8 +247,8 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
         
         user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
         
-        target_model = "gpt-4o"
-        content, actual_provider = await self.llm.generate(sys_prompt, user_prompt, model=target_model)
+        content, actual_provider = await self._ask(
+            sys_prompt, user_prompt, engine=engine, narrative_style=narrative_style)
         
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
@@ -188,7 +257,8 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
                 "task_id": task_id,
                 "agent": "CASPER",
                 "role": "resultado_final",
-                "provider": f"{actual_provider} ({self.provider})",
+                "provider": actual_provider,
+                "family": self.family,
                 "content": content,
                 "changes": 0,
                 "stats": "FINALIZADO"

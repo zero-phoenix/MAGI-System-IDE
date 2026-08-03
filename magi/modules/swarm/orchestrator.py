@@ -34,6 +34,11 @@ class SwarmOrchestrator:
 
         if task_id in self.active_tasks:
             state = self.active_tasks[task_id]
+            # El usuario puede cambiar motor o estilo a mitad de conversación:
+            # antes se guardaban solo al crear la tarea y los cambios posteriores
+            # se perdían en silencio.
+            state["engine"] = engine
+            state["narrative_style"] = narrative_style
             if state["status"] == "WAITING_USER_APPROVAL":
                 if any(word in command.lower().strip() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes", "claro"]):
                     state["status"] = "completed"
@@ -51,6 +56,11 @@ class SwarmOrchestrator:
                         import os
                         
                         async def _auto_exec():
+                            # MAGI 9.0 §4.2: la ejecución sigue siendo sin
+                            # restricciones, pero pasa por el journal para poder
+                            # deshacerla. Antes no había forma de revertir nada.
+                            from magi.core.tools.journal import WriteJournal
+                            journal = WriteJournal(task_id=task_id)
                             scratch_dir = workspace_dir()
                             os.makedirs(scratch_dir, exist_ok=True)
                             
@@ -63,10 +73,12 @@ class SwarmOrchestrator:
                                 
                                 if lang in ["python", "py"]:
                                     temp_file = scratch_dir / f"auto_script_{i}.py"
+                                    journal.record(temp_file, "create", tool="auto_exec")
                                     temp_file.write_text(code, encoding="utf-8")
                                     cmd = f"python {temp_file.name}"
                                 else:
                                     temp_file = scratch_dir / f"auto_script_{i}.ps1"
+                                    journal.record(temp_file, "create", tool="auto_exec")
                                     temp_file.write_text(code, encoding="utf-8")
                                     cmd = f"powershell -ExecutionPolicy Bypass -File {temp_file.name}"
                                     
@@ -95,7 +107,8 @@ class SwarmOrchestrator:
                                 state["command"],
                                 state.get("last_proposal"),
                                 state.get("last_critique"),
-                                engine=state.get("engine", "fast")
+                                engine=state.get("engine", "fast"),
+                                narrative_style=state.get("narrative_style", "tecnico"),
                             )
                         )
                 else:
@@ -138,11 +151,14 @@ class SwarmOrchestrator:
                 logger.info(f"[SWARM] Iniciando Ronda {current_round} para {task_id}")
                 
                 engine = state.get("engine", "fast")
+                style = state.get("narrative_style", "tecnico")
                 
                 # 1. Melchior Propone
                 last_proposal = state.get("last_proposal")
                 last_critique = state.get("last_critique")
-                proposal = await self.melchior.generate_proposal(task_id, state["command"], current_round, last_proposal, last_critique, engine)
+                proposal = await self.melchior.generate_proposal(
+                    task_id, state["command"], current_round,
+                    last_proposal, last_critique, engine, style)
                 self.blackboard.post(f"{task_id}.proposal", proposal)
                 state["last_proposal"] = proposal
                 if "SYS_EMERGENCY_STOP" in proposal["content"]:
@@ -150,7 +166,8 @@ class SwarmOrchestrator:
                     break
                 
                 # 2. Balthasar Critica
-                critique = await self.balthasar.generate_critique(task_id, proposal, current_round, engine)
+                critique = await self.balthasar.generate_critique(
+                    task_id, proposal, current_round, engine, style)
                 self.blackboard.post(f"{task_id}.critique", critique)
                 state["last_critique"] = critique
                 if "SYS_EMERGENCY_STOP" in critique["content"]:
@@ -158,7 +175,8 @@ class SwarmOrchestrator:
                     break
                 
                 # 3. Casper Arbitra
-                verdict = await self.casper.arbitrate(task_id, proposal, critique, current_round, engine)
+                verdict = await self.casper.arbitrate(
+                    task_id, proposal, critique, current_round, engine, style)
                 self.blackboard.post(f"{task_id}.verdict", verdict)
                 if "SYS_EMERGENCY_STOP" in verdict.get("feedback", ""):
                     await self._trigger_emergency_stop(task_id, state)

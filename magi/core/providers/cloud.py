@@ -94,7 +94,10 @@ class FreeCloudLLM:
         return _ALIAS_TO_FAMILY.get((model or "").lower(), "auto")
 
     async def generate(self, system_prompt: str, user_prompt: str,
-                       model: str = "gpt-4o") -> tuple[str, str]:
+                       model: str = "gpt-4o",
+                       family: str | None = None,
+                       temperature: float = 0.4,
+                       seed: int | None = None) -> tuple[str, str]:
         """
         Devuelve (contenido, nombre_del_proveedor_que_respondió).
 
@@ -103,12 +106,16 @@ class FreeCloudLLM:
         era lo que el agente CREÍA usar, no lo que se usó.
         """
         reg = await self._reg()
-        family = self._family_for(model)
-        prefer = f"g4f-{family}" if family != "auto" else None
+        # `family` explícita gana sobre el alias de modelo. Es lo que permite que
+        # cada nodo del enjambre se quede en SU familia: agents.py pedía
+        # model="gpt-4o-mini" en los tres, y eso los mandaba a los tres a la
+        # familia "gpt" — reproduciendo el bug de v5.0.28 una capa más arriba.
+        fam = family or self._family_for(model)
+        prefer = f"g4f-{fam}" if fam != "auto" else None
 
         req = CompletionRequest(
             messages=[Message("system", system_prompt), Message("user", user_prompt)],
-            timeout_s=150.0,
+            timeout_s=150.0, temperature=temperature, seed=seed,
         )
         try:
             resp = await reg.complete(req, prefer=prefer)
