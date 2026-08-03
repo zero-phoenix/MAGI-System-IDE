@@ -41,23 +41,24 @@ jobs:
 
     - name: Build Executable (PyInstaller)
       run: |
-        pyinstaller --clean --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
 
     - name: Zip Release
       run: |
-        Compress-Archive -Path "dist/MAGI-IDE-v5/*" -DestinationPath "dist/MAGI-IDE-v5.zip"
+        Compress-Archive -Path "dist/MAGI-IDE-v5.exe" -DestinationPath "dist/MAGI-IDE-v5.zip"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v5.0.18
-        name: "MAGI System IDE V5.0.18"
+        tag_name: v5.0.19
+        name: "MAGI System IDE V5.0.19"
         files: dist/MAGI-IDE-v5.zip
         body: |
-          ## Novedades en V5.0.18 🚀
+          ## Novedades en V5.0.19 🚀
           
-          - **Nueva IA Autónoma (Naoko):** Se ha integrado una cuarta IA (Naoko) que actúa como DevOps de infraestructura. Naoko monitorea continuamente los errores del sistema y, sin necesidad de permisos, aplica auto-reparaciones al código local y sube las actualizaciones directamente a GitHub.
-          - **Pestaña Exclusiva Naoko:** Se agregó una pestaña dedicada en la interfaz gráfica para interactuar con Naoko, ver sus logs en tiempo real y el estado de sus auto-reparaciones.
+          - **Retorno al formato Single Portable EXE:** El ejecutable vuelve a ser un único archivo autónomo y portable dentro del ZIP, sin la carpeta `_internal`.
+          - **Solución del Bug -1 de Numpy:** Se aplicó un parche profundo de dependencias (rollback de librerías DLL masivas de cálculo matricial) que soluciona definitivamente el error `decompression resulted in return code -1!` en Windows, manteniendo el modo portable `--onefile`.
+          - **Nuevo Ícono de Sistema:** Se ha asignado oficialmente el logo hexagonal de MAGI al ejecutable.
           - **Memoria Persistente de Errores:** Naoko cuenta con su propia tabla SQLite (`naoko_memory`) para recordar soluciones pasadas y evitar aplicar el mismo parche dos veces.
           - **Autodiagnóstico y Reparación de Nube:** Se implementó un bucle infinito de autodiagnóstico en el orquestador (`cloud.py`). Si la IA gratuita de la nube sufre un Error 429 (Rate Limit), el sistema **no abortará**, sino que reportará de manera super detallada en la terminal el fallo, congelará los hilos de manera inteligente (backoff) y rotará los proxies/proveedores hasta lograr conexión.
           - **Mensajes de Usuario Siempre Visibles:** El chat ha sido rediseñado para que tu interacción (User Input) JAMÁS se oculte; siempre ocupará el 100% de legibilidad de forma permanente.
