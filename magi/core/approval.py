@@ -96,17 +96,43 @@ class FileChange:
     #: Eso cambia lo que significa aprobar, así que se dice.
     revertible: bool = True
 
+    def _counts(self) -> tuple[int, int]:
+        """
+        Líneas añadidas y quitadas DE VERDAD, por diferencia de secuencias.
+
+        Estaban calculadas como `max(0, len(después) - len(antes))`, que es la
+        diferencia de TAMAÑO y no el número de líneas que cambiaron. Reescribir
+        un fichero de treinta líneas entero salía como:
+
+            modificado  core.py  (+0 −0 líneas)
+
+        O sea "sin cambios" en el resumen que lee quien aprueba desde el
+        terminal — la misma clase de fallo (aprobar creyendo que has revisado)
+        que este módulo se escribió para eliminar, escondida en su propio
+        resumen. La interfaz sí tenía LCS real en `diff.ts`; este texto no lo
+        usaba.
+        """
+        if self.note:
+            return 0, 0
+        import difflib
+        antes = self.before.splitlines()
+        despues = self.after.splitlines()
+        anadidas = quitadas = 0
+        for etiqueta, i1, i2, j1, j2 in difflib.SequenceMatcher(
+                None, antes, despues, autojunk=False).get_opcodes():
+            if etiqueta in ("replace", "delete"):
+                quitadas += i2 - i1
+            if etiqueta in ("replace", "insert"):
+                anadidas += j2 - j1
+        return anadidas, quitadas
+
     @property
     def added(self) -> int:
-        if self.note:
-            return 0
-        return max(0, len(self.after.splitlines()) - len(self.before.splitlines()))
+        return self._counts()[0]
 
     @property
     def removed(self) -> int:
-        if self.note:
-            return 0
-        return max(0, len(self.before.splitlines()) - len(self.after.splitlines()))
+        return self._counts()[1]
 
     def to_payload(self) -> dict[str, Any]:
         return {"path": self.path, "before": self.before, "after": self.after,
@@ -127,6 +153,10 @@ class ApprovalRequest:
     tests_passed: bool = False
     tests_detail: str = ""
     reversible: bool = True
+    #: Motivo por el que no se pudo leer el journal, si pasó. Con esto puesto,
+    #: "no toca ningún fichero" deja de ser una afirmación y pasa a ser un
+    #: "no lo sé", que es lo único cierto.
+    journal_error: str = ""
 
     @property
     def files_touched(self) -> int:
@@ -141,7 +171,10 @@ class ApprovalRequest:
             "tests_ran": self.tests_ran,
             "tests_passed": self.tests_passed,
             "tests_detail": self.tests_detail,
-            "reversible": self.reversible,
+            # Un journal ilegible no puede producir una promesa de
+            # reversibilidad: lo único cierto entonces es que no se sabe.
+            "reversible": self.reversible and not self.journal_error,
+            "journal_error": self.journal_error,
             "files_touched": self.files_touched,
         }
 
@@ -151,7 +184,12 @@ class ApprovalRequest:
         if self.summary:
             lineas += [self.summary.strip()[:600], ""]
 
-        if not self.changes:
+        if self.journal_error:
+            lineas.append(
+                f"NO SE PUDO LEER EL JOURNAL ({self.journal_error}). No sé qué "
+                f"ficheros toca esto ni puedo garantizar que se pueda "
+                f"deshacer. Trátalo como irreversible.")
+        elif not self.changes:
             lineas.append("No toca ningún fichero.")
         else:
             lineas.append(f"Ficheros afectados: {len(self.changes)}")
@@ -172,7 +210,9 @@ class ApprovalRequest:
         else:
             lineas.append(f"TESTS: EN ROJO. {self.tests_detail}".rstrip())
 
-        if self.reversible:
+        if self.journal_error:
+            pass          # ya se avisó arriba; no repetir una garantía falsa
+        elif self.reversible:
             lineas.append("Reversible: el journal guarda el estado previo, "
                           "así que aprobar no es definitivo (§4.2).")
         else:
@@ -181,7 +221,8 @@ class ApprovalRequest:
         return "\n".join(lineas)
 
 
-def changes_from_journal(task_id: str, journal: Any) -> list[FileChange]:
+def changes_from_journal(task_id: str, journal: Any,
+                         errores: list[str] | None = None) -> list[FileChange]:
     """
     Reconstruye qué cambió una tarea a partir del journal de escrituras.
 
@@ -193,8 +234,10 @@ def changes_from_journal(task_id: str, journal: Any) -> list[FileChange]:
     try:
         entradas = [e for e in journal.all_entries()
                     if e.task_id == task_id and not e.undone]
-    except Exception as e:                        # pragma: no cover
+    except Exception as e:
         logger.warning("[aprobación] no se pudo leer el journal: %s", e)
+        if errores is not None:
+            errores.append(str(e)[:120])
         return []
 
     primera: dict[str, Any] = {}
@@ -237,7 +280,8 @@ def build_approval_request(task_id: str, *, journal: Any = None,
     tarea que no se puede aprobar porque el panel de aprobación reventó es
     una tarea colgada.
     """
-    cambios = changes_from_journal(task_id, journal) if journal else []
+    fallos: list[str] = []
+    cambios = changes_from_journal(task_id, journal, fallos) if journal else []
     return ApprovalRequest(
         task_id=task_id, summary=summary, changes=cambios,
         commands=list(commands or []),
@@ -247,4 +291,5 @@ def build_approval_request(task_id: str, *, journal: Any = None,
         # reversible solo si TODOS lo son. Uno solo sin copia basta para que
         # aprobar deje de ser una decisión que se pueda desandar.
         reversible=all(c.revertible for c in cambios),
+        journal_error="; ".join(fallos),
     )

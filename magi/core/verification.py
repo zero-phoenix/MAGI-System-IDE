@@ -103,19 +103,28 @@ def extract_blocks(text: str) -> list[tuple[str, str]]:
     return out
 
 
-async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0) -> tuple[int, str]:
+async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0,
+               task_id: str | None = None) -> tuple[int, str]:
+    from .cancel import tracked
+
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, cwd=str(cwd),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
     except FileNotFoundError as e:
         return 127, str(e)
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
-        return 124, f"timeout tras {timeout}s"
+
+    # §7.3 — este proceso ejecuta CÓDIGO GENERADO POR EL MODELO en cada ronda
+    # del debate, y quedaba fuera del alcance de la parada de emergencia:
+    # pulsar parar informaba de que no había nada en marcha mientras seguía
+    # corriendo.
+    async with tracked(proc, task_id):
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return 124, f"timeout tras {timeout}s"
     return proc.returncode or 0, out.decode("utf-8", errors="replace")
 
 

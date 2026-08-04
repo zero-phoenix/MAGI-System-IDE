@@ -43,6 +43,7 @@ REALMENTE, no de lo que intentó: si un proceso no muere, se dice.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -53,6 +54,12 @@ logger = logging.getLogger(__name__)
 #: Terminar limpio deja que el proceso cierre ficheros y vacíe buffers; matar
 #: sin más puede dejar a medias justamente la escritura que se quería parar.
 GRACE_SECONDS = 3.0
+
+#: Vueltas máximas al barrer procesos. Hacen falta varias porque una tarea
+#: puede inscribir un proceso nuevo mientras se está esperando a otro, pero
+#: no pueden ser infinitas: un proceso que se reproduce dejaría la parada
+#: colgada, que es justo lo contrario de lo que se quiere.
+MAX_SWEEPS = 4
 
 
 @dataclass
@@ -150,52 +157,118 @@ class TaskSupervisor:
 
     # ---------------------------------------------------------- cancelación
 
-    async def _stop_processes(self, task_id: str) -> tuple[int, int]:
-        muertos = fallidos = 0
-        for proc in list(self._procs.get(task_id, ())):
-            if proc.returncode is not None:
-                continue
+    async def _kill_one(self, proc: Any) -> tuple[int, int]:
+        """Termina un proceso. Devuelve (muertos, fallidos) como 0/1."""
+        if proc.returncode is not None:
+            return 0, 0
+        try:
+            proc.terminate()              # SIGTERM: que cierre limpio
             try:
-                proc.terminate()          # SIGTERM: que cierre limpio
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=GRACE_SECONDS)
-                except asyncio.TimeoutError:
-                    proc.kill()           # no atendió: SIGKILL
-                    # El wait() tras kill() no es opcional: sin él el
-                    # transporte queda sin limpiar y el proceso se convierte
-                    # en zombi, con "Event loop is closed" al recolectarlo.
-                    await asyncio.wait_for(proc.wait(), timeout=GRACE_SECONDS)
-                muertos += 1
-            except ProcessLookupError:
-                muertos += 1              # ya había terminado por su cuenta
-            except Exception as e:
-                fallidos += 1
-                logger.error("[cancelar] no se pudo terminar un proceso de %s: %s",
-                             task_id, e)
-        self._procs.pop(task_id, None)
+                await asyncio.wait_for(proc.wait(), timeout=GRACE_SECONDS)
+            except asyncio.TimeoutError:
+                proc.kill()               # no atendió: SIGKILL
+                # El wait() tras kill() no es opcional: sin él el transporte
+                # queda sin limpiar y el proceso se convierte en zombi, con
+                # "Event loop is closed" al recolectarlo.
+                await asyncio.wait_for(proc.wait(), timeout=GRACE_SECONDS)
+            return 1, 0
+        except ProcessLookupError:
+            return 1, 0                   # ya había terminado por su cuenta
+        except Exception as e:
+            logger.error("[cancelar] no se pudo terminar un proceso: %s", e)
+            return 0, 1
+
+    async def stop_processes(self, task_id: str) -> tuple[int, int]:
+        """
+        Mata los procesos de una tarea, incluidos los que aparezcan mientras.
+
+        DOS FALLOS QUE TUVO ESTO Y QUE DEJABAN PROCESOS VIVOS:
+
+        1. Borraba la entrada entera con `pop()` al terminar. Un proceso
+           inscrito DURANTE la ventana de gracia —hasta 6 segundos por
+           proceso— se perdía del registro sin haber sido tocado: seguía
+           corriendo y ya nadie podía alcanzarlo. La siguiente parada decía
+           "no había nada en marcha".
+
+        2. Se llamaba DESPUÉS de cancelar el bucle, y eso lo vaciaba (ver
+           `cancel`).
+
+        Ahora se repite hasta que no queda nada vivo, con un tope de vueltas
+        para que un proceso que se reproduce no bloquee la parada para
+        siempre. Y solo se descartan los que de verdad han muerto.
+        """
+        muertos = fallidos = 0
+        for _ in range(MAX_SWEEPS):
+            pendientes = [p for p in self._procs.get(task_id, ())
+                          if p.returncode is None]
+            if not pendientes:
+                break
+            for proc in pendientes:
+                m, f = await self._kill_one(proc)
+                muertos += m
+                fallidos += f
+        # Se descartan SOLO los que ya no están vivos: los que sobrevivieron
+        # tienen que seguir siendo visibles para poder intentarlo otra vez.
+        vivos = {p for p in self._procs.get(task_id, ()) if p.returncode is None}
+        if vivos:
+            self._procs[task_id] = vivos
+        else:
+            self._procs.pop(task_id, None)
         return muertos, fallidos
 
     async def cancel(self, task_id: str) -> CancelReport:
-        """Para una tarea concreta: su bucle y sus procesos."""
+        """
+        Para una tarea concreta: PRIMERO sus procesos, luego su bucle.
+
+        EL ORDEN NO ES UN DETALLE. Estaba al revés y por eso no paraba nada:
+
+            proceso vivo, pid 14750
+            PARADA: 1 tarea(s) del enjambre canceladas
+            processes_killed: 0
+            ¿SIGUE VIVO el proceso tras cancelar? True
+
+        Cancelar el bucle primero ejecuta su `finally`, y el `finally` de
+        `run_command` y de `_auto_exec` llama a `forget_process(...)` para dar
+        de baja el subproceso. Cuando después llegaba el turno de matarlos, el
+        registro ya estaba vacío. El informe decía "PARADA" con el script
+        todavía escribiendo en disco — exactamente el fallo que este módulo se
+        escribió para eliminar, reproducido dentro de él.
+
+        Matando primero, el proceso muere mientras el bucle sigue esperándolo,
+        y el bucle se desenreda solo.
+        """
         informe = CancelReport(task_ids=[task_id])
+
+        muertos, fallidos = await self.stop_processes(task_id)
+        informe.processes_killed = muertos
+        informe.processes_failed = fallidos
 
         for loop_task in list(self._loops.get(task_id, ())):
             if loop_task.done():
                 continue
             loop_task.cancel()
             try:
-                await loop_task
-            except asyncio.CancelledError:
+                # Con timeout: `cancel()` corre dentro de un handler RPC que
+                # se atiende en serie, así que un bucle que no atiende a la
+                # cancelación bloquearía el canal entero — incluida la
+                # siguiente petición de parada.
+                await asyncio.wait_for(asyncio.shield(loop_task),
+                                       timeout=GRACE_SECONDS)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
             except Exception as e:        # el bucle murió por otra razón
                 logger.debug("[cancelar] %s terminó con %s", task_id, e)
             informe.loops_cancelled += 1
 
-        muertos, fallidos = await self._stop_processes(task_id)
-        informe.processes_killed = muertos
-        informe.processes_failed = fallidos
-        informe.nothing_running = not (informe.stopped_anything or fallidos)
-        self._loops.pop(task_id, None)
+        # Segunda pasada: al desenredarse, el bucle puede haber lanzado algo.
+        m2, f2 = await self.stop_processes(task_id)
+        informe.processes_killed += m2
+        informe.processes_failed += f2
+
+        informe.nothing_running = not (informe.stopped_anything
+                                       or informe.processes_failed)
+        if not any(not t.done() for t in self._loops.get(task_id, ())):
+            self._loops.pop(task_id, None)
 
         logger.warning("[cancelar] %s", informe.render().replace("\n", " · "))
         return informe
@@ -235,3 +308,30 @@ def reset_supervisor() -> None:
     """Para tests: cada uno con su supervisor limpio."""
     global _SUPERVISOR
     _SUPERVISOR = None
+
+
+@contextlib.asynccontextmanager
+async def tracked(proc: Any, task_id: str | None = None):
+    """
+    Inscribe un subproceso mientras dura, y lo da de baja al terminar.
+
+    Existe porque la mitad de los subprocesos del sistema quedaban FUERA del
+    alcance de la parada: solo `run_command` y la auto-ejecución se
+    inscribían. Se quedaban fuera el verificador —que ejecuta código generado
+    por el LLM en cada ronda del debate—, ffmpeg (hasta diez minutos de
+    render), el arnés de pygame, `git clone` y `SYS_EXEC_HOST`.
+
+    Pulsar parar durante un render decía "no había nada en marcha" mientras
+    ffmpeg seguía quemando CPU.
+
+    `task_id=None` cae en el cajón `_sin_tarea`, que `cancel_all()` también
+    barre: puede que no se sepa de qué tarea es un proceso, pero eso no es
+    motivo para que la parada de emergencia no lo alcance.
+
+    Repetir try/finally en seis sitios es como se olvida en el séptimo.
+    """
+    supervisor().register_process(task_id, proc)
+    try:
+        yield proc
+    finally:
+        supervisor().forget_process(task_id, proc)

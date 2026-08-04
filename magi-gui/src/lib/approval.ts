@@ -28,6 +28,9 @@ export interface ApprovalRequest {
   tests_passed: boolean;
   tests_detail: string;
   reversible: boolean;
+  /** Motivo si el journal no se pudo leer. Con esto, "no toca ningún fichero"
+   *  deja de ser una afirmación y pasa a ser un "no lo sé". */
+  journal_error: string;
   files_touched: number;
 }
 
@@ -50,7 +53,12 @@ export function approvalWarnings(a: ApprovalRequest): string[] {
       `Los tests están EN ROJO. ${a.tests_detail || ""}`.trim(),
     );
   }
-  if (!a.reversible) {
+  if (a.journal_error) {
+    avisos.push(
+      `No se pudo leer el journal (${a.journal_error}). No se sabe qué ` +
+      "ficheros toca esto ni si se puede deshacer. Trátalo como irreversible.",
+    );
+  } else if (!a.reversible) {
     avisos.push(
       "Sin copia previa en el journal: esto NO se puede deshacer solo.",
     );
@@ -60,7 +68,7 @@ export function approvalWarnings(a: ApprovalRequest): string[] {
       `Se ejecutarán ${a.commands.length} órdenes en tu máquina. Léelas antes.`,
     );
   }
-  if (!a.changes.length && !a.commands.length) {
+  if (!a.changes.length && !a.commands.length && !a.journal_error) {
     avisos.push(
       "No toca ningún fichero ni ejecuta nada: no hay cambio que aprobar.",
     );

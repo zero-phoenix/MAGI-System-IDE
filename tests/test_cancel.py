@@ -310,3 +310,185 @@ def test_la_auto_ejecucion_queda_bajo_el_supervisor():
     assert i > 0
     assert "register_process" in src[i:i + 3000], \
         "el script auto-ejecutado no se inscribe: la parada no lo alcanza"
+
+
+# ============================================================================
+# Regresiones de la revisión adversarial. Cada una es un fallo que estaba en
+# verde: la suite pasaba entera mientras el botón de parada dejaba procesos
+# vivos. Los tests anteriores registraban procesos y bucles POR SEPARADO, que
+# no es como funciona el sistema real.
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_mata_el_proceso_aunque_el_bucle_lo_de_de_baja_en_su_finally():
+    """
+    EL FALLO MÁS GRAVE, y era mío. `run_command` y `_auto_exec` dan de baja su
+    subproceso en un `finally`. Como `cancel()` cancelaba el BUCLE primero,
+    ese `finally` se ejecutaba y vaciaba el registro; cuando llegaba el turno
+    de matar procesos ya no quedaba ninguno.
+
+    Reproducido antes del arreglo:
+        proceso vivo, pid 14750
+        PARADA: 1 tarea(s) del enjambre canceladas
+        processes_killed: 0
+        ¿SIGUE VIVO el proceso tras cancelar? True
+
+    El informe decía "PARADA" con el script todavía escribiendo en disco.
+    """
+    sup = TaskSupervisor()
+    arrancado = asyncio.Event()
+    caja = {}
+
+    async def tarea_como_run_command():
+        proc = await _proceso_eterno()
+        caja["proc"] = proc
+        sup.register_process("t1", proc)
+        arrancado.set()
+        try:
+            await proc.communicate()
+        finally:
+            sup.forget_process("t1", proc)
+
+    handle = asyncio.create_task(tarea_como_run_command())
+    sup.register_loop("t1", handle)
+    await arrancado.wait()
+    await asyncio.sleep(0.2)
+
+    informe = await sup.cancel("t1")
+    await asyncio.sleep(0.2)
+
+    assert caja["proc"].returncode is not None, \
+        "EL PROCESO SIGUE VIVO: el bucle lo dio de baja antes de matarlo"
+    assert informe.processes_killed >= 1
+
+
+@pytest.mark.asyncio
+async def test_no_pierde_los_procesos_inscritos_durante_la_espera():
+    """
+    `_stop_processes` borraba la entrada entera con `pop()` al terminar. Un
+    proceso inscrito mientras se esperaba a otro —hasta 6 segundos por
+    proceso— se perdía del registro sin haber sido tocado: seguía vivo, ya
+    invisible, y la siguiente parada decía "no había nada en marcha".
+    """
+    sup = TaskSupervisor()
+    terco = await asyncio.create_subprocess_exec(
+        sys.executable, "-c",
+        "import signal,time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "while True: time.sleep(0.1)",
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    sup.register_process("t1", terco)
+    await asyncio.sleep(0.4)
+
+    tardio = {}
+
+    async def inscribir_tarde():
+        await asyncio.sleep(0.5)      # dentro de la ventana de gracia
+        p = await _proceso_eterno()
+        tardio["proc"] = p
+        sup.register_process("t1", p)
+
+    asyncio.create_task(inscribir_tarde())
+    await sup.cancel("t1")
+    await asyncio.sleep(0.3)
+
+    assert tardio["proc"].returncode is not None, \
+        "el proceso inscrito durante la espera sobrevivió e quedó invisible"
+    assert not sup.is_running("t1")
+
+
+@pytest.mark.asyncio
+async def test_un_bucle_que_ignora_la_cancelacion_no_bloquea_el_canal():
+    """
+    `cancel()` esperaba sin límite a cada bucle, dentro de un handler RPC que
+    se atiende en serie: un bucle que no atiende a la cancelación bloquearía
+    el websocket entero, incluida la siguiente petición de parada.
+    """
+    sup = TaskSupervisor()
+    intentos = {"n": 0}
+
+    async def bucle_terco():
+        # Se traga la primera cancelación y muere a la segunda. Un bucle
+        # inmortal de verdad colgaría el propio test al cerrar el bucle de
+        # eventos, así que se modela lo justo para ejercitar el timeout.
+        while True:
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                intentos["n"] += 1
+                if intentos["n"] >= 2:
+                    raise
+                continue
+
+    handle = asyncio.create_task(bucle_terco())
+    sup.register_loop("t1", handle)
+    await asyncio.sleep(0.1)
+
+    t0 = asyncio.get_event_loop().time()
+    await sup.cancel("t1")
+    transcurrido = asyncio.get_event_loop().time() - t0
+    assert transcurrido < 10, (
+        f"la cancelación tardó {transcurrido:.1f}s: sin límite, un bucle que "
+        f"no atiende bloquearía el canal RPC entero")
+    assert intentos["n"] >= 1, "no se llegó a intentar cancelar"
+
+    handle.cancel()
+    try:
+        await handle
+    except asyncio.CancelledError:
+        pass
+
+
+def test_parar_todo_no_se_manda_como_si_fuera_una_peticion_del_usuario():
+    """
+    EL OTRO CRÍTICO. `sendCommand("KILL_ALL_PROCESSES")` manda
+    `type: "SYS_EXEC"` con el texto en el payload, y el kernel despacha por
+    `type`. Así que el botón de parada llegaba a `_handle_sys_exec` y la
+    cadena "KILL_ALL_PROCESSES" se trataba como una PETICIÓN: creaba un
+    proyecto, llamaba al clasificador y lanzaba un debate del enjambre sobre
+    ella.
+
+    No solo no paraba: gastaba cuota y abría trabajo nuevo.
+    """
+    from pathlib import Path
+    raiz = Path(__file__).resolve().parents[1]
+    socket = code_of(raiz / "magi-gui/src/useMagiSocket.ts")
+    app = code_of(raiz / "magi-gui/src/App.tsx")
+
+    assert "sendCommand(\"KILL_ALL_PROCESSES\")" not in app, \
+        "el botón de parada vuelve a mandarse como comando de usuario"
+    assert "type: 'KILL_ALL_PROCESSES'" in socket, \
+        "la parada debe viajar como método, no dentro del payload de SYS_EXEC"
+    assert "stopEverything" in app
+
+
+def test_todos_los_subprocesos_quedan_bajo_el_supervisor():
+    """
+    Solo `run_command` y la auto-ejecución se inscribían. Quedaban fuera el
+    VERIFICADOR —que ejecuta código generado por el LLM en cada ronda—,
+    ffmpeg (hasta diez minutos de render) y el arnés de pygame. Pulsar parar
+    durante un render informaba de que no había nada en marcha.
+    """
+    from pathlib import Path
+    raiz = Path(__file__).resolve().parents[1]
+    for fichero in ("magi/core/verification.py",
+                    "magi/modules/studio/video.py",
+                    "magi/modules/studio/artifacts.py"):
+        src = code_of(raiz / fichero)
+        assert "create_subprocess" in src, f"{fichero}: cambió de forma"
+        assert "tracked(" in src or "register_process" in src, \
+            f"{fichero} lanza subprocesos fuera del alcance de la parada"
+
+
+def test_la_parada_del_enjambre_persiste_el_estado():
+    """
+    `_trigger_emergency_stop` ponía `status = "failed"` y no persistía, así
+    que la fila seguía en `in_progress` —que está en RESUMABLE— y al
+    reiniciar la tarea abortada por riesgo operativo volvía a la vida.
+    """
+    from pathlib import Path
+    src = code_of(Path(__file__).resolve().parents[1]
+                  / "magi/modules/swarm/orchestrator.py")
+    i = src.find("EMERGENCY STOP TRIGGERED")
+    assert i > 0
+    assert "_persist" in src[i:i + 900], \
+        "la parada no persiste: la tarea abortada resucita al reiniciar"

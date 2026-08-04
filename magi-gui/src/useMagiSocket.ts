@@ -175,6 +175,19 @@ export function useMagiSocket(port: number = 20128) {
   // conversaciones. Antes la única opción era la parada de emergencia, que
   // además de ser un mazazo no paraba nada: el handler del kernel escribía
   // una línea de log y devolvía "EMERGENCY_STOP_TRIGGERED".
+  // §7.3 — PARAR TODO. Iba por `sendCommand("KILL_ALL_PROCESSES")`, que
+  // manda `type: "SYS_EXEC"` con el texto dentro del payload. El kernel
+  // despacha por `type`, así que llegaba a `_handle_sys_exec` y la cadena
+  // "KILL_ALL_PROCESSES" se trataba como una PETICIÓN DEL USUARIO: creaba un
+  // proyecto, llamaba al clasificador y lanzaba un debate del enjambre sobre
+  // ella. El botón de parada no solo no paraba: gastaba cuota y abría trabajo
+  // nuevo. Hay que mandar el método como `type`.
+  const stopEverything = () => {
+    ws.current?.send(JSON.stringify({
+      type: 'KILL_ALL_PROCESSES', id: `estop_${Date.now()}`, payload: {},
+    }));
+  };
+
   const cancelTask = (taskId: string) => {
     ws.current?.send(JSON.stringify({
       type: 'task.cancel', id: `cancel_${Date.now()}`,
@@ -219,5 +232,5 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, cancelTask, fetchTelemetry, requestFileContent, sendNaokoChat };
+  return { sendCommand, sendGitClone, cancelTask, stopEverything, fetchTelemetry, requestFileContent, sendNaokoChat };
 }

@@ -145,17 +145,31 @@ def _capture():
         pygame.image.save(surf, SHOT)
 
 
-def _flip(*a, **kw):
+def _cuenta():
     state["frames"] += 1
     if state["frames"] >= FRAMES:
         _capture()
         pygame.quit()
         raise SystemExit(0)
+
+
+def _flip(*a, **kw):
+    _cuenta()
     return _orig_flip(*a, **kw)
 
 
+def _update(*a, **kw):
+    # update() y flip() NO son intercambiables: flip() no acepta argumentos y
+    # update(rect) sí. Aliasar los dos al mismo envoltorio hacía que cualquier
+    # juego con dirty rects muriera con
+    #     TypeError: pygame.display.flip() takes no arguments (1 given)
+    # y el informe culpaba al juego de no dibujar nada.
+    _cuenta()
+    return _orig_update(*a, **kw)
+
+
 pygame.display.flip = _flip
-pygame.display.update = _flip
+pygame.display.update = _update
 
 spec = importlib.util.spec_from_file_location("__main__", TARGET)
 mod = importlib.util.module_from_spec(spec)
@@ -451,8 +465,10 @@ async def _run(cmd: str, cwd: Path, timeout: int,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
     except Exception as e:
         return 127, str(e)
+    from ...core.cancel import tracked
     try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        async with tracked(proc):
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()

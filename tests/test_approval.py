@@ -327,3 +327,44 @@ def test_el_diff_no_vuelve_al_algoritmo_roto():
     assert "diffLines" in visor, "el visor no usa el diff por LCS"
     diff = (ROOT / "magi-gui/src/lib/diff.ts").read_text(encoding="utf-8")
     assert "borrada" in diff, "el diff no contempla borrados"
+
+
+# ------------------------------------------- regresiones de la revisión
+
+def test_cuenta_las_lineas_que_cambian_no_la_diferencia_de_tamaño():
+    """
+    `added`/`removed` eran `max(0, len(después) - len(antes))`, o sea la
+    diferencia de TAMAÑO. Reescribir un fichero de treinta líneas entero salía
+    como "+0 −0 líneas" en el resumen que lee quien aprueba desde el terminal:
+    "sin cambios" para una reescritura total.
+    """
+    antes = "\n".join(f"linea {i}" for i in range(30))
+    despues = "\n".join(f"REESCRITA {i}" for i in range(30))
+    c = FileChange(path="core.py", before=antes, after=despues)
+    assert c.added == 30 and c.removed == 30
+    assert "+30 −30" in ApprovalRequest(task_id="t", changes=[c]).render()
+
+
+def test_una_linea_cambiada_cuenta_como_una_de_cada():
+    c = FileChange(path="x.py", before="a\nb\nc", after="a\nX\nc")
+    assert (c.added, c.removed) == (1, 1)
+
+
+def test_un_journal_ilegible_no_promete_reversibilidad(entorno):
+    """
+    Si el journal falla, `changes_from_journal` devolvía [] y
+    `reversible=all([])` daba True. El panel decía "No toca ningún fichero" y
+    "Reversible: el journal guarda el estado previo" — dos afirmaciones
+    tranquilizadoras cuando lo único cierto era que no se pudo leer nada.
+    """
+    class JournalRoto:
+        def all_entries(self):
+            raise OSError("permiso denegado")
+
+    p = build_approval_request("t1", journal=JournalRoto())
+    assert p.journal_error
+    texto = p.render()
+    assert "NO SE PUDO LEER EL JOURNAL" in texto
+    assert "Trátalo como irreversible" in texto
+    assert "No toca ningún fichero" not in texto
+    assert p.to_payload()["reversible"] is False

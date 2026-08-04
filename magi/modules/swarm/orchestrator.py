@@ -466,13 +466,17 @@ class SwarmOrchestrator:
     async def _trigger_emergency_stop(self, task_id: str, state: dict):
         logger.critical(f"[SWARM] EMERGENCY STOP TRIGGERED FOR TASK {task_id}")
         state["status"] = "failed"
+        # Sin persistir, la fila de task_state se quedaba en `in_progress`, que
+        # está en RESUMABLE: al reiniciar, `_rehydrate` devolvía a la vida la
+        # tarea que se acababa de abortar por riesgo operativo.
+        self._persist(task_id)
 
         # El mensaje anterior afirmaba estar "aplicando kill-switch local
         # automatizado" y no se aplicaba ninguno: el bucle hacía `break` y
         # cualquier subproceso lanzado seguía vivo. Ahora se para de verdad y
         # se informa de lo que se paró, no de lo que se pretendía parar.
         from magi.core.cancel import supervisor
-        informe = await supervisor()._stop_processes(task_id)
+        informe = await supervisor().stop_processes(task_id)
         muertos, fallidos = informe
         mensaje = (
             f"\n[!!!] CONTINGENCIA DE SEGURIDAD ACTIVADA [!!!]\n"

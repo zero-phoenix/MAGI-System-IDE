@@ -91,12 +91,17 @@ async def _run(args: list[str], timeout: int = 300) -> tuple[int, str]:
             stderr=asyncio.subprocess.STDOUT)
     except FileNotFoundError as e:
         raise VideoError(f"{args[0]} no está instalado") from e
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()          # sin esto queda un zombi
-        raise VideoError(f"{args[0]} superó el tiempo límite de {timeout}s")
+    # §7.3 — un render puede durar diez minutos. Sin inscribirlo, pulsar
+    # parar decía "no había nada en marcha" con ffmpeg quemando CPU.
+    from ...core.cancel import tracked
+    async with tracked(proc):
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()      # sin esto queda un zombi
+            raise VideoError(
+                f"{args[0]} superó el tiempo límite de {timeout}s") from None
     return proc.returncode or 0, (out or b"").decode("utf-8", "replace")
 
 
@@ -540,7 +545,7 @@ _orig_flip, _orig_update = pygame.display.flip, pygame.display.update
 state = {"frames": 0, "saved": 0}
 
 
-def _flip(*a, **kw):
+def _cuenta():
     state["frames"] += 1
     if state["frames"] % EVERY == 0:
         surf = pygame.display.get_surface()
@@ -551,11 +556,22 @@ def _flip(*a, **kw):
     if state["frames"] >= FRAMES:
         pygame.quit()
         raise SystemExit(0)
+
+
+def _flip(*a, **kw):
+    _cuenta()
     return _orig_flip(*a, **kw)
 
 
+def _update(*a, **kw):
+    # flip() no acepta argumentos y update(rect) sí: aliasarlos al mismo
+    # envoltorio rompe todo juego con dirty rects.
+    _cuenta()
+    return _orig_update(*a, **kw)
+
+
 pygame.display.flip = _flip
-pygame.display.update = _flip
+pygame.display.update = _update
 
 spec = importlib.util.spec_from_file_location("__main__", TARGET)
 mod = importlib.util.module_from_spec(spec)

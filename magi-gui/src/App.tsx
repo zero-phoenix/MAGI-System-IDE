@@ -34,7 +34,7 @@ export default function App() {
   const [narrativeStyle, setNarrativeStyle] = useState(
     () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.narrativeStyle")) || "tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
-  const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
+  const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -167,7 +167,7 @@ export default function App() {
 
   const handleStopAll = () => {
     sysCommand("EMERGENCY_STOP");
-    sendCommand("KILL_ALL_PROCESSES");
+    stopEverything();
   };
 
   // §7.3 — parar solo esta conversación. Si tienes tres abiertas y una se va
