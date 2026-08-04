@@ -134,8 +134,22 @@ _EM_TO_ARCH = {
 }
 
 
+ELF_MIN_HEADER = 52          # tamaño mínimo de una cabecera ELF32 válida
+
+
 def _parse_elf(data: bytes, info: BinaryInfo) -> None:
     info.format = "ELF"
+    # Un dump parcial o una descarga a medias tiene la firma \x7fELF y nada
+    # más. Sin esta guarda, struct.unpack_from lanzaba struct.error y tumbaba
+    # la herramienta en vez de informar del truncamiento.
+    if len(data) < ELF_MIN_HEADER:
+        info.notes.append(
+            f"cabecera ELF truncada: {len(data)} bytes de {ELF_MIN_HEADER} "
+            f"mínimos. ¿Descarga incompleta o volcado parcial?")
+        if len(data) > 5:
+            info.bits = 64 if data[4] == 2 else 32
+            info.endian = "big" if data[5] == 2 else "little"
+        return
     info.bits = 64 if data[4] == 2 else 32
     info.endian = "big" if data[5] == 2 else "little"
     fmt = ">" if info.endian == "big" else "<"
@@ -212,7 +226,13 @@ def _guess_console(info: BinaryInfo, data: bytes) -> None:
 
 
 def identify(path: str | Path) -> BinaryInfo:
-    """Identifica un binario. No requiere Ghidra ni radare2."""
+    """
+    Identifica un binario. No requiere Ghidra ni radare2.
+
+    Tolera ficheros truncados y corruptos: informa de lo que puede y dice qué
+    le falta, en vez de lanzar una excepción. Un firmware a medio descargar es
+    un caso normal, no un error del programa.
+    """
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(p)
@@ -228,13 +248,15 @@ def identify(path: str | Path) -> BinaryInfo:
         info.format = "PE"
         try:
             pe = struct.unpack_from("<I", data, 0x3C)[0]
+            if pe + 6 > len(data):
+                raise ValueError("cabecera PE fuera del fichero")
             machine = struct.unpack_from("<H", data, pe + 4)[0]
             info.arch, info.bits = {
                 0x014c: ("x86", 32), 0x8664: ("x86", 64),
                 0x01c0: ("arm", 32), 0xaa64: ("arm64", 64),
             }.get(machine, ("unknown", 32))
-        except Exception:
-            pass
+        except Exception as e:
+            info.notes.append(f"cabecera PE ilegible: {e}")
     elif data[:4] in (b"\xfe\xed\xfa\xce", b"\xcf\xfa\xed\xfe"):
         info.format = "Mach-O"
     elif len(data) > 0x200 and data[0xC0:0xC4] == b"\x24\xff\xae\x51":

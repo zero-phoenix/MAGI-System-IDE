@@ -91,11 +91,28 @@ class SwarmOrchestrator:
                           route: str = "task", max_rounds: int = 3,
                           use_tools: bool = True):
         """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
-        # Reutilizar la tarea activa si existe una pendiente de aprobación o en progreso
-        if task_id not in self.active_tasks and self.latest_task_id and self.latest_task_id in self.active_tasks:
-            prev_state = self.active_tasks[self.latest_task_id]
-            if prev_state["status"] in ["WAITING_USER_APPROVAL", "in_progress"]:
+        # Absorción de la petición en la tarea anterior.
+        #
+        # v5.0.28 reescribía el task_id entrante por el de la tarea previa
+        # siempre que esa estuviera en WAITING_USER_APPROVAL *o* in_progress.
+        # Consecuencia medida: de 25 peticiones concurrentes, 24 se perdían en
+        # silencio — todas se fundían en una sola tarea. Y en uso normal, si
+        # preguntabas algo nuevo mientras el enjambre pensaba, tu petición se
+        # convertía sin avisar en "comentario a la propuesta anterior".
+        #
+        # La absorción SOLO tiene sentido cuando la tarea previa está esperando
+        # respuesta del usuario: ahí sí, lo que escribes es la respuesta.
+        # Nunca cuando está en progreso.
+        if (task_id not in self.active_tasks and self.latest_task_id
+                and self.latest_task_id in self.active_tasks):
+            prev = self.active_tasks[self.latest_task_id]
+            if prev["status"] == "WAITING_USER_APPROVAL":
+                logger.info("[SWARM] %s se trata como respuesta a %s (pendiente "
+                            "de aprobación)", task_id, self.latest_task_id)
                 task_id = self.latest_task_id
+            else:
+                logger.info("[SWARM] %s arranca en paralelo (la anterior sigue "
+                            "en progreso)", task_id)
 
         if task_id in self.active_tasks:
             state = self.active_tasks[task_id]

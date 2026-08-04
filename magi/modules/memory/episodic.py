@@ -27,6 +27,10 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS_IN_PROMPT = 6
+# Tope de la lista en memoria. El bloque del prompt ya estaba acotado, pero
+# _attempts crecía toda la sesión y _load() reproducía TODO el histórico al
+# rehidratar: fuga lenta más arranque cada vez más lento.
+MAX_ATTEMPTS_RETAINED = 50
 
 
 @dataclass
@@ -62,9 +66,19 @@ class EpisodicMemory:
         try:
             for ev in self.store.events(self.task_id):
                 if ev["topic"] == "memory.attempt" and ev["payload"]:
-                    self._attempts.append(Attempt(**ev["payload"]))
+                    try:
+                        self._attempts.append(Attempt(**ev["payload"]))
+                    except TypeError:
+                        # Esquema antiguo: ignorar la entrada en vez de tumbar
+                        # la carga entera del histórico.
+                        continue
+            self._trim()
         except Exception as e:
             logger.debug("[memoria] no se pudo cargar el histórico: %s", e)
+
+    def _trim(self) -> None:
+        if len(self._attempts) > MAX_ATTEMPTS_RETAINED:
+            self._attempts = self._attempts[-MAX_ATTEMPTS_RETAINED:]
 
     def record(self, *, round_num: int, approach: str, outcome: str,
                reason: str = "") -> Attempt:
@@ -72,6 +86,7 @@ class EpisodicMemory:
                     approach=_summarize(approach), outcome=outcome,
                     reason=_one_line(reason))
         self._attempts.append(a)
+        self._trim()
         if self.store is not None:
             try:
                 self.store.append_event(self.task_id, "memory.attempt", asdict(a))
