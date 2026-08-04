@@ -63,6 +63,9 @@ export function useMagiSocket(port: number = 20128) {
                 appendTerminal(
                   `[BANCO] ${payload.passed}/${payload.total} `
                   + `(${Math.round((payload.score || 0) * 100)}%)`);
+              } else if (topic === 'task.usage') {
+                // §7.3 — tokens y tiempo por tarea y por agente.
+                useMagiStore.getState().addUsage(payload);
               } else if (topic === 'swarm.approval_required') {
                 // §7.4 — el contexto que hace posible decidir: qué ficheros,
                 // qué había antes, y si los tests pasaron.

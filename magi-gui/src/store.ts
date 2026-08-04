@@ -48,6 +48,13 @@ interface MagiState {
   // que enseñar. Ahora llega un evento con los ficheros y su contenido previo.
   approval: ApprovalRequest | null;
   setApproval: (a: ApprovalRequest | null) => void;
+  // §7.3 — panel de coste. El backend contaba los tokens y los tiraba: la
+  // tabla `token_ledger` llevaba vacía desde que se creó porque nadie
+  // llamaba a record_usage(). Ahora llegan por `task.usage`.
+  usage: Array<{ id: string; task_id: string; agent: string; family: string;
+                 tokens_in: number; tokens_out: number; elapsed_s: number;
+                 iterations: number; tool_calls: number }>;
+  addUsage: (u: any) => void;
   // §2.3 — por qué ruta fue la petición
   route: { route: string; reason: string; max_rounds: number } | null;
   setRoute: (r: any) => void;
@@ -173,6 +180,12 @@ export const useMagiStore = create<MagiState>((set) => ({
 
   approval: null,
   setApproval: (approval) => set({ approval }),
+
+  usage: [],
+  addUsage: (u) => set((state) => ({
+    usage: [...state.usage.slice(-199),
+            { id: Math.random().toString(36), ...u }],
+  })),
 
   route: null,
   setRoute: (r) => set({ route: r }),

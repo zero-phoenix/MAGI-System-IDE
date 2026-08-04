@@ -120,7 +120,48 @@ class SwarmAgentBase:
             seed=self.seed, on_event=on_event, agent_name=self.role_name)
 
         logger.info("[%s] %s", self.role_name, turn.summary())
+
+        # §3.4 — CONTABILIDAD DE TOKENS.
+        #
+        # Estaba construida entera menos el cable del medio: `agent_loop` ya
+        # sumaba tokens_in/tokens_out de cada respuesta, `AgentTurn` los
+        # traía, y `TaskStore.record_usage()` sabía escribirlos en la tabla
+        # `token_ledger`... a la que no llamaba NADIE. La cuenta acababa aquí,
+        # metida en una cadena de log por `turn.summary()`, y la tabla llevaba
+        # vacía desde que se creó.
+        #
+        # Es la misma clase de fallo que las piezas sin conectar, pero en los
+        # datos: el esquema existe, los métodos existen, y el panel de coste
+        # no tiene nada que enseñar porque nadie escribió jamás una fila.
+        await self._record_usage(task_id, turn)
         return turn.text, turn.provider_id, self._family_of(turn.provider_id)
+
+    async def _record_usage(self, task_id: str, turn) -> None:
+        """Vuelca el gasto del turno al ledger y lo publica para la interfaz."""
+        familia = self._family_of(turn.provider_id)
+        try:
+            from magi.core.store.state import TaskStore
+            TaskStore().record_usage(
+                task_id=task_id, agent=self.role_name,
+                provider=turn.provider_id, family=familia,
+                tokens_in=turn.tokens_in, tokens_out=turn.tokens_out,
+                latency_ms=turn.elapsed_s * 1000.0)
+        except Exception as e:                    # pragma: no cover
+            # Contabilizar nunca puede tumbar el turno que contabiliza.
+            logger.warning("[%s] no se pudo registrar el gasto: %s",
+                           self.role_name, e)
+        try:
+            await self.bus.publish(BusEvent(topic="task.usage", payload={
+                "task_id": task_id, "agent": self.role_name,
+                "provider": turn.provider_id, "family": familia,
+                "tokens_in": turn.tokens_in, "tokens_out": turn.tokens_out,
+                "elapsed_s": round(turn.elapsed_s, 2),
+                "iterations": turn.iterations,
+                "tool_calls": len(turn.tool_calls),
+            }))
+        except Exception as e:                    # pragma: no cover
+            logger.debug("[%s] no se pudo publicar el gasto: %s",
+                         self.role_name, e)
 
     async def _ask_stream(self, sys_prompt: str, user_prompt: str, *,
                           task_id: str, engine: str = "fast",

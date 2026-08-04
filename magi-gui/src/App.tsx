@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
 import AgentMessageCard from './components/AgentMessageCard';
+import CostPanel from './components/CostPanel';
 import Editor from '@monaco-editor/react';
 import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -482,7 +483,7 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", "Coste", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -788,6 +789,11 @@ export default function App() {
                  </div>
                );
             })()}
+
+            {activeTab === "Coste" && (
+               /* §7.3 — tokens y tiempo por tarea y por agente. */
+               <CostPanel taskId={activeConversationId} />
+            )}
 
             {activeTab === "Diff (Aprobación)" && (approval || pendingApproval) && (
                /* §7.4 — antes iba `originalCode=""`, así que el panel pintaba

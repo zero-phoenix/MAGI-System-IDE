@@ -319,9 +319,27 @@ restricción.
 contexto (§7.4), visor de diffs real (§7.3) y el arranque de la descomposición
 de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
 
-**Siguiente** — el layout multi-panel completo (§7.2), el resto de la
-descomposición y la recogida de resultados de ComfyUI, que exige un ComfyUI
-real contra el que probarla.
+**Siguiente** — el layout multi-panel completo (§7.2), virtualización de
+listas largas, cancelar un turno a mitad, y la recogida de resultados de
+ComfyUI, que exige un ComfyUI real contra el que probarla.
+
+### Sobre lo que se cuenta y no se guarda
+
+El panel de coste (§7.3) no faltaba por falta de sitio en la interfaz: faltaban
+los datos. La contabilidad de tokens estaba construida entera menos el cable
+del medio — `agent_loop.py` sumaba los tokens de cada respuesta, `AgentTurn`
+los traía hasta el enjambre, y `TaskStore.record_usage()` sabía escribirlos en
+la tabla `token_ledger`. No la llamaba nadie. Los números llegaban a
+`agents.py`, se metían en una cadena de log con `turn.summary()` y se tiraban.
+
+Es la misma familia que una pieza escrita y no conectada, pero en los datos, y
+cuesta más verla porque no falta ningún import: el esquema está, los métodos
+están, y la tabla simplemente nunca recibe una fila.
+
+Lo que hace útil el panel no es la tabla de tokens sino los avisos de arriba.
+El más importante detecta que los tres nodos corrieron sobre la **misma
+familia de modelo** — el fallo original de v5.0.28, que convierte el debate
+popperiano en un modelo hablando solo.
 
 ### Sobre aprobar a ciegas
 
