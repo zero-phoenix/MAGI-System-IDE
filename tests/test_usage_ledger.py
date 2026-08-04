@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from magi.core.store.state import TaskStore
+from source_helpers import code_of
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -151,3 +152,38 @@ def test_el_payload_trae_lo_que_el_panel_agrega():
             continue
         assert f'"{campo}"' in agents, \
             f"el panel espera '{campo}' y el backend no lo publica"
+
+
+# --------------------------------------------------- §7.3 historiales acotados
+
+def test_el_terminal_no_crece_sin_limite():
+    """
+    Medido antes: 4000 anexiones daban 4,9 MB de cadena, y App.tsx la recorría
+    ENTERA dos veces por repintado buscando una frase — 2,7 ms por repintado,
+    con un useEffect que se dispara en cada línea nueva. La salida de un solo
+    `grep` son cientos de líneas seguidas.
+    """
+    store = code_of(ROOT / "magi-gui/src/store.ts")
+    assert "appendBounded" in store, "el terminal vuelve a crecer sin límite"
+    assert "state.terminalOutput + text" not in store
+
+
+def test_la_aprobacion_no_se_detecta_escaneando_el_terminal():
+    """
+    Se buscaba la frase dentro de todo el historial en cada repintado. Ahora
+    la bandera se pone cuando llega el texto, una sola vez.
+    """
+    codigo = code_of(ROOT / "magi-gui/src/App.tsx")
+    assert 'terminalOutput.includes(' not in codigo, \
+        "vuelve a escanearse el terminal entero en cada repintado"
+    assert "awaitingApproval" in codigo
+
+
+def test_la_lista_de_mensajes_esta_acotada():
+    """
+    Lo caro no era el `.map` (3 ms por 50 repintados de 800 mensajes) sino
+    montar un ReactMarkdown por mensaje. Se arregla no montándolos.
+    """
+    codigo = code_of(ROOT / "magi-gui/src/App.tsx")
+    assert "tail(messages)" in codigo
+    assert "{messages.map(" not in codigo, "se vuelven a pintar todos"

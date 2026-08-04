@@ -319,9 +319,32 @@ restricción.
 contexto (§7.4), visor de diffs real (§7.3) y el arranque de la descomposición
 de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
 
-**Siguiente** — el layout multi-panel completo (§7.2), virtualización de
-listas largas, paleta de comandos, y la recogida de resultados de ComfyUI, que
-exige un ComfyUI real contra el que probarla.
+**Siguiente** — el layout multi-panel completo (§7.2), paleta de comandos, y
+la recogida de resultados de ComfyUI, que exige un ComfyUI real contra el que
+probarla.
+
+### Sobre medir antes de optimizar
+
+El plan apuntaba a la «virtualización de lista» porque «los historiales largos
+hunden el render». Al medirlo, el reparto real del coste era otro:
+
+```
+4000 anexiones al terminal        →  4,9 MB de cadena en memoria
+200 repintados × 2 `.includes()`  →  532 ms  (2,7 ms POR REPINTADO)
+50 repintados × 800 mensajes      →    3 ms  (el `.map` es gratis)
+```
+
+El `.map` no era el problema. Lo era que `terminalOutput` se concatenaba sin
+límite y que `App.tsx` lo recorría entero **dos veces por repintado** buscando
+la frase «Esperando aprobación interactiva del usuario», con un `useEffect` que
+se dispara en cada línea nueva. Cada línea de salida de una herramienta costaba
+2,7 ms de puro escaneo de cadena antes de tocar el DOM, y la salida de un solo
+`grep` son cientos de líneas seguidas.
+
+Así que se acotó la cadena, se sustituyeron los escaneos por una bandera que se
+pone al llegar el evento, y se limitó cuántos mensajes se montan — porque lo
+caro de la lista es un `ReactMarkdown` por mensaje, no recorrerla. Virtualizar
+sin lo primero habría sido optimizar lo que no dolía.
 
 ### Sobre el botón de parada
 

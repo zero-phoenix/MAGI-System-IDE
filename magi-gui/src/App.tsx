@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
 import AgentMessageCard from './components/AgentMessageCard';
 import CostPanel from './components/CostPanel';
+import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
 import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -23,7 +24,7 @@ export default function App() {
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
     sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert,
-    approval, setApproval
+    approval, setApproval, awaitingApproval, setAwaitingApproval
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
@@ -86,7 +87,7 @@ export default function App() {
   }, [approval]);
 
   useEffect(() => {
-    if (terminalOutput.includes("Esperando aprobación interactiva del usuario") && !pendingApproval) {
+    if (awaitingApproval && !pendingApproval) {
       // Find the last proposal by Melchior or Balthasar
       const props = [...messages].reverse().find(m => m.role === 'propone' || m.role === 'critica');
       if (props) {
@@ -94,7 +95,7 @@ export default function App() {
         setActiveTab("Diff (Aprobación)");
       }
     }
-  }, [terminalOutput, messages, pendingApproval]);
+  }, [awaitingApproval, messages, pendingApproval]);
 
   const handleExecute = () => {
     if(!inputVal.trim()) return;
@@ -351,9 +352,28 @@ export default function App() {
               Conectado a la Pasarela Global. Esperando flujos del Enjambre para {activeConversationId}...
             </div>
 
-            {messages.map((msg, i) => (
-              <AgentMessageCard key={i} msg={msg} telemetry={telemetry} renderCode={renderCode} />
-            ))}
+            {/* §7.3 — solo se montan los últimos. El `.map` en sí es barato
+                (3 ms por 50 repintados de 800 mensajes, medido); lo caro es
+                montar un ReactMarkdown por mensaje, y eso se arregla no
+                montándolos. */}
+            {(() => {
+              const { visible, hidden } = tail(messages);
+              return (
+                <>
+                  {hidden > 0 && (
+                    <div style={{ color: "var(--dim)", fontSize: 11, padding: "6px 0" }}>
+                      {hidden} mensaje(s) anteriores no se muestran para no
+                      hundir el render. Siguen en la conversación.
+                    </div>
+                  )}
+                  {visible.map((msg, i) => (
+                    <AgentMessageCard key={messages.length - visible.length + i}
+                                      msg={msg} telemetry={telemetry}
+                                      renderCode={renderCode} />
+                  ))}
+                </>
+              );
+            })()}
 
             {/* MAGI 9.0 §3.4 — alertas de degradación */}
             {alerts.length > 0 && (
@@ -410,7 +430,7 @@ export default function App() {
           </div>
 
           {/* BANNER PERSISTENTE DE APROBACIÓN CON BOTONES RÁPIDOS */}
-          {(pendingApproval || terminalOutput.includes("Esperando aprobación interactiva del usuario")) && (
+          {(pendingApproval || awaitingApproval) && (
             <div className="approval-banner" style={{ background: "rgba(0, 30, 40, 0.95)", borderTop: "2px solid var(--acc)", borderBottom: "1px solid var(--dim)", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", zIndex: 11 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "18px", color: "var(--acc)" }}>⚡</span>
@@ -819,6 +839,7 @@ export default function App() {
                    sendCommand("SI", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
                    setApproval(null);
+                   setAwaitingApproval(false);
                    setActiveTab("Terminal");
                  }}
                  onReject={() => {
@@ -826,6 +847,7 @@ export default function App() {
                    sendCommand("NO", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
                    setApproval(null);
+                   setAwaitingApproval(false);
                    setActiveTab("Terminal");
                  }}
                />

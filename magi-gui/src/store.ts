@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ApprovalRequest } from './lib/approval';
+import { appendBounded } from './lib/history';
 
 export interface AgentMessage {
   id: string;
@@ -66,6 +67,11 @@ interface MagiState {
   
   terminalOutput: string;
   appendTerminal: (text: string) => void;
+  // §7.3 — se ponía escaneando `terminalOutput` entero en busca de una frase,
+  // dos veces por repintado. Medido: 2,7 ms por repintado sobre una cadena de
+  // 4,9 MB, y con un useEffect que se dispara en cada línea nueva.
+  awaitingApproval: boolean;
+  setAwaitingApproval: (v: boolean) => void;
   
   sysCommand: (cmd: string) => void;
 
@@ -201,7 +207,16 @@ export const useMagiStore = create<MagiState>((set) => ({
   })),
 
   terminalOutput: "",
-  appendTerminal: (text) => set((state) => ({ terminalOutput: state.terminalOutput + text + "\n" })),
+  // El historial se acotaba: `state.terminalOutput + text` crecía sin fin
+  // (4,9 MB tras 4000 anexiones) y se recorría entero en cada repintado.
+  appendTerminal: (text) => set((state) => ({
+    terminalOutput: appendBounded(state.terminalOutput, text),
+    awaitingApproval: state.awaitingApproval
+      || text.includes("Esperando aprobación interactiva del usuario"),
+  })),
+
+  awaitingApproval: false,
+  setAwaitingApproval: (awaitingApproval) => set({ awaitingApproval }),
   
   sysCommand: (cmd) => {
     set((state) => ({ terminalOutput: state.terminalOutput + `\nroot@system:~# ${cmd}` }));
