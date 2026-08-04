@@ -51,9 +51,8 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
                           error=None if obs.ok else "; ".join(obs.problems))
 
     @reg.tool("compose_manga_page",
-              "Compone una página de manga: rejilla de viñetas, orden de "
-              "lectura derecha-a-izquierda, globos y rotulación. Valida la "
-              "composición ANTES de generar dibujos.",
+              "Compone una página de manga con viñetas y lectura RTL, "
+              "validando la composición antes de dibujar nada.",
               {"type": "object", "properties": {
                   "out_path": {"type": "string"},
                   "rows": {"type": "integer"},
@@ -116,5 +115,77 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
     def studio_backends():
         from .artifacts import backends_report
         return ToolResult(True, backends_report())
+
+    # ------------------------------------------------------------------ §5.5
+
+    # Presets en lugar de ancho/alto/fps sueltos. Tres motivos: la línea del
+    # catálogo baja de 224 a ~130 caracteres, elegir "vertical" es más fácil
+    # de acertar que recordar que el manga va en 1080x1920, y no hay forma de
+    # pedir dimensiones impares, que H.264 rechaza.
+    FORMATOS = {
+        "horizontal": (1920, 1080, 30),   # informes, demos, tutoriales
+        "vertical":   (1080, 1920, 30),   # manga y móvil
+        "cuadrado":   (1080, 1080, 30),
+        "rapido":     (640, 360, 24),     # pruebas: renderiza en segundos
+    }
+
+    @reg.tool("render_animatic",
+              "Monta imágenes en vídeo con zoom Ken Burns y transiciones, y "
+              "lo inspecciona. Para manga, informes y demos.",
+              {"type": "object", "properties": {
+                  "images": {"type": "array", "items": {"type": "string"}},
+                  "out_path": {"type": "string"},
+                  "seconds_each": {"type": "number"},
+                  "format": {"type": "string",
+                             "enum": sorted(FORMATOS)},
+                  "audio": {"type": "string"}},
+               "required": ["images", "out_path"]}, access={"write"})
+    async def render_animatic(images: list, out_path: str, ctx=None,
+                              seconds_each: float = 3.0,
+                              format: str = "horizontal", audio: str = "",
+                              crossfade: float = 0.5, ken_burns: bool = True):
+        from .video import Slide, VideoSpec, render_slideshow
+        if format not in FORMATOS:
+            return ToolResult(
+                False, "", error=f"formato '{format}' desconocido. "
+                f"Disponibles: {', '.join(sorted(FORMATOS))}")
+        ancho, alto, fps = FORMATOS[format]
+        rutas = [str(ctx.resolve(i)) if ctx else str(i) for i in images]
+        spec = VideoSpec(
+            slides=[Slide(r, float(seconds_each)) for r in rutas],
+            width=ancho, height=alto, fps=fps,
+            crossfade=float(crossfade), ken_burns=bool(ken_burns),
+            audio=str(ctx.resolve(audio)) if (audio and ctx) else audio)
+        destino = ctx.resolve(out_path) if ctx else Path(out_path)
+        if ctx and getattr(ctx, "journal", None):
+            ctx.journal.record(destino, "create", tool="render_animatic")
+        obs = await render_slideshow(spec, destino)
+        return ToolResult(obs.ok, obs.render(),
+                          error=None if obs.ok else "; ".join(obs.problems),
+                          meta={"path": str(destino), "screenshot": obs.screenshot})
+
+    @reg.tool("record_program",
+              "Graba en vídeo un programa gráfico en ejecución y lo revisa. "
+              "Ver treinta fotogramas dice si se mueve o se congela.",
+              {"type": "object", "properties": {
+                  "path": {"type": "string"},
+                  "out_path": {"type": "string"},
+                  "seconds": {"type": "number"},
+                  "fps": {"type": "integer"},
+                  "entry": {"type": "string"}},
+               "required": ["path", "out_path"]}, access={"exec", "write"})
+    async def record_program(path: str, out_path: str, ctx=None,
+                             seconds: float = 6.0, fps: int = 20,
+                             entry: str = "main.py"):
+        from .video import capture_program
+        origen = ctx.resolve(path) if ctx else Path(path)
+        destino = ctx.resolve(out_path) if ctx else Path(out_path)
+        if ctx and getattr(ctx, "journal", None):
+            ctx.journal.record(destino, "create", tool="record_program")
+        obs = await capture_program(origen, destino, seconds=float(seconds),
+                                    fps=int(fps), entry=entry)
+        return ToolResult(obs.ok, obs.render(),
+                          error=None if obs.ok else "; ".join(obs.problems),
+                          meta={"path": str(destino)})
 
     return reg

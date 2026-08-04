@@ -317,19 +317,40 @@ def test_catalog_stays_within_a_free_provider_window():
     dominio. El número es más pequeño y la garantía más fuerte, porque cubre
     el catálogo que se envía en cada turno en vez de uno que ya no se envía
     nunca.
+
+    Y se miden DOS casos, porque no son el mismo:
+
+      · Un dominio — lo habitual. Debe quedarse pequeño.
+      · Varios dominios — "escribe un juego y analiza su rendimiento macro"
+        activa studio y mundo a la vez. Es legítimo que cargue las dos cajas
+        de herramientas, y meterlo en el mismo límite que el caso simple
+        obligaría a recortar capacidades reales para defender un número.
+
+    El techo sale de la ventana más pequeña con la que trabajamos (~8k tokens
+    en proveedores gratuitos): 3.500 caracteres son unos 875 tokens, en torno
+    al 11 % de esa ventana. Recortar descripciones ya no mueve la aguja —
+    `Tool.signature()` las trunca a MAX_DESC de todas formas y lo que pesa es
+    la firma de parámetros—, así que si esto vuelve a saltar la respuesta es
+    reducir PARÁMETROS o afinar el dominio, no reescribir textos.
     """
     from magi.core.tools import registry_for_role
 
-    peor = 0
-    for hint in ("portar el dynarec de PPSSPP a Vita",     # reverse
-                 "dibuja una página de manga",              # studio
-                 "analiza los fundamentales de Apple",      # world
-                 "reparar el código",                       # núcleo (Naoko)
-                 "escribe un juego y analiza su rendimiento macro"):  # mixto
+    UN_DOMINIO = {
+        "reverse": "portar el dynarec de PPSSPP a Vita",
+        "studio": "dibuja una página de manga",
+        "world": "analiza los fundamentales de Apple",
+        "core": "reparar el código",
+    }
+    for dominio, hint in UN_DOMINIO.items():
         for rol in ("MELCHIOR", "BALTHASAR", "CASPER"):
             n = len(registry_for_role(rol, task_hint=hint).catalog())
-            peor = max(peor, n)
-    assert peor < 3000, f"el catálogo acotado llegó a {peor} caracteres"
+            assert n < 2700, f"catálogo de {dominio}/{rol}: {n} caracteres"
+
+    for rol in ("MELCHIOR", "BALTHASAR", "CASPER"):
+        n = len(registry_for_role(
+            rol, task_hint="escribe un juego y analiza su rendimiento macro"
+        ).catalog())
+        assert n < 3500, f"catálogo multidominio/{rol}: {n} caracteres"
 
 
 @pytest.mark.asyncio

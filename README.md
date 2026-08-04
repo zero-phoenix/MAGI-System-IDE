@@ -305,9 +305,9 @@ narrativo conectado (§2.7).
 (§3.2), versionado seguro (§3.3), observabilidad proactiva (§3.4) y auto-mejora
 medible (§3.5).
 
-**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3),
-fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6) y composición
-de manga (§5.4).
+**Fase 4 completa** — toolchain de ingeniería inversa y emuladores (§5.3),
+fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6), composición
+de manga (§5.4) y vídeo programático con FFmpeg (§5.5).
 
 **Fase 5 en curso** — conocimiento del mundo (§6): macro y geopolítica desde
 FRED, BCE y Banco Mundial (§6.1, §6.2); fundamentales desde SEC EDGAR XBRL,
@@ -315,9 +315,25 @@ aritmética financiera determinista y registro de tesis con calibración medible
 (§6.3). Todas las fuentes son gratuitas y **sin clave de API**, según tu
 restricción.
 
-**Siguiente** — vídeo programático con FFmpeg (§5.5), recogida de resultados de
-ComfyUI (exige un ComfyUI real contra el que probarla) y la descomposición de
-`App.tsx` con el layout multi-panel (§7).
+**Siguiente** — descomposición de `App.tsx` con el layout multi-panel (§7) y
+recogida de resultados de ComfyUI, que exige un ComfyUI real contra el que
+probarla.
+
+### Sobre el vídeo, y sobre mirar lo que uno hace
+
+De la tabla de §5.5 solo están construidos los dos primeros escalones —vídeo
+programático y animática desde stills— porque son los que dan resultado
+profesional hoy y sin coste. El gen-vídeo largo y coherente no está resuelto
+localmente en hardware de escritorio, y fingirlo sería el mismo error que el
+`np.random.randint` con vocabulario financiero.
+
+Lo que sí importa aquí es que el vídeo pasa por el mismo bucle de observación
+que el resto: el sistema **mira** lo que produjo. Un vídeo tiene dos formas de
+salir mal que son invisibles a cualquier comprobación barata, porque el fichero
+existe, pesa megas y se reproduce: que esté todo en negro, y que esté congelado
+—todos los fotogramas idénticos, la animación que no animó—. `observe_video`
+muestrea fotogramas separados en el tiempo y los compara. Sin eso, "vídeo
+generado, 12 MB, 30 s" es un informe que suena a éxito.
 
 ### Sobre "las habilidades de Warren Buffett"
 

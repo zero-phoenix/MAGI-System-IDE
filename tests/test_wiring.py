@@ -442,3 +442,43 @@ def test_nadie_pide_el_catalogo_sin_acotar():
     assert not ofensores, (
         f"piden el catálogo entero sin pista de tarea: {ofensores}. "
         f"Pasa un task_hint para que se acote al dominio")
+
+
+def test_todo_ArtifactKind_tiene_rama_en_observe():
+    """
+    §5.5. `ArtifactKind.VIDEO` existía en el enum y el schema de
+    `observe_artifact` ofrecía "video", pero `observe()` no lo despachaba: un
+    .mp4 caía en `observe_program` y se intentaba EJECUTAR como Python.
+
+    Una capacidad anunciada y no conectada es peor que una que falta, porque
+    nadie la busca. Este test recorre el enum entero para que no vuelva a
+    pasar con el siguiente tipo que se añada.
+    """
+    import inspect
+    from magi.modules.studio.artifacts import ArtifactKind, observe
+
+    src = inspect.getsource(observe)
+    sin_rama = [k.name for k in ArtifactKind
+                if f"ArtifactKind.{k.name}" not in src]
+    # PROGRAM es el caso por defecto: se despacha sin nombrarse.
+    sin_rama = [k for k in sin_rama if k != "PROGRAM"]
+    assert not sin_rama, (
+        f"{sin_rama} están en ArtifactKind y observe() no los despacha: caen "
+        f"en observe_program, que los EJECUTA")
+
+
+def test_el_schema_de_observe_artifact_no_promete_de_mas():
+    """
+    El otro lado del mismo contrato: lo que el schema ofrece al agente tiene
+    que existir en el enum. Ofrecer un valor inexistente hace que el agente lo
+    use y reciba un error incomprensible.
+    """
+    from magi.core.tools import build_registry
+    from magi.modules.studio.artifacts import ArtifactKind
+
+    herramienta = build_registry().get("observe_artifact")
+    props = herramienta.parameters["properties"]
+    ofrecidos = set(props["kind"].get("enum", []))
+    reales = {k.value for k in ArtifactKind}
+    assert ofrecidos <= reales, (
+        f"el schema ofrece tipos que no existen: {ofrecidos - reales}")

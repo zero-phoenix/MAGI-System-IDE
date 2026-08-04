@@ -19,12 +19,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +71,10 @@ class Observation:
 
 #: nombres que se prueban como punto de entrada de un proyecto Python
 ENTRY_CANDIDATES = ("main.py", "__main__.py", "app.py", "run.py", "start.py")
+
+#: extensiones que se despachan a `observe_video` (§5.5). Antes ninguna estaba
+#: reconocida y todas acababan en `observe_program`, es decir, ejecutándose.
+VIDEO_EXTS = (".mp4", ".mkv", ".mov", ".webm", ".avi", ".gif", ".m4v")
 
 
 async def observe_program(path: str | Path, *, entry: str = "",
@@ -295,6 +297,80 @@ async def observe_image(path: str | Path) -> Observation:
 
 # -------------------------------------------------------------- documentos
 
+#: extensiones de datos que se despachan a `observe_data`.
+DATA_EXTS = (".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".parquet", ".xlsx")
+
+
+async def observe_data(path: str | Path) -> Observation:
+    """
+    Mira un conjunto de datos generado: filas, columnas y si tiene contenido.
+
+    Segunda rama que faltaba en `observe()`. `ArtifactKind.DATA` estaba en el
+    enum y el schema de `observe_artifact` ofrecía "datos", pero se despachaba
+    a `observe_program`, es decir, se INTENTABA EJECUTAR el CSV. Mismo fallo
+    que con vídeo y encontrado por el mismo test, que recorre el enum entero
+    en vez de comprobar los tipos que se me ocurrieron.
+
+    El modo de fallo que esto caza es el CSV con cabecera y cero filas: el
+    fichero existe, se abre, tiene columnas con buen aspecto y no hay datos.
+    """
+    p = Path(path)
+    if not p.exists():
+        return Observation(False, ArtifactKind.DATA, "no existe",
+                           problems=[f"{p} no existe"])
+
+    problems: list[str] = []
+    evidence: list[str] = [f"{p.stat().st_size:,} bytes"]
+    filas = 0
+    ext = p.suffix.lower()
+
+    try:
+        if ext in (".csv", ".tsv"):
+            import csv as _csv
+            with p.open("r", encoding="utf-8", errors="replace", newline="") as f:
+                lector = _csv.reader(f, delimiter="\t" if ext == ".tsv" else ",")
+                cabecera = next(lector, None)
+                filas = sum(1 for _ in lector)
+                if cabecera:
+                    evidence.append(f"{len(cabecera)} columnas: "
+                                    f"{', '.join(cabecera[:8])}")
+                evidence.append(f"{filas:,} filas de datos")
+        elif ext in (".jsonl", ".ndjson"):
+            filas = sum(1 for ln in p.read_text(encoding="utf-8",
+                                                errors="replace").splitlines()
+                        if ln.strip())
+            evidence.append(f"{filas:,} registros")
+        elif ext == ".json":
+            import json as _json
+            datos = _json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(datos, list):
+                filas = len(datos)
+                evidence.append(f"lista de {filas:,} elementos")
+            elif isinstance(datos, dict):
+                filas = len(datos)
+                evidence.append(f"objeto con {filas} claves: "
+                                f"{', '.join(list(datos)[:8])}")
+        else:
+            evidence.append(f"formato {ext or 'sin extensión'}: solo se "
+                            f"comprueba el tamaño")
+            filas = 1 if p.stat().st_size > 0 else 0
+    except Exception as e:
+        return Observation(False, ArtifactKind.DATA, "ilegible",
+                           artifact_path=str(p),
+                           problems=[f"no se pudo leer como {ext}: {e}"])
+
+    if filas == 0:
+        problems.append(
+            "cero filas de datos: el fichero existe y tiene estructura, pero "
+            "no contiene ningún registro. Es el fallo que más fácil pasa por "
+            "bueno porque el fichero se abre sin errores.")
+
+    return Observation(not problems, ArtifactKind.DATA,
+                       f"{p.name}: {filas:,} registros",
+                       evidence=evidence, artifact_path=str(p),
+                       problems=problems)
+
+
 async def observe_document(path: str | Path) -> Observation:
     """
     Cuenta páginas, palabras y detecta documentos vacíos.
@@ -394,6 +470,10 @@ async def observe(path: str | Path, kind: ArtifactKind | str | None = None,
             kind = ArtifactKind.GAME
         elif ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
             kind = ArtifactKind.IMAGE
+        elif ext in VIDEO_EXTS:
+            kind = ArtifactKind.VIDEO
+        elif ext in DATA_EXTS:
+            kind = ArtifactKind.DATA
         elif ext in (".pdf", ".docx", ".md", ".txt", ".html", ".dotx"):
             kind = ArtifactKind.DOCUMENT
         else:
@@ -406,6 +486,18 @@ async def observe(path: str | Path, kind: ArtifactKind | str | None = None,
         return await observe_image(p)
     if kind is ArtifactKind.DOCUMENT:
         return await observe_document(p)
+    if kind is ArtifactKind.VIDEO:
+        # §5.5. Antes NO existía esta rama, aunque ArtifactKind.VIDEO estaba en
+        # el enum y el schema de `observe_artifact` ofrecía "video" como valor
+        # válido. Un .mp4 caía aquí abajo, en observe_program, y se intentaba
+        # EJECUTAR como Python: el agente que pedía mirar el vídeo que acababa
+        # de generar recibía "SyntaxError: source code cannot contain null
+        # bytes". Una capacidad anunciada y no conectada es peor que una que
+        # falta, porque nadie la busca.
+        from .video import observe_video
+        return await observe_video(p)
+    if kind is ArtifactKind.DATA:
+        return await observe_data(p)
     return await observe_program(p, **kw)
 
 
@@ -419,6 +511,11 @@ def available_backends() -> dict[str, bool]:
         "pygame": has("pygame"), "pillow": has("PIL"),
         "pypdf": has("pypdf"), "python-docx": has("docx"),
         "ffmpeg": bool(shutil.which("ffmpeg")),
+        # ffprobe va aparte de ffmpeg a propósito: algunas distribuciones lo
+        # empaquetan separado, y sin él se pueden GENERAR vídeos pero no
+        # inspeccionarlos — es decir, se rompe el bucle de observación
+        # justamente donde no se nota.
+        "ffprobe": bool(shutil.which("ffprobe")),
         "comfyui_local": _comfy_reachable(),
     }
 
@@ -436,6 +533,10 @@ def backends_report() -> str:
                      "posición, no como dibujos")
     if not b["ffmpeg"]:
         notas.append("sin ffmpeg no hay vídeo programático")
+    elif not b["ffprobe"]:
+        notas.append("hay ffmpeg pero no ffprobe: se pueden generar vídeos y "
+                     "NO inspeccionarlos, así que no se detectaría uno negro "
+                     "o congelado")
     return "\n".join(lines) + ("\n\n" + "\n".join(f"- {n}" for n in notas)
                                if notas else "")
 

@@ -366,6 +366,7 @@ REVERSE_TOOLS = {
 STUDIO_TOOLS = {
     "observe_artifact", "inspect_image", "studio_backends",
     "compose_manga_page", "validate_manga_layout",
+    "render_animatic", "record_program",
 }
 
 WORLD_TOOLS = {
