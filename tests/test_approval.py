@@ -25,16 +25,9 @@ from magi.core.tools.journal import WriteJournal
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _sin_comentarios(src: str) -> str:
-    """
-    Quita comentarios de JS/TS antes de buscar patrones prohibidos.
-
-    Sin esto, la propia explicación del fallo corregido dispara la guarda que
-    lo vigila, y la única forma de ponerla en verde es borrar la explicación.
-    Un test que castiga documentar el porqué acaba dejando el código sin
-    porqué.
-    """
-    return re.sub(r"/\*.*?\*/|//[^\n]*", "", src, flags=re.S)
+# Era una copia local del mismo regex; ya iba por la tercera. Vive en
+# `source_helpers` porque tres copias es como empiezan las divergencias.
+from source_helpers import strip_js_comments as _sin_comentarios
 
 
 @pytest.fixture

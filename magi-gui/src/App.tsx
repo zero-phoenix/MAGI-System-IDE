@@ -34,7 +34,7 @@ export default function App() {
   const [narrativeStyle, setNarrativeStyle] = useState(
     () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.narrativeStyle")) || "tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
-  const { sendCommand, fetchTelemetry, sendGitClone, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
+  const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -170,6 +170,13 @@ export default function App() {
     sendCommand("KILL_ALL_PROCESSES");
   };
 
+  // §7.3 — parar solo esta conversación. Si tienes tres abiertas y una se va
+  // por las ramas, no quieres tirar las otras dos.
+  const handleCancelTask = () => {
+    sysCommand(`task.cancel ${activeConversationId}`);
+    cancelTask(activeConversationId);
+  };
+
   const getAgentData = (agentName: string, defaultProv: string) => {
     const msgs = messages.filter(m => m.agent === agentName);
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
@@ -246,6 +253,9 @@ export default function App() {
           <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
           <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
           <span style={{cursor: "pointer"}} onClick={() => setActiveTab("Configuración")}>⚙</span>
+          <span style={{cursor: "pointer", color: "var(--acc)", marginRight: 10}}
+                title="Para solo esta conversación; las demás siguen"
+                onClick={handleCancelTask}>PARAR ESTA</span>
           <span className="stop" style={{cursor: "pointer"}} onClick={handleStopAll}>PARAR TODO</span>
         </div>
       </div>

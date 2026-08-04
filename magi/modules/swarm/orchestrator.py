@@ -210,20 +210,32 @@ class SwarmOrchestrator:
                                     stdout=asyncio.subprocess.PIPE,
                                     stderr=asyncio.subprocess.PIPE
                                 )
-                                stdout, stderr = await process.communicate()
+                                # §7.3 — este es EL proceso que más urge poder
+                                # parar: un script generado por un LLM
+                                # ejecutándose en la máquina del usuario, en
+                                # PowerShell con la política saltada. Sin
+                                # inscribirlo, la parada de emergencia lo
+                                # ignoraba por completo.
+                                from magi.core.cancel import supervisor
+                                supervisor().register_process(task_id, process)
+                                try:
+                                    stdout, stderr = await process.communicate()
+                                finally:
+                                    supervisor().forget_process(task_id, process)
                                 out_msg = (stdout.decode() + "\n" + stderr.decode()).strip()
                                 await self.bus.publish(BusEvent(
                                     topic="TERMINAL_OUT", 
                                     payload={"content": f"Salida del bloque {i+1}:\n{out_msg}\n[Finalizado con código {process.returncode}]"}
                                 ))
                                 
-                        asyncio.create_task(_auto_exec())
+                        self._spawn_tracked(task_id, _auto_exec())
                     else:
                         await self.bus.publish(BusEvent(
                             topic="TERMINAL_OUT",
                             payload={"content": "[SWARM] Propuesta aprobada por el usuario. Generando resolución final estructurada y contextualizada..."}
                         ))
-                        asyncio.create_task(
+                        self._spawn_tracked(
+                            task_id,
                             self.casper.generate_final_resolution(
                                 task_id,
                                 state["command"],
@@ -242,7 +254,7 @@ class SwarmOrchestrator:
                         topic="TERMINAL_OUT",
                         payload={"content": f"[SWARM] Feedback del usuario recibido. Reanudando debate (Ronda {state['round']})."}
                     ))
-                    asyncio.create_task(self._orchestrate_loop(task_id))
+                    self._spawn_loop(task_id)
                 return
             elif state["status"] == "in_progress":
                 return # Ignorar comandos extra mientras piensa
@@ -267,7 +279,7 @@ class SwarmOrchestrator:
         ))
         
         # Arrancar el bucle de la conversación asíncronamente
-        asyncio.create_task(self._orchestrate_loop(task_id))
+        self._spawn_loop(task_id)
         
     async def _orchestrate_loop(self, task_id: str):
         state = self.active_tasks[task_id]
@@ -424,11 +436,52 @@ class SwarmOrchestrator:
                     payload={"content": f"[SWARM] Tarea fallida tras {current_round} rondas."}
                 ))
 
+    def _spawn_tracked(self, task_id: str, coro) -> None:
+        """
+        Lanza una corrutina de fondo GUARDANDO su handle.
+
+        Lo encontró un test que comprueba con AST que ningún `create_task`
+        aparezca como sentencia suelta. Buscar la cadena no habría servido:
+        `handle = create_task(...)` la contiene y es lo correcto; lo que hay
+        que prohibir es tirar el resultado.
+
+        Y los dos que quedaban eran los peores posibles — la auto-ejecución
+        de un script generado por el modelo, y la resolución final tras
+        aprobar. Justo lo que uno quiere poder parar.
+        """
+        from magi.core.cancel import supervisor
+        supervisor().register_loop(task_id, asyncio.create_task(coro))
+
+    def _spawn_loop(self, task_id: str) -> None:
+        """
+        Lanza el bucle de orquestación GUARDANDO su handle.
+
+        Antes era `asyncio.create_task(self._orchestrate_loop(task_id))` a
+        secas, dos veces. El handle se tiraba, así que no existía ningún
+        objeto al que pedirle que parase — y por eso el botón de parada de
+        emergencia no tenía nada que cancelar aunque hubiera querido.
+        """
+        self._spawn_tracked(task_id, self._orchestrate_loop(task_id))
+
     async def _trigger_emergency_stop(self, task_id: str, state: dict):
         logger.critical(f"[SWARM] EMERGENCY STOP TRIGGERED FOR TASK {task_id}")
         state["status"] = "failed"
+
+        # El mensaje anterior afirmaba estar "aplicando kill-switch local
+        # automatizado" y no se aplicaba ninguno: el bucle hacía `break` y
+        # cualquier subproceso lanzado seguía vivo. Ahora se para de verdad y
+        # se informa de lo que se paró, no de lo que se pretendía parar.
+        from magi.core.cancel import supervisor
+        informe = await supervisor()._stop_processes(task_id)
+        muertos, fallidos = informe
+        mensaje = (
+            f"\n[!!!] CONTINGENCIA DE SEGURIDAD ACTIVADA [!!!]\n"
+            f"Riesgo operativo confirmado; se aborta la tarea {task_id}.\n"
+            f"Procesos terminados: {muertos}."
+            + (f"\nAVISO: {fallidos} proceso(s) NO murieron; compruébalos a mano.\n"
+               if fallidos else "\n"))
         await self.bus.publish(BusEvent(
             topic="TERMINAL_OUT",
-            payload={"content": f"\n[!!!] CONTINGENCIA DE SEGURIDAD ACTIVADA [!!!]\nEl motor cognitivo superior fue censurado y el motor de fallback confirmó riesgo operativo.\nAbortando operaciones del Enjambre inmediatamente y aplicando kill-switch local automatizado.\n"}
+            payload={"content": mensaje}
         ))
         await self.bus.publish(BusEvent(topic="EMERGENCY_STOP", payload={}))

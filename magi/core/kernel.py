@@ -54,6 +54,9 @@ class Kernel:
         self.rpc.register_handler("magi_estop", self._handle_estop)
         self.rpc.register_handler("EMERGENCY_STOP", self._handle_estop)
         self.rpc.register_handler("KILL_ALL_PROCESSES", self._handle_estop)
+        # §7.3 — parar UN turno sin matar la aplicación ni las demás tareas.
+        self.rpc.register_handler("task.cancel", self._handle_cancel_task)
+        self.rpc.register_handler("task.running", self._handle_running_tasks)
         self.rpc.register_handler("SYS_EXEC", self._handle_sys_exec)
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
         self.rpc.register_handler("git.clone", self._handle_git_clone)
@@ -114,8 +117,67 @@ class Kernel:
         return {"result": "CONNECTED", "version": "1.0.0"}
 
     async def _handle_estop(self, payload, websocket):
+        """
+        Parada de emergencia REAL (§7.3).
+
+        Este handler entero era:
+
+            logger.critical("E-STOP INVOCADO DESDE LA GUI")
+            return "EMERGENCY_STOP_TRIGGERED"
+
+        Una línea de log y una cadena. No cancelaba ningún bucle ni mataba
+        ningún proceso: el botón de parada de la interfaz no paraba nada, y
+        devolvía una respuesta con aspecto de éxito.
+
+        Es el control que más caro sale que mienta. Todo el acceso sin
+        restricciones a la máquina se sostiene sobre dos salidas: deshacer lo
+        hecho (§4.2, el journal) y PARAR lo que se está haciendo. La segunda
+        no existía.
+        """
+        from magi.core.cancel import supervisor
         logger.critical("E-STOP INVOCADO DESDE LA GUI")
-        return "EMERGENCY_STOP_TRIGGERED"
+        informe = await supervisor().cancel_all()
+        await self.bus.publish(BusEvent(
+            topic="task.cancelled", payload=informe.to_payload()))
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT", payload={"content": informe.render()}))
+        return informe.to_payload()
+
+    async def _handle_cancel_task(self, payload, websocket):
+        """
+        Cancela UNA tarea (§7.3: "poder parar un turno a mitad sin matar la
+        app").
+
+        Antes la única opción era la parada de emergencia, que además de no
+        funcionar habría sido un mazazo: si tienes tres conversaciones y una
+        se está yendo por las ramas, no quieres tirar las otras dos.
+        """
+        from magi.core.cancel import supervisor
+        task_id = (payload or {}).get("task_id", "").strip()
+        if not task_id:
+            return {"status": "error", "message": "indica qué tarea parar"}
+
+        sup = supervisor()
+        if not sup.is_running(task_id):
+            return {"status": "ok", "stopped_anything": False,
+                    "detail": f"{task_id} no está en marcha; nada que parar. "
+                              f"En curso: {', '.join(sup.running_tasks()) or 'ninguna'}"}
+
+        informe = await sup.cancel(task_id)
+        estado = self.swarm.active_tasks.get(task_id)
+        if estado is not None:
+            estado["status"] = "cancelled"
+            self.swarm._persist(task_id)
+        await self.bus.publish(BusEvent(
+            topic="task.cancelled", payload=informe.to_payload()))
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT", payload={"content": informe.render()}))
+        return informe.to_payload()
+
+    async def _handle_running_tasks(self, payload, websocket):
+        """Qué hay en marcha ahora mismo, para poder ofrecer pararlo."""
+        from magi.core.cancel import supervisor
+        return {"running": supervisor().running_tasks()}
 
     async def _handle_policy_check(self, payload, websocket):
         cap = Capability(name=payload.get("name"), resource=payload.get("resource"))

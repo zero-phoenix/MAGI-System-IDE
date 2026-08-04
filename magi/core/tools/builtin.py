@@ -229,7 +229,15 @@ def build_registry() -> ToolRegistry:
                 command, cwd=str(workdir),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
                 env={**os.environ, **ctx.env})
-            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            # §7.3 — inscribir el proceso para que la parada de emergencia
+            # pueda alcanzarlo. Sin esto, pulsar "parar" dejaba corriendo
+            # cualquier cosa que hubiera lanzado el agente.
+            from ..cancel import supervisor
+            supervisor().register_process(ctx.task_id, proc)
+            try:
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            finally:
+                supervisor().forget_process(ctx.task_id, proc)
             text = out.decode("utf-8", errors="replace")
             return ToolResult(proc.returncode == 0,
                               f"$ {command}\n{text}\n[rc={proc.returncode}]",

@@ -320,8 +320,32 @@ contexto (§7.4), visor de diffs real (§7.3) y el arranque de la descomposició
 de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
 
 **Siguiente** — el layout multi-panel completo (§7.2), virtualización de
-listas largas, cancelar un turno a mitad, y la recogida de resultados de
-ComfyUI, que exige un ComfyUI real contra el que probarla.
+listas largas, paleta de comandos, y la recogida de resultados de ComfyUI, que
+exige un ComfyUI real contra el que probarla.
+
+### Sobre el botón de parada
+
+El acceso sin restricciones a tu máquina es una decisión tuya y se sostiene
+sobre dos salidas: poder **deshacer** lo hecho y poder **parar** lo que se está
+haciendo. El journal (§4.2) cubría la primera. La segunda no existía.
+
+`Kernel._handle_estop` era, entero:
+
+```python
+logger.critical("E-STOP INVOCADO DESDE LA GUI")
+return "EMERGENCY_STOP_TRIGGERED"
+```
+
+Una línea de log y una cadena con aspecto de éxito. No cancelaba ningún bucle
+ni mataba ningún proceso. Y el del enjambre publicaba *"aplicando kill-switch
+local automatizado"* sin aplicar ninguno.
+
+Ahora hay un supervisor que lleva la cuenta de lo que está en marcha —bucles y
+subprocesos, por tarea—, manda primero `SIGTERM` para que los procesos cierren
+limpio y solo `SIGKILL` si no atienden, y devuelve un informe de lo que paró
+**de verdad**, incluidos los procesos que no murieron. Hay además `PARAR ESTA`
+además de `PARAR TODO`: si tienes tres conversaciones y una se va por las
+ramas, no hay por qué tirar las otras dos.
 
 ### Sobre lo que se cuenta y no se guarda
 

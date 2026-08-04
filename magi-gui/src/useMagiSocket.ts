@@ -63,6 +63,11 @@ export function useMagiSocket(port: number = 20128) {
                 appendTerminal(
                   `[BANCO] ${payload.passed}/${payload.total} `
                   + `(${Math.round((payload.score || 0) * 100)}%)`);
+              } else if (topic === 'task.cancelled') {
+                // El informe dice lo que se paró DE VERDAD, incluidos los
+                // procesos que no murieron. Un botón de parada no puede
+                // devolver algo con aspecto de éxito sin haber parado nada.
+                appendTerminal(payload.detail || 'Cancelación completada');
               } else if (topic === 'task.usage') {
                 // §7.3 — tokens y tiempo por tarea y por agente.
                 useMagiStore.getState().addUsage(payload);
@@ -166,6 +171,17 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
+  // §7.3 — parar UN turno a mitad sin matar la aplicación ni las demás
+  // conversaciones. Antes la única opción era la parada de emergencia, que
+  // además de ser un mazazo no paraba nada: el handler del kernel escribía
+  // una línea de log y devolvía "EMERGENCY_STOP_TRIGGERED".
+  const cancelTask = (taskId: string) => {
+    ws.current?.send(JSON.stringify({
+      type: 'task.cancel', id: `cancel_${Date.now()}`,
+      payload: { task_id: taskId },
+    }));
+  };
+
   const sendGitClone = (url: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
@@ -203,5 +219,5 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, fetchTelemetry, requestFileContent, sendNaokoChat };
+  return { sendCommand, sendGitClone, cancelTask, fetchTelemetry, requestFileContent, sendNaokoChat };
 }
