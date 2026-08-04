@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ApprovalRequest } from './lib/approval';
 
 export interface AgentMessage {
   id: string;
@@ -42,6 +43,11 @@ interface MagiState {
   toolTrace: Array<{ id: string; task_id: string; agent: string; tool: string; ok?: boolean; error?: string | null }>;
   addToolUse: (d: { task_id: string; agent: string; calls: any[] }) => void;
   addToolResult: (d: { task_id: string; agent: string; results: any[] }) => void;
+  // §7.4 — aprobación CON CONTEXTO. Antes el estado de aprobación se deducía
+  // buscando una frase dentro del terminal, y el diff se quedaba sin original
+  // que enseñar. Ahora llega un evento con los ficheros y su contenido previo.
+  approval: ApprovalRequest | null;
+  setApproval: (a: ApprovalRequest | null) => void;
   // §2.3 — por qué ruta fue la petición
   route: { route: string; reason: string; max_rounds: number } | null;
   setRoute: (r: any) => void;
@@ -164,6 +170,9 @@ export const useMagiStore = create<MagiState>((set) => ({
     }
     return { toolTrace: trace };
   }),
+
+  approval: null,
+  setApproval: (approval) => set({ approval }),
 
   route: null,
   setRoute: (r) => set({ route: r }),

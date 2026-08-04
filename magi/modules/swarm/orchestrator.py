@@ -61,6 +61,41 @@ class SwarmOrchestrator:
         except Exception as e:
             logger.warning("[SWARM] no se pudo rehidratar el estado: %s", e)
 
+    async def _publish_approval(self, task_id: str, state: dict,
+                                verdict: dict) -> None:
+        """
+        Publica `swarm.approval_required` con TODO lo necesario para decidir
+        (§7.4): qué ficheros toca, su contenido antes y después, y si los
+        tests pasaron.
+
+        Nunca deja caer una excepción hacia arriba. Si reunir el contexto
+        falla, la aprobación se pide igual con menos información: una tarea
+        que se queda colgada porque el panel de revisión reventó es peor que
+        una revisión incompleta.
+        """
+        try:
+            from magi.core.approval import build_approval_request
+            from magi.core.tools.journal import WriteJournal
+
+            verificacion = state.get("verification") or {}
+            peticion = build_approval_request(
+                task_id,
+                journal=WriteJournal(task_id=task_id),
+                summary=(verdict.get("feedback")
+                         or state.get("last_proposal", {}).get("content", "")),
+                commands=list(state.get("pending_commands") or []),
+                tests_ran=bool(verificacion.get("ran")),
+                tests_passed=bool(verificacion.get("passed")),
+                tests_detail=str(verificacion.get("detail", "")),
+            )
+            await self.bus.publish(BusEvent(
+                topic="swarm.approval_required", payload=peticion.to_payload()))
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT", payload={"content": peticion.render()}))
+        except Exception as e:                    # pragma: no cover
+            logger.warning(
+                "[SWARM] no se pudo reunir el contexto de aprobación: %s", e)
+
     def _persist(self, task_id: str) -> None:
         """Vuelca el estado en curso. Llamar tras cada transición."""
         state = self.active_tasks.get(task_id)
@@ -358,6 +393,16 @@ class SwarmOrchestrator:
             if is_asking_approval or current_round >= state.get("max_rounds", 3):
                 state["status"] = "WAITING_USER_APPROVAL"
                 self._persist(task_id)
+
+                # §7.4 — aprobación CON CONTEXTO. Antes solo salía esta frase,
+                # y la interfaz deducía el estado de aprobación buscándola
+                # dentro del terminal (App.tsx:167). Al no haber evento con
+                # datos, `DiffViewer` recibía originalCode="" y pintaba todo
+                # como añadido: no era un diff, era el texto nuevo en verde.
+                # Aprobar sobre eso es aprobar a ciegas con la APARIENCIA de
+                # haber revisado, que es lo peor de las dos cosas.
+                await self._publish_approval(task_id, state, verdict)
+
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
                     payload={"content": f"[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}

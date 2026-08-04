@@ -7,97 +7,11 @@ import { FileTreeSidebar } from "./FileTreeSidebar";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
+import AgentMessageCard from './components/AgentMessageCard';
 import Editor from '@monaco-editor/react';
 import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  let body = "";
-  let conclusion = "";
-
-  const cleanText = (str: string) => {
-    return str
-      .replace(/^(?:###\s*)?\*\*?CONCLUSIÓ[NN](?:\s*FINAL\s*CONSOLIDADA)?:?\*\*?\s*/gi, '')
-      .replace(/^\*\*?CONCLUSIÓ[NN]:?\*\*?\s*/gi, '')
-      .trim();
-  };
-
-  if (msg.agent === 'USER') {
-    body = msg.content || "";
-  } else {
-    let rawContent = (msg.content || "").trim();
-    rawContent = cleanText(rawContent);
-
-    const paragraphs = rawContent.split(/\n\s*\n/);
-    if (paragraphs.length > 1) {
-      conclusion = cleanText(paragraphs[paragraphs.length - 1]);
-      body = cleanText(paragraphs.slice(0, paragraphs.length - 1).join('\n\n'));
-    } else {
-      conclusion = rawContent;
-      body = "";
-    }
-  }
-
-  return (
-    <div className={`msg-card ${msg.agent.toLowerCase()}`} style={{ border: `1px solid var(--dim)`, background: 'rgba(10, 20, 25, 0.7)', marginBottom: '12px', borderRadius: '8px', overflow: 'hidden', width: '100%', boxSizing: 'border-box', flex: '0 0 auto' }}>
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid var(--dim)', fontSize: '11px', color: 'var(--dim)' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <strong style={{ color: msg.agent === 'MELCHIOR' ? 'var(--var)' : msg.agent === 'BALTHASAR' ? 'var(--acc)' : msg.agent === 'CASPER' ? 'var(--fn)' : '#fff' }}>
-            {msg.agent}
-          </strong>
-          <span>[{msg.role}]</span>
-        </div>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <span>⚙️ {msg.provider}</span>
-          {telemetry?.find((t: any) => t.provider === msg.provider) && (
-            <span style={{ color: 'var(--node)' }}>
-              ⚡ {telemetry.find((t: any) => t.provider === msg.provider).avg_latency_ms.toFixed(0)}ms
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="card-body" style={{ padding: '12px', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-        {msg.agent === 'USER' ? (
-          <div>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-              {msg.content}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <>
-            {conclusion && (
-              <div className="card-conclusion-text" style={{ marginBottom: body ? '8px' : '0', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                  {conclusion}
-                </ReactMarkdown>
-              </div>
-            )}
-
-            {body && (
-              <div style={{ marginTop: '8px' }}>
-                <button 
-                  onClick={() => setIsExpanded(!isExpanded)} 
-                  style={{ background: 'transparent', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: '11px', padding: 0, fontWeight: 'bold' }}
-                >
-                  {isExpanded ? 'Ocultar análisis ▴' : 'Ver análisis completo ▾'}
-                </button>
-                {isExpanded && (
-                  <div className="card-body-text" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--dim)', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                      {body}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
@@ -107,7 +21,8 @@ export default function App() {
     metrics, telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
-    sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert
+    sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert,
+    approval, setApproval
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
@@ -162,6 +77,12 @@ export default function App() {
       fetchTelemetry();
     }
   }, [terminalOutput, messages, activeTab, fetchTelemetry]);
+
+  // §7.4 — el evento estructurado manda. El raspado de texto de abajo queda
+  // como respaldo para backends antiguos, pero ya no es la vía principal.
+  useEffect(() => {
+    if (approval) setActiveTab("Diff (Aprobación)");
+  }, [approval]);
 
   useEffect(() => {
     if (terminalOutput.includes("Esperando aprobación interactiva del usuario") && !pendingApproval) {
@@ -561,7 +482,7 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...(pendingApproval ? ["Diff (Aprobación)"] : [])].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -868,20 +789,27 @@ export default function App() {
                );
             })()}
 
-            {activeTab === "Diff (Aprobación)" && pendingApproval && (
-               <DiffViewer 
-                 originalCode="" 
-                 newCode={pendingApproval} 
+            {activeTab === "Diff (Aprobación)" && (approval || pendingApproval) && (
+               /* §7.4 — antes iba `originalCode=""`, así que el panel pintaba
+                  todo en verde y no era un diff. Ahora recibe el evento con
+                  los ficheros y su contenido previo; `pendingApproval` queda
+                  solo como texto de respaldo, y el propio panel avisa cuando
+                  es lo único que hay. */
+               <DiffViewer
+                 approval={approval}
+                 fallbackText={pendingApproval || undefined}
                  onApprove={() => {
                    sysCommand("SI");
                    sendCommand("SI", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
+                   setApproval(null);
                    setActiveTab("Terminal");
                  }}
                  onReject={() => {
                    sysCommand("NO");
                    sendCommand("NO", activeConversationId, engine, narrativeStyle);
                    setPendingApproval(null);
+                   setApproval(null);
                    setActiveTab("Terminal");
                  }}
                />

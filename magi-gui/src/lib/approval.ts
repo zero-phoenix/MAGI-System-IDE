@@ -1,0 +1,69 @@
+/**
+ * Tipos de la aprobación con contexto (§7.4).
+ *
+ * Espejo de `magi/core/approval.py`. Los dos lados tienen que decir lo mismo,
+ * y hay un test en Python que comprueba que estos campos coinciden con los
+ * que el backend publica de verdad — porque un contrato entre dos lenguajes
+ * que nadie verifica se desincroniza a la primera.
+ */
+
+export interface FileChange {
+  path: string;
+  before: string;
+  after: string;
+  /** creado | modificado | borrado */
+  kind: string;
+  /** Motivo por el que no se muestra el contenido (binario, ilegible…). */
+  note: string;
+  /** Si el journal conserva con qué revertirlo (§4.2). */
+  revertible: boolean;
+}
+
+export interface ApprovalRequest {
+  task_id: string;
+  summary: string;
+  changes: FileChange[];
+  commands: string[];
+  tests_ran: boolean;
+  tests_passed: boolean;
+  tests_detail: string;
+  reversible: boolean;
+  files_touched: number;
+}
+
+/**
+ * Qué debería hacer el usuario, dicho sin rodeos.
+ *
+ * Un panel de aprobación que se limita a mostrar datos deja el trabajo a
+ * medias: lo que importa es si hay motivo para desconfiar. Los tests en rojo
+ * y la irreversibilidad son las dos cosas que cambian la decisión, así que se
+ * dicen arriba y no enterradas entre líneas de código.
+ */
+export function approvalWarnings(a: ApprovalRequest): string[] {
+  const avisos: string[] = [];
+  if (!a.tests_ran) {
+    avisos.push(
+      "No se ejecutaron tests: no hay ninguna evidencia de que esto no rompa algo.",
+    );
+  } else if (!a.tests_passed) {
+    avisos.push(
+      `Los tests están EN ROJO. ${a.tests_detail || ""}`.trim(),
+    );
+  }
+  if (!a.reversible) {
+    avisos.push(
+      "Sin copia previa en el journal: esto NO se puede deshacer solo.",
+    );
+  }
+  if (a.commands.length) {
+    avisos.push(
+      `Se ejecutarán ${a.commands.length} órdenes en tu máquina. Léelas antes.`,
+    );
+  }
+  if (!a.changes.length && !a.commands.length) {
+    avisos.push(
+      "No toca ningún fichero ni ejecuta nada: no hay cambio que aprobar.",
+    );
+  }
+  return avisos;
+}

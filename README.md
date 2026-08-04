@@ -315,9 +315,32 @@ aritmética financiera determinista y registro de tesis con calibración medible
 (§6.3). Todas las fuentes son gratuitas y **sin clave de API**, según tu
 restricción.
 
-**Siguiente** — descomposición de `App.tsx` con el layout multi-panel (§7) y
-recogida de resultados de ComfyUI, que exige un ComfyUI real contra el que
-probarla.
+**Fase 5 en curso** — además del conocimiento del mundo (§6): aprobación con
+contexto (§7.4), visor de diffs real (§7.3) y el arranque de la descomposición
+de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
+
+**Siguiente** — el layout multi-panel completo (§7.2), el resto de la
+descomposición y la recogida de resultados de ComfyUI, que exige un ComfyUI
+real contra el que probarla.
+
+### Sobre aprobar a ciegas
+
+El panel de aprobación se titulaba "Aprobación de Código Requerida" y no
+enseñaba el cambio. Recibía `originalCode=""`, así que la columna del código
+original salía siempre vacía y todo lo demás aparecía en verde como si fuera
+nuevo. El estado de aprobación ni siquiera venía de un evento: se deducía
+buscando la frase "Esperando aprobación interactiva del usuario" dentro del
+texto del terminal, y el "cambio propuesto" era el último mensaje de un agente.
+
+De las dos formas de aprobar a ciegas, esa es la mala: la que parece una
+revisión. Ahora el backend publica `swarm.approval_required` con los ficheros
+afectados, su contenido antes y después, las órdenes que se van a ejecutar y
+si los tests pasaron; y el visor los alinea con un diff por subsecuencia común
+más larga, que sí muestra los borrados.
+
+El "antes" no hizo falta inventarlo: el journal de escrituras del §4.2 ya
+guardaba el estado previo de cada fichero para poder deshacer. La misma copia
+que da la reversibilidad responde a la pregunta de qué había antes.
 
 ### Sobre el vídeo, y sobre mirar lo que uno hace
 

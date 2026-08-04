@@ -63,6 +63,10 @@ export function useMagiSocket(port: number = 20128) {
                 appendTerminal(
                   `[BANCO] ${payload.passed}/${payload.total} `
                   + `(${Math.round((payload.score || 0) * 100)}%)`);
+              } else if (topic === 'swarm.approval_required') {
+                // §7.4 — el contexto que hace posible decidir: qué ficheros,
+                // qué había antes, y si los tests pasaron.
+                useMagiStore.getState().setApproval(payload);
               } else if (topic === 'swarm.routed') {
                 useMagiStore.getState().setRoute(payload);
               } else if (topic === 'agent.delta_end') {
