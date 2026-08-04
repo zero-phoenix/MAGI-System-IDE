@@ -36,12 +36,46 @@ def register_reverse_tools(reg: ToolRegistry) -> ToolRegistry:
               {"type": "object", "properties": {"path": {"type": "string"}},
                "required": ["path"]}, access={"read"})
     def binary_identify(path: str, ctx=None):
+        from .entropy import HIGH_ENTROPY, analyze_file, reading
         from .identify import identify
         p = ctx.resolve(path) if ctx else Path(path)
         try:
-            return ToolResult(True, identify(p).render())
+            cuerpo = identify(p).render()
         except FileNotFoundError:
             return ToolResult(False, "", error=f"no existe: {p}")
+
+        # La entropía se añade AQUÍ, y no solo como herramienta aparte, porque
+        # el momento en que evita perder horas es justo este: antes de
+        # desensamblar. Un EBOOT.BIN cifrado se ve igual que código roto, y la
+        # conclusión natural al ver salir basura de Capstone es que falla el
+        # decodificador. Si el agente tiene que acordarse de pedir la entropía
+        # por su cuenta, no se acordará.
+        try:
+            informe = analyze_file(p)
+            cuerpo += (f"\nentropía: {informe.overall:.2f}/8.00 — "
+                       f"{reading(informe.overall)}")
+            zonas = informe.hot_regions()
+            if zonas and not informe.encrypted:
+                cuerpo += (f"\n  {len(zonas)} zona(s) de alta entropía que la "
+                           f"media global esconde; usa binary_entropy")
+            return ToolResult(True, cuerpo,
+                              meta={"entropy": round(informe.overall, 3),
+                                    "encrypted": informe.encrypted})
+        except (OSError, ValueError):
+            return ToolResult(True, cuerpo)
+
+    @reg.tool("binary_entropy",
+              "Entropía de un binario y zonas cifradas o comprimidas.",
+              {"type": "object", "properties": {"path": {"type": "string"}},
+               "required": ["path"]}, access={"read"})
+    def binary_entropy(path: str, ctx=None):
+        from .entropy import analyze_file
+        p = ctx.resolve(path) if ctx else Path(path)
+        try:
+            informe = analyze_file(p)
+        except (FileNotFoundError, IsADirectoryError) as e:
+            return ToolResult(False, "", error=str(e))
+        return ToolResult(True, informe.render(), meta=informe.to_dict())
 
     @reg.tool("console_profile",
               "Datos duros de una consola: CPU, ISA, RAM, GPU, base de carga.",

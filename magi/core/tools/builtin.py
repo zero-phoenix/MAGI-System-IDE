@@ -360,7 +360,7 @@ REVERSE_TOOLS = {
     "binary_identify", "console_profile", "disassemble", "binary_strings",
     "emulate_code", "differential_test", "compare_consoles", "analyze_port",
     "suggest_port_base", "re_toolchain_status", "index_emulator",
-    "locate_subsystem", "compare_emulators",
+    "locate_subsystem", "compare_emulators", "binary_entropy",
 }
 
 STUDIO_TOOLS = {

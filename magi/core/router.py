@@ -98,7 +98,10 @@ def classify_heuristic(command: str) -> RoutingDecision | None:
 
     build_verb = bool(_BUILD_VERB.search(text))
     artifact = bool(_ARTIFACT.search(text))
-    build_hit = build_verb or artifact
+    # (Había aquí un `build_hit = build_verb or artifact` que no usaba nadie:
+    # las reglas de abajo combinan las dos señales por separado y con pesos
+    # distintos. Una variable calculada y nunca leída deja la duda de si falta
+    # aplicarla o sobra; sobraba.)
     task_hit = bool(_TASK.search(text))
     lookup_hit = bool(_LOOKUP.search(text))
     complex_hit = bool(_COMPLEX.search(text))

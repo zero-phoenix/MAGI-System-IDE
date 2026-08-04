@@ -482,3 +482,89 @@ def test_el_schema_de_observe_artifact_no_promete_de_mas():
     reales = {k.value for k in ArtifactKind}
     assert ofrecidos <= reales, (
         f"el schema ofrece tipos que no existen: {ofrecidos - reales}")
+
+
+# ------------------------------------------------ huérfanos a nivel de MÓDULO
+
+# Módulos que están dentro de un directorio VIVO pero que nadie alcanza desde
+# main.py. Su código entra en el grafo de llamadas, así que una pieza invocada
+# solo desde aquí PARECE cableada sin estarlo — la misma clase de falso
+# positivo que ATTIC_DIRS evita a nivel de directorio.
+#
+# La auditoría era ciega a esto: comprobaba directorios y no módulos. Al
+# mirarlo aparecieron 24, entre ellos `reverse/decompiler.py`, un mock que
+# devolvía código C inventado y una hipótesis fabricada con "confidence: 0.85"
+# dentro del módulo de ingeniería inversa. Eso ya está borrado.
+#
+# Esta lista es un TRINQUETE: puede encogerse, nunca crecer. Cada entrada es
+# deuda declarada de v5.0.28, no permiso para añadir más.
+KNOWN_ORPHANS = {
+    "magi.core.agent", "magi.core.evolution", "magi.core.hive",
+    "magi.core.membrane", "magi.core.octopus",
+    "magi.core.providers.rate_limit", "magi.core.providers.selector",
+    "magi.core.providers.wal",
+    "magi.gui.server",
+    "magi.modules.memgraph.knowledge_store",
+    "magi.modules.memory.compression", "magi.modules.memory.handover",
+    "magi.modules.memory.hyperdimensional", "magi.modules.memory.semantic",
+    "magi.modules.route.providers", "magi.modules.route.providers.base",
+    "magi.modules.route.providers.claude_cli",
+    "magi.modules.route.providers.cloud_api",
+    "magi.modules.studio.loop", "magi.modules.studio.rights",
+    "magi.modules.studio.spec",
+}
+
+
+def _orphan_modules() -> set[str]:
+    """Módulos de directorios vivos que no alcanza nadie desde main.py."""
+    huerfanos = set()
+    for f in (ROOT / "magi").rglob("*.py"):
+        mod = _module_name(f)
+        if mod in REACHABLE or "_attic" in mod:
+            continue
+        partes = mod.split(".")
+        if len(partes) > 2 and partes[1] == "modules" and partes[2] in ATTIC_DIRS:
+            continue
+        huerfanos.add(mod)
+    return huerfanos
+
+
+def test_no_aparecen_huerfanos_nuevos():
+    """
+    Trinquete: la deuda de módulos no conectados puede bajar, nunca subir.
+
+    Sin esto, cada fase nueva puede dejar un módulo escrito, probado y sin
+    conectar sin que nada avise — que es literalmente el fallo que este
+    fichero existe para impedir, y que se me escapó tres veces.
+    """
+    nuevos = _orphan_modules() - KNOWN_ORPHANS
+    assert not nuevos, (
+        f"módulos nuevos sin conectar: {sorted(nuevos)}. Conéctalos desde "
+        f"código alcanzable o bórralos; no los añadas a KNOWN_ORPHANS")
+
+
+def test_la_lista_de_huerfanos_no_se_queda_rancia():
+    """
+    La otra dirección, igual que con ATTIC_DIRS: un módulo que ya se conectó
+    (o que se borró) y sigue en la lista la convierte en folclore, y esconde
+    los que sí importan.
+    """
+    obsoletos = KNOWN_ORPHANS - _orphan_modules()
+    assert not obsoletos, (
+        f"ya no son huérfanos (conectados o borrados): {sorted(obsoletos)}. "
+        f"Quítalos de KNOWN_ORPHANS")
+
+
+def test_el_toolchain_de_re_no_tiene_mocks_que_inventen_analisis():
+    """
+    `reverse/decompiler.py` devolvía código C fijo y una hipótesis inventada
+    con confianza 0.85, dentro del módulo de ingeniería inversa. Un análisis
+    fabricado con aspecto de análisis es la misma familia que el
+    `np.random.randint` presentado como índice de riesgo: peor que no tener
+    nada, porque se parece a algo.
+    """
+    for nombre in ("decompiler", "differential", "triage"):
+        assert not (ROOT / f"magi/modules/reverse/{nombre}.py").exists(), (
+            f"reverse/{nombre}.py volvió: era andamiaje de v5.0.28")
+    # La entropía de triage.py sí era útil y se reescribió conectada.
+    assert (ROOT / "magi/modules/reverse/entropy.py").exists()
