@@ -305,11 +305,44 @@ narrativo conectado (§2.7).
 (§3.2), versionado seguro (§3.3), observabilidad proactiva (§3.4) y auto-mejora
 medible (§3.5).
 
-**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3) y
-fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6).
+**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3),
+fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6) y composición
+de manga (§5.4).
 
-**Siguiente** — vídeo programático con FFmpeg (§5.5) y recogida de resultados
-de ComfyUI, que exige un ComfyUI real contra el que probarla.
+**Fase 5 en curso** — conocimiento del mundo (§6): macro y geopolítica desde
+FRED, BCE y Banco Mundial (§6.1, §6.2); fundamentales desde SEC EDGAR XBRL,
+aritmética financiera determinista y registro de tesis con calibración medible
+(§6.3). Todas las fuentes son gratuitas y **sin clave de API**, según tu
+restricción.
+
+**Siguiente** — vídeo programático con FFmpeg (§5.5), recogida de resultados de
+ComfyUI (exige un ComfyUI real contra el que probarla) y la descomposición de
+`App.tsx` con el layout multi-panel (§7).
+
+### Sobre "las habilidades de Warren Buffett"
+
+Es la parte del encargo donde más fácil sería venderte humo, así que conviene
+que quede escrito. El juicio de Buffett —sesenta años de criterio, una red de
+contactos, capital permanente y temperamento bajo pánico— no es software, y
+cualquier producto que diga tenerlo te está vendiendo un generador de números
+con vocabulario financiero. El `quant/simulator.py` de v5.0.28 devolvía
+literalmente `np.random.randint(60, 101)` como "índice risk-off"; está retirado.
+
+Lo que sí es construible es la contabilidad que él hace a mano y casi nadie
+hace, y eso está: ganancias del propietario con el capex de mantenimiento
+separado, ROIC, dilución real medida sobre el recuento de acciones, conversión
+de caja, y un descuento de flujos que **nunca devuelve un número solo** sino la
+rejilla de sensibilidad y qué porcentaje del valor es terminal. Toda la
+aritmética se ejecuta en Python y enseña su fórmula y sus entradas: el modelo
+interpreta y argumenta, no calcula.
+
+Y lo que de verdad se le parece: el registro de tesis. Cada afirmación se
+congela con su fecha, su razonamiento, sus fuentes y su confianza declarada, y
+se puntúa al vencer con la regla de Brier contra la línea base. Acertar mucho
+es fácil si solo predices lo obvio; lo que mide el criterio es la calibración
+—que cuando dices 70 % aciertes el 70 %— y el sistema informa de su propio
+exceso de confianza. Es la única forma de que puedas fiarte de él, que es la
+condición para dejarlo trabajar solo.
 
 ### Sobre la auto-mejora
 

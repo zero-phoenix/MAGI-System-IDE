@@ -176,6 +176,15 @@ WIRING = [
     ("compare_corpora",        "magi/modules/reverse/tools.py",     "§5.3 contraste de código real"),
     ("compose_page",           "magi/modules/studio/tools.py",      "§5.4 composición de manga"),
     ("domains_for",            "magi/core/tools/builtin.py",        "§2.2 catálogo acotado por dominio"),
+    ("register_world_tools",   "magi/core/tools/builtin.py",        "§6 conocimiento del mundo en el enjambre"),
+    ("fred_series",            "magi/modules/world/tools.py",       "§6.2 macro desde FRED"),
+    ("compare_countries",      "magi/modules/world/tools.py",       "§6.2 contraste entre países"),
+    ("headlines",              "magi/modules/world/tools.py",       "§6.1 actualidad por RSS"),
+    ("fundamentals",           "magi/modules/world/tools.py",       "§6.3 fundamentales de EDGAR"),
+    ("owner_earnings",         "magi/modules/world/tools.py",       "§6.3 ganancias del propietario"),
+    ("dcf_sensitivity",        "magi/modules/world/tools.py",       "§6.3 DCF con sensibilidad"),
+    ("quality_checklist",      "magi/modules/world/tools.py",       "§6.3 rúbrica de calidad"),
+    ("ThesisLog",              "magi/modules/world/tools.py",       "§6.3 registro de tesis calibrado"),
 ]
 
 
@@ -329,3 +338,107 @@ def test_final_resolution_declares_every_parameter_it_uses():
         unknown = used - declared - assigned - set(dir(builtins)) - {
             "self", "logger", "BusEvent", "json", "asyncio", "re"}
         assert not unknown, f"{fn.__name__} usa nombres no declarados: {unknown}"
+
+
+# ------------------------------------------------------- §6 conocimiento del mundo
+
+def test_world_tools_estan_en_el_catalogo():
+    """Sin esto, todo magi/modules/world/ sería andamiaje bien probado."""
+    from magi.core.tools import build_registry
+    from magi.core.tools.builtin import WORLD_TOOLS
+    nombres = set(build_registry().names())
+    faltan = WORLD_TOOLS - nombres
+    assert not faltan, f"herramientas del mundo sin registrar: {sorted(faltan)}"
+
+
+def test_el_dominio_del_mundo_se_activa_con_lenguaje_real():
+    """
+    Las pistas tienen que cubrir cómo se pregunta de verdad, no el vocabulario
+    que a mí me salió al escribir la lista.
+    """
+    from magi.core.tools.builtin import domains_for
+    for frase in ("analiza los fundamentales de Apple",
+                  "¿cómo está la inflación en Europa?",
+                  "compara el gasto militar de España y Francia",
+                  "haz una valoración por descuento de flujos",
+                  "¿qué haría Buffett con esta empresa?",
+                  "registra esta tesis sobre los tipos de interés"):
+        assert "world" in domains_for(frase), f"no detectado: {frase!r}"
+
+
+def test_una_tarea_de_emuladores_no_carga_las_finanzas():
+    """El motivo de existir del acotado por dominio (§2.2)."""
+    from magi.core.tools import registry_for_role
+    from magi.core.tools.builtin import REVERSE_TOOLS, WORLD_TOOLS
+    nombres = set(registry_for_role(
+        "MELCHIOR", task_hint="portar el dynarec de PPSSPP a Vita").names())
+    assert REVERSE_TOOLS <= nombres
+    assert not (WORLD_TOOLS & nombres), "el catálogo de finanzas sobra aquí"
+
+
+def test_sin_pista_se_ofrecen_todos_los_dominios():
+    """
+    Regresión: los dominios estaban escritos a mano como {"core","reverse",
+    "studio"} en dos sitios. Al añadir 'world' esa rama dejó de significar
+    "todos" y empezó a recortar el catálogo en silencio.
+    """
+    from magi.core.tools import registry_for_role
+    from magi.core.tools.builtin import (
+        ALL_DOMAINS, REVERSE_TOOLS, STUDIO_TOOLS, WORLD_TOOLS, domains_for)
+    assert domains_for("") == ALL_DOMAINS
+    nombres = set(registry_for_role("MELCHIOR").names())
+    for conjunto in (REVERSE_TOOLS, STUDIO_TOOLS, WORLD_TOOLS):
+        assert conjunto <= nombres, "sin pista no debe recortarse el catálogo"
+
+
+def test_cada_dominio_declarado_tiene_su_conjunto_de_herramientas():
+    """
+    Guarda contra la misma clase de desincronización: un dominio con pistas
+    pero sin herramientas se activaría y no añadiría nada, y el síntoma sería
+    un agente sin capacidades y ningún error.
+    """
+    from magi.core.tools.builtin import _DOMAIN_HINTS, _DOMAIN_TOOLSETS
+    assert set(_DOMAIN_HINTS) == set(_DOMAIN_TOOLSETS), (
+        "pistas y conjuntos de herramientas desalineados: "
+        f"{set(_DOMAIN_HINTS) ^ set(_DOMAIN_TOOLSETS)}")
+
+
+def test_el_simulador_aleatorio_sigue_desconectado():
+    """
+    §6.3: "el simulator.py actual se borra o se reescribe — un
+    np.random.randint presentado como índice risk-off es peor que no tener
+    nada, porque parece un análisis". Está en el desván; que no vuelva.
+    """
+    for m in REACHABLE:
+        assert "quant_simulator" not in m and "quantum_oracle" not in m, (
+            f"{m} volvió a ser alcanzable: el generador de números con "
+            f"vocabulario financiero no puede estar conectado")
+
+
+def test_nadie_pide_el_catalogo_sin_acotar():
+    """
+    Guarda sobre el acotado por dominio (§2.2).
+
+    `registry_for_role(rol)` sin `task_hint` devuelve los cuatro dominios: hoy
+    41 herramientas y 4,4 KB en el prompt, y creciendo con cada dominio nuevo.
+    Naoko lo hacía y por eso su bucle de reparación cargaba el compositor de
+    manga para arreglar un traceback.
+
+    El síntoma es invisible —funciona, solo que peor y más caro— así que hace
+    falta un test que lo mire.
+    """
+    import re
+    ofensores = []
+    for f in (ROOT / "magi").rglob("*.py"):
+        rel = str(f.relative_to(ROOT))
+        if any(rel.startswith(f"magi/{d}/") for d in ATTIC_DIRS):
+            continue
+        src = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"registry_for_role\(([^)]*)\)", src):
+            args = m.group(1)
+            if "task_hint" not in args and "def " not in args:
+                linea = src[:m.start()].count("\n") + 1
+                ofensores.append(f"{rel}:{linea}")
+    assert not ofensores, (
+        f"piden el catálogo entero sin pista de tarea: {ofensores}. "
+        f"Pasa un task_hint para que se acote al dominio")

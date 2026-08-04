@@ -299,8 +299,37 @@ def test_role_profiles_include_reverse_tools():
 
 
 def test_catalog_stays_within_a_free_provider_window():
-    """El catálogo entra en cada prompt: no puede dispararse."""
-    assert len(build_registry().catalog()) < 4000
+    """
+    El catálogo entra en cada prompt: no puede dispararse.
+
+    Este test medía `build_registry().catalog()` —el catálogo SIN acotar— y se
+    puso rojo al añadir el dominio del mundo (§6): 41 herramientas, 4,4 KB.
+    Dos veces antes lo había resuelto recortando descripciones, y esa vía ya
+    no daba más de sí.
+
+    Al mirar quién pedía de verdad el catálogo entero apareció el fallo real:
+    `naoko.py` llamaba a `registry_for_role("MELCHIOR")` sin pista, así que el
+    bucle de auto-reparación arrastraba el compositor de manga y el valorador
+    de empresas para arreglar un traceback. El acotado por dominio (§2.2)
+    existía y ese sitio no lo usaba.
+
+    Así que ahora se mide lo que DE VERDAD llega a un prompt: el peor caso por
+    dominio. El número es más pequeño y la garantía más fuerte, porque cubre
+    el catálogo que se envía en cada turno en vez de uno que ya no se envía
+    nunca.
+    """
+    from magi.core.tools import registry_for_role
+
+    peor = 0
+    for hint in ("portar el dynarec de PPSSPP a Vita",     # reverse
+                 "dibuja una página de manga",              # studio
+                 "analiza los fundamentales de Apple",      # world
+                 "reparar el código",                       # núcleo (Naoko)
+                 "escribe un juego y analiza su rendimiento macro"):  # mixto
+        for rol in ("MELCHIOR", "BALTHASAR", "CASPER"):
+            n = len(registry_for_role(rol, task_hint=hint).catalog())
+            peor = max(peor, n)
+    assert peor < 3000, f"el catálogo acotado llegó a {peor} caracteres"
 
 
 @pytest.mark.asyncio

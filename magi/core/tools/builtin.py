@@ -296,6 +296,17 @@ def build_registry() -> ToolRegistry:
     # Se registra aquí para que los tres nodos del enjambre lo tengan: sin este
     # enganche, todo magi/modules/reverse/ sería código correcto que ningún
     # agente puede invocar.
+    # §6 — conocimiento del mundo: macro, actualidad, fundamentales y el
+    # registro de tesis calibrado. Mismo motivo que el enganche de abajo: sin
+    # esta línea, todo magi/modules/world/ sería andamiaje.
+    try:
+        from magi.modules.world.tools import register_world_tools
+        register_world_tools(reg)
+    except Exception as e:            # pragma: no cover
+        import logging
+        logging.getLogger(__name__).warning(
+            "[tools] herramientas del mundo no disponibles: %s", e)
+
     try:
         from magi.modules.reverse.tools import register_reverse_tools
         register_reverse_tools(reg)
@@ -357,6 +368,13 @@ STUDIO_TOOLS = {
     "compose_manga_page", "validate_manga_layout",
 }
 
+WORLD_TOOLS = {
+    "macro_snapshot", "fred_series", "compare_countries", "news_headlines",
+    "company_fundamentals", "owner_earnings", "dcf_valuation",
+    "quality_checklist", "record_thesis", "resolve_thesis",
+    "calibration_report",
+}
+
 _DOMAIN_HINTS = {
     "reverse": (
         "binario", "firmware", "rom", "emulador", "emular", "desensambl",
@@ -370,7 +388,48 @@ _DOMAIN_HINTS = {
         "imagen", "dibujo", "documento", "informe", "pdf", "docx", "vídeo",
         "video", "pantalla", "captura", "sprite", "render",
     ),
+    # Estas pistas se comprueban en tests/test_wiring.py contra frases escritas
+    # como se pregunta de verdad, no como me salió a mí al redactar la lista.
+    # Así apareció que "gasto militar" —un indicador que el módulo SÍ ofrece—
+    # no activaba el dominio: la herramienta existía y era inalcanzable.
+    "world": (
+        "macro", "economia", "economía", "inflacion", "inflación", "pib",
+        "tipos de interes", "tipos de interés", "bono", "curva", "paro",
+        "desempleo", "geopolit", "geopolít", "mercado", "bolsa", "accion",
+        "acción", "acciones", "invertir", "inversion", "inversión", "valorar",
+        "valoracion", "valoración", "empresa", "cotizada", "balance",
+        "beneficio", "dividendo", "buffett", "dcf", "flujo de caja",
+        "fundamentales", "actualidad", "noticia", "banco central", "fed",
+        "bce", "reserva federal", "deuda", "divisa", "tipo de cambio",
+        "tesis", "calibrac", "prediccion", "predicción", "pronostico",
+        "pronóstico",
+        # Indicadores del Banco Mundial: sin estas, el catálogo los ofrece y
+        # el enrutado no llega a ellos.
+        "militar", "armament", "poblacion", "población", "demograf",
+        "exportacion", "exportación", "comercio", "arancel", "sancion",
+        "sanción", "banco mundial", "per capita", "per cápita",
+        "esperanza de vida", "renovable", "pais", "país", "paises", "países",
+    ),
 }
+
+
+# Los dominios y sus conjuntos de herramientas, DERIVADOS de _DOMAIN_HINTS.
+#
+# Estaban escritos a mano como {"core", "reverse", "studio"} en dos sitios.
+# Al añadir el dominio del mundo (§6) las dos copias quedaron desfasadas a la
+# vez, y el síntoma habría sido silencioso: `domains_for("")` devolvía un
+# conjunto que ya no era "todos", así que la rama de "sin pista, ofrécelo
+# todo" empezaba a recortar el catálogo sin que nadie lo pidiera.
+#
+# Es la misma clase de fallo que la lista de andamiaje de test_wiring.py: una
+# lista mantenida a mano que se desincroniza de la realidad. Si se deriva, no
+# puede desincronizarse.
+_DOMAIN_TOOLSETS: dict[str, set[str]] = {
+    "reverse": REVERSE_TOOLS,
+    "studio": STUDIO_TOOLS,
+    "world": WORLD_TOOLS,
+}
+ALL_DOMAINS: set[str] = {"core"} | set(_DOMAIN_HINTS)
 
 
 def domains_for(task_hint: str) -> set[str]:
@@ -382,7 +441,7 @@ def domains_for(task_hint: str) -> set[str]:
     """
     hint = (task_hint or "").lower()
     if not hint.strip():
-        return {"core", "reverse", "studio"}
+        return set(ALL_DOMAINS)
     found = {"core"}
     for domain, needles in _DOMAIN_HINTS.items():
         if any(n in hint for n in needles):
@@ -402,12 +461,10 @@ def registry_for_role(role: str, task_hint: str = "") -> ToolRegistry:
     domains = domains_for(task_hint)
 
     allowed: set[str] | None = None
-    if domains != {"core", "reverse", "studio"}:
+    if domains != ALL_DOMAINS:
         allowed = set(CORE_TOOLS)
-        if "reverse" in domains:
-            allowed |= REVERSE_TOOLS
-        if "studio" in domains:
-            allowed |= STUDIO_TOOLS
+        for dominio in domains:
+            allowed |= _DOMAIN_TOOLSETS.get(dominio, set())
 
     r = role.upper()
     if r == "BALTHASAR":

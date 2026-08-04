@@ -290,7 +290,16 @@ Devuelve tu diagnóstico y tu parche."""
 
             task_id = f"naoko-{int(__import__('time').time())}"
             provider_reg = await get_registry()
-            tools = registry_for_role("MELCHIOR")   # Naoko necesita escribir
+            # Naoko necesita escribir, pero NO necesita el compositor de manga
+            # ni el indexador de emuladores ni el valorador de empresas para
+            # arreglar un traceback. Sin pista, `registry_for_role` ofrece los
+            # cuatro dominios enteros: 41 herramientas y 4,3 KB de catálogo en
+            # cada turno de reparación, la mayoría ruido que compite por la
+            # atención del modelo con el error que sí importa.
+            #
+            # Este era el último sitio del sistema que pedía el catálogo sin
+            # acotar. Reparar es trabajo de fichero y de test: dominio núcleo.
+            tools = registry_for_role("MELCHIOR", task_hint="reparar el código")
             ctx = ToolContext(task_id=task_id, cwd=project_root(),
                               journal=WriteJournal(task_id=task_id))
 
