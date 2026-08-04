@@ -198,9 +198,18 @@ def test_casper_is_read_and_verify_only():
 
 
 def test_catalog_is_compact_for_small_context_windows():
-    cat = build_registry().catalog()
+    """
+    El catálogo entra ENTERO en cada prompt de cada agente. Al añadir el
+    toolchain de RE y la fábrica de artefactos pasó de 3000 caracteres y este
+    test lo cazó: la solución no es subir el límite, es que cada línea sea
+    barata en tokens.
+    """
+    reg = build_registry()
+    cat = reg.catalog()
     assert "read_file(" in cat
-    assert len(cat) < 3000     # los proveedores gratuitos tienen ventana corta
+    assert len(cat) < 3000, f"catálogo de {len(cat)} chars con {len(reg.names())} herramientas"
+    # y ninguna línea suelta puede dispararse
+    assert max(len(l) for l in cat.splitlines()) < 200
 
 
 # ------------------------------------------------------------ paralelismo

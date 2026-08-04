@@ -105,6 +105,30 @@ Y `suggest_port_base vita` responde **Nintendo 3DS** (71%) antes que PSP (55%),
 porque ARMv6K→ARMv7-A con shaders en ambas reutiliza más que MIPS→ARM con
 pipeline fijo — aunque PPSSPP sea el emulador más conocido.
 
+### Fábrica de artefactos con bucle de observación
+
+El sistema **mira lo que produce** antes de dártelo:
+
+| Artefacto | Qué observa |
+|---|---|
+| Programa | lo arranca y captura la salida y el código de retorno |
+| Juego | lo ejecuta headless, avanza fotogramas y **captura la pantalla** |
+| Imagen | tamaño, número de colores, color dominante |
+| Documento | páginas, párrafos, palabras; detecta plantillas vacías |
+
+El caso que justifica el bucle entero: un juego donde el jugador es del mismo
+color que el fondo. El código es correcto, los tests pasarían, y en pantalla no
+se ve nada. Leyendo el código no se detecta:
+
+```
+[FALLA] juego: 30 fotogramas dibujados
+  · 320x240, 1 colores; el dominante (20, 20, 30) ocupa el 100%
+  problemas observados:
+  · la pantalla es de un solo color: el juego dibuja pero no se ve nada
+```
+
+Y no gasta cuota de visión: es análisis de histograma con Pillow.
+
 ### Enrutamiento adaptativo
 
 No todo merece un debate de tres rondas.
@@ -168,7 +192,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **232 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **267 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -216,7 +240,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 232 tests, sin red
+python -m pytest tests/ -v        # 267 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -237,11 +261,11 @@ narrativo conectado (§2.7).
 (§3.2), versionado seguro (§3.3), observabilidad proactiva (§3.4) y auto-mejora
 medible (§3.5).
 
-**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3)
-completo y conectado al enjambre.
+**Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3) y
+fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6).
 
-**Siguiente** — resto de la fábrica de artefactos (§5): juegos con bucle de
-observación, imagen y manga, documentos.
+**Siguiente** — imagen y manga vía ComfyUI local (§5.4), vídeo programático
+(§5.5), y corpus de emuladores indexado para comparación sobre código real.
 
 ### Sobre la auto-mejora
 

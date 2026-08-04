@@ -53,16 +53,25 @@ class Tool:
     access: set[Access] = field(default_factory=set)
     dangerous: bool = False             # muta el sistema; se registra en journal
 
+    #: tope de la descripción en el catálogo. El catálogo entra ENTERO en cada
+    #: prompt de cada agente: si crece sin control, se come la ventana de un
+    #: proveedor gratuito y el bucle de herramientas revienta a la 3ª iteración.
+    MAX_DESC = 90
+
     def signature(self) -> str:
-        """Línea compacta para el prompt. Los modelos gratuitos tienen contexto
-        limitado: el catálogo debe ser barato en tokens."""
+        """Línea compacta para el prompt."""
         props = self.parameters.get("properties", {})
         required = set(self.parameters.get("required", []))
         args = ", ".join(
             f"{k}{'' if k in required else '?'}:{v.get('type', 'any')}"
             for k, v in props.items()
         )
-        return f"{self.name}({args}) — {self.description}"
+        # Primera frase, y recortada: la descripción larga sirve para el
+        # esquema JSON, no para el listado que ve el modelo en cada turno.
+        desc = self.description.split(". ")[0].strip().rstrip(".")
+        if len(desc) > self.MAX_DESC:
+            desc = desc[:self.MAX_DESC].rsplit(" ", 1)[0] + "…"
+        return f"{self.name}({args}) — {desc}"
 
     def to_openai_schema(self) -> dict[str, Any]:
         return {"type": "function", "function": {

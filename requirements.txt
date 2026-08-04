@@ -16,6 +16,13 @@ pyinstaller==6.21.0
 capstone>=5.0
 unicorn>=2.0
 
+# Fábrica de artefactos con bucle de observación (§5). Opcionales: sin ellos
+# el sistema genera igual, pero no puede MIRAR lo que produjo.
+pygame
+pillow
+pypdf
+python-docx
+
 # Tests (CI)
 pytest>=8.0
 pytest-asyncio>=0.23

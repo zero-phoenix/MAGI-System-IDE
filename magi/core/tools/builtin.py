@@ -304,6 +304,17 @@ def build_registry() -> ToolRegistry:
         logging.getLogger(__name__).warning(
             "[tools] toolchain de RE no disponible: %s", e)
 
+    # §5 — fábrica de artefactos con bucle de observación. Es lo que permite
+    # que Balthasar ARRANQUE un juego y mire la captura en vez de opinar sobre
+    # el código.
+    try:
+        from magi.modules.studio.tools import register_studio_tools
+        register_studio_tools(reg)
+    except Exception as e:            # pragma: no cover
+        import logging
+        logging.getLogger(__name__).warning(
+            "[tools] fábrica de artefactos no disponible: %s", e)
+
     return reg
 
 
@@ -315,7 +326,9 @@ CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
                 # el árbitro necesita poder comprobar afirmaciones sobre
                 # arquitecturas sin fiarse de lo que digan los otros dos
                 "binary_identify", "console_profile", "analyze_port",
-                "compare_consoles"}
+                "compare_consoles",
+                # el árbitro debe poder mirar el artefacto, no fiarse del acta
+                "observe_artifact", "inspect_image"}
 
 
 def registry_for_role(role: str) -> ToolRegistry:
