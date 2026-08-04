@@ -330,12 +330,89 @@ CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
                 # el árbitro debe poder mirar el artefacto, no fiarse del acta
                 "observe_artifact", "inspect_image"}
 
+# ---------------------------------------------------------------------------
+# Dominios de herramientas (§2.2).
+#
+# El catálogo entra ENTERO en cada prompt de cada agente. Con 30 herramientas
+# pasó de 3200 caracteres, y compactar las descripciones ya no daba más de sí.
+# La respuesta correcta no es recortar texto: es no ofrecer el toolchain de
+# ingeniería inversa a quien está escribiendo un informe, ni el compositor de
+# manga a quien depura un dynarec.
+# ---------------------------------------------------------------------------
 
-def registry_for_role(role: str) -> ToolRegistry:
+CORE_TOOLS = {
+    "read_file", "write_file", "edit_file", "delete_path", "list_dir", "grep",
+    "glob", "run_command", "python_exec", "run_tests", "web_fetch", "undo",
+}
+
+REVERSE_TOOLS = {
+    "binary_identify", "console_profile", "disassemble", "binary_strings",
+    "emulate_code", "differential_test", "compare_consoles", "analyze_port",
+    "suggest_port_base", "re_toolchain_status", "index_emulator",
+    "locate_subsystem", "compare_emulators",
+}
+
+STUDIO_TOOLS = {
+    "observe_artifact", "inspect_image", "studio_backends",
+    "compose_manga_page", "validate_manga_layout",
+}
+
+_DOMAIN_HINTS = {
+    "reverse": (
+        "binario", "firmware", "rom", "emulador", "emular", "desensambl",
+        "dynarec", "ensamblador", "ingenieria inversa", "ingeniería inversa",
+        "psp", "vita", "nintendo", "gba", "nds", "n64", "playstation",
+        "mips", "arm", "opcode", "instruccion", "instrucción", "elf", "dump",
+        "decompil", "portar", "port ", "consola",
+    ),
+    "studio": (
+        "juego", "videojuego", "manga", "cómic", "comic", "viñeta", "vineta",
+        "imagen", "dibujo", "documento", "informe", "pdf", "docx", "vídeo",
+        "video", "pantalla", "captura", "sprite", "render",
+    ),
+}
+
+
+def domains_for(task_hint: str) -> set[str]:
+    """
+    Qué dominios de herramientas necesita una tarea.
+
+    Sin pista, se ofrecen todos: es preferible un catálogo grande a que el
+    agente no pueda hacer su trabajo por una heurística demasiado estrecha.
+    """
+    hint = (task_hint or "").lower()
+    if not hint.strip():
+        return {"core", "reverse", "studio"}
+    found = {"core"}
+    for domain, needles in _DOMAIN_HINTS.items():
+        if any(n in hint for n in needles):
+            found.add(domain)
+    return found
+
+
+def registry_for_role(role: str, task_hint: str = "") -> ToolRegistry:
+    """
+    Catálogo de un nodo, acotado al dominio de la tarea cuando se conoce.
+
+    `task_hint` es el enunciado del usuario. Con él, una tarea de emuladores no
+    carga el compositor de manga y viceversa: menos tokens por turno y menos
+    ruido para el modelo.
+    """
     base = build_registry()
+    domains = domains_for(task_hint)
+
+    allowed: set[str] | None = None
+    if domains != {"core", "reverse", "studio"}:
+        allowed = set(CORE_TOOLS)
+        if "reverse" in domains:
+            allowed |= REVERSE_TOOLS
+        if "studio" in domains:
+            allowed |= STUDIO_TOOLS
+
     r = role.upper()
     if r == "BALTHASAR":
-        return base.subset(deny_access=BALTHASAR_DENY)
+        return base.subset(allowed=allowed, deny_access=BALTHASAR_DENY)
     if r == "CASPER":
-        return base.subset(allowed=CASPER_TOOLS)
-    return base
+        keep = CASPER_TOOLS if allowed is None else (CASPER_TOOLS & allowed)
+        return base.subset(allowed=keep)
+    return base.subset(allowed=allowed)

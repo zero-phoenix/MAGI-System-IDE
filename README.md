@@ -147,6 +147,32 @@ se ve nada. Leyendo el código no se detecta:
 
 Y no gasta cuota de visión: es análisis de histograma con Pillow.
 
+### Manga
+
+La composición —rejilla, orden de lectura **derecha a izquierda**, globos,
+validación de solapes— es geometría determinista y está construida y probada.
+La generación de los dibujos necesita ComfyUI local (gratis, sin claves) y va
+detrás de un backend enchufable: sin ComfyUI las viñetas salen como marcadores
+de posición y el sistema **lo dice**, en vez de fingir que dibujó.
+
+`validate_manga_layout` comprueba solapes, huecos y viñetas fuera de página
+**antes** de generar nada — generar ocho viñetas y descubrir después que dos se
+pisan es tirar ocho generaciones.
+
+### Catálogo acotado por dominio
+
+El catálogo de herramientas entra entero en cada prompt. Con 30 herramientas
+son 3069 caracteres, que en un proveedor gratuito es mucho. Cada tarea recibe
+solo su dominio:
+
+| Tarea | Herramientas | Catálogo |
+|---|---|---|
+| «arregla el bug del scroll» | 12 | 890 chars |
+| «crea un juego de plataformas» | 17 | 1676 chars |
+| «analiza el dynarec de PPSSPP» | 25 | 2563 chars |
+
+Ante la duda, catálogo completo: mejor grande que insuficiente.
+
 ### Enrutamiento adaptativo
 
 No todo merece un debate de tres rondas.
@@ -210,7 +236,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **289 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **317 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -258,7 +284,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 289 tests, sin red
+python -m pytest tests/ -v        # 317 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -282,7 +308,8 @@ medible (§3.5).
 **Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3) y
 fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6).
 
-**Siguiente** — imagen y manga vía ComfyUI local (§5.4) y vídeo programático (§5.5).
+**Siguiente** — vídeo programático con FFmpeg (§5.5) y recogida de resultados
+de ComfyUI, que exige un ComfyUI real contra el que probarla.
 
 ### Sobre la auto-mejora
 

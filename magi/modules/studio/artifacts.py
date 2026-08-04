@@ -71,6 +71,10 @@ class Observation:
 
 # --------------------------------------------------------------- programas
 
+#: nombres que se prueban como punto de entrada de un proyecto Python
+ENTRY_CANDIDATES = ("main.py", "__main__.py", "app.py", "run.py", "start.py")
+
+
 async def observe_program(path: str | Path, *, entry: str = "",
                           timeout: int = 60) -> Observation:
     """Arranca el programa y mira si sobrevive."""
@@ -78,6 +82,20 @@ async def observe_program(path: str | Path, *, entry: str = "",
     if not p.exists():
         return Observation(False, ArtifactKind.PROGRAM, "no existe",
                            problems=[f"{p} no existe"])
+
+    if p.is_dir() and not entry:
+        # Antes se construía `python <nombre-del-directorio>`, que fallaba con
+        # rc=2 y un mensaje que no explicaba nada. Un directorio es un
+        # proyecto: hay que buscar su punto de entrada.
+        found = next((c for c in ENTRY_CANDIDATES if (p / c).exists()), None)
+        if found is None:
+            return Observation(
+                False, ArtifactKind.PROGRAM, "sin punto de entrada",
+                artifact_path=str(p),
+                problems=[f"{p} es un directorio y no contiene ninguno de "
+                          f"{', '.join(ENTRY_CANDIDATES)}. Indica `entry` con "
+                          f"el comando de arranque."])
+        entry = f'"{sys.executable}" "{found}"'
 
     cmd = entry or f'"{sys.executable}" "{p.name}"'
     cwd = p if p.is_dir() else p.parent
@@ -403,6 +421,23 @@ def available_backends() -> dict[str, bool]:
         "ffmpeg": bool(shutil.which("ffmpeg")),
         "comfyui_local": _comfy_reachable(),
     }
+
+
+def backends_report() -> str:
+    """Qué se puede hacer aquí, y qué falta para lo demás."""
+    b = available_backends()
+    lines = [f"  {'sí' if v else 'no':<4s} {k}" for k, v in b.items()]
+    notas = []
+    if not b["pygame"]:
+        notas.append("sin pygame no se pueden observar juegos, solo leer su código")
+    if not b["comfyui_local"]:
+        notas.append("sin ComfyUI en 127.0.0.1:8188 la composición de manga "
+                     "funciona pero las viñetas salen como marcadores de "
+                     "posición, no como dibujos")
+    if not b["ffmpeg"]:
+        notas.append("sin ffmpeg no hay vídeo programático")
+    return "\n".join(lines) + ("\n\n" + "\n".join(f"- {n}" for n in notas)
+                               if notas else "")
 
 
 def _comfy_reachable(host: str = "http://127.0.0.1:8188") -> bool:

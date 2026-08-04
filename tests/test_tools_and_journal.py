@@ -197,19 +197,43 @@ def test_casper_is_read_and_verify_only():
     assert "write_file" not in c.names() and "run_tests" in c.names()
 
 
-def test_catalog_is_compact_for_small_context_windows():
-    """
-    El catálogo entra ENTERO en cada prompt de cada agente. Al añadir el
-    toolchain de RE y la fábrica de artefactos pasó de 3000 caracteres y este
-    test lo cazó: la solución no es subir el límite, es que cada línea sea
-    barata en tokens.
-    """
-    reg = build_registry()
-    cat = reg.catalog()
+def test_catalog_lines_stay_cheap():
+    """Ninguna línea del catálogo puede dispararse: entra en cada prompt."""
+    cat = build_registry().catalog()
     assert "read_file(" in cat
-    assert len(cat) < 3000, f"catálogo de {len(cat)} chars con {len(reg.names())} herramientas"
-    # y ninguna línea suelta puede dispararse
     assert max(len(l) for l in cat.splitlines()) < 200
+
+
+def test_catalog_is_scoped_to_the_task_domain():
+    """
+    Lo que va al prompt NO es el catálogo completo, sino el del rol acotado por
+    el enunciado. Con 30 herramientas el catálogo entero pasó de 3200
+    caracteres; compactar el texto ya no daba más de sí y la respuesta correcta
+    fue no ofrecer el toolchain de emuladores a quien escribe un informe.
+    """
+    full = len(build_registry().catalog())
+    code_task = registry_for_role("MELCHIOR", "arregla el bug del scroll en App.tsx")
+    emu_task = registry_for_role("MELCHIOR", "analiza el dynarec de PPSSPP")
+
+    assert len(code_task.catalog()) < 1500, "una tarea de código no necesita 30 herramientas"
+    assert len(code_task.catalog()) < full / 2
+    assert "disassemble" not in code_task.names()
+    assert "compose_manga_page" not in code_task.names()
+    assert "disassemble" in emu_task.names()
+
+
+def test_scoping_never_removes_the_core_tools():
+    """Acotar por dominio no puede dejar a un agente sin poder leer ni escribir."""
+    for hint in ("dibuja un manga", "analiza este binario", "escribe un informe",
+                 "", "algo totalmente ambiguo"):
+        names = set(registry_for_role("MELCHIOR", hint).names())
+        assert {"read_file", "write_file", "run_command"} <= names, hint
+
+
+def test_no_hint_offers_everything():
+    """Ante la duda, catálogo completo: mejor grande que insuficiente."""
+    assert len(registry_for_role("MELCHIOR", "").names()) == \
+           len(build_registry().names())
 
 
 # ------------------------------------------------------------ paralelismo

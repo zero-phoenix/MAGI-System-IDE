@@ -83,6 +83,8 @@ WIRING = [
     ("register_studio_tools",  "magi/core/tools/builtin.py",        "§5 fábrica de artefactos en el enjambre"),
     ("index_source_tree",      "magi/modules/reverse/tools.py",     "§5.3 indexado de corpus de emuladores"),
     ("compare_corpora",        "magi/modules/reverse/tools.py",     "§5.3 contraste de código real"),
+    ("compose_page",           "magi/modules/studio/tools.py",      "§5.4 composición de manga"),
+    ("domains_for",            "magi/core/tools/builtin.py",        "§2.2 catálogo acotado por dominio"),
 ]
 
 

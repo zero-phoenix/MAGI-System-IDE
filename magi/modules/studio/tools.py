@@ -50,13 +50,71 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
         return ToolResult(obs.ok, obs.render(),
                           error=None if obs.ok else "; ".join(obs.problems))
 
+    @reg.tool("compose_manga_page",
+              "Compone una página de manga: rejilla de viñetas, orden de "
+              "lectura derecha-a-izquierda, globos y rotulación. Valida la "
+              "composición ANTES de generar dibujos.",
+              {"type": "object", "properties": {
+                  "out_path": {"type": "string"},
+                  "rows": {"type": "integer"},
+                  "cols": {"type": "integer"},
+                  "prompts": {"type": "array", "items": {"type": "string"},
+                              "description": "descripción de cada viñeta"},
+                  "layout": {"type": "string", "enum": ["grid", "dramatic"]},
+                  "order": {"type": "string",
+                            "enum": ["rtl", "ltr"],
+                            "description": "rtl = manga (por defecto)"}},
+               "required": ["out_path"]}, access={"write"}, dangerous=True)
+    async def compose_manga_page(out_path: str, ctx=None, rows: int = 2,
+                                 cols: int = 2, prompts: list | None = None,
+                                 layout: str = "grid", order: str = "rtl"):
+        from .manga import (ReadingOrder, compose_page, dramatic_page,
+                            grid_page)
+        ro = ReadingOrder.RTL if order == "rtl" else ReadingOrder.LTR
+        prompts = prompts or []
+        spec = (dramatic_page(prompts, order=ro) if layout == "dramatic"
+                else grid_page(rows, cols, prompts, order=ro))
+        problems = spec.validate()
+        if problems:
+            return ToolResult(False, "", error="; ".join(problems))
+        out = ctx.resolve(out_path) if ctx else Path(out_path)
+        if ctx is not None:
+            ctx.get_journal().record(out, "create", tool="compose_manga_page")
+        report = await compose_page(spec, out)
+        lines = [f"página: {report.get('path')}",
+                 f"viñetas: {report.get('panels')} · "
+                 f"generadas: {report.get('generated')} · "
+                 f"lectura: {report.get('reading_order')}"]
+        if report.get("problems"):
+            lines.append("problemas: " + "; ".join(report["problems"]))
+        return ToolResult(report.get("ok", False), "\n".join(lines),
+                          error=None if report.get("ok")
+                          else "; ".join(report.get("problems", [])))
+
+    @reg.tool("validate_manga_layout",
+              "Comprueba una composición (solapes, huecos, viñetas fuera de "
+              "página) SIN generar dibujos. Barato: evita gastar cuota en una "
+              "página mal montada.",
+              {"type": "object", "properties": {
+                  "rows": {"type": "integer"}, "cols": {"type": "integer"},
+                  "layout": {"type": "string", "enum": ["grid", "dramatic"]}},
+               "required": ["rows", "cols"]}, access={"read"})
+    def validate_manga_layout(rows: int, cols: int, layout: str = "grid"):
+        from .manga import dramatic_page, grid_page
+        spec = dramatic_page() if layout == "dramatic" else grid_page(rows, cols)
+        problems = spec.validate()
+        seq = [f"({p.row},{p.col})" for p in spec.reading_sequence()]
+        body = (f"{len(spec.panels)} viñetas, lectura {spec.order.value}\n"
+                f"orden: {' -> '.join(seq)}")
+        if problems:
+            return ToolResult(False, body, error="; ".join(problems))
+        return ToolResult(True, body + "\ncomposición válida")
+
     @reg.tool("studio_backends",
               "Qué se puede generar y observar en esta máquina.",
               {"type": "object", "properties": {}}, access={"read"})
     def studio_backends():
-        from .artifacts import available_backends
-        b = available_backends()
-        lines = [f"  {'sí' if v else 'no':<4s} {k}" for k, v in b.items()]
-        return ToolResult(True, "\n".join(lines))
+        from .artifacts import backends_report
+        return ToolResult(True, backends_report())
 
     return reg

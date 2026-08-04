@@ -240,3 +240,41 @@ async def test_observe_artifact_tool_end_to_end(tmp_path):
         "observe_artifact", {"path": ".", "kind": "juego"}, ctx)
     assert not r.ok
     assert "un solo color" in (r.error or "")
+
+
+# ---- regresión: observe_program sobre un directorio ----
+
+@pytest.mark.asyncio
+async def test_program_directory_finds_its_entry_point(tmp_path):
+    """
+    Antes se construía `python <nombre-del-directorio>`: fallaba con rc=2 y un
+    mensaje que no explicaba nada. Un directorio es un proyecto, hay que buscar
+    su punto de entrada.
+    """
+    proj = tmp_path / "proyecto"
+    proj.mkdir()
+    (proj / "main.py").write_text("print('arranca bien')\n", encoding="utf-8")
+    obs = await observe_program(proj)
+    assert obs.ok, obs.render()
+    assert "arranca bien" in obs.evidence[0]
+
+
+@pytest.mark.asyncio
+async def test_program_directory_without_entry_says_what_it_needs(tmp_path):
+    proj = tmp_path / "sin_entrada"
+    proj.mkdir()
+    (proj / "util.py").write_text("x = 1\n", encoding="utf-8")
+    obs = await observe_program(proj)
+    assert not obs.ok
+    assert "main.py" in obs.problems[0] and "entry" in obs.problems[0]
+
+
+@pytest.mark.asyncio
+async def test_explicit_entry_overrides_the_search(tmp_path):
+    import sys as _s
+    proj = tmp_path / "p"
+    proj.mkdir()
+    (proj / "main.py").write_text("raise SystemExit(1)\n", encoding="utf-8")
+    (proj / "otro.py").write_text("print('el correcto')\n", encoding="utf-8")
+    obs = await observe_program(proj, entry=f'"{_s.executable}" otro.py')
+    assert obs.ok and "el correcto" in obs.evidence[0]

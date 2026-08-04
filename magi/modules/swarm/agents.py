@@ -110,7 +110,9 @@ class SwarmAgentBase:
         registry = await self.llm._reg()
         turn = await run_agent(
             registry=registry,
-            tools=registry_for_role(self.tool_role),
+            # El enunciado acota el catálogo: una tarea de emuladores no carga
+            # el compositor de manga, y al revés.
+            tools=registry_for_role(self.tool_role, task_hint=user_prompt),
             system_prompt=full_sys, user_prompt=user_prompt, ctx=ctx,
             prefer_provider=f"g4f-{self.family}",
             max_iters=max_iters,

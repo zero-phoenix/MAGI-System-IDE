@@ -58,12 +58,18 @@ class Tool:
     #: proveedor gratuito y el bucle de herramientas revienta a la 3ª iteración.
     MAX_DESC = 90
 
+    #: nombres de tipo abreviados. El significado es el mismo y una firma de
+    #: seis parámetros baja de 200 caracteres a 180.
+    _TYPE_ABBR = {"string": "str", "integer": "int", "boolean": "bool",
+                  "number": "num", "array": "list", "object": "obj"}
+
     def signature(self) -> str:
         """Línea compacta para el prompt."""
         props = self.parameters.get("properties", {})
         required = set(self.parameters.get("required", []))
         args = ", ".join(
-            f"{k}{'' if k in required else '?'}:{v.get('type', 'any')}"
+            f"{k}{'' if k in required else '?'}:"
+            f"{self._TYPE_ABBR.get(v.get('type', 'any'), v.get('type', 'any'))}"
             for k, v in props.items()
         )
         # Primera frase, y recortada: la descripción larga sirve para el
