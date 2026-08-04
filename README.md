@@ -84,6 +84,9 @@ Diez herramientas que el enjambre puede invocar directamente:
 | `compare_consoles` | tabla de contraste entre consolas |
 | `analyze_port` | qué cuesta portar un emulador de una consola a otra, subsistema a subsistema |
 | `suggest_port_base` | qué emulador conviene como base, ordenado por reutilización real |
+| `index_emulator` | indexa el código de un emulador y clasifica cada fichero en subsistemas |
+| `locate_subsystem` | dónde vive el dynarec, la GPU o el HLE, con ficheros y líneas reales |
+| `compare_emulators` | contrasta dos emuladores por subsistema, con líneas de código |
 | `re_toolchain_status` | qué está instalado |
 
 Funciona con `capstone` y `unicorn` (paquetes pip). Ghidra y radare2 se detectan
@@ -104,6 +107,21 @@ reutilización estimada: 55%
 Y `suggest_port_base vita` responde **Nintendo 3DS** (71%) antes que PSP (55%),
 porque ARMv6K→ARMv7-A con shaders en ambas reutiliza más que MIPS→ARM con
 pipeline fijo — aunque PPSSPP sea el emulador más conocido.
+
+`analyze_port` compara **consolas** desde sus perfiles de hardware. Para trabajar
+sobre código real, `index_emulator` recorre el árbol de fuentes y clasifica cada
+fichero en subsistemas; `compare_emulators` los contrasta con líneas reales:
+
+```
+subsistema            PPSSPP     melonDS   razón
+dynarec                  504       1,502   0.3x
+hle_sistema              401           0   solo A
+
+Lectura:
+- dynarec: melonDS dedica 3.0x más código. Si vas a portar en esa
+  dirección, ahí se concentra el trabajo que no se ve en la tabla de consolas.
+- hle_sistema: solo existe en PPSSPP; melonDS tendría que escribirlo entero.
+```
 
 ### Fábrica de artefactos con bucle de observación
 
@@ -192,7 +210,7 @@ Lo que se arregló, y qué había antes:
 | **Versionado de Naoko** | Default `v1.0.0` produjo el commit `1eb7e87`, una **regresión** entre v5.0.24 y v5.0.25 | Versión leída de git; si no se puede determinar, **no se etiqueta** |
 | **Publicación de Naoko** | `git add .` + commit + tag + push, sin revisar ni verificar | Solo los ficheros del parche, y sin push automático |
 | **Contexto** | Los agentes no sabían la fecha ni en qué SO corrían | Bloque de contexto real en cada prompt |
-| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **267 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
+| **Tests** | En `scratch/` (gitignorado); `test_area0` en rojo | **289 tests** versionados —incluidos los de integración que recorren el camino real—, CI en Linux y Windows |
 | **Propuestas** | Una sola, secuencial | 2-3 enfoques en paralelo; el crítico los compara |
 | **Crítica** | Un párrafo genérico | 4 ejes concurrentes: corrección, seguridad, plataforma, rendimiento |
 | **Código propuesto** | Llegaba al árbitro sin ejecutarse: tres rondas debatiendo sobre código que no compila | Verificado antes de la crítica; si falla vuelve al autor sin gastar ronda |
@@ -240,7 +258,7 @@ para imprimir su propio nombre en el arranque.
 ## Desarrollo
 
 ```bash
-python -m pytest tests/ -v        # 267 tests, sin red
+python -m pytest tests/ -v        # 289 tests, sin red
 ruff check magi/ tests/           # lint
 ```
 
@@ -264,8 +282,7 @@ medible (§3.5).
 **Fase 4 en curso** — toolchain de ingeniería inversa y emuladores (§5.3) y
 fábrica de artefactos con bucle de observación (§5.1, §5.2, §5.6).
 
-**Siguiente** — imagen y manga vía ComfyUI local (§5.4), vídeo programático
-(§5.5), y corpus de emuladores indexado para comparación sobre código real.
+**Siguiente** — imagen y manga vía ComfyUI local (§5.4) y vídeo programático (§5.5).
 
 ### Sobre la auto-mejora
 

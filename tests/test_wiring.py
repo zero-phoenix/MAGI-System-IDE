@@ -81,6 +81,8 @@ WIRING = [
     ("run_self_improvement","magi/core/kernel.py",                  "§3.5 auto-mejora invocable"),
     ("register_reverse_tools", "magi/core/tools/builtin.py",        "§5.3 toolchain de RE en el enjambre"),
     ("register_studio_tools",  "magi/core/tools/builtin.py",        "§5 fábrica de artefactos en el enjambre"),
+    ("index_source_tree",      "magi/modules/reverse/tools.py",     "§5.3 indexado de corpus de emuladores"),
+    ("compare_corpora",        "magi/modules/reverse/tools.py",     "§5.3 contraste de código real"),
 ]
 
 

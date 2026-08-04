@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 MAX_SLICE = 256 * 1024
 
+# Índices de corpus ya construidos, por ruta. Indexar PPSSPP entero tarda
+# segundos; hacerlo en cada turno del debate sería absurdo.
+_CORPUS_CACHE: dict[str, object] = {}
+
 
 def register_reverse_tools(reg: ToolRegistry) -> ToolRegistry:
     """Añade el toolchain de RE a un registro existente."""
@@ -192,6 +196,73 @@ def register_reverse_tools(reg: ToolRegistry) -> ToolRegistry:
     def suggest_tool(target: str):
         from .matrix import suggest_port_path
         return ToolResult(True, suggest_port_path(target))
+
+    # ------------------------------------------------------- corpus real
+
+    @reg.tool("index_emulator",
+              "Indexa el código fuente de un emulador y clasifica cada fichero "
+              "en subsistemas (dynarec, gpu, mmu, hle...). El resultado queda "
+              "cacheado para las comparaciones posteriores.",
+              {"type": "object", "properties": {
+                  "path": {"type": "string"},
+                  "name": {"type": "string",
+                           "description": "etiqueta, p.ej. PPSSPP"}},
+               "required": ["path"]}, access={"read"})
+    def index_emulator(path: str, ctx=None, name: str = ""):
+        from .corpus import index_source_tree
+        p = ctx.resolve(path) if ctx else Path(path)
+        try:
+            idx = index_source_tree(p, name=name)
+        except NotADirectoryError:
+            return ToolResult(False, "", error=f"no es un directorio: {p}")
+        if idx.total_files == 0:
+            return ToolResult(False, "", error=(
+                f"no se encontró código fuente en {p}. ¿Es la raíz del "
+                f"repositorio del emulador?"))
+        _CORPUS_CACHE[str(p)] = idx
+        if name:
+            _CORPUS_CACHE[name.lower()] = idx
+        return ToolResult(True, idx.render(),
+                          meta={"files": idx.total_files,
+                                "lines": idx.total_lines})
+
+    @reg.tool("locate_subsystem",
+              "Dónde vive un subsistema en un emulador ya indexado, con "
+              "ficheros y número de líneas reales.",
+              {"type": "object", "properties": {
+                  "emulator": {"type": "string",
+                               "description": "nombre o ruta usados al indexar"},
+                  "subsystem": {"type": "string",
+                                "description": "dynarec, gpu, mmu, hle_sistema..."}},
+               "required": ["emulator", "subsystem"]}, access={"read"})
+    def locate_subsystem_tool(emulator: str, subsystem: str):
+        from .corpus import locate_subsystem, subsystem_names
+        idx = _CORPUS_CACHE.get(emulator) or _CORPUS_CACHE.get(emulator.lower())
+        if idx is None:
+            return ToolResult(False, "", error=(
+                f"'{emulator}' no está indexado. Usa index_emulator primero. "
+                f"Indexados: {', '.join(sorted(k for k in _CORPUS_CACHE)) or 'ninguno'}"))
+        if subsystem not in subsystem_names():
+            return ToolResult(False, "", error=(
+                f"subsistema desconocido. Disponibles: "
+                f"{', '.join(subsystem_names())}"))
+        return ToolResult(True, locate_subsystem(idx, subsystem))
+
+    @reg.tool("compare_emulators",
+              "Contrasta dos emuladores ya indexados subsistema a subsistema, "
+              "con líneas de código reales y lectura de dónde está el trabajo.",
+              {"type": "object", "properties": {
+                  "a": {"type": "string"}, "b": {"type": "string"}},
+               "required": ["a", "b"]}, access={"read"})
+    def compare_emulators(a: str, b: str):
+        from .corpus import compare_corpora
+        ia = _CORPUS_CACHE.get(a) or _CORPUS_CACHE.get(a.lower())
+        ib = _CORPUS_CACHE.get(b) or _CORPUS_CACHE.get(b.lower())
+        missing = [n for n, i in ((a, ia), (b, ib)) if i is None]
+        if missing:
+            return ToolResult(False, "", error=(
+                f"sin indexar: {', '.join(missing)}. Usa index_emulator antes."))
+        return ToolResult(True, compare_corpora(ia, ib).render())
 
     @reg.tool("re_toolchain_status",
               "Qué herramientas de ingeniería inversa hay instaladas.",
