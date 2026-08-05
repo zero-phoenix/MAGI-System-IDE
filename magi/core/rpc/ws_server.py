@@ -87,21 +87,77 @@ class WSServer:
             logger.info("Cliente GUI desconectado.")
 
     async def _process_rpc(self, websocket, message: str):
+        """
+        Atiende una petición RPC. NUNCA deja escapar una excepción.
+
+        DOS FALLOS QUE TENÍA ESTO, LOS DOS REPRODUCIDOS
+        ===============================================
+        1. Solo capturaba `json.JSONDecodeError`. Cualquier excepción de un
+           handler subía hasta el `async for message in websocket` del bucle
+           de conexión, que solo captura `ConnectionClosed`, y MATABA LA
+           CONEXIÓN ENTERA:
+
+               handler que lanza -> CONEXIÓN CERRADA (1011)
+               conexión tras el fallo -> MUERTA
+
+           Una petición mal formada dejaba a la interfaz sin kernel. Y da
+           igual lo defensivo que sea cada handler: basta con que uno falle
+           una vez.
+
+        2. `if result is not None` no respondía cuando un handler devolvía
+           `None`. El cliente se quedaba esperando una respuesta que no
+           llegaba nunca — con el helper `rpc()` de la interfaz, la promesa
+           colgada hasta el tiempo límite y el panel girando.
+
+        Ahora SIEMPRE se responde y ningún fallo de handler tumba el canal.
+        """
+        req_id = "0"
         try:
             data = json.loads(message)
+        except json.JSONDecodeError:
+            logger.error("Mensaje no es JSON válido.")
+            await self._reply(websocket, req_id, False,
+                              error="el mensaje no es JSON válido")
+            return
+
+        try:
             method = data.get("type") or data.get("method")
             payload = data.get("payload") or data.get("params") or data
             req_id = data.get("id") or data.get("request_id", "0")
-            
-            if method in self.handlers:
-                result = await self.handlers[method](payload, websocket)
-                if result is not None:
-                    await websocket.send(json.dumps({"id": req_id, "ok": True, "result": result}))
-            else:
-                await websocket.send(json.dumps({"id": req_id, "ok": False, "error": f"Method {method} not found"}))
-                
-        except json.JSONDecodeError:
-            logger.error("Mensaje no es JSON válido.")
+
+            if method not in self.handlers:
+                await self._reply(websocket, req_id, False,
+                                  error=f"Method {method} not found")
+                return
+
+            result = await self.handlers[method](payload, websocket)
+            await self._reply(websocket, req_id, True, result=result)
+
+        except asyncio.CancelledError:
+            raise                      # parar el servidor sí debe propagarse
+        except websockets.exceptions.ConnectionClosed:
+            raise                      # lo gestiona el bucle de conexión
+        except Exception as e:
+            # El error viaja al cliente en vez de cerrarle el canal: así el
+            # usuario ve QUÉ falló en lugar de una desconexión inexplicable.
+            logger.exception("[rpc] el handler '%s' falló", data.get("type"))
+            await self._reply(websocket, req_id, False,
+                              error=f"{type(e).__name__}: {e}")
+
+    async def _reply(self, websocket, req_id, ok: bool, result=None,
+                     error: str | None = None) -> None:
+        """Responde siempre. Si el envío falla, no se arrastra al bucle."""
+        cuerpo = {"id": req_id, "ok": ok}
+        if ok:
+            cuerpo["result"] = result
+        else:
+            cuerpo["error"] = error or "error desconocido"
+        try:
+            await websocket.send(json.dumps(cuerpo, default=str))
+        except websockets.exceptions.ConnectionClosed:
+            pass                       # el cliente ya se fue; no es un error
+        except Exception as e:         # pragma: no cover
+            logger.warning("[rpc] no se pudo responder a %s: %s", req_id, e)
 
     async def _handle_get_telemetry(self, payload: Any, websocket: Any) -> Any:
         return await self.db.get_telemetry()

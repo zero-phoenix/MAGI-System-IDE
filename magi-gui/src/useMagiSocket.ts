@@ -187,7 +187,8 @@ export function useMagiSocket(port: number = 20128) {
   // `naoko.self_improve` (auto-mejora medible) y `eval.run` (banco de
   // evaluación). Lo encontró una auditoría de qué handlers RPC tienen quien
   // los llame. Faltaba el botón, no el motor.
-  const rpc = (metodo: string, payload: unknown = {}): Promise<any> =>
+  const rpc = (metodo: string, payload: unknown = {},
+               timeoutMs = 20_000): Promise<any> =>
     new Promise((resolve, reject) => {
       const socket = ws.current;
       if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -210,16 +211,21 @@ export function useMagiSocket(port: number = 20128) {
       const temporizador = setTimeout(() => {
         socket.removeEventListener("message", alRecibir);
         reject(new Error("el kernel no respondió a tiempo"));
-      }, 180_000);
+      }, timeoutMs);
       socket.addEventListener("message", alRecibir);
       socket.send(JSON.stringify({ type: metodo, id, payload }));
     });
 
-  const fetchHealth = () => rpc("obs.metrics");
-  const runBenchmark = () => rpc("eval.run");
+  // El tiempo límite va por llamada: pedir métricas y esperar tres minutos
+  // son cosas distintas. Un tope único obliga a elegir entre dejar colgado un
+  // panel de lectura o cortar una auto-mejora legítima a mitad.
+  const fetchHealth = () => rpc("obs.metrics", {}, 15_000);
+  const fetchRunningTasks = () => rpc("task.running", {}, 10_000);
+  // El banco y la auto-mejora hacen inferencia real contra proveedores
+  // gratuitos: minutos, no segundos.
+  const runBenchmark = () => rpc("eval.run", {}, 10 * 60_000);
   const runSelfImprovement = (hypothesis: string) =>
-    rpc("naoko.self_improve", { hypothesis });
-  const fetchRunningTasks = () => rpc("task.running");
+    rpc("naoko.self_improve", { hypothesis }, 15 * 60_000);
 
   const stopEverything = () => {
     ws.current?.send(JSON.stringify({
