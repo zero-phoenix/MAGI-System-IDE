@@ -57,6 +57,11 @@ class Kernel:
         # §7.3 — parar UN turno sin matar la aplicación ni las demás tareas.
         self.rpc.register_handler("task.cancel", self._handle_cancel_task)
         self.rpc.register_handler("task.running", self._handle_running_tasks)
+        # Ciclo de mejora de Naoko: proponer, decidir en cada compuerta y
+        # consultar lo que está pendiente de tu respuesta.
+        self.rpc.register_handler("naoko.improve.propose", self._handle_improve_propose)
+        self.rpc.register_handler("naoko.improve.decide", self._handle_improve_decide)
+        self.rpc.register_handler("naoko.improve.list", self._handle_improve_list)
         self.rpc.register_handler("SYS_EXEC", self._handle_sys_exec)
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
         self.rpc.register_handler("git.clone", self._handle_git_clone)
@@ -178,6 +183,89 @@ class Kernel:
         """Qué hay en marcha ahora mismo, para poder ofrecer pararlo."""
         from magi.core.cancel import supervisor
         return {"running": supervisor().running_tasks()}
+
+    # ---------------------------------------------------- ciclo de mejora
+
+    async def _handle_improve_propose(self, payload, websocket):
+        """
+        Abre una mejora. `origin="usuario"` cuando la propones tú.
+
+        Tu propuesta recorre exactamente el mismo circuito que una idea de
+        Naoko: se pidió así. Que la idea sea tuya no la exime de la crítica
+        del enjambre; si acaso al revés.
+        """
+        p = payload or {}
+        titulo = (p.get("title") or "").strip()
+        if not titulo:
+            return {"status": "error", "message": "indica qué quieres mejorar"}
+        m = await self.naoko.propose_improvement(
+            titulo, (p.get("rationale") or "").strip(),
+            origin=p.get("origin") or "usuario")
+        return m.to_dict()
+
+    async def _handle_improve_decide(self, payload, websocket):
+        """
+        Tu decisión en una compuerta. Es lo único que hace avanzar el ciclo.
+
+        Un "no" descarta y no es un error: tratar el rechazo como fallo
+        empujaría a insistir, y una propuesta que insiste deja de serlo.
+        """
+        from magi.modules.infrastructure.improvement import Stage, user_decides
+
+        p = payload or {}
+        log = self.naoko._improvements()
+        m = log.get((p.get("improvement_id") or "").strip())
+        if m is None:
+            return {"status": "error", "message": "no existe esa mejora"}
+        if not m.awaiting_user:
+            return {"status": "error",
+                    "message": f"{m.improvement_id} está en {m.stage.value} y "
+                               f"no espera decisión tuya"}
+
+        anterior = m.stage
+        aprueba = bool(p.get("approve"))
+        try:
+            user_decides(m, aprueba)
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        log.save(m)
+        await self.naoko._narrate(
+            m, f"decidiste {'SÍ' if aprueba else 'NO'} en {anterior.value}")
+
+        if not aprueba:
+            return m.to_dict()
+
+        # Cada compuerta abre una fase distinta. Van en segundo plano y bajo el
+        # supervisor: son largas y el usuario debe poder pararlas (§7.3).
+        from magi.core.cancel import supervisor
+
+        async def _seguir():
+            try:
+                if anterior is Stage.IDEA:
+                    await self.naoko.draft_plan(m)
+                elif anterior is Stage.PLAN_BORRADOR:
+                    await self.naoko.run_circuit(m)
+                elif anterior is Stage.PLAN_FINAL:
+                    await self.naoko.execute_improvement(m)
+                elif anterior is Stage.ESPERANDO_PUBLICACION:
+                    await self.naoko.publish_improvement(m)
+            except Exception as e:
+                logger.exception("[mejora] %s falló", m.improvement_id)
+                await self.bus.publish(BusEvent(
+                    topic="TERMINAL_OUT",
+                    payload={"content": f"[NAOKO] la fase falló: {e}"}))
+            finally:
+                self.naoko._improvements().save(m)
+
+        supervisor().register_loop(
+            f"mejora-{m.improvement_id}", asyncio.create_task(_seguir()))
+        return m.to_dict()
+
+    async def _handle_improve_list(self, payload, websocket):
+        """Qué hay abierto y qué espera respuesta tuya."""
+        log = self.naoko._improvements()
+        return {"all": [m.to_dict() for m in log.all()[:20]],
+                "pending": [m.to_dict() for m in log.pending_user()]}
 
     async def _handle_policy_check(self, payload, websocket):
         cap = Capability(name=payload.get("name"), resource=payload.get("resource"))

@@ -327,6 +327,62 @@ resultados de ComfyUI, que exige un ComfyUI real contra el que probarla.
 muestra a qué panel pertenece, a propósito — la paleta debe enseñar dónde vive
 cada cosa, no sustituir a la interfaz.
 
+### Naoko: repara sola, mejora contigo
+
+Dos vías separadas a propósito, porque **reparar y mejorar no son lo mismo**:
+
+- **Reparar** devuelve el sistema a donde ya debía estar. Hay un fallo, hay
+  tests que lo demuestran y la corrección es verificable. Va **sin consultar**
+  (§3.1) — consultar cada arreglo convierte al usuario en el cuello de botella
+  de su propio sistema.
+- **Mejorar** cambia hacia dónde va el sistema. No hay un «correcto» contra el
+  que comprobar: hay un criterio, y el criterio es tuyo. Va **con compuertas**.
+
+Publicar es siempre tuyo aunque el cambio sea una reparación, porque subir a
+GitHub es visible para terceros y no se deshace con un `undo`.
+
+Cuando Naoko detecta un método más eficiente o más rápido (con fichero y línea;
+las propuestas de adorno están prohibidas en su rol), el plan da **dos vueltas
+completas** al enjambre antes de volver a ti:
+
+```
+Naoko redacta el plan
+    │
+    ├─ [COMPUERTA] autorizas redactarlo
+    │
+┌───▼──────────────────────────────────────────────┐
+│  MELCHIOR   analiza, mejora y añade sus críticas  │
+│  BALTHASAR  examina el plan Y lo de Melchior;     │
+│             crítica popperiana                    │
+│  CASPER     evalúa las tres cosas por separado,   │
+│             se pronuncia y añade temas nuevos     │
+└───┬──────────────────────────────────────────────┘
+    │  vuelve automáticamente (2 circuitos)
+    │
+CASPER entrega el plan hiperperfeccionado
+    │
+    ├─ [COMPUERTA] lo apruebas
+    │
+NAOKO ejecuta, narrando cada paso
+    │
+    └─ [COMPUERTA] autorizas publicar → compilación local, README,
+       etiqueta → Actions compila el .exe y lo adjunta en .zip
+```
+
+Dos vueltas y no una porque la segunda es donde el circuito gana algo: en la
+primera cada nodo ve el plan por primera vez; en la segunda lo ve **ya criticado
+por los otros dos**, que es cuando una crítica puede refutar a otra. Una sola
+vuelta son tres opiniones en paralelo disfrazadas de debate.
+
+Tus propias propuestas entran por el mismo sitio y recorren lo mismo: que la
+idea sea tuya no la exime de la crítica.
+
+Las compuertas viven en la máquina de estados, no en el prompt. Un modelo puede
+ignorar «consulta antes de continuar»; no puede inventarse una transición que no
+existe.
+
+<!-- naoko:mejoras -->
+
 ### Sobre capacidades que existen y no se pueden usar
 
 Pediste que la interfaz «tenga todas las implementaciones necesarias para

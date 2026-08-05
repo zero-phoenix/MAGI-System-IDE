@@ -68,6 +68,9 @@ export function useMagiSocket(port: number = 20128) {
                 // procesos que no murieron. Un botón de parada no puede
                 // devolver algo con aspecto de éxito sin haber parado nada.
                 appendTerminal(payload.detail || 'Cancelación completada');
+              } else if (topic === 'naoko.improvement') {
+                // Naoko es EXPRESA: cada paso del ciclo llega aquí para verse.
+                useMagiStore.getState().setImprovement(payload);
               } else if (topic === 'task.usage') {
                 // §7.3 — tokens y tiempo por tarea y por agente.
                 useMagiStore.getState().addUsage(payload);
@@ -221,6 +224,15 @@ export function useMagiSocket(port: number = 20128) {
   // panel de lectura o cortar una auto-mejora legítima a mitad.
   const fetchHealth = () => rpc("obs.metrics", {}, 15_000);
   const fetchRunningTasks = () => rpc("task.running", {}, 10_000);
+
+  // Ciclo de mejora de Naoko. `decide` puede arrancar una fase larga (redactar
+  // el plan, dos circuitos del enjambre, aplicar) pero devuelve en cuanto la
+  // lanza: el progreso llega por el evento `naoko.improvement`.
+  const listImprovements = () => rpc("naoko.improve.list", {}, 15_000);
+  const proposeImprovement = (title: string, rationale: string) =>
+    rpc("naoko.improve.propose", { title, rationale, origin: "usuario" }, 30_000);
+  const decideImprovement = (improvement_id: string, approve: boolean) =>
+    rpc("naoko.improve.decide", { improvement_id, approve }, 30_000);
   // El banco y la auto-mejora hacen inferencia real contra proveedores
   // gratuitos: minutos, no segundos.
   const runBenchmark = () => rpc("eval.run", {}, 10 * 60_000);
@@ -279,5 +291,6 @@ export function useMagiSocket(port: number = 20128) {
 
   return { sendCommand, sendGitClone, cancelTask, stopEverything,
            fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
+           listImprovements, proposeImprovement, decideImprovement,
            fetchTelemetry, requestFileContent, sendNaokoChat };
 }

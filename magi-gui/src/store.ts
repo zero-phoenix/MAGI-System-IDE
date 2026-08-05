@@ -52,6 +52,9 @@ interface MagiState {
   // §7.3 — panel de coste. El backend contaba los tokens y los tiraba: la
   // tabla `token_ledger` llevaba vacía desde que se creó porque nadie
   // llamaba a record_usage(). Ahora llegan por `task.usage`.
+  // Ciclo de mejora en curso, si hay alguno. Naoko publica cada transición.
+  improvement: any | null;
+  setImprovement: (m: any) => void;
   usage: Array<{ id: string; task_id: string; agent: string; family: string;
                  tokens_in: number; tokens_out: number; elapsed_s: number;
                  iterations: number; tool_calls: number }>;
@@ -186,6 +189,9 @@ export const useMagiStore = create<MagiState>((set) => ({
 
   approval: null,
   setApproval: (approval) => set({ approval }),
+
+  improvement: null,
+  setImprovement: (improvement) => set({ improvement }),
 
   usage: [],
   addUsage: (u) => set((state) => ({

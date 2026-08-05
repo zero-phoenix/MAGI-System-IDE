@@ -413,3 +413,276 @@ Devuelve tu diagnóstico y tu parche."""
                 if not path.endswith((".db", ".log")) and "__pycache__" not in path:
                     files.append(path)
         return files
+
+    # ======================================================================
+    # ROL CREATIVO: proponer mejoras, no solo reparar averías (§3.5)
+    # ======================================================================
+    #
+    # Reparar y mejorar son cosas distintas y por eso tienen puertas
+    # distintas. Reparar devuelve el sistema a donde ya debía estar, es
+    # verificable con tests y va SIN consultar. Mejorar cambia hacia dónde va
+    # el sistema, no hay un "correcto" contra el que comprobar, y ese criterio
+    # es del usuario: va con compuertas.
+    #
+    # Publicar es siempre del usuario aunque el cambio sea una reparación,
+    # porque subir a GitHub es visible para terceros y no se deshace con un
+    # `undo`.
+
+    ROL_CREATIVO = (
+        "Eres Naoko, y además de mantener el sistema tienes criterio propio de "
+        "ingeniería de software. Tu trabajo no es solo arreglar lo que falla: "
+        "es detectar dónde el sistema podría ser MÁS EFICIENTE, MÁS RÁPIDO o "
+        "sencillamente mejor, y proponerlo.\n\n"
+        "Propón cuando tengas una razón medible: un camino que recorre lo mismo "
+        "dos veces, una estructura que obliga a tocar tres ficheros para un "
+        "cambio, una espera que se puede solapar, una pieza construida a la que "
+        "no llega nadie. Cita el fichero y la línea.\n\n"
+        "NO propongas reescrituras por elegancia, ni cambios de nomenclatura, "
+        "ni migraciones de librería sin un problema concreto detrás. Una "
+        "propuesta sin un antes y un después que se puedan medir es ruido, y el "
+        "ruido hace que se dejen de leer las propuestas buenas.\n\n"
+        "Responde con dos líneas: TITULO: … y MOTIVO: … (con la evidencia)."
+    )
+
+    def _improvements(self):
+        from magi.modules.infrastructure.improvement import ImprovementLog
+        if getattr(self, "_imp_log", None) is None:
+            self._imp_log = ImprovementLog()
+        return self._imp_log
+
+    async def _narrate(self, m, detail: str = "") -> None:
+        """
+        Naoko es EXPRESA en todo lo que hace: cada paso sale a la vista.
+
+        Se publican dos cosas: el evento estructurado para la interfaz y el
+        texto para el terminal. Sin lo segundo, quien no tenga la pestaña
+        abierta no se entera de nada.
+        """
+        from magi.core.bus import BusEvent
+        if detail:
+            m.execution_log.append(detail)
+        self._improvements().save(m)
+        await self.bus.publish(BusEvent(
+            topic="naoko.improvement", payload=m.to_dict()))
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"content": f"[NAOKO] {detail}" if detail else m.render()}))
+
+    async def propose_improvement(self, title: str, rationale: str = "",
+                                  origin: str = "naoko"):
+        """
+        Abre una mejora y PARA a preguntar. No redacta el plan todavía.
+
+        Las propuestas del usuario entran por aquí con `origin="usuario"` y
+        recorren exactamente lo mismo: se pidió que fueran "pasadas a Melchior
+        con el sistema de rondas, igual que cuando Naoko tiene una idea". Que
+        la idea sea tuya no la exime de la crítica.
+        """
+        from magi.modules.infrastructure.improvement import start
+        m = start(origin, title, rationale)
+        await self._narrate(m)
+        return m
+
+    async def detect_improvement(self):
+        """
+        Mira el sistema y propone algo, si ve motivo.
+
+        Devuelve None cuando no encuentra nada que merezca la pena: proponer
+        por proponer es la forma más rápida de que dejen de leerse las
+        propuestas.
+        """
+        contexto = [self._get_swarm_status_summary()]
+        if self.metrics:
+            try:
+                contexto.append(self.metrics.health_summary())
+            except Exception:                     # pragma: no cover
+                pass
+        texto = await self._generate_with_rotation(
+            self.ROL_CREATIVO, "\n\n".join(contexto)
+            + "\n\n¿Ves alguna mejora que merezca la pena? Si no, responde NADA.")
+        if not texto or texto.strip().upper().startswith("NADA"):
+            return None
+
+        titulo = motivo = ""
+        for linea in texto.splitlines():
+            if linea.upper().startswith("TITULO:"):
+                titulo = linea.split(":", 1)[1].strip()
+            elif linea.upper().startswith("MOTIVO:"):
+                motivo = linea.split(":", 1)[1].strip()
+        if not titulo:
+            return None
+        return await self.propose_improvement(titulo, motivo)
+
+    async def draft_plan(self, m):
+        """Redacta el plan extenso. Solo tras el visto bueno del usuario."""
+        await self._narrate(m, f"redactando el plan de «{m.title}»")
+        m.plan = await self._generate_with_rotation(
+            "Eres Naoko. Redacta un plan de mejora EXTENSO Y DETALLADO: "
+            "objetivo, ficheros afectados con rutas reales, pasos en orden, "
+            "cómo se comprueba que funcionó, y qué se rompería si sale mal. "
+            "Nada de generalidades: quien lo lea debe poder ejecutarlo.",
+            f"Mejora: {m.title}\nMotivo: {m.rationale}")
+        await self._narrate(m, "plan redactado; espera tu visto bueno")
+        return m
+
+    async def run_circuit(self, m):
+        """
+        Hace circular el plan por Melchior → Balthasar → Casper, dos vueltas.
+
+        Entre Casper y el Melchior siguiente NO se pregunta nada: se pidió que
+        pasara automáticamente, y además la segunda vuelta no es una decisión
+        sino parte del método — es donde cada nodo ve el plan ya criticado por
+        los otros.
+        """
+        from magi.modules.infrastructure.improvement import (
+            next_actor, prompt_for, record_round,
+        )
+        if self.swarm is None:
+            raise RuntimeError("sin enjambre no hay circuito que recorrer")
+
+        nodos = {"MELCHIOR": self.swarm.melchior,
+                 "BALTHASAR": self.swarm.balthasar,
+                 "CASPER": self.swarm.casper}
+
+        while (siguiente := next_actor(m)) is not None:
+            circuito, agente = siguiente
+            await self._narrate(
+                m, f"circuito {circuito}/2 — turno de {agente}")
+            texto, _, _ = await nodos[agente]._ask(
+                f"Eres {agente} del enjambre MAGI.",
+                prompt_for(m, agente), engine="deep")
+            record_round(m, agente, texto)
+            await self._narrate(
+                m, f"circuito {circuito}/2 — {agente} respondió "
+                   f"({len(texto)} caracteres)")
+            if agente == "CASPER":
+                # Casper consolida: su salida ES el plan de la vuelta siguiente.
+                m.plan = texto
+        await self._narrate(m, "circuitos completados; el plan vuelve a ti")
+        return m
+
+    async def execute_improvement(self, m):
+        """
+        Aplica el plan aprobado, narrando cada paso.
+
+        Reutiliza `VerifiedRepair` (§3.1): reproducir, tocar, VERIFICAR con la
+        suite y revertir si queda en rojo. Una mejora que rompe los tests no es
+        una mejora, por muy bien argumentada que venga de tres circuitos.
+        """
+        from magi.core.agent_loop import run_agent
+        from magi.core.paths import project_root
+        from magi.core.providers.cloud import get_registry
+        from magi.core.tools import ToolContext, registry_for_role
+        from magi.core.tools.journal import WriteJournal
+        from magi.modules.infrastructure.improvement import Stage
+
+        await self._narrate(m, "empiezo a aplicar el plan aprobado")
+        task_id = f"mejora-{m.improvement_id}"
+        ctx = ToolContext(task_id=task_id, cwd=project_root(),
+                          journal=WriteJournal(task_id=task_id))
+        try:
+            registro = await get_registry()
+            turno = await run_agent(
+                registry=registro,
+                tools=registry_for_role("MELCHIOR", task_hint="reparar el código"),
+                system_prompt=(
+                    "Eres Naoko aplicando un plan de mejora ya aprobado y "
+                    "criticado por el enjambre. Aplícalo con las herramientas. "
+                    "Ejecuta la suite al terminar. Si queda en rojo, DESHAZ con "
+                    "`undo`: una mejora que rompe los tests no es una mejora."),
+                user_prompt=m.plan, ctx=ctx, max_iters=24,
+                agent_name="NAOKO")
+            for llamada in turno.tool_calls:
+                await self._narrate(
+                    m, f"herramienta: {llamada.get('tool', '?')}")
+            await self._narrate(m, turno.text[-1500:] if turno.text else
+                                "sin resumen del turno")
+        except Exception as e:
+            await self._narrate(m, f"la ejecución falló: {e}")
+            raise
+
+        from magi.modules.infrastructure.improvement import advance
+        advance(m, Stage.ESPERANDO_PUBLICACION)
+        m.release_notes = await self._release_notes(m)
+        await self._narrate(m, "aplicado. Te pregunto antes de publicar.")
+        return m
+
+    async def _release_notes(self, m) -> str:
+        """
+        Notas de la release que dicen QUÉ incluye esta mejora en concreto.
+
+        Se pidió expresamente. Una release que dice "correcciones varias" no
+        le sirve a nadie para decidir si actualizar.
+        """
+        try:
+            return await self._generate_with_rotation(
+                "Redacta las notas de una release. Di EXACTAMENTE qué incluye "
+                "esta mejora y qué cambia para quien la use. Nada de "
+                "'correcciones varias': si no se puede saber qué cambió "
+                "leyendo esto, no sirve. El binario va como .exe dentro de un "
+                ".zip en los adjuntos.",
+                f"Mejora: {m.title}\nMotivo: {m.rationale}\n\nPlan aplicado:\n"
+                f"{m.plan[:4000]}")
+        except Exception:                          # pragma: no cover
+            # Sin notas no se publica peor: se publica con lo que sabemos.
+            return f"Mejora: {m.title}\n\n{m.rationale}"
+
+    async def publish_improvement(self, m):
+        """
+        Publica: commit, etiqueta y push. SOLO tras el sí del usuario.
+
+        La etiqueta es lo que dispara `release.yml`, que corre los tests,
+        compila el .exe en Windows, lo mete en un .zip y lo adjunta a la
+        release. Por eso se publica con etiqueta y no solo con push: sin
+        etiqueta no hay release ni binario descargable.
+        """
+        from magi.core.paths import project_root
+        from magi.modules.infrastructure.improvement import Stage
+
+        if m.stage is not Stage.PUBLICADO:
+            raise RuntimeError(
+                f"{m.improvement_id} está en {m.stage.value}: publicar exige "
+                f"tu aprobación explícita")
+
+        root = project_root()
+        await self._narrate(m, "compilando en local antes de publicar")
+        ok, salida = await self._local_build()
+        await self._narrate(m, f"compilación local: {'ok' if ok else 'FALLÓ'}")
+        if not ok:
+            await self._narrate(
+                m, f"no publico con la compilación rota:\n{salida[-800:]}")
+            return m
+
+        await self._narrate(m, "actualizando el README")
+        await self._update_readme(m)
+        await self._narrate(m, "commit, etiqueta y push")
+        await self._git_push(f"mejora: {m.title[:60]}")
+        await self._narrate(
+            m, "publicado. La etiqueta dispara el workflow de release en "
+               "GitHub Actions: tests, .exe de Windows y .zip adjunto.")
+        return m
+
+    async def _local_build(self) -> tuple[bool, str]:
+        """Compilación local. Publicar con el build roto es publicar un fallo."""
+        from magi.core.paths import project_root
+        proc = await asyncio.create_subprocess_shell(
+            "python -m pytest tests/ -q", cwd=str(project_root()),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        from magi.core.cancel import tracked
+        async with tracked(proc):
+            out, _ = await proc.communicate()
+        return proc.returncode == 0, (out or b"").decode("utf-8", "replace")
+
+    async def _update_readme(self, m) -> None:
+        from magi.core.paths import project_root
+        readme = project_root() / "README.md"
+        if not readme.exists():
+            return
+        marca = "<!-- naoko:mejoras -->"
+        entrada = f"- **{m.title}** — {m.rationale or 'mejora aplicada'}\n"
+        texto = readme.read_text(encoding="utf-8")
+        if marca in texto:
+            texto = texto.replace(marca, marca + "\n" + entrada, 1)
+        else:
+            texto += (f"\n\n## Mejoras aplicadas por Naoko\n\n{marca}\n{entrada}")
+        readme.write_text(texto, encoding="utf-8")

@@ -12,6 +12,7 @@ import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
 import NaokoPanel from './components/NaokoPanel';
+import ImprovementPanel from './components/ImprovementPanel';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
@@ -40,6 +41,7 @@ export default function App() {
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
           fetchHealth, runBenchmark, runSelfImprovement,
+          listImprovements, proposeImprovement, decideImprovement,
           requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
@@ -180,7 +182,7 @@ export default function App() {
   // que pinta la barra, para que añadir una no exija acordarse de esto.
   const PESTAÑAS = ["Plan", "Código", "Vista previa", "Terminal", "Naoko",
                     "Configuración", "Gráfico HDC", "Estado de Motores IA",
-                    "Coste", "Sistema"];
+                    "Coste", "Sistema", "Mejoras"];
 
   const comandos: Command[] = [
     { id: "cancel", title: "Parar solo esta tarea", group: "Ejecución",
@@ -776,6 +778,13 @@ export default function App() {
                  </div>
                );
             })()}
+
+            {activeTab === "Mejoras" && (
+               /* Ciclo de mejora: compuertas del usuario y rondas del enjambre. */
+               <ImprovementPanel listImprovements={listImprovements}
+                                 proposeImprovement={proposeImprovement}
+                                 decideImprovement={decideImprovement} />
+            )}
 
             {activeTab === "Sistema" && (
                /* §3.4 y §3.5 — salud, banco y auto-mejora. Estaban completas
