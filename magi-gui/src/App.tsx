@@ -11,6 +11,7 @@ import AgentMessageCard from './components/AgentMessageCard';
 import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
+import NaokoPanel from './components/NaokoPanel';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
@@ -31,7 +32,6 @@ export default function App() {
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
-  const [naokoInputVal, setNaokoInputVal] = useState("");
   const [naokoImage, setNaokoImage] = useState<string | null>(null);
   const [gitUrl, setGitUrl] = useState("");
   const [engine, setEngine] = useState("fast");
@@ -599,85 +599,12 @@ export default function App() {
             )}
             
             {activeTab === "Naoko" && (
-              <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#050a0b", border: "1px solid var(--dim)" }}>
-                 <div style={{ padding: "10px", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid var(--dim)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                   <div style={{ color: "#d2a8ff", fontWeight: "bold" }}>NAOKO [DevOps Autónoma & Visión Multimodal]</div>
-                   <div style={{ color: naokoStatus === "Inactiva" ? "var(--dim)" : "var(--acc)", fontSize: "12px" }}>
-                     Estado: {naokoStatus}
-                   </div>
-                 </div>
-                 
-                 <div style={{ flex: 1, padding: "15px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
-                   {naokoMessages.map((msg, i) => (
-                      <div key={i} style={{ 
-                        background: msg.agent === "USER" ? "rgba(10,20,25,0.9)" : "rgba(30,20,30,0.7)", 
-                        border: `1px solid ${msg.agent === "USER" ? "var(--dim)" : "#d2a8ff"}`, 
-                        padding: "10px", 
-                        borderRadius: "8px",
-                        alignSelf: msg.agent === "USER" ? "flex-end" : "flex-start",
-                        maxWidth: "85%",
-                        fontSize: "13px",
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "var(--dim)", marginBottom: "5px" }}>{msg.agent}</div>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                   ))}
-                 </div>
-                 
-                 <div className="comp" style={{ padding: "10px", borderTop: "1px solid var(--dim)" }}>
-                    {naokoImage && (
-                      <div style={{ position: 'relative', display: 'inline-block', marginBottom: '8px' }}>
-                        <img src={naokoImage} alt="Adjunto Naoko" style={{ maxHeight: '80px', borderRadius: '4px', border: '1px solid var(--acc)' }} />
-                        <button 
-                          onClick={() => setNaokoImage(null)}
-                          style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--dang)', color: '#000', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-                    <div className="cr" style={{ margin: 0, gap: '6px' }}>
-                      <label className="chip" style={{ borderStyle: "dashed", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", fontSize: "11px", background: "rgba(210,168,255,0.1)", color: "#d2a8ff", border: "1px dashed #d2a8ff", borderRadius: "4px" }}>
-                        📷 <input type="file" accept="image/*" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setNaokoImage(reader.result as string);
-                            reader.readAsDataURL(file);
-                          }
-                        }} style={{ display: 'none' }} />
-                      </label>
-                      <textarea
-                        className="pf"
-                        rows={1}
-                        placeholder="Pregunta a Naoko o adjunta una captura visual..."
-                        value={naokoInputVal}
-                        onChange={(e) => setNaokoInputVal(e.target.value)}
-                        onKeyDown={(e) => {
-                          if(e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if(naokoInputVal.trim() || naokoImage){
-                               sendNaokoChat(naokoInputVal.trim() || "Analizar captura de pantalla adjunta", naokoImage);
-                               setNaokoInputVal("");
-                               setNaokoImage(null);
-                            }
-                          }
-                        }}
-                      ></textarea>
-                      <button className="bt go" onClick={() => {
-                        if(naokoInputVal.trim() || naokoImage){
-                           sendNaokoChat(naokoInputVal.trim() || "Analizar captura de pantalla adjunta", naokoImage);
-                           setNaokoInputVal("");
-                           setNaokoImage(null);
-                        }
-                      }}>Enviar ▸</button>
-                    </div>
-                 </div>
-              </div>
+              <NaokoPanel naokoMessages={naokoMessages}
+                          naokoStatus={naokoStatus}
+                          sendNaokoChat={sendNaokoChat}
+                          renderCode={renderCode}
+                          imagen={naokoImage}
+                          setImagen={setNaokoImage} />
             )}
             
              {activeTab === "Estado de Motores IA" && (
