@@ -568,3 +568,65 @@ def test_el_toolchain_de_re_no_tiene_mocks_que_inventen_analisis():
             f"reverse/{nombre}.py volvió: era andamiaje de v5.0.28")
     # La entropía de triage.py sí era útil y se reescribió conectada.
     assert (ROOT / "magi/modules/reverse/entropy.py").exists()
+
+
+# ------------------------------------- capacidades alcanzables desde la interfaz
+
+# Handlers RPC que NO necesitan botón: son saludos, alias o los usa el propio
+# protocolo. Todo lo demás es una capacidad del sistema, y una capacidad que
+# el usuario no puede invocar es una capacidad que no tiene.
+RPC_SIN_INTERFAZ = {
+    "rpc.hello",          # handshake
+    "magi_connect",       # handshake
+    "magi_estop",         # alias de KILL_ALL_PROCESSES
+    "rpc.policy.check",   # lo usa el motor de políticas, no el usuario
+    "task.running",       # consulta interna del panel de cancelación
+}
+
+
+def test_toda_capacidad_del_backend_se_puede_invocar_desde_la_interfaz():
+    """
+    Lo que se pidió al encargar esto: "que la interfaz tenga todas las
+    implementaciones necesarias para aplicar todas las funcionalidades".
+
+    Al auditarlo aparecieron TRES capacidades completas, probadas y
+    enganchadas al bus que no tenían forma de invocarse:
+
+        obs.metrics         panel de salud (§3.4)
+        eval.run            banco de evaluación (§3.5)
+        naoko.self_improve  auto-mejora medible (§3.5)
+
+    La última es justo la que se pidió — "que haga perfectible al sistema" —
+    así que era el peor sitio posible para dejar un cable suelto. El motor
+    estaba hecho; faltaba el botón.
+    """
+    import re
+
+    kernel = (ROOT / "magi/core/kernel.py").read_text(encoding="utf-8")
+    handlers = set(re.findall(r'register_handler\("([^"]+)"', kernel))
+
+    gui = ""
+    for f in (ROOT / "magi-gui/src").rglob("*.ts*"):
+        gui += f.read_text(encoding="utf-8")
+    gui = re.sub(r"/\*.*?\*/|//[^\n]*", "", gui, flags=re.S)
+
+    inalcanzables = sorted(
+        h for h in handlers - RPC_SIN_INTERFAZ
+        if f"'{h}'" not in gui and f'"{h}"' not in gui)
+    assert not inalcanzables, (
+        f"capacidades del backend sin forma de invocarlas desde la interfaz: "
+        f"{inalcanzables}. Añade el botón o decláralas en RPC_SIN_INTERFAZ "
+        f"con el motivo")
+
+
+def test_la_lista_de_exentos_no_se_queda_rancia():
+    """
+    Misma disciplina que con ATTIC_DIRS y KNOWN_ORPHANS: una lista de
+    excepciones que nombra cosas que ya no existen esconde las que sí
+    importan.
+    """
+    import re
+    kernel = (ROOT / "magi/core/kernel.py").read_text(encoding="utf-8")
+    handlers = set(re.findall(r'register_handler\("([^"]+)"', kernel))
+    fantasmas = sorted(RPC_SIN_INTERFAZ - handlers)
+    assert not fantasmas, f"RPC_SIN_INTERFAZ nombra handlers inexistentes: {fantasmas}"

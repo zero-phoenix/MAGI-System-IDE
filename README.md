@@ -323,6 +323,26 @@ de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
 la recogida de resultados de ComfyUI, que exige un ComfyUI real contra el que
 probarla.
 
+### Sobre capacidades que existen y no se pueden usar
+
+Pediste que la interfaz «tenga todas las implementaciones necesarias para
+aplicar todas las funcionalidades». Auditar literalmente eso —qué handlers RPC
+del kernel tienen quien los llame desde la interfaz— encontró **tres
+capacidades completas, probadas y enganchadas al bus, sin forma de
+invocarlas**:
+
+| Capacidad | Sección | Estado |
+|---|---|---|
+| `obs.metrics` — panel de salud | §3.4 | construida, inalcanzable |
+| `eval.run` — banco de evaluación | §3.5 | construida, inalcanzable |
+| `naoko.self_improve` — auto-mejora medible | §3.5 | construida, inalcanzable |
+
+La última es exactamente lo que se pidió al encargar todo esto —«que haga
+perfectible al sistema»— así que era el peor sitio posible para dejar un cable
+suelto. El motor estaba hecho; faltaba el botón. Ahora hay una pestaña
+**Sistema** con las tres, y un test que impide que vuelva a pasar: todo handler
+nuevo o tiene quien lo invoque, o se declara exento con su motivo.
+
 ### Sobre medir antes de optimizar
 
 El plan apuntaba a la «virtualización de lista» porque «los historiales largos

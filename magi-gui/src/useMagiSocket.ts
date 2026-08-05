@@ -182,6 +182,45 @@ export function useMagiSocket(port: number = 20128) {
   // proyecto, llamaba al clasificador y lanzaba un debate del enjambre sobre
   // ella. El botón de parada no solo no paraba: gastaba cuota y abría trabajo
   // nuevo. Hay que mandar el método como `type`.
+  // §3.4 / §3.5 — tres capacidades del backend estaban COMPLETAS y no había
+  // forma de invocarlas desde la interfaz: `obs.metrics` (panel de salud),
+  // `naoko.self_improve` (auto-mejora medible) y `eval.run` (banco de
+  // evaluación). Lo encontró una auditoría de qué handlers RPC tienen quien
+  // los llame. Faltaba el botón, no el motor.
+  const rpc = (metodo: string, payload: unknown = {}): Promise<any> =>
+    new Promise((resolve, reject) => {
+      const socket = ws.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        reject(new Error("sin conexión con el kernel"));
+        return;
+      }
+      const id = `${metodo}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const alRecibir = (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.id !== id) return;
+          socket.removeEventListener("message", alRecibir);
+          clearTimeout(temporizador);
+          data.ok === false ? reject(new Error(data.error || "falló"))
+                            : resolve(data.result);
+        } catch { /* otro mensaje cualquiera */ }
+      };
+      // Sin timeout, un handler que no responde deja la promesa colgada para
+      // siempre y el panel girando: el usuario no distingue "tarda" de "no va".
+      const temporizador = setTimeout(() => {
+        socket.removeEventListener("message", alRecibir);
+        reject(new Error("el kernel no respondió a tiempo"));
+      }, 180_000);
+      socket.addEventListener("message", alRecibir);
+      socket.send(JSON.stringify({ type: metodo, id, payload }));
+    });
+
+  const fetchHealth = () => rpc("obs.metrics");
+  const runBenchmark = () => rpc("eval.run");
+  const runSelfImprovement = (hypothesis: string) =>
+    rpc("naoko.self_improve", { hypothesis });
+  const fetchRunningTasks = () => rpc("task.running");
+
   const stopEverything = () => {
     ws.current?.send(JSON.stringify({
       type: 'KILL_ALL_PROCESSES', id: `estop_${Date.now()}`, payload: {},
@@ -232,5 +271,7 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, cancelTask, stopEverything, fetchTelemetry, requestFileContent, sendNaokoChat };
+  return { sendCommand, sendGitClone, cancelTask, stopEverything,
+           fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
+           fetchTelemetry, requestFileContent, sendNaokoChat };
 }

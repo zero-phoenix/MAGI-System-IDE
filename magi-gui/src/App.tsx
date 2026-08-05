@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
 import AgentMessageCard from './components/AgentMessageCard';
 import CostPanel from './components/CostPanel';
+import SystemPanel from './components/SystemPanel';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
 import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
@@ -35,7 +36,9 @@ export default function App() {
   const [narrativeStyle, setNarrativeStyle] = useState(
     () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.narrativeStyle")) || "tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
-  const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything, requestFileContent, sendNaokoChat } = useMagiSocket(20128);
+  const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
+          fetchHealth, runBenchmark, runSelfImprovement,
+          requestFileContent, sendNaokoChat } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -513,7 +516,7 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", "Coste", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
+            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", "Coste", "Sistema", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -819,6 +822,14 @@ export default function App() {
                  </div>
                );
             })()}
+
+            {activeTab === "Sistema" && (
+               /* §3.4 y §3.5 — salud, banco y auto-mejora. Estaban completas
+                  en el backend y sin forma de invocarlas. */
+               <SystemPanel fetchHealth={fetchHealth}
+                            runBenchmark={runBenchmark}
+                            runSelfImprovement={runSelfImprovement} />
+            )}
 
             {activeTab === "Coste" && (
                /* §7.3 — tokens y tiempo por tarea y por agente. */
