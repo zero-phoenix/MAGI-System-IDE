@@ -74,13 +74,7 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: "MAGI System IDE ${{ github.ref_name }}"
         files: dist/MAGI-IDE-v5.zip
-        body: |
-          ## Novedades en ${{ github.ref_name }} 🚀
-          
-          - **Banner Persistente de Aprobación Interactiva con Botones Rápida de 1-Clic:** Al entrar en `WAITING_USER_APPROVAL`, la interfaz muestra un banner persistente sobre la barra de entrada con acciones rápidas: `✅ Apruebo (Ejecutar)`, `✏️ Modificar` y `🛑 Cancelar`.
-          - **Selector de Estilo Narrativo Configurable:** Integrado selector en la barra superior con 4 modos narrativos: `Técnico (Ingeniería)`, `Sintético (Resumido)`, `Creativo (Innovación)` y `Analítico (Profundo)`.
-          - **Soporte de Pegado Global de Portapapeles (Ctrl+V):** Pega cualquier captura tomada con Snipping Tool (`Win+Shift+S`) directamente en la app para enviarla a Naoko.
-          - **Eliminación Total de Redundancia de Encabezados & Tipografía 400 Normal:** Garantizado que el cuerpo de las respuestas use texto sans-serif limpio en peso normal (400) sin encabezados `<h3>` duplicados.
+        body_path: RELEASE_NOTES.md
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

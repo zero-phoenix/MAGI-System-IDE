@@ -27,8 +27,69 @@ from pathlib import Path
 
 
 def strip_js_comments(src: str) -> str:
-    """Quita comentarios de bloque y de línea de JS/TS."""
-    return re.sub(r"/\*.*?\*/|//[^\n]*", "", src, flags=re.S)
+    """
+    Quita comentarios de JS/TS RESPETANDO las cadenas.
+
+    La primera versión era un regex, `re.sub(r"/\\*.*?\\*/|//[^\\n]*", "", src)`,
+    y destrozaba el código que decía limpiar:
+
+        entrada: const url = "https://github.com/x"; const y = 1;
+        salida : const url = "https:
+
+    El `//` de una URL dentro de una cadena se tragaba el resto de la línea.
+    Estaba ocurriendo de verdad sobre `App.tsx` y `useMagiSocket.ts`, y es el
+    peor sitio donde tener un fallo: este fichero es el INSTRUMENTO DE MEDIDA
+    de varias guardas del tipo «este patrón prohibido no vuelve». Si el
+    limpiador borra el patrón, la guarda pasa sin comprobar nada — y pasa en
+    verde, que es como no tener guarda pero creyendo que se tiene.
+
+    Se recorre carácter a carácter llevando la cuenta de si estamos dentro de
+    una cadena simple, doble o de plantilla. No se intenta detectar literales
+    de expresión regular: distinguir `/` de división de `/` de regex exige
+    analizar la gramática, y para lo que hace falta aquí basta con no romper
+    las cadenas.
+    """
+    out: list[str] = []
+    i, n = 0, len(src)
+    comilla: str | None = None          # ' " ` cuando estamos dentro
+
+    while i < n:
+        c = src[i]
+
+        if comilla:
+            out.append(c)
+            if c == "\\" and i + 1 < n:      # escape: copiar el par entero
+                out.append(src[i + 1])
+                i += 2
+                continue
+            if c == comilla:
+                comilla = None
+            i += 1
+            continue
+
+        if c in "'\"`":
+            comilla = c
+            out.append(c)
+            i += 1
+            continue
+
+        if c == "/" and i + 1 < n:
+            if src[i + 1] == "/":
+                while i < n and src[i] != "\n":
+                    i += 1
+                continue
+            if src[i + 1] == "*":
+                fin = src.find("*/", i + 2)
+                trozo = src[i:fin + 2] if fin != -1 else src[i:]
+                # Conservar los saltos de línea: los números de línea de un
+                # informe de fallo tienen que seguir sirviendo.
+                out.append("\n" * trozo.count("\n"))
+                i = fin + 2 if fin != -1 else n
+                continue
+
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def strip_py_comments(src: str) -> str:
@@ -122,6 +183,21 @@ def _autotest() -> None:
     assert "async def f(self, x)" in limpio, "se perdieron los espacios"
     assert "MARCA" not in limpio, "no se quitaron docstring y comentario"
     assert "# con almohadilla" in limpio, "se tocó una cadena"
+
+    # JS/TS: lo que de verdad estaba roto. Una URL dentro de una cadena lleva
+    # `//` y el regex ingenuo se comía el resto de la línea.
+    js = strip_js_comments(
+        'const u = "https://github.com/x";  // comentario con MARCA\n'
+        "const v = 'a /* no es bloque */ b';\n"
+        "const w = `plantilla // tampoco`;\n"
+        "/* bloque\n   con MARCA */\n"
+        "const z = 1;\n")
+    assert '"https://github.com/x"' in js, "se rompió una URL dentro de cadena"
+    assert "'a /* no es bloque */ b'" in js, "se tocó una cadena simple"
+    assert "`plantilla // tampoco`" in js, "se tocó una plantilla"
+    assert "MARCA" not in js, "no se quitaron los comentarios"
+    assert "const z = 1;" in js
+    assert 'const u = "https://github.com/x";' in js
 
 
 _autotest()

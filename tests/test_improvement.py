@@ -19,16 +19,27 @@ existe.
 import pytest
 
 from magi.modules.infrastructure.improvement import (
-    CIRCUITOS, GATES, SECUENCIA, ImprovementError, ImprovementLog, Stage,
-    advance, next_actor, prompt_for, record_round, start, user_decides,
+    CIRCUITOS, GATES, SECUENCIA, TRANSICIONES, ImprovementError,
+    ImprovementLog, Stage, advance, fail, next_actor, prompt_for,
+    record_round, start, user_decides,
 )
 
 
 def _hasta_rondas(origin="naoko"):
+    """
+    Lleva una mejora hasta la fase de rondas.
+
+    Pasa por REDACTANDO porque `user_decides` ya no salta directamente a la
+    compuerta siguiente: entre la decisión y la compuerta hay un estado de
+    TRABAJO, para que la pregunta «¿lo paso al enjambre?» no se presente con
+    el plan todavía vacío.
+    """
     m = start(origin, "Cachear el catálogo de herramientas por dominio")
-    user_decides(m, True)          # sí, redacta el plan
+    user_decides(m, True)                      # sí, redacta el plan
+    assert m.stage is Stage.REDACTANDO
     m.plan = "1. Medir. 2. Cachear. 3. Comprobar que no se sirve rancio."
-    user_decides(m, True)          # sí, pásalo al enjambre
+    advance(m, Stage.PLAN_BORRADOR)            # Naoko termina de redactar
+    user_decides(m, True)                      # sí, pásalo al enjambre
     return m
 
 
@@ -49,7 +60,7 @@ def test_no_se_puede_saltar_del_borrador_a_la_ejecucion():
     """
     m = start("naoko", "x")
     user_decides(m, True)
-    assert m.stage is Stage.PLAN_BORRADOR
+    advance(m, Stage.PLAN_BORRADOR)
     with pytest.raises(ImprovementError, match="no se puede pasar"):
         advance(m, Stage.EJECUTANDO)
 
@@ -186,6 +197,7 @@ def test_una_propuesta_del_usuario_recorre_lo_mismo():
     assert m.stage is Stage.IDEA
     user_decides(m, True)
     m.plan = "plan"
+    advance(m, Stage.PLAN_BORRADOR)
     user_decides(m, True)
     assert next_actor(m) == (1, "MELCHIOR")
     assert "el usuario" in prompt_for(m, "MELCHIOR")
@@ -317,3 +329,178 @@ def test_el_rol_creativo_prohibe_las_propuestas_de_adorno():
     assert "MÁS EFICIENTE" in rol and "MÁS RÁPIDO" in rol
     assert "NO propongas" in rol
     assert "fichero y la línea" in rol
+
+
+# ============================================================================
+# Regresiones de la revisión adversarial. Todas estaban en VERDE: los 28 tests
+# anteriores pasaban mientras el ciclo marcaba «publicado» sin publicar nada.
+# ============================================================================
+
+def test_la_compuerta_del_plan_no_aparece_con_el_plan_vacio():
+    """
+    `user_decides` avanzaba directamente al estado siguiente, así que la
+    compuerta «¿lo paso al enjambre?» se presentaba con plan == "" mientras
+    Naoko aún lo escribía. Aprobar ahí circulaba un plan vacío por seis
+    llamadas a la nube.
+    """
+    m = start("naoko", "x")
+    user_decides(m, True)
+    assert m.stage is Stage.REDACTANDO, "debe ir a un estado de TRABAJO"
+    assert not m.awaiting_user, "no puede pedir decisión mientras escribe"
+
+
+def test_no_se_marca_publicado_antes_de_publicar():
+    """
+    EL FALLO MÁS GRAVE. Aprobar la publicación ponía la fila en `publicado`
+    —que es terminal— antes de intentar nada. Si la compilación fallaba, ahí
+    se quedaba: ni reintento ni descarte.
+    """
+    m = start("naoko", "x")
+    m.stage = Stage.ESPERANDO_PUBLICACION
+    user_decides(m, True)
+    assert m.stage is Stage.PUBLICANDO, "publicar es un TRABAJO, no un hecho"
+    assert m.stage is not Stage.PUBLICADO
+
+
+def test_solo_se_llega_a_publicado_desde_publicando():
+    for etapa in Stage:
+        if etapa is Stage.PUBLICANDO:
+            continue
+        assert Stage.PUBLICADO not in TRANSICIONES.get(etapa, set()), \
+            f"se puede llegar a PUBLICADO desde {etapa.value}"
+
+
+def test_una_fase_rota_deja_el_ciclo_recuperable():
+    """
+    Antes una excepción dejaba `ronda` o `ejecutando`, que no son compuertas:
+    la única salida era editar SQLite.
+    """
+    m = start("naoko", "x")
+    user_decides(m, True)
+    advance(m, Stage.PLAN_BORRADOR)
+    user_decides(m, True)
+    assert m.stage is Stage.RONDA
+
+    fail(m, "el proveedor se cayó")
+    assert m.stage is Stage.FALLIDA
+    assert m.awaiting_user, "un fallo tiene que poder resolverse"
+    assert "el proveedor se cayó" in m.question
+
+
+def test_reintentar_vuelve_a_la_compuerta_de_la_que_salio():
+    """Reintentar es volver a decidir con lo que ya se sabe, no repetir a ciegas."""
+    m = start("naoko", "x")
+    user_decides(m, True)
+    advance(m, Stage.PLAN_BORRADOR)
+    user_decides(m, True)          # -> RONDA
+    fail(m, "boom")
+    user_decides(m, True)          # reintentar
+    assert m.stage is Stage.PLAN_BORRADOR
+
+
+def test_se_puede_descartar_una_fallida():
+    m = start("naoko", "x")
+    user_decides(m, True)
+    fail(m, "boom")
+    user_decides(m, False)
+    assert m.stage is Stage.DESCARTADA
+
+
+def test_solo_las_fases_de_trabajo_pueden_fallar():
+    m = start("naoko", "x")
+    with pytest.raises(ImprovementError, match="no es una fase de trabajo"):
+        fail(m, "no tiene sentido")
+
+
+def test_el_motivo_del_fallo_sobrevive_al_reinicio(tmp_path):
+    from magi.modules.infrastructure.improvement import ImprovementLog
+    log = ImprovementLog(tmp_path / "b.db")
+    m = start("naoko", "x")
+    user_decides(m, True)
+    fail(m, "se agotaron los proveedores gratuitos")
+    log.save(m)
+    r = ImprovementLog(log.path).get(m.improvement_id)
+    assert r.stage is Stage.FALLIDA
+    assert "proveedores gratuitos" in r.failure
+    assert r.failed_from == Stage.IDEA.value
+
+
+def test_naoko_publica_de_verdad_cuando_se_le_autoriza():
+    """
+    `_git_push` solo hacía un commit local y decía "No hago push ni tag
+    automáticos", mientras la narración afirmaba que la etiqueta había
+    disparado el workflow de release. El código y el relato decían cosas
+    distintas.
+    """
+    import inspect
+
+    from magi.modules.infrastructure.naoko import NaokoAgent
+    src = inspect.getsource(NaokoAgent._git_push)
+    assert "publish: bool = False" in src, "falta la vía de publicación"
+    assert '"git", "push", "origin"' in src, "sigue sin subir nada"
+    assert '"git", "tag"' in src, "sin etiqueta no hay release ni binario"
+
+
+def test_la_autocorreccion_no_publica_sola():
+    """
+    La reparación automática commitea y para. Publicar es siempre del usuario,
+    aunque el cambio sea un arreglo.
+    """
+    import inspect
+
+    from magi.modules.infrastructure.naoko import NaokoAgent
+    # La reparación vive en `_handle_error_event`: es la que llama a
+    # `_git_push` tras verificar, y tiene que hacerlo SIN `publish=True`.
+    src = inspect.getsource(NaokoAgent._handle_error_event)
+    assert "_git_push(" in src, "la reparación ya no commitea"
+    assert "publish=True" not in src, \
+        "la autocorrección no puede publicar por su cuenta"
+
+
+def test_la_guarda_de_publicar_no_esta_invertida():
+    """
+    Era `if m.stage is not Stage.PUBLICADO: raise`, o sea que exigía estar ya
+    publicado para poder publicar: no protegía nada y el test que la vigilaba
+    pasaba igual porque solo buscaba las cadenas "Stage.PUBLICADO" y "raise".
+    """
+    import inspect
+
+    from magi.modules.infrastructure.naoko import NaokoAgent
+    src = inspect.getsource(NaokoAgent.publish_improvement)
+    assert "is not Stage.PUBLICANDO" in src
+    assert "is not Stage.PUBLICADO" not in src
+
+
+# --------------------------------------------------------- release honesto
+
+def test_las_notas_de_la_release_no_estan_congeladas_en_el_workflow():
+    """
+    El cuerpo de la release estaba ESCRITO A MANO dentro de `release.yml` con
+    las novedades de v5.0.28. Cada versión nueva habría publicado la misma
+    lista, describiendo cosas que ya no son las novedades. Una release que
+    miente sobre lo que trae es peor que una sin notas.
+    """
+    import yaml
+    wf = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
+    pasos = wf["jobs"]["build"]["steps"]
+    crear = next(s for s in pasos if s.get("name") == "Create Release")
+    assert "body" not in crear["with"], "el cuerpo vuelve a estar incrustado"
+    assert crear["with"].get("body_path") == "RELEASE_NOTES.md"
+    assert (ROOT / "RELEASE_NOTES.md").exists()
+
+
+def test_la_release_adjunta_el_exe_dentro_de_un_zip():
+    import yaml
+    wf = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
+    pasos = wf["jobs"]["build"]["steps"]
+    comprimir = next(s for s in pasos if s.get("name") == "Zip Release")
+    assert ".exe" in comprimir["run"] and ".zip" in comprimir["run"]
+    crear = next(s for s in pasos if s.get("name") == "Create Release")
+    assert crear["with"]["files"].endswith(".zip")
+
+
+def test_no_hay_release_sin_tests_verdes():
+    import yaml
+    wf = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
+    assert wf["jobs"]["build"].get("needs") == "test", \
+        "el build tiene que depender de los tests"

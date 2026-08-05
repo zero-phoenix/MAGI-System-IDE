@@ -83,30 +83,69 @@ CIRCUITOS = 2
 
 
 class Stage(str, Enum):
-    """Dónde está una mejora. Cada valor es un estado real, no una etiqueta."""
-    IDEA = "idea"                       # Naoko propone; espera permiso para redactar
-    PLAN_BORRADOR = "plan_borrador"     # redactado; espera permiso para el enjambre
-    RONDA = "ronda"                     # circulando por Melchior/Balthasar/Casper
-    PLAN_FINAL = "plan_final"           # Casper lo entrega; espera aprobación
-    EJECUTANDO = "ejecutando"           # Naoko lo aplica, narrando
-    ESPERANDO_PUBLICACION = "esperando_publicacion"
-    PUBLICADO = "publicado"
+    """
+    Dónde está una mejora. Cada valor es un estado real, no una etiqueta.
+
+    Hay estados de ESPERA (compuertas) y estados de TRABAJO. La distinción no
+    es cosmética: la primera versión no tenía estados de trabajo, así que la
+    decisión del usuario avanzaba directamente al estado siguiente ANTES de
+    que la fase hubiera hecho nada. Dos consecuencias medidas:
+
+      · La compuerta `plan_borrador` se presentaba con el plan VACÍO, porque
+        `draft_plan` aún estaba escribiéndolo.
+      · Al aprobar la publicación, la fila decía `publicado` antes de
+        publicar. Si la compilación fallaba, se quedaba en `publicado` — que
+        es terminal — sin reintento ni descarte posibles.
+
+    Un estado que afirma algo que no ha ocurrido es la misma clase de fallo
+    que el botón de parada que no paraba.
+    """
+    IDEA = "idea"                       # espera: ¿redacto el plan?
+    REDACTANDO = "redactando"           # trabajo: Naoko escribe el plan
+    PLAN_BORRADOR = "plan_borrador"     # espera: ¿lo paso al enjambre?
+    RONDA = "ronda"                     # trabajo: circula por los tres nodos
+    PLAN_FINAL = "plan_final"           # espera: ¿lo apruebo y ejecuto?
+    EJECUTANDO = "ejecutando"           # trabajo: Naoko lo aplica
+    ESPERANDO_PUBLICACION = "esperando_publicacion"   # espera: ¿publico?
+    PUBLICANDO = "publicando"           # trabajo: build, README, tag, push
+    PUBLICADO = "publicado"             # terminal, y solo si SALIÓ BIEN
+    FALLIDA = "fallida"                 # espera: ¿reintento o descarto?
     DESCARTADA = "descartada"
 
 
 #: Compuertas del usuario. Salir de estos estados EXIGE una decisión suya.
 GATES = {Stage.IDEA, Stage.PLAN_BORRADOR, Stage.PLAN_FINAL,
-         Stage.ESPERANDO_PUBLICACION}
+         Stage.ESPERANDO_PUBLICACION, Stage.FALLIDA}
+
+#: Estados desde los que se puede caer a FALLIDA. Son los de trabajo: si una
+#: fase revienta, el ciclo tiene que quedar en un sitio del que se pueda salir.
+#: Antes se quedaba en `ronda` o `ejecutando`, que no son compuertas — ni
+#: `user_decides` los aceptaba ni había forma de reanudar: solo se salía
+#: editando SQLite a mano.
+TRABAJO = {Stage.REDACTANDO, Stage.RONDA, Stage.EJECUTANDO, Stage.PUBLICANDO}
+
+#: De dónde vino cada fase de trabajo, para poder reintentarla.
+REINTENTO: dict[Stage, Stage] = {
+    Stage.REDACTANDO: Stage.IDEA,
+    Stage.RONDA: Stage.PLAN_BORRADOR,
+    Stage.EJECUTANDO: Stage.PLAN_FINAL,
+    Stage.PUBLICANDO: Stage.ESPERANDO_PUBLICACION,
+}
 
 #: Transiciones permitidas. Lo que no está aquí no puede pasar.
 TRANSICIONES: dict[Stage, set[Stage]] = {
-    Stage.IDEA: {Stage.PLAN_BORRADOR, Stage.DESCARTADA},
+    Stage.IDEA: {Stage.REDACTANDO, Stage.DESCARTADA},
+    Stage.REDACTANDO: {Stage.PLAN_BORRADOR, Stage.FALLIDA, Stage.DESCARTADA},
     Stage.PLAN_BORRADOR: {Stage.RONDA, Stage.DESCARTADA},
-    Stage.RONDA: {Stage.RONDA, Stage.PLAN_FINAL, Stage.DESCARTADA},
+    Stage.RONDA: {Stage.RONDA, Stage.PLAN_FINAL, Stage.FALLIDA, Stage.DESCARTADA},
     Stage.PLAN_FINAL: {Stage.EJECUTANDO, Stage.RONDA, Stage.DESCARTADA},
-    Stage.EJECUTANDO: {Stage.ESPERANDO_PUBLICACION, Stage.DESCARTADA},
-    Stage.ESPERANDO_PUBLICACION: {Stage.PUBLICADO, Stage.DESCARTADA},
+    Stage.EJECUTANDO: {Stage.ESPERANDO_PUBLICACION, Stage.FALLIDA, Stage.DESCARTADA},
+    Stage.ESPERANDO_PUBLICACION: {Stage.PUBLICANDO, Stage.DESCARTADA},
+    # Solo se llega a PUBLICADO desde PUBLICANDO y habiendo salido bien.
+    Stage.PUBLICANDO: {Stage.PUBLICADO, Stage.FALLIDA, Stage.DESCARTADA},
     Stage.PUBLICADO: set(),
+    Stage.FALLIDA: {Stage.IDEA, Stage.PLAN_BORRADOR, Stage.PLAN_FINAL,
+                    Stage.ESPERANDO_PUBLICACION, Stage.DESCARTADA},
     Stage.DESCARTADA: set(),
 }
 
@@ -153,6 +192,9 @@ class Improvement:
     created_at: str = field(default_factory=_ahora)
     updated_at: str = field(default_factory=_ahora)
     release_notes: str = ""
+    #: Por qué falló, y desde qué fase, para poder reintentar exactamente esa.
+    failure: str = ""
+    failed_from: str = ""
 
     @property
     def awaiting_user(self) -> bool:
@@ -172,6 +214,9 @@ class Improvement:
                     f"del enjambre. ¿Lo apruebo y lo ejecuto? (sí / no)")
         if self.stage is Stage.ESPERANDO_PUBLICACION:
             return "Mejora aplicada. ¿La subo a GitHub y publico release? (sí / no)"
+        if self.stage is Stage.FALLIDA:
+            return (f"La fase falló: {self.failure or 'sin detalle'}. "
+                    f"¿Lo reintento? (sí / no)")
         return ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -231,6 +276,8 @@ class ImprovementLog:
                     rounds         TEXT NOT NULL DEFAULT '[]',
                     execution_log  TEXT NOT NULL DEFAULT '[]',
                     release_notes  TEXT NOT NULL DEFAULT '',
+                    failure        TEXT NOT NULL DEFAULT '',
+                    failed_from    TEXT NOT NULL DEFAULT '',
                     created_at     TEXT NOT NULL,
                     updated_at     TEXT NOT NULL,
                     ts             REAL NOT NULL
@@ -238,6 +285,15 @@ class ImprovementLog:
                 CREATE INDEX IF NOT EXISTS idx_improvement_stage
                     ON improvement(stage, updated_at DESC);
             """)
+            # Migración: una base creada antes de los estados de fallo no
+            # tiene estas columnas, y perder mejoras a medias por añadir un
+            # campo sería absurdo.
+            existentes = {r["name"] for r in
+                          c.execute("PRAGMA table_info(improvement)")}
+            for col in ("failure", "failed_from"):
+                if col not in existentes:
+                    c.execute(f"ALTER TABLE improvement ADD COLUMN "
+                              f"{col} TEXT NOT NULL DEFAULT ''")
 
     def save(self, m: Improvement) -> None:
         m.updated_at = _ahora()
@@ -245,13 +301,15 @@ class ImprovementLog:
             c.execute(
                 "INSERT OR REPLACE INTO improvement (improvement_id, origin,"
                 " title, rationale, plan, stage, circuit, rounds,"
-                " execution_log, release_notes, created_at, updated_at, ts)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " execution_log, release_notes, failure, failed_from,"
+                " created_at, updated_at, ts)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (m.improvement_id, m.origin, m.title, m.rationale, m.plan,
                  m.stage.value, m.circuit,
                  json.dumps([asdict(r) for r in m.rounds], ensure_ascii=False),
                  json.dumps(m.execution_log, ensure_ascii=False),
-                 m.release_notes, m.created_at, m.updated_at, time.time()))
+                 m.release_notes, m.failure, m.failed_from,
+                 m.created_at, m.updated_at, time.time()))
 
     @staticmethod
     def _row(r: sqlite3.Row) -> Improvement:
@@ -262,6 +320,8 @@ class ImprovementLog:
             rounds=[RoundEntry(**d) for d in json.loads(r["rounds"] or "[]")],
             execution_log=json.loads(r["execution_log"] or "[]"),
             release_notes=r["release_notes"],
+            failure=r["failure"] if "failure" in r.keys() else "",
+            failed_from=r["failed_from"] if "failed_from" in r.keys() else "",
             created_at=r["created_at"], updated_at=r["updated_at"])
 
     def get(self, improvement_id: str) -> Improvement | None:
@@ -323,13 +383,40 @@ def user_decides(m: Improvement, approve: bool) -> Improvement:
     if not approve:
         return advance(m, Stage.DESCARTADA)
 
+    if m.stage is Stage.FALLIDA:
+        # Reintentar es volver a la compuerta de la que salió la fase rota, no
+        # repetirla a ciegas: el usuario vuelve a decidir con lo que ya sabe.
+        destino = Stage(m.failed_from) if m.failed_from else Stage.IDEA
+        m.failure = ""
+        m.failed_from = ""
+        return advance(m, destino)
+
     siguiente = {
-        Stage.IDEA: Stage.PLAN_BORRADOR,
+        Stage.IDEA: Stage.REDACTANDO,
         Stage.PLAN_BORRADOR: Stage.RONDA,
         Stage.PLAN_FINAL: Stage.EJECUTANDO,
-        Stage.ESPERANDO_PUBLICACION: Stage.PUBLICADO,
+        # NO a PUBLICADO: a PUBLICANDO. Marcar publicado antes de publicar es
+        # exactamente lo que este proyecto lleva media reconstrucción
+        # corrigiendo en otros sitios.
+        Stage.ESPERANDO_PUBLICACION: Stage.PUBLICANDO,
     }[m.stage]
     return advance(m, siguiente)
+
+
+def fail(m: Improvement, motivo: str) -> Improvement:
+    """
+    Una fase de trabajo reventó. Deja la mejora en un sitio del que se sale.
+
+    Antes las excepciones dejaban el estado en `ronda` o `ejecutando`, que no
+    son compuertas: `user_decides` los rechazaba, no había RPC de reanudar, y
+    `active()` los devolvía para siempre. La única salida era editar SQLite.
+    """
+    if m.stage not in TRABAJO:
+        raise ImprovementError(
+            f"{m.stage.value} no es una fase de trabajo; no puede fallar")
+    m.failed_from = REINTENTO[m.stage].value
+    m.failure = str(motivo)[:400]
+    return advance(m, Stage.FALLIDA)
 
 
 def next_actor(m: Improvement) -> tuple[int, str] | None:

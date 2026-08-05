@@ -354,7 +354,7 @@ Devuelve tu diagnóstico y tu parche."""
             "Vía retirada: usa VerifiedRepair, que parchea con edit_file en una "
             "rama y verifica con la suite de tests antes de conservar el cambio.")
 
-    async def _git_push(self, message: str):
+    async def _git_push(self, message: str, publish: bool = False):
         """
         Publicación segura (Plan MAGI 9.0 §3.3).
 
@@ -391,12 +391,41 @@ Devuelve tu diagnóstico y tu parche."""
             return None
 
         await commit_files(changed, f"fix(naoko): {message[:70]}", root)
-        await self.bus.publish(BusEvent(topic="naoko.log", payload={
-            "agent": "NAOKO",
-            "content": (f"Commit creado con {len(changed)} fichero(s). "
-                        f"Versión propuesta: {why}.\n"
-                        f"No hago push ni tag automáticos: revísalo y publica tú "
-                        f"con `git push origin HEAD && git tag {new}`.")}))
+
+        # `publish=False` es la vía de la AUTOCORRECCIÓN: repara, commitea y
+        # para. Publicar es siempre del usuario, así que una reparación
+        # automática no puede subir nada por su cuenta.
+        #
+        # `publish=True` llega SOLO desde `publish_improvement`, es decir tras
+        # tu «sí» en la compuerta. Antes esta rama no existía: Naoko narraba
+        # "la etiqueta dispara el workflow de release" y aquí solo se hacía un
+        # commit local. La narración decía una cosa y el código hacía otra.
+        if not publish:
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                "agent": "NAOKO",
+                "content": (f"Commit creado con {len(changed)} fichero(s). "
+                            f"Versión propuesta: {why}.\n"
+                            f"No hago push ni tag automáticos: revísalo y "
+                            f"publica tú con "
+                            f"`git push origin HEAD && git tag {new}`.")}))
+            return new
+
+        for orden in (["git", "tag", "-a", new, "-m", message[:70]],
+                      ["git", "push", "origin", "HEAD"],
+                      ["git", "push", "origin", new]):
+            proc = await asyncio.create_subprocess_exec(
+                *orden, cwd=str(root),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT)
+            from magi.core.cancel import tracked
+            async with tracked(proc):
+                salida, _ = await proc.communicate()
+            if proc.returncode != 0:
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                    "agent": "NAOKO",
+                    "content": (f"Falló `{' '.join(orden)}`:\n"
+                                + (salida or b"").decode("utf-8", "replace")[-500:])}))
+                return None
         return new
 
     async def _changed_files(self, root) -> list[str]:
@@ -522,6 +551,8 @@ Devuelve tu diagnóstico y tu parche."""
             "cómo se comprueba que funcionó, y qué se rompería si sale mal. "
             "Nada de generalidades: quien lo lea debe poder ejecutarlo.",
             f"Mejora: {m.title}\nMotivo: {m.rationale}")
+        from magi.modules.infrastructure.improvement import Stage, advance
+        advance(m, Stage.PLAN_BORRADOR)
         await self._narrate(m, "plan redactado; espera tu visto bueno")
         return m
 
@@ -637,9 +668,13 @@ Devuelve tu diagnóstico y tu parche."""
         etiqueta no hay release ni binario descargable.
         """
         from magi.core.paths import project_root
-        from magi.modules.infrastructure.improvement import Stage
+        from magi.modules.infrastructure.improvement import Stage, advance, fail
 
-        if m.stage is not Stage.PUBLICADO:
+        # La guarda estaba INVERTIDA: exigía que el estado ya dijera
+        # PUBLICADO, así que no podía proteger nada. Lo correcto es exigir
+        # PUBLICANDO — el estado al que solo se llega tras tu «sí» — y marcar
+        # PUBLICADO únicamente si todo salió bien.
+        if m.stage is not Stage.PUBLICANDO:
             raise RuntimeError(
                 f"{m.improvement_id} está en {m.stage.value}: publicar exige "
                 f"tu aprobación explícita")
@@ -649,17 +684,27 @@ Devuelve tu diagnóstico y tu parche."""
         ok, salida = await self._local_build()
         await self._narrate(m, f"compilación local: {'ok' if ok else 'FALLÓ'}")
         if not ok:
+            from magi.modules.infrastructure.improvement import fail
+            fail(m, f"la compilación local falló:\n{salida[-600:]}")
             await self._narrate(
-                m, f"no publico con la compilación rota:\n{salida[-800:]}")
+                m, "no publico con la compilación rota. Queda para reintentar.")
             return m
 
         await self._narrate(m, "actualizando el README")
         await self._update_readme(m)
         await self._narrate(m, "commit, etiqueta y push")
-        await self._git_push(f"mejora: {m.title[:60]}")
+        etiqueta = await self._git_push(f"mejora: {m.title[:60]}", publish=True)
+        if not etiqueta:
+            from magi.modules.infrastructure.improvement import fail
+            fail(m, "el push o la etiqueta no salieron; nada se publicó")
+            await self._narrate(m, "no se pudo publicar. Queda para reintentar.")
+            return m
+
+        advance(m, Stage.PUBLICADO)
         await self._narrate(
-            m, "publicado. La etiqueta dispara el workflow de release en "
-               "GitHub Actions: tests, .exe de Windows y .zip adjunto.")
+            m, f"publicado con la etiqueta {etiqueta}. Dispara el workflow de "
+               f"release en GitHub Actions: tests, .exe de Windows y .zip "
+               f"adjunto para descargar.")
         return m
 
     async def _local_build(self) -> tuple[bool, str]:

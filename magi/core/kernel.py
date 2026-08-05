@@ -241,7 +241,9 @@ class Kernel:
 
         async def _seguir():
             try:
-                if anterior is Stage.IDEA:
+                if anterior is Stage.FALLIDA:
+                    pass          # reintentar solo devuelve a la compuerta
+                elif anterior is Stage.IDEA:
                     await self.naoko.draft_plan(m)
                 elif anterior is Stage.PLAN_BORRADOR:
                     await self.naoko.run_circuit(m)
@@ -250,12 +252,22 @@ class Kernel:
                 elif anterior is Stage.ESPERANDO_PUBLICACION:
                     await self.naoko.publish_improvement(m)
             except Exception as e:
+                # Sin esto la mejora se quedaba en `ronda` o `ejecutando`, que
+                # NO son compuertas: `user_decides` los rechazaba, no había
+                # forma de reanudar y `active()` los devolvía para siempre. La
+                # única salida era editar SQLite a mano.
                 logger.exception("[mejora] %s falló", m.improvement_id)
+                from magi.modules.infrastructure.improvement import TRABAJO, fail
+                if m.stage in TRABAJO:
+                    fail(m, str(e))
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
-                    payload={"content": f"[NAOKO] la fase falló: {e}"}))
+                    payload={"content": f"[NAOKO] la fase falló: {e}. "
+                                        f"Puedes reintentarla o descartarla."}))
             finally:
                 self.naoko._improvements().save(m)
+                await self.bus.publish(BusEvent(
+                    topic="naoko.improvement", payload=m.to_dict()))
 
         supervisor().register_loop(
             f"mejora-{m.improvement_id}", asyncio.create_task(_seguir()))
