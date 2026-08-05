@@ -67,6 +67,9 @@ class CancelReport:
     """Lo que se paró DE VERDAD. Sin adornos."""
     task_ids: list[str] = field(default_factory=list)
     loops_cancelled: int = 0
+    #: Bucles que agotaron la gracia y SIGUEN VIVOS. Existe porque sin él se
+    #: contaban como cancelados y el informe mentía.
+    loops_failed: int = 0
     processes_killed: int = 0
     processes_failed: int = 0
     nothing_running: bool = False
@@ -91,6 +94,10 @@ class CancelReport:
             texto += (f"\nAVISO: {self.processes_failed} proceso(s) NO "
                       f"murieron. Compruébalos a mano: pueden seguir "
                       f"escribiendo en disco.")
+        if self.loops_failed:
+            texto += (f"\nAVISO: {self.loops_failed} tarea(s) del enjambre NO "
+                      f"soltaron y siguen corriendo. Pueden seguir gastando "
+                      f"cuota y escribiendo ficheros.")
         if self.task_ids:
             texto += f"\nTareas: {', '.join(self.task_ids)}"
         return texto
@@ -98,6 +105,7 @@ class CancelReport:
     def to_payload(self) -> dict[str, Any]:
         return {"task_ids": self.task_ids,
                 "loops_cancelled": self.loops_cancelled,
+                "loops_failed": self.loops_failed,
                 "processes_killed": self.processes_killed,
                 "processes_failed": self.processes_failed,
                 "nothing_running": self.nothing_running,
@@ -254,7 +262,18 @@ class TaskSupervisor:
                 # siguiente petición de parada.
                 await asyncio.wait_for(asyncio.shield(loop_task),
                                        timeout=GRACE_SECONDS)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except asyncio.TimeoutError:
+                # NO cuenta como cancelado. Agotar la gracia significa que el
+                # bucle sigue vivo: se come la cancelación, o su limpieza tarda
+                # más de GRACE_SECONDS. Sumarlo a `loops_cancelled` hacía que
+                # el informe dijera «1 tarea cancelada» de algo que seguía
+                # corriendo — exactamente lo que este módulo existe para no
+                # hacer, aplicado hasta ahora solo a los procesos.
+                logger.warning("[cancelar] %s no soltó en %.1fs: SIGUE VIVO",
+                               task_id, GRACE_SECONDS)
+                informe.loops_failed += 1
+                continue
+            except asyncio.CancelledError:
                 pass
             except Exception as e:        # el bucle murió por otra razón
                 logger.debug("[cancelar] %s terminó con %s", task_id, e)
@@ -266,7 +285,8 @@ class TaskSupervisor:
         informe.processes_failed += f2
 
         informe.nothing_running = not (informe.stopped_anything
-                                       or informe.processes_failed)
+                                       or informe.processes_failed
+                                       or informe.loops_failed)
         if not any(not t.done() for t in self._loops.get(task_id, ())):
             self._loops.pop(task_id, None)
 

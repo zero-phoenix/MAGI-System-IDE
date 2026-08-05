@@ -90,6 +90,9 @@ class Fact:
     form: str
     filed: str
     accn: str
+    #: La clave de `units` de la que salió el número: "USD", "EUR", "shares"…
+    #: Va en el hecho y no se supone fuera, porque suponerla era inventarla.
+    unit: str = "USD"
 
     @property
     def days(self) -> int | None:
@@ -136,16 +139,30 @@ def _facts(cik: int, concept: str, *, fetcher: Fetcher | None = None) -> list[Fa
     except json.JSONDecodeError as e:
         raise SourceError(f"EDGAR: respuesta no-JSON para {concept}") from e
 
+    # De qué unidad sale la serie, y se APUNTA. Antes se caía a
+    # `next(iter(unidades.values()))` —cualquier unidad— y más abajo se
+    # etiquetaba el resultado como "USD" a ciegas. El filtro de formularios
+    # acepta `20-F` a propósito, que es justo el que presentan los emisores
+    # extranjeros en su moneda: euros, libras o yenes salían rotulados como
+    # dólares, y `Datum.cite()` propagaba la mentira al razonamiento del
+    # enjambre. En un módulo cuya tesis es que un dato sin procedencia es un
+    # rumor, la unidad no se puede dar por hecha.
     unidades = payload.get("units", {})
-    serie = unidades.get("USD") or unidades.get("shares") or next(
-        iter(unidades.values()), [])
+    for clave in ("USD", "shares"):
+        if unidades.get(clave):
+            moneda, serie = clave, unidades[clave]
+            break
+    else:
+        moneda, serie = next(iter(unidades.items()), ("USD", []))
+
     out: list[Fact] = []
     for u in serie:
         try:
             out.append(Fact(
                 start=u.get("start"), end=u["end"], value=float(u["val"]),
                 fy=u.get("fy"), form=str(u.get("form", "")),
-                filed=str(u.get("filed", "")), accn=str(u.get("accn", ""))))
+                filed=str(u.get("filed", "")), accn=str(u.get("accn", "")),
+                unit=str(moneda)))
         except (KeyError, TypeError, ValueError):
             continue
     return out
@@ -209,8 +226,10 @@ def annual_series(cik: int, name: str, *, fetcher: Fetcher | None = None,
     ordenados = sorted(mejor.values(), key=lambda h: h.end)[-years:]
     url = CONCEPT_URL.format(cik=cik, concept=etiqueta)
     return [Datum(value=h.value, source="SEC EDGAR (XBRL)", as_of=h.end, url=url,
-                  unit="USD" if name != "acciones_diluidas" else "acciones",
-                  note=f"{etiqueta} · {h.form} presentada {h.filed}")
+                  unit="acciones" if h.unit == "shares" else h.unit,
+                  note=f"{etiqueta} · {h.form} presentada {h.filed}"
+                       + ("" if h.unit in ("USD", "shares")
+                          else f" · CIFRAS EN {h.unit}, NO en dólares"))
             for h in ordenados]
 
 
@@ -244,8 +263,15 @@ def render_fundamentals(paquete: dict[str, Any], limit: int = 5) -> str:
     datos: dict[str, list[Datum]] = paquete["datos"]
     años = sorted({d.as_of[:4] for serie in datos.values() for d in serie})[-limit:]
 
+    # La cabecera decía "millones de USD" pasara lo que pasara. Se lee de los
+    # datos: un emisor extranjero con 20-F presenta en su moneda.
+    monedas = sorted({d.unit for serie in datos.values() for d in serie
+                      if d.unit not in ("acciones", "shares")})
+    divisa = monedas[0] if len(monedas) == 1 else "/".join(monedas) or "USD"
+
     out = [f"{paquete['nombre']} ({paquete['ticker']}) — CIK {paquete['cik']}",
-           "Fuente: SEC EDGAR XBRL, cifras en millones de USD salvo indicación",
+           f"Fuente: SEC EDGAR XBRL, cifras en millones de {divisa} salvo "
+           f"indicación",
            "", "concepto".ljust(24) + "".join(a.rjust(13) for a in años)
            + "   etiqueta XBRL", "-" * (24 + 13 * len(años) + 20)]
 

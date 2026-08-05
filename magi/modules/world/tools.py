@@ -14,6 +14,7 @@ evidencia con la que el crítico debe contrastar una propuesta nueva.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from ...core.tools.registry import ToolRegistry, ToolResult
@@ -24,6 +25,35 @@ logger = logging.getLogger(__name__)
 
 def _fail(e: Exception) -> ToolResult:
     return ToolResult(False, "", error=str(e))
+
+
+async def _en_hilo(fn):
+    """
+    Saca una llamada de red BLOQUEANTE del bucle de eventos.
+
+    `HttpFetcher.get` usa `httpx` en modo síncrono. Estas herramientas son
+    `async` y el registro las espera con `await`, así que la llamada corría
+    dentro del bucle y lo dejaba PARADO entero mientras durase. Medido contra
+    FRED: 2,33 s de `macro_snapshot` y CERO latidos de un heartbeat de 50 ms —
+    el bucle no ejecutó nada. Durante ese rato el websocket no responde y la
+    petición de parada de §7.3 ni siquiera se puede entregar, que es
+    precisamente lo que `cancel.py` da por supuesto que sí ocurre. Con las
+    siete series por defecto y 30 s de timeout por petición, el techo eran
+    ~210 s de kernel congelado.
+
+    Además, `execute_many` promete ejecutar en paralelo: con llamadas
+    bloqueantes serializaba sin decirlo.
+
+    Recibe un `lambda` sin argumentos y no `(fn, *args)` a propósito: así la
+    llamada de verdad sigue siendo una llamada visible en el árbol sintáctico,
+    y la auditoría de cableado de `test_wiring.py` la sigue viendo. Pasar la
+    función como argumento la convertía en una referencia y el sistema parecía
+    haberse quedado sin invocar `macro_snapshot`, `fred_series`,
+    `compare_countries`, `headlines` y `fundamentals` de golpe. El instrumento
+    de medida tenía razón; era la forma de la llamada lo que había que
+    arreglar.
+    """
+    return await asyncio.to_thread(fn)
 
 
 def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
@@ -38,7 +68,8 @@ def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
     async def macro_snapshot_tool(series: list | None = None, ctx=None):
         from .macro import macro_snapshot
         try:
-            return ToolResult(True, macro_snapshot(series=series or None))
+            return ToolResult(True, await _en_hilo(
+                lambda: macro_snapshot(series=series or None)))
         except Exception as e:
             return _fail(e)
 
@@ -51,7 +82,8 @@ def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
     async def fred_series_tool(name: str, limit: int = 12, ctx=None):
         from .macro import fred_series
         try:
-            datos = fred_series(name, limit=max(1, min(limit, 200)))
+            datos = await _en_hilo(
+                lambda: fred_series(name, limit=max(1, min(limit, 200))))
         except SourceError as e:
             return _fail(e)
         cuerpo = "\n".join(f"  {d.as_of}  {d.value:>12,.4g} {d.unit}" for d in datos)
@@ -68,7 +100,8 @@ def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
     async def compare_countries_tool(indicator: str, countries: list, ctx=None):
         from .macro import compare_countries
         try:
-            return ToolResult(True, compare_countries(indicator, list(countries)))
+            return ToolResult(True, await _en_hilo(
+                lambda: compare_countries(indicator, list(countries))))
         except Exception as e:
             return _fail(e)
 
@@ -81,8 +114,9 @@ def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
                                   per_feed: int = 5, ctx=None):
         from .feeds import headlines
         try:
-            return ToolResult(True, headlines(feeds=feeds or None,
-                                              per_feed=max(1, min(per_feed, 20))))
+            return ToolResult(True, await _en_hilo(
+                lambda: headlines(feeds=feeds or None,
+                                  per_feed=max(1, min(per_feed, 20)))))
         except Exception as e:
             return _fail(e)
 
@@ -97,7 +131,8 @@ def register_world_tools(reg: ToolRegistry) -> ToolRegistry:
     async def company_fundamentals_tool(ticker: str, years: int = 5, ctx=None):
         from .edgar import fundamentals, render_fundamentals
         try:
-            paquete = fundamentals(ticker, years=max(2, min(years, 10)))
+            paquete = await _en_hilo(
+                lambda: fundamentals(ticker, years=max(2, min(years, 10))))
         except SourceError as e:
             return _fail(e)
         return ToolResult(True, render_fundamentals(paquete),

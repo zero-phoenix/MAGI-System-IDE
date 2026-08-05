@@ -346,3 +346,58 @@ def test_cada_fuente_declara_el_tipo_de_dato_para_su_ttl(red):
     fetch_feed("fed_monetaria", fetcher=red)
     tipos = {k for _, k in red.calls}
     assert {"tipo_interes", "macro", "noticia"} <= tipos
+
+
+# ------------------------------------------- lo que el fetcher enlatado no ve
+
+def test_la_url_del_banco_mundial_no_mezcla_per_page_con_mrnev():
+    """
+    LA COMPROBACIÓN QUE NINGÚN TEST PODÍA HACER.
+
+    `compare_countries` está expuesta al enjambre y NUNCA ha funcionado: la
+    API del Banco Mundial devuelve HTTP 400 si se combina `per_page` con
+    `mrnev`, y también si se pide `mrnev` para varios países. Comprobado
+    contra api.worldbank.org: 400 con uno y con tres.
+
+    `FrozenFetcher.get` casa por subcadena del dominio y devuelve el cuerpo
+    enlatado sea cual sea el query string, así que ningún test con datos
+    congelados podía verlo — la versión a nivel de test del mismo patrón que
+    perseguimos en el código: una comprobación que dejó de aplicarse en
+    silencio. Por eso este test mira la URL, que es lo único que se puede
+    comprobar sin red.
+    """
+    from magi.modules.world.macro import WB_JSON
+
+    url = WB_JSON.format(iso="ESP;USA;CHN", ind="NY.GDP.MKTP.CD", n=3, page=50)
+    assert "mrnev" not in url, "mrnev es incompatible con per_page y multipaís"
+    assert "mrv=" in url
+
+    # `per_page` cuenta filas TOTALES, no por país: con menos que
+    # n * países la «comparativa» saldría de un subconjunto sin avisar.
+    import urllib.parse as up
+    q = up.parse_qs(up.urlparse(url).query)
+    assert int(q["per_page"][0]) >= 3 * 3
+
+
+def test_edgar_no_rotula_como_dolares_lo_que_no_lo_es():
+    """
+    `_facts` caía a «cualquier unidad» y `annual_series` etiquetaba "USD" a
+    ciegas. El filtro de formularios acepta `20-F` a propósito, que es justo
+    el que presentan los emisores extranjeros EN SU MONEDA: euros y libras
+    salían rotulados como dólares, y `Datum.cite()` propagaba la mentira al
+    razonamiento del enjambre.
+    """
+    import json
+
+    from magi.modules.world.edgar import annual_series
+
+    cuerpo = json.dumps({"units": {"EUR": [
+        {"start": "2023-01-01", "end": "2023-12-31", "val": 1000,
+         "fy": 2023, "form": "20-F", "filed": "2024-03-01", "accn": "a"},
+    ]}})
+    congelado = FrozenFetcher({"data.sec.gov": cuerpo})
+
+    serie = annual_series(320193, "ingresos", fetcher=congelado)
+    assert serie, "no devolvió nada"
+    assert serie[0].unit == "EUR", f"rotuló {serie[0].unit!r} unos euros"
+    assert "NO en dólares" in serie[0].note

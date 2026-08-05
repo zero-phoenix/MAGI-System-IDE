@@ -251,6 +251,22 @@ class Kernel:
                     await self.naoko.execute_improvement(m)
                 elif anterior is Stage.ESPERANDO_PUBLICACION:
                     await self.naoko.publish_improvement(m)
+            except asyncio.CancelledError:
+                # `CancelledError` NO hereda de `Exception` desde 3.8, así que
+                # el `except Exception` de abajo no la veía. Y la tarea está
+                # inscrita en el supervisor, o sea que EL BOTÓN DE PARADA era
+                # el disparador: pulsarlo durante una ronda dejaba la mejora en
+                # `ronda`/`ejecutando`/`publicando` —estados de trabajo, no
+                # compuertas—, `user_decides` la rechazaba en ambos sentidos y
+                # `active()` la devolvía para siempre. Justo el atasco que el
+                # bloque de abajo dice haber eliminado, entrando por la puerta
+                # de al lado.
+                logger.warning("[mejora] %s cancelada por el usuario",
+                               m.improvement_id)
+                from magi.modules.infrastructure.improvement import TRABAJO, fail
+                if m.stage in TRABAJO:
+                    fail(m, "cancelada desde la parada de emergencia")
+                raise
             except Exception as e:
                 # Sin esto la mejora se quedaba en `ronda` o `ejecutando`, que
                 # NO son compuertas: `user_decides` los rechazaba, no había

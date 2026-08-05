@@ -27,10 +27,24 @@ jobs:
         python-version: ${{ matrix.python }}
         cache: 'pip'
 
+    # Se instala de requirements.txt y NO se enumeran paquetes aquí. La lista
+    # a mano se quedó atrás dos veces: primero sin `websockets` (lo importa
+    # test_rpc_transport arriba) y después sin `numpy`/`scikit-learn` (los
+    # importa magi/modules/skills/loader.py, que carga el kernel). En ambos
+    # casos la suite entera se caía en el runner y el release se quedaba sin
+    # .exe. test_wiring.py::test_los_workflows_instalan_desde_requirements
+    # impide volver a enumerar.
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio httpx pydantic g4f
+        pip install -r requirements.txt
+
+    # Sin ffmpeg, los tests del bucle de observación de vídeo se SALTAN. Verde
+    # sin comprobar nada es peor que rojo: el fallo que cazan —vídeo en negro
+    # o congelado— es justo el que pasa todas las comprobaciones baratas.
+    - name: Install ffmpeg (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
     - name: Run tests
       run: python -m pytest tests/ -v --tb=short

@@ -443,3 +443,52 @@ def test_avisa_si_hay_ffmpeg_pero_no_ffprobe(monkeypatch):
     monkeypatch.setattr(art.shutil, "which",
                         lambda n: "/usr/bin/ffmpeg" if n == "ffmpeg" else None)
     assert "no ffprobe" in art.backends_report()
+
+
+# ------------------------------------- «no he podido mirar» != «está bien»
+
+@pytest.mark.asyncio
+async def test_sin_pillow_la_imagen_no_se_da_por_buena(tmp_path, monkeypatch):
+    """
+    EL FALLO, encontrado simulando el entorno de CI.
+
+    `_describe_image` sin Pillow devolvía «no se puede inspeccionar». Esa
+    cadena no contiene "VACÍA" ni "ilegible", así que `observe_image` no
+    apuntaba ningún problema y devolvía ok=True: certificaba como buena una
+    imagen que jamás llegó a abrir.
+
+    Este test no necesita Pillow ni que falte: fuerza la respuesta de
+    `pillow_available`, así que vigila en cualquier máquina.
+    """
+    import magi.modules.studio.artifacts as art
+    p = tmp_path / "captura.png"
+    p.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+
+    monkeypatch.setattr(art, "pillow_available", lambda: False)
+    o = await art.observe_image(p)
+
+    assert not o.ok, "sin poder mirar, la imagen NO puede darse por buena"
+    assert any("Pillow" in x for x in o.problems)
+    assert not any("Pillow" in e for e in o.evidence), (
+        "el aviso tiene que ir en problems, que es lo que entra en ok; "
+        "en evidence no lo lee nadie")
+
+
+@pytest.mark.asyncio
+@sin_ffmpeg
+async def test_sin_pillow_el_video_no_se_da_por_bueno(tmp_path, monkeypatch):
+    """
+    Mismo fallo y peor: un vídeo entero en negro y congelado salía con ok=True
+    y cero problemas. Detectar eso es la única razón de ser de `observe_video`.
+    """
+    import magi.modules.studio.video as vid
+    v = _lavfi(tmp_path / "negro.mp4", "color=c=black")
+
+    monkeypatch.setattr(vid, "pillow_available", lambda: False)
+    o = await vid.observe_video(v)
+
+    assert not o.ok
+    assert any("Pillow" in p for p in o.problems)
+    assert any("congelado" in p.lower() for p in o.problems), (
+        "tiene que decir QUÉ se ha dejado sin comprobar, no solo que falta "
+        "una librería")

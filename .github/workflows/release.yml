@@ -17,10 +17,15 @@ jobs:
       with:
         python-version: '3.11'
         cache: 'pip'
+    # De requirements.txt, nunca a mano: ver la nota en ci.yml. Enumerar aquí
+    # es lo que dejó este mismo job sin `websockets` y sin `numpy`, y este job
+    # es el que decide si hay .exe.
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio httpx g4f pydantic
+        pip install -r requirements.txt
+    - name: Install ffmpeg
+      run: sudo apt-get update && sudo apt-get install -y ffmpeg
     - name: Run test suite
       run: python -m pytest tests/ -v
     - name: Verify no absolute machine paths

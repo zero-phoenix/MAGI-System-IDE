@@ -278,3 +278,57 @@ async def test_explicit_entry_overrides_the_search(tmp_path):
     (proj / "otro.py").write_text("print('el correcto')\n", encoding="utf-8")
     obs = await observe_program(proj, entry=f'"{_s.executable}" otro.py')
     assert obs.ok and "el correcto" in obs.evidence[0]
+
+
+# ------------------------------- «no he podido mirar» tampoco es «está bien»
+
+@pytest.mark.asyncio
+async def test_sin_pillow_un_juego_en_negro_no_pasa(tmp_path, monkeypatch):
+    """
+    Mismo fallo que en `observe_image`, sin corregir hasta ahora:
+    `observe_game` solo buscaba "VACÍA" en la descripción. Sin Pillow la
+    descripción decía «no se puede inspeccionar», no contenía "VACÍA", y un
+    juego con la pantalla enteramente negra salía aprobado.
+    """
+    import magi.modules.studio.artifacts as art
+
+    d = tmp_path / "juego"
+    d.mkdir()
+    (d / "main.py").write_text(
+        "import pygame\n"
+        "pygame.init()\n"
+        "s = pygame.display.set_mode((160, 120))\n"
+        "for _ in range(60):\n"
+        "    s.fill((0, 0, 0))\n"
+        "    pygame.display.flip()\n"
+        "pygame.quit()\n", encoding="utf-8")
+
+    con = await art.observe_game(d, frames=6)
+    assert not con.ok, "con Pillow el negro sí se detecta"
+    assert any("un solo color" in x for x in con.problems), con.problems
+
+    monkeypatch.setattr(art, "pillow_available", lambda: False)
+    sin = await art.observe_game(d, frames=6)
+    assert not sin.ok, "sin Pillow lo dio por bueno sin haberlo mirado"
+    assert any("Pillow" in p for p in sin.problems)
+
+
+@pytest.mark.asyncio
+async def test_un_formato_de_datos_que_no_se_sabe_abrir_no_inventa_filas(tmp_path):
+    """
+    `.xlsx` y `.parquet` están en DATA_EXTS, así que `observe()` los enruta a
+    `observe_data` — y allí caían en el `else`, con `filas = 1` por tener
+    tamaño. El resumen AFIRMABA «1 registros» de un fichero que nadie abrió:
+    108 bytes de basura pasaban como conjunto de datos válido. Inventar el
+    dato es peor que no tenerlo.
+    """
+    from magi.modules.studio.artifacts import observe_data
+
+    p = tmp_path / "vacio.parquet"
+    p.write_bytes(b"PAR1" + b"\x00" * 104)
+    o = await observe_data(p)
+
+    assert not o.ok
+    assert "1 registros" not in o.summary
+    assert any("no se ha mirado" in x or "no se sabe abrir" in x
+               for x in o.problems)

@@ -16,6 +16,7 @@ que estaba vivo deja de estarlo — que es la única forma de probar un botón d
 parada, porque el modo de fallo era precisamente decir que paraba.
 """
 import asyncio
+import contextlib
 import sys
 
 import pytest
@@ -492,3 +493,52 @@ def test_la_parada_del_enjambre_persiste_el_estado():
     assert i > 0
     assert "_persist" in src[i:i + 900], \
         "la parada no persiste: la tarea abortada resucita al reiniciar"
+
+
+@pytest.mark.asyncio
+async def test_un_bucle_que_no_suelta_no_cuenta_como_cancelado():
+    """
+    El informe decía «1 tarea del enjambre cancelada» de algo que seguía
+    corriendo.
+
+    `wait_for(shield(...))` trataba igual `CancelledError` y `TimeoutError`, y
+    después sumaba el bucle a `loops_cancelled` en los dos casos. Agotar la
+    gracia significa lo contrario: el bucle se come la cancelación, o su
+    limpieza tarda más de lo que se le da. La cabecera del módulo dice que
+    aquí se informa de lo que se paró REALMENTE — eso solo valía para los
+    procesos.
+    """
+    import magi.core.cancel as mod
+
+    sup = TaskSupervisor()
+    empezado = asyncio.Event()
+    soltar = asyncio.Event()          # para que el test pueda terminar
+
+    async def tozudo():
+        empezado.set()
+        while not soltar.is_set():
+            try:
+                await asyncio.sleep(0.02)
+            except asyncio.CancelledError:
+                pass                  # se come la cancelación a propósito
+
+    tarea = asyncio.create_task(tozudo())
+    sup.register_loop("t1", tarea)
+    await empezado.wait()
+
+    # Se acorta la gracia para no tardar 3 s en un test.
+    original = mod.GRACE_SECONDS
+    mod.GRACE_SECONDS = 0.2
+    try:
+        informe = await sup.cancel("t1")
+    finally:
+        mod.GRACE_SECONDS = original
+        soltar.set()
+        with contextlib.suppress(asyncio.CancelledError, asyncio.TimeoutError):
+            await asyncio.wait_for(tarea, timeout=2)
+
+    assert informe.loops_failed == 1, "un bucle vivo se contó como parado"
+    assert informe.loops_cancelled == 0
+    assert not informe.nothing_running
+    assert "NO soltaron" in informe.render()
+    assert informe.to_payload()["loops_failed"] == 1

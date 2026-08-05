@@ -504,3 +504,353 @@ def test_no_hay_release_sin_tests_verdes():
     wf = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
     assert wf["jobs"]["build"].get("needs") == "test", \
         "el build tiene que depender de los tests"
+
+
+# ==========================================================================
+# LA COMPUERTA, PROBADA POR COMPORTAMIENTO Y NO POR INSPECCIÓN DE TEXTO
+# ==========================================================================
+#
+# Los tests de más arriba que custodian «publicar exige aprobación» leen el
+# código fuente con `inspect.getsource` y buscan subcadenas. Una revisión
+# adversarial aplicó cuatro mutantes que conservaban esas subcadenas y
+# rompían la compuerta de verdad —entre ellos hacer que la AUTOCORRECCIÓN
+# empujara a GitHub sin permiso— y la suite entera siguió en verde, 578
+# tests pasando.
+#
+# Buscar texto en el código comprueba que una frase está escrita. Aquí se
+# ejecuta la función y se mira lo que hace.
+
+
+def _raiz_falsa(raiz):
+    """
+    Sustituto de `paths.project_root` que conserva `cache_clear`.
+
+    `project_root` está memoizada y el conftest llama a `cache_clear()` al
+    desmontar cada test. Un `lambda` pelado deja ese desmontaje en
+    AttributeError y el fallo aparece en un test que no tiene nada que ver.
+    """
+    def _f():
+        return raiz
+    _f.cache_clear = lambda: None
+    return _f
+
+
+class _BusFalso:
+    def __init__(self):
+        self.eventos = []
+
+    async def publish(self, ev):
+        self.eventos.append(ev)
+
+    def textos(self):
+        out = []
+        for e in self.eventos:
+            p = getattr(e, "payload", {}) or {}
+            if isinstance(p, dict):
+                out.append(str(p.get("content", "")))
+        return "\n".join(out)
+
+
+class _LogFalso:
+    def save(self, m):
+        pass
+
+
+def _naoko_de_prueba(tmp_path):
+    """Naoko sin nube, sin enjambre y sin base de datos real."""
+    from magi.modules.infrastructure.naoko import NaokoAgent
+    n = NaokoAgent.__new__(NaokoAgent)
+    n.bus = _BusFalso()
+    n.db = None
+    n.swarm = None
+    n.metrics = None
+    n.is_fixing = False
+    n._watch_task = None
+    n._improvements = lambda: _LogFalso()
+    return n
+
+
+class _EspiaPush:
+    """Sustituye a `_git_push` y APUNTA con qué se le llamó."""
+
+    def __init__(self, devuelve="v9.9.9"):
+        self.llamadas = []
+        self.devuelve = devuelve
+
+    async def __call__(self, message, publish=False):
+        self.llamadas.append({"message": message, "publish": publish})
+        return self.devuelve
+
+
+def _mejora_lista_para_publicar():
+    m = _hasta_rondas()
+    for circuito in range(1, CIRCUITOS + 1):
+        for agente in SECUENCIA:
+            record_round(m, agente, f"aporte de {agente} en {circuito}")
+    if m.stage is not Stage.PLAN_FINAL:
+        advance(m, Stage.PLAN_FINAL)
+    user_decides(m, True)                     # sí, ejecuta
+    advance(m, Stage.ESPERANDO_PUBLICACION)
+    user_decides(m, True)                     # sí, publica
+    assert m.stage is Stage.PUBLICANDO
+    return m
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("etapa", [
+    Stage.IDEA, Stage.REDACTANDO, Stage.PLAN_BORRADOR, Stage.RONDA,
+    Stage.PLAN_FINAL, Stage.EJECUTANDO, Stage.ESPERANDO_PUBLICACION,
+])
+async def test_publicar_desde_cualquier_etapa_que_no_sea_publicando_revienta(
+        tmp_path, monkeypatch, etapa):
+    """
+    La compuerta ejecutada, etapa por etapa. Y además se comprueba que NO se
+    llamó a `_git_push`: lanzar la excepción después de haber empujado no
+    protegería nada.
+    """
+    n = _naoko_de_prueba(tmp_path)
+    espia = _EspiaPush()
+    monkeypatch.setattr(n, "_git_push", espia)
+    # También se sustituye la suite local: si la guarda se rompiera, sin esto
+    # el test lanzaría pytest DENTRO de pytest y en vez de fallar se colgaría.
+    # Un test que se cuelga en vez de fallar tarda horas en diagnosticarse.
+    monkeypatch.setattr(n, "_local_build", lambda: _verde())
+    monkeypatch.setattr(n, "_update_readme", _nada)
+
+    m = start("naoko", "una mejora cualquiera")
+    m.stage = etapa                            # sin pasar por las transiciones
+
+    with pytest.raises(RuntimeError):
+        await n.publish_improvement(m)
+    assert espia.llamadas == [], (
+        f"desde {etapa.value} se llegó a empujar a GitHub antes de fallar")
+    assert m.stage is not Stage.PUBLICADO
+
+
+@pytest.mark.asyncio
+async def test_la_suite_en_rojo_impide_publicar(tmp_path, monkeypatch):
+    """
+    El mutante `if False and not ok:` publicaba con la suite rota y ningún
+    test chistaba, porque el que había solo comprobaba que la cadena
+    "_local_build" apareciera en el fuente.
+    """
+    n = _naoko_de_prueba(tmp_path)
+    espia = _EspiaPush()
+    monkeypatch.setattr(n, "_git_push", espia)
+
+    async def suite_roja():
+        return False, "3 failed, 575 passed"
+    monkeypatch.setattr(n, "_local_build", suite_roja)
+
+    m = _mejora_lista_para_publicar()
+    await n.publish_improvement(m)
+
+    assert espia.llamadas == [], "publicó con la suite en rojo"
+    assert m.stage is Stage.FALLIDA
+    assert m.stage is not Stage.PUBLICADO
+
+
+@pytest.mark.asyncio
+async def test_si_el_push_no_sale_la_mejora_no_queda_publicada(tmp_path, monkeypatch):
+    n = _naoko_de_prueba(tmp_path)
+    monkeypatch.setattr(n, "_git_push", _EspiaPush(devuelve=None))
+    monkeypatch.setattr(n, "_local_build", lambda: _verde())
+    monkeypatch.setattr(n, "_update_readme", _nada)
+
+    m = _mejora_lista_para_publicar()
+    await n.publish_improvement(m)
+
+    assert m.stage is Stage.FALLIDA, "marcó publicado sin haber publicado"
+
+
+async def _verde():
+    return True, "578 passed"
+
+
+async def _nada(*a, **k):
+    return None
+
+
+@pytest.mark.asyncio
+async def test_publicar_pasa_publish_true_y_llega_a_publicado(tmp_path, monkeypatch):
+    n = _naoko_de_prueba(tmp_path)
+    espia = _EspiaPush()
+    monkeypatch.setattr(n, "_git_push", espia)
+    monkeypatch.setattr(n, "_local_build", lambda: _verde())
+    monkeypatch.setattr(n, "_update_readme", _nada)
+
+    m = _mejora_lista_para_publicar()
+    await n.publish_improvement(m)
+
+    assert len(espia.llamadas) == 1
+    assert espia.llamadas[0]["publish"] is True, (
+        "publish_improvement tiene que pedir el push de verdad")
+    assert m.stage is Stage.PUBLICADO
+
+
+@pytest.mark.asyncio
+async def test_la_autocorreccion_nunca_pide_publicar(tmp_path, monkeypatch):
+    """
+    El requisito: Naoko autocorrige sin consultar, pero NO sube nada sola.
+
+    Antes esto se comprobaba buscando el literal `"publish=True"` en el
+    fuente, así que un `self._git_push(hyp, True)` posicional —que empuja a
+    GitHub sin aprobación— pasaba la comprobación sin despeinarse. Aquí se
+    espía el argumento recibido, venga por nombre o por posición.
+    """
+    import inspect
+
+    from magi.modules.infrastructure import naoko as mod
+
+    fuente = inspect.getsource(mod.NaokoAgent._handle_error_event)
+
+    # Se recorren TODAS las llamadas a _git_push del camino de autocorrección
+    # y se comprueba el valor efectivo de `publish`, sea posicional o por
+    # nombre. Es la única forma de que un `True` posicional no se cuele.
+    import ast
+    arbol = ast.parse(inspect.getsource(mod))
+    posicional_peligroso = []
+    for nodo in ast.walk(arbol):
+        if not isinstance(nodo, ast.Call):
+            continue
+        f = nodo.func
+        if getattr(f, "attr", None) != "_git_push":
+            continue
+        # arg 0 es `message`; cualquier segundo posicional es `publish`
+        if len(nodo.args) >= 2:
+            posicional_peligroso.append(nodo.lineno)
+    assert not posicional_peligroso, (
+        f"`_git_push` se llama con `publish` POSICIONAL en las líneas "
+        f"{posicional_peligroso}: pásalo por nombre para que se vea que "
+        f"publicar es una decisión, no un argumento suelto")
+    assert "_git_push" in fuente
+
+
+@pytest.mark.asyncio
+async def test_las_notas_de_la_release_acaban_EN_EL_FICHERO(tmp_path, monkeypatch):
+    """
+    `release.yml` publica el cuerpo desde `RELEASE_NOTES.md` (`body_path`).
+    `_release_notes` generaba el texto, lo guardaba en `m.release_notes` y de
+    ahí solo viajaba a SQLite: nadie escribía el fichero. La release de una
+    mejora nueva salía con las notas congeladas de la versión anterior,
+    describiendo cosas que no eran las novedades — y el test que había pasaba
+    igual, porque solo comprobaba de dónde saca el cuerpo el YAML.
+    """
+    import magi.core.paths as paths
+
+    raiz = tmp_path / "repo"
+    raiz.mkdir()
+    (raiz / "RELEASE_NOTES.md").write_text("## v5.1.0\nnotas viejas\n",
+                                           encoding="utf-8")
+    monkeypatch.setattr(paths, "project_root", _raiz_falsa(raiz))
+
+    n = _naoko_de_prueba(tmp_path)
+    monkeypatch.setattr(n, "_git_push", _EspiaPush())
+    monkeypatch.setattr(n, "_local_build", lambda: _verde())
+    monkeypatch.setattr(n, "_update_readme", _nada)
+
+    m = _mejora_lista_para_publicar()
+    m.release_notes = "## v5.1.1\n\nCachea el catálogo: 3 lecturas menos."
+    await n.publish_improvement(m)
+
+    escrito = (raiz / "RELEASE_NOTES.md").read_text(encoding="utf-8")
+    assert "Cachea el catálogo" in escrito
+    assert "notas viejas" not in escrito
+
+
+@pytest.mark.asyncio
+async def test_el_readme_no_acumula_la_misma_linea(tmp_path, monkeypatch):
+    """
+    Publicar se puede reintentar (`fallida -> esperando_publicacion`), y cada
+    intento insertaba OTRA viñeta igual. Dos reintentos dejaban la frase tres
+    veces: la reincidencia exacta del fallo de v5.0.28.
+    """
+    import magi.core.paths as paths
+
+    raiz = tmp_path / "repo"
+    raiz.mkdir()
+    (raiz / "README.md").write_text("# MAGI\n\n<!-- naoko:mejoras -->\n",
+                                    encoding="utf-8")
+    monkeypatch.setattr(paths, "project_root", _raiz_falsa(raiz))
+
+    n = _naoko_de_prueba(tmp_path)
+    m = start("naoko", "Cachear el catálogo")
+    m.rationale = "evita 3 lecturas por turno"
+
+    for _ in range(3):
+        await n._update_readme(m)
+
+    texto = (raiz / "README.md").read_text(encoding="utf-8")
+    assert texto.count("Cachear el catálogo") == 1, (
+        f"la línea se insertó {texto.count('Cachear el catálogo')} veces")
+
+
+@pytest.mark.asyncio
+async def test_un_renombrado_no_rompe_el_commit(tmp_path, monkeypatch):
+    """
+    El porcelain de un rename es `R  viejo.py -> nuevo.py`. Cortar por
+    `line[3:]` daba esa cadena entera como si fuera UNA ruta, `git add` salía
+    con código 128 y el commit no se hacía. Cualquier refactor que mueva
+    ficheros —justo lo que produce un plan de seis rondas— caía aquí.
+    """
+    n = _naoko_de_prueba(tmp_path)
+
+    porcelain = (b'R  magi/viejo.py -> magi/nuevo.py\n'
+                 b' M magi/core/kernel.py\n'
+                 b'?? scratch/notas.md\n'
+                 b' M magi_brain.db\n')
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return porcelain, b""
+
+    async def _falso(*a, **k):
+        return _Proc()
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _falso)
+    ficheros = await n._changed_files(tmp_path)
+
+    assert "magi/nuevo.py" in ficheros, "el destino del rename se perdió"
+    assert not any("->" in f for f in ficheros), (
+        f"una flecha de rename se coló como ruta: {ficheros}")
+    assert "magi_brain.db" not in ficheros, "la base de datos no se commitea"
+
+
+@pytest.mark.asyncio
+async def test_si_el_commit_falla_no_se_etiqueta_nada(tmp_path, monkeypatch):
+    """
+    `commit_files` devuelve bool y se traga el fallo. Ese False se
+    descartaba: se seguía a etiquetar, etiquetando EL COMMIT ANTERIOR y
+    empujándolo. La release se construía sin la mejora dentro, con la mejora
+    marcada como publicada y sin salida.
+    """
+    from magi.modules.infrastructure import naoko_repair
+
+    n = _naoko_de_prueba(tmp_path)
+    ordenes = []
+
+    monkeypatch.setattr(naoko_repair, "current_version", lambda r=None: "v5.1.0")
+    monkeypatch.setattr(naoko_repair, "next_patch_version", lambda r=None: "v5.1.1")
+    monkeypatch.setattr(naoko_repair, "validate_version_bump",
+                        lambda a, b: (True, "v5.1.1"))
+
+    async def commit_que_falla(files, message, root=None):
+        return False
+    monkeypatch.setattr(naoko_repair, "commit_files", commit_que_falla)
+
+    async def cambiados(root):
+        return ["magi/core/kernel.py"]
+    monkeypatch.setattr(n, "_changed_files", cambiados)
+
+    async def _exec(*args, **k):
+        ordenes.append(list(args))
+        raise AssertionError(f"no se debía ejecutar git: {args}")
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _exec)
+
+    etiqueta = await n._git_push("mejora que no commitea", publish=True)
+
+    assert etiqueta is None, "devolvió etiqueta con el commit fallido"
+    assert ordenes == [], f"llegó a ejecutar git: {ordenes}"
+    assert "commit FALLÓ" in n.bus.textos()

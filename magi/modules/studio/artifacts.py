@@ -240,17 +240,17 @@ async def observe_game(project_dir: str | Path, *, entry: str = "main.py",
 
     evidence = [f"código de salida {rc}"]
     if shot.exists():
-        desc = _describe_image(shot)
-        evidence.append(desc)
         # El fallo que este bucle existe para cazar: el juego corre, dibuja
         # fotogramas y en pantalla no se ve nada porque todo es del mismo
         # color. Sin esto el informe decía OK y enterraba la pista en la
-        # evidencia.
-        if "VACÍA" in desc:
-            problems.append(
-                "la pantalla es de un solo color: el juego dibuja pero no se "
-                "ve nada. Revisa que los elementos no sean del color del fondo "
-                "y que se dibujen dentro de los límites de la ventana.")
+        # evidencia. Y sin Pillow ni siquiera se enteraba: ver `_mirar_imagen`.
+        desc, malos = _mirar_imagen(
+            shot,
+            vacia="la pantalla es de un solo color: el juego dibuja pero no se "
+                  "ve nada. Revisa que los elementos no sean del color del "
+                  "fondo y que se dibujen dentro de los límites de la ventana.")
+        evidence.append(desc)
+        problems.extend(malos)
 
     return Observation(
         bool(rendered) and shot.exists() and not problems, ArtifactKind.GAME,
@@ -262,6 +262,58 @@ async def observe_game(project_dir: str | Path, *, entry: str = "main.py",
 
 # ------------------------------------------------------------------ imagen
 
+def pillow_available() -> bool:
+    """
+    ¿Se puede MIRAR una imagen en esta máquina?
+
+    Existe como función y no como `try: import PIL` disperso porque quien
+    observa necesita distinguir dos cosas que se parecen mucho y significan lo
+    contrario: «he mirado y está bien» y «no he podido mirar». Sin esta
+    pregunta explícita, la segunda se colaba como la primera.
+    """
+    # `import PIL` NO basta: PIL es un paquete namespace que importa aunque su
+    # extensión en C esté rota (rueda de arquitectura equivocada, desinstalación
+    # a medias, bundle de PyInstaller sin `_imaging`). En ese estado
+    # `pillow_available()` decía True, la guarda no saltaba y volvía el mismo
+    # fallo un nivel más abajo. Se pregunta por la capacidad que se va a usar.
+    try:
+        from PIL import Image  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+#: Lo que devuelve `_describe_image` cuando no hay con qué mirar. Quien observe
+#: tiene que tratarlo como un PROBLEMA, no como una descripción.
+SIN_PILLOW = "Pillow no instalado: no se puede inspeccionar la imagen"
+
+
+def _mirar_imagen(path: str | Path, *, vacia: str) -> tuple[str, list[str]]:
+    """
+    Describe una imagen Y dice qué problemas hay, en una sola llamada.
+
+    POR QUÉ EXISTE. `_describe_image` devuelve texto libre y cada observador
+    tenía que ACORDARSE de buscar la subcadena correcta dentro. Tres de ellos
+    solo buscaban "VACÍA", así que cuando faltaba Pillow —o la imagen era
+    ilegible— la lista de problemas quedaba vacía y `ok` salía True: el
+    observador certificaba como buena una imagen que nunca llegó a abrir.
+
+    Buscar subcadenas en prosa es un acoplamiento que se rompe en silencio.
+    Aquí se rompe una vez, en un sitio, y todos los llamadores heredan el
+    arreglo. `vacia` es el mensaje propio de cada artefacto, que sí cambia.
+    """
+    desc = _describe_image(path)
+    if desc == SIN_PILLOW:
+        return desc, ["Pillow no instalado: la imagen NO se ha mirado. No se "
+                      "sabe si está en negro o vacía. `pip install pillow` "
+                      "para cerrar el bucle de observación."]
+    if desc.startswith("imagen ilegible"):
+        return desc, [desc]
+    if "VACÍA" in desc:
+        return desc, [vacia]
+    return desc, []
+
+
 def _describe_image(path: str | Path) -> str:
     """
     Descripción objetiva de una imagen SIN modelo de visión.
@@ -269,10 +321,12 @@ def _describe_image(path: str | Path) -> str:
     Detecta el fallo más común de una captura de juego: la pantalla en negro,
     o una imagen de un solo color. Es barato y no gasta cuota.
     """
+    if not pillow_available():
+        return SIN_PILLOW
     try:
         from PIL import Image
-    except ImportError:
-        return "Pillow no instalado: no se puede inspeccionar la imagen"
+    except ImportError:                           # pragma: no cover
+        return SIN_PILLOW
     try:
         with Image.open(path) as im:
             im = im.convert("RGB")
@@ -297,13 +351,14 @@ async def observe_image(path: str | Path) -> Observation:
     if not p.exists():
         return Observation(False, ArtifactKind.IMAGE, "no existe",
                            problems=[f"{p} no existe"])
-    desc = _describe_image(p)
-    problems = []
-    if "VACÍA" in desc:
-        problems.append("la imagen es casi de un solo color: probablemente no "
-                        "se dibujó nada")
-    if "ilegible" in desc:
-        problems.append(desc)
+    # EL FALLO QUE ESTO CIERRA: sin Pillow, `_describe_image` devolvía «no se
+    # puede inspeccionar», esa cadena no contenía ni "VACÍA" ni "ilegible", la
+    # lista de problemas quedaba vacía y `ok` salía True. El observador
+    # certificaba como buena una imagen que nunca llegó a abrir. Lo encontró la
+    # simulación del entorno de CI, donde Pillow no estaba instalado.
+    desc, problems = _mirar_imagen(
+        p, vacia="la imagen es casi de un solo color: probablemente no se "
+                 "dibujó nada")
     return Observation(not problems, ArtifactKind.IMAGE, desc,
                        artifact_path=str(p), screenshot=str(p),
                        problems=problems)
@@ -365,9 +420,18 @@ async def observe_data(path: str | Path) -> Observation:
                 evidence.append(f"objeto con {filas} claves: "
                                 f"{', '.join(list(datos)[:8])}")
         else:
-            evidence.append(f"formato {ext or 'sin extensión'}: solo se "
-                            f"comprueba el tamaño")
-            filas = 1 if p.stat().st_size > 0 else 0
+            # `.xlsx` y `.parquet` están en DATA_EXTS, así que `observe()` los
+            # manda aquí — y aquí no se abrían. `filas = 1` por tener tamaño
+            # hacía que el resumen AFIRMARA «1 registros» de un fichero que
+            # nadie leyó: peor que el aviso, porque inventa el dato. Un
+            # binario de 108 bytes de basura pasaba como conjunto de datos
+            # válido.
+            problems.append(
+                f"formato {ext or 'sin extensión'} no se sabe abrir: el "
+                f"contenido NO se ha mirado. Solo consta que el fichero pesa "
+                f"{p.stat().st_size:,} bytes; el número de registros se "
+                f"desconoce.")
+            filas = -1
     except Exception as e:
         return Observation(False, ArtifactKind.DATA, "ilegible",
                            artifact_path=str(p),
@@ -379,8 +443,9 @@ async def observe_data(path: str | Path) -> Observation:
             "no contiene ningún registro. Es el fallo que más fácil pasa por "
             "bueno porque el fichero se abre sin errores.")
 
-    return Observation(not problems, ArtifactKind.DATA,
-                       f"{p.name}: {filas:,} registros",
+    resumen = (f"{p.name}: registros sin contar" if filas < 0
+               else f"{p.name}: {filas:,} registros")
+    return Observation(not problems, ArtifactKind.DATA, resumen,
                        evidence=evidence, artifact_path=str(p),
                        problems=problems)
 
@@ -415,7 +480,11 @@ async def observe_document(path: str | Path) -> Observation:
                 problems.append("el PDF no tiene texto extraíble: ¿páginas en "
                                 "blanco o solo imágenes?")
         except ImportError:
-            evidence.append("pypdf no instalado: no se puede inspeccionar")
+            # En `evidence` el aviso no entra en `ok`: un PDF de páginas en
+            # blanco salía aprobado por no tener con qué abrirlo. Mismo fallo
+            # que con Pillow, en otro formato.
+            problems.append("pypdf no instalado: el PDF NO se ha inspeccionado. "
+                            "No se sabe si tiene texto. `pip install pypdf`.")
         except Exception as e:
             problems.append(f"PDF ilegible: {e}")
 
@@ -429,7 +498,8 @@ async def observe_document(path: str | Path) -> Observation:
             if words < 20:
                 problems.append("el documento está prácticamente vacío")
         except ImportError:
-            evidence.append("python-docx no instalado")
+            problems.append("python-docx no instalado: el documento NO se ha "
+                            "inspeccionado. `pip install python-docx`.")
         except Exception as e:
             problems.append(f"docx ilegible: {e}")
 
@@ -441,7 +511,9 @@ async def observe_document(path: str | Path) -> Observation:
             problems.append("prácticamente vacío")
 
     else:
-        evidence.append(f"tipo {ext or 'sin extensión'} no inspeccionable")
+        problems.append(f"tipo {ext or 'sin extensión'} no inspeccionable: el "
+                        f"documento NO se ha mirado, así que no se puede decir "
+                        f"que esté bien")
 
     if p.stat().st_size == 0:
         problems.append("fichero de 0 bytes")

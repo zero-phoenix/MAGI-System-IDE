@@ -41,8 +41,17 @@ logger = logging.getLogger(__name__)
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}"
 ECB_CSV = ("https://data-api.ecb.europa.eu/service/data/{flow}/{key}"
            "?lastNObservations={n}&format=csvdata")
+# `mrv` y NO `mrnev`. La API rechaza con HTTP 400 dos cosas que la URL
+# anterior hacía a la vez: combinar `per_page` con `mrnev`, y pedir `mrnev`
+# para varios países. Comprobado contra api.worldbank.org: la forma anterior
+# devolvía 400 SIEMPRE, con uno o con tres países, así que `compare_countries`
+# —herramienta expuesta al enjambre— no ha funcionado nunca. Los nulos que
+# `mrnev` evitaba los filtra igual el bucle de más abajo.
+#
+# `per_page` cuenta filas TOTALES, no por país: con `per_page=1` y tres países
+# volvía uno solo, y la «comparativa» habría salido de un país sin avisar.
 WB_JSON = ("https://api.worldbank.org/v2/country/{iso}/indicator/{ind}"
-           "?format=json&per_page={n}&mrnev={n}")
+           "?format=json&per_page={page}&mrv={n}")
 
 # Series de FRED que de verdad se usan al razonar sobre macro de EE. UU.
 FRED_SERIES: dict[str, tuple[str, str]] = {
@@ -183,8 +192,10 @@ def worldbank(indicator: str, countries: list[str] | str, *,
     if indicator not in WB_INDICATORS:
         raise _unknown(indicator, WB_INDICATORS, "indicador del Banco Mundial")
     ind, unit = WB_INDICATORS[indicator]
-    iso = ";".join(countries) if isinstance(countries, list) else countries
-    url = WB_JSON.format(iso=iso, ind=ind, n=max(n, 1))
+    lista = countries if isinstance(countries, list) else [countries]
+    iso = ";".join(lista)
+    url = WB_JSON.format(iso=iso, ind=ind, n=max(n, 1),
+                         page=max(max(n, 1) * len(lista), 50))
     body = (fetcher or default_fetcher()).get(url, "macro")
 
     try:
@@ -217,6 +228,21 @@ def worldbank(indicator: str, countries: list[str] | str, *,
         raise SourceError(
             f"Banco Mundial devolvió solo valores nulos para {indicator}/{iso}: "
             f"el indicador existe pero no está publicado para ese país")
+
+    # Una comparativa a la que le falta un país no es la comparativa que se
+    # pidió. Antes se devolvía igual y nadie se enteraba.
+    if len(lista) > 1:
+        vistos = {(o.get("countryiso3code") or "").upper()
+                  for o in payload[1] if isinstance(o, dict)}
+        faltan = [c for c in lista if c.upper() not in vistos]
+        if faltan:
+            logger.warning("[macro] el Banco Mundial no devolvió %s para %s",
+                           faltan, indicator)
+            out.append(Datum(
+                value=0.0, source="Banco Mundial", as_of=out[-1].as_of, url=url,
+                unit=unit,
+                note=f"AVISO: sin datos de {', '.join(faltan)} para "
+                     f"{indicator}; la comparativa NO los incluye"))
     return out
 
 

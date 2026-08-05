@@ -44,13 +44,15 @@ que se mirase el vídeo que acababa de hacer.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .artifacts import ArtifactKind, Observation, _describe_image
+from .artifacts import (ArtifactKind, Observation, _mirar_imagen,
+                        pillow_available)
 
 logger = logging.getLogger(__name__)
 
@@ -279,21 +281,58 @@ async def observe_video(path: str | Path) -> Observation:
     # porque su contenido sigue en uso es una fuga garantizada. Con ruta
     # determinista, observar dos veces el mismo vídeo reescribe en lugar de
     # acumular.
+    #
+    # El nombre lleva un hash de la RUTA ABSOLUTA, no solo el `stem`. Con solo
+    # el stem, dos artefactos llamados igual —y `salida.mp4` es un nombre de
+    # salida habitual— compartían carpeta: el `rmtree` de la segunda borraba
+    # los fotogramas de la primera y ambas observaciones acababan apuntando a
+    # la misma captura. Un vídeo congelado salía aprobado con la evidencia de
+    # movimiento de OTRO fichero. Cambiaba una fuga por una corrupción.
     from ...core.paths import cache_dir
-    destino = cache_dir() / "video_frames" / p.stem
+    huella = hashlib.sha1(str(p.resolve()).encode("utf-8")).hexdigest()[:10]
+    destino = cache_dir() / "video_frames" / f"{p.stem}-{huella}"
     shutil.rmtree(destino, ignore_errors=True)
     try:
         frames = await extract_frames(p, destino, count=3)
         captura = str(frames[0])
-        desc = _describe_image(frames[0])
-        evidencia.append(f"fotograma central: {desc}")
-        if "VACÍA" in desc:
-            problemas.append(
-                "el fotograma es de un solo color: el vídeo se generó pero no "
-                "hay nada dibujado. Revisa que la fuente no esté en negro y "
-                "que el filtro reciba las imágenes que crees.")
 
-        if len(frames) >= 2:
+        # EL FALLO QUE ESTO CIERRA: sin Pillow no se puede abrir un fotograma,
+        # así que ni el negro ni el congelado se detectaban — y el aviso se
+        # dejaba en `evidencia`, que no entra en `ok`. Resultado: un vídeo
+        # enteramente negro y congelado salía con ok=True y cero problemas.
+        # Justo el modo de fallo que esta función existe para cazar. Lo
+        # encontró simular el entorno de CI, donde Pillow no está instalado.
+        if not pillow_available():
+            problemas.append(
+                "Pillow no instalado: los fotogramas NO se han mirado. No se "
+                "ha comprobado si el vídeo está en negro ni si está "
+                "congelado. `pip install pillow` para cerrar el bucle.")
+            return Observation(
+                False, ArtifactKind.VIDEO, "sin Pillow: contenido sin mirar",
+                evidence=evidencia, artifact_path=str(p), screenshot=captura,
+                problems=problemas)
+
+        desc, malos = _mirar_imagen(
+            frames[0],
+            vacia="el fotograma es de un solo color: el vídeo se generó pero "
+                  "no hay nada dibujado. Revisa que la fuente no esté en negro "
+                  "y que el filtro reciba las imágenes que crees.")
+        evidencia.append(f"fotograma central: {desc}")
+        problemas.extend(malos)
+
+        if len(frames) < 2:
+            # Sin `else` esta rama se saltaba en silencio. Pasa de verdad: si
+            # la duración del contenedor supera la de la pista de vídeo (audio
+            # más largo, muxeado sin `-shortest`), los `-ss` repartidos sobre
+            # `info.duration` caen más allá del final y solo sale un
+            # fotograma. Con un solo fotograma no hay con qué comparar, y NO
+            # comparar no es «no está congelado».
+            problemas.append(
+                f"solo se pudo extraer {len(frames)} fotograma: sin dos no hay "
+                f"con qué comparar, así que el congelado NO queda descartado. "
+                f"Suele pasar cuando la pista de vídeo es más corta que el "
+                f"contenedor.")
+        else:
             cambios = [_frames_differ(frames[i], frames[i + 1])
                        for i in range(len(frames) - 1)]
             medidos = [c for c in cambios if c >= 0]
@@ -309,8 +348,12 @@ async def observe_video(path: str | Path) -> Observation:
                         f"válido pero no anima nada — es una foto fija de "
                         f"{info.duration:.1f}s.")
             else:
-                evidencia.append("Pillow no instalado: no se comprobó el "
-                                 "movimiento entre fotogramas")
+                # Pillow está (se comprobó arriba), así que llegar aquí
+                # significa que la comparación reventó. No medir el movimiento
+                # no es «sin novedad»: es congelado NO descartado.
+                problemas.append(
+                    "no se pudieron comparar los fotogramas: el congelado NO "
+                    "queda descartado, solo sin comprobar.")
     except VideoError as e:
         problemas.append(str(e))
 
@@ -614,42 +657,54 @@ async def capture_program(path: str | Path, out_path: str | Path,
 
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="magi_rec_"))
-    arnes = d / "_magi_record.py"
-    arnes.write_text(RECORD_HARNESS, encoding="utf-8")
+    # El `finally` que envuelve TODO el cuerpo, no solo la llamada a ffmpeg.
+    # Antes, `tmp` se borraba en las dos salidas normales; cancelar durante la
+    # grabación —justo lo que el botón de parada de §7.3 existe para hacer—
+    # dejaba el directorio entero con sus cientos de PNG. Cancelar no es un
+    # camino excepcional en este sistema: es una función.
     try:
-        from .artifacts import _run as _run_shell
-        rc, salida = await _run_shell(
-            f'"{sys.executable}" "{arnes.name}"', d, timeout,
-            {"MAGI_FRAMES": str(max(2, int(seconds * fps))),
-             "MAGI_EVERY": "1", "MAGI_OUT": str(tmp),
-             "MAGI_TARGET": str(objetivo),
-             "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
-    finally:
-        arnes.unlink(missing_ok=True)
+        arnes = d / "_magi_record.py"
+        arnes.write_text(RECORD_HARNESS, encoding="utf-8")
+        try:
+            from .artifacts import _run as _run_shell
+            rc, salida = await _run_shell(
+                f'"{sys.executable}" "{arnes.name}"', d, timeout,
+                {"MAGI_FRAMES": str(max(2, int(seconds * fps))),
+                 "MAGI_EVERY": "1", "MAGI_OUT": str(tmp),
+                 "MAGI_TARGET": str(objetivo),
+                 "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
+        finally:
+            arnes.unlink(missing_ok=True)
 
-    disparos = sorted(tmp.glob("shot_*.png"))
-    if not disparos:
-        shutil.rmtree(tmp, ignore_errors=True)
-        cola = "\n".join(salida.strip().splitlines()[-6:])
-        return Observation(
-            False, ArtifactKind.VIDEO, "sin fotogramas que grabar",
-            artifact_path=str(d),
-            problems=["el programa no dibujó ningún fotograma: no es gráfico, "
-                      "no llama a display.flip(), o falló antes de dibujar",
-                      f"código {rc}" + (f":\n{cola}" if cola else "")])
+        disparos = sorted(tmp.glob("shot_*.png"))
+        if not disparos:
+            cola = "\n".join(salida.strip().splitlines()[-6:])
+            return Observation(
+                False, ArtifactKind.VIDEO, "sin fotogramas que grabar",
+                artifact_path=str(d),
+                problems=["el programa no dibujó ningún fotograma: no es "
+                          "gráfico, no llama a display.flip(), o falló antes "
+                          "de dibujar",
+                          f"código {rc}" + (f":\n{cola}" if cola else "")])
 
-    out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        rc2, err = await _run([
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-framerate", str(fps),
-            "-i", str(tmp / "shot_%05d.png"),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            # H.264 con yuv420p exige dimensiones pares y las ventanas de
-            # juego rara vez lo son.
-            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-            str(out)], timeout=300)
+        out = Path(out_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            rc2, err = await _run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-framerate", str(fps),
+                "-i", str(tmp / "shot_%05d.png"),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                # H.264 con yuv420p exige dimensiones pares y las ventanas de
+                # juego rara vez lo son.
+                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                str(out)], timeout=300)
+        except VideoError as e:
+            # Todas las demás salidas de esta función devuelven Observation;
+            # un timeout de ffmpeg escapaba como excepción y el llamador se
+            # encontraba con dos contratos distintos según por dónde fallara.
+            return Observation(False, ArtifactKind.VIDEO, "ffmpeg falló",
+                               problems=[str(e)])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

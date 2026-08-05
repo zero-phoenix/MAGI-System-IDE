@@ -390,7 +390,21 @@ Devuelve tu diagnóstico y tu parche."""
                 "agent": "NAOKO", "content": "No hay cambios que publicar."}))
             return None
 
-        await commit_files(changed, f"fix(naoko): {message[:70]}", root)
+        # EL RETORNO QUE SE TIRABA. `commit_files` devuelve bool y se traga el
+        # fallo: si `git add` o `git commit` fallan, registra y devuelve False.
+        # Ese False se descartaba y el código seguía a etiquetar — etiquetando
+        # el commit ANTERIOR y empujándolo. La release se construía sin la
+        # mejora dentro, con la mejora marcada como «publicada» y sin salida.
+        # Es el mismo fallo que 15411b5 («marcaba publicado sin publicar»)
+        # reintroducido un nivel más abajo.
+        if not await commit_files(changed, f"fix(naoko): {message[:70]}", root):
+            await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                "agent": "NAOKO",
+                "content": (f"El commit FALLÓ con {len(changed)} fichero(s). "
+                            f"No etiqueto ni publico nada: una etiqueta sobre "
+                            f"el commit anterior generaría una release sin el "
+                            f"cambio dentro. Mira el log de git.")}))
+            return None
 
         # `publish=False` es la vía de la AUTOCORRECCIÓN: repara, commitea y
         # para. Publicar es siempre del usuario, así que una reparación
@@ -429,18 +443,37 @@ Devuelve tu diagnóstico y tu parche."""
         return new
 
     async def _changed_files(self, root) -> list[str]:
-        """Solo los ficheros realmente modificados. v5.0.28 hacía `git add .`,
-        que arrastraba todo el árbol (incluida la base de datos con datos reales)."""
+        """
+        Solo los ficheros realmente modificados. v5.0.28 hacía `git add .`, que
+        arrastraba todo el árbol (incluida la base de datos con datos reales).
+
+        LOS RENOMBRADOS. El porcelain de un rename es
+        `R  viejo.py -> nuevo.py`, y cortar por `line[3:]` daba esa cadena
+        entera como si fuera UNA ruta. `git add "viejo.py -> nuevo.py"` sale
+        con código 128, el commit no se hace, y antes ese fallo se ignoraba.
+        Cualquier refactor que mueva ficheros —justo lo que produce un plan
+        pasado por seis rondas del enjambre— caía aquí.
+        """
         proc = await asyncio.create_subprocess_exec(
             "git", "status", "--porcelain", cwd=str(root),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         out, _ = await proc.communicate()
+        if proc.returncode != 0:
+            logger.error("[naoko] `git status` falló con código %s",
+                         proc.returncode)
+            return []
         files = []
         for line in out.decode("utf-8", errors="replace").splitlines():
-            if len(line) > 3:
-                path = line[3:].strip().strip('"')
-                if not path.endswith((".db", ".log")) and "__pycache__" not in path:
-                    files.append(path)
+            if len(line) <= 3:
+                continue
+            estado, path = line[:2], line[3:].strip()
+            # En un rename/copia el destino es lo que hay que añadir.
+            if estado.strip().startswith(("R", "C")) and " -> " in path:
+                path = path.split(" -> ", 1)[1].strip()
+            path = path.strip('"')
+            if path.endswith((".db", ".log")) or "__pycache__" in path:
+                continue
+            files.append(path)
         return files
 
     # ======================================================================
@@ -532,13 +565,23 @@ Devuelve tu diagnóstico y tu parche."""
         if not texto or texto.strip().upper().startswith("NADA"):
             return None
 
+        # El parseo era `linea.upper().startswith("TITULO:")` sobre la línea
+        # cruda, así que `**TITULO:** ...`, `- TITULO: ...` o una línea
+        # sangrada no casaban: `titulo` quedaba vacío, se devolvía None y la
+        # mejora detectada se perdía sin traza, después de haber gastado la
+        # llamada a la nube. Un modelo con formato markdown es lo normal, no
+        # la excepción.
         titulo = motivo = ""
         for linea in texto.splitlines():
-            if linea.upper().startswith("TITULO:"):
-                titulo = linea.split(":", 1)[1].strip()
-            elif linea.upper().startswith("MOTIVO:"):
-                motivo = linea.split(":", 1)[1].strip()
+            limpia = linea.strip().lstrip("*-#> \t").strip()
+            cabecera = limpia.upper().replace("**", "").replace("*", "")
+            if cabecera.startswith(("TITULO:", "TÍTULO:")) and not titulo:
+                titulo = limpia.split(":", 1)[1].strip().strip("* ")
+            elif cabecera.startswith("MOTIVO:") and not motivo:
+                motivo = limpia.split(":", 1)[1].strip().strip("* ")
         if not titulo:
+            logger.warning("[naoko] propuesta sin TITULO reconocible; se "
+                           "descarta. Texto recibido:\n%s", texto[:600])
             return None
         return await self.propose_improvement(titulo, motivo)
 
@@ -566,7 +609,7 @@ Devuelve tu diagnóstico y tu parche."""
         los otros.
         """
         from magi.modules.infrastructure.improvement import (
-            next_actor, prompt_for, record_round,
+            Stage, next_actor, prompt_for, record_round,
         )
         if self.swarm is None:
             raise RuntimeError("sin enjambre no hay circuito que recorrer")
@@ -589,23 +632,45 @@ Devuelve tu diagnóstico y tu parche."""
             if agente == "CASPER":
                 # Casper consolida: su salida ES el plan de la vuelta siguiente.
                 m.plan = texto
-        await self._narrate(m, "circuitos completados; el plan vuelve a ti")
+        # Narrar el final sin comprobar el estado hacía que, si el bucle no
+        # daba ni una vuelta, Naoko anunciara igualmente «circuitos
+        # completados» dejando la mejora parada en `ronda`.
+        if m.stage is Stage.PLAN_FINAL:
+            await self._narrate(m, "circuitos completados; el plan vuelve a ti")
+        else:
+            await self._narrate(
+                m, f"los circuitos NO se completaron: la mejora se quedó en "
+                   f"{m.stage.value}. Reintenta o descártala.")
         return m
 
     async def execute_improvement(self, m):
         """
         Aplica el plan aprobado, narrando cada paso.
 
-        Reutiliza `VerifiedRepair` (§3.1): reproducir, tocar, VERIFICAR con la
-        suite y revertir si queda en rojo. Una mejora que rompe los tests no es
-        una mejora, por muy bien argumentada que venga de tres circuitos.
+        La verificación está AQUÍ, en el código, no en el prompt. Antes la
+        única comprobación era una frase en el `system_prompt` («ejecuta la
+        suite al terminar»), o sea que un modelo que alucinara «ya la he
+        pasado» se saltaba la puerta entera. Esa es exactamente la regla que
+        el ciclo de mejora se impuso: las compuertas van en la máquina de
+        estados, no en lo que se le pide amablemente al modelo.
+
+        Una mejora que rompe los tests no es una mejora, por muy bien
+        argumentada que venga de seis rondas del enjambre.
         """
         from magi.core.agent_loop import run_agent
         from magi.core.paths import project_root
         from magi.core.providers.cloud import get_registry
         from magi.core.tools import ToolContext, registry_for_role
         from magi.core.tools.journal import WriteJournal
-        from magi.modules.infrastructure.improvement import Stage
+        from magi.modules.infrastructure.improvement import Stage, fail
+
+        # Guarda de estado, como en `publish_improvement`. Sin ella esta
+        # función modificaba el código y solo al final, en `advance`, se
+        # descubría que no tocaba hacerlo.
+        if m.stage is not Stage.EJECUTANDO:
+            raise RuntimeError(
+                f"«{m.title}» está en {m.stage.value}, no en ejecutando: no "
+                f"se aplica un plan que no ha pasado por su compuerta.")
 
         await self._narrate(m, "empiezo a aplicar el plan aprobado")
         task_id = f"mejora-{m.improvement_id}"
@@ -630,12 +695,43 @@ Devuelve tu diagnóstico y tu parche."""
                                 "sin resumen del turno")
         except Exception as e:
             await self._narrate(m, f"la ejecución falló: {e}")
+            fail(m, f"la ejecución falló: {e}")
             raise
+
+        # Un turno sin una sola llamada a herramienta no ha tocado nada, por
+        # mucho que el texto describa un trabajo espléndido. Y agotar el
+        # límite de iteraciones significa que quedó a medias, que es peor que
+        # no haber empezado.
+        if not turno.tool_calls:
+            await self._narrate(
+                m, "el turno no llamó a NINGUNA herramienta: no se ha "
+                   "modificado nada. No sigo.")
+            fail(m, "el turno de ejecución no tocó ningún fichero")
+            return m
+        if getattr(turno, "hit_limit", False):
+            await self._narrate(
+                m, "se agotó el límite de iteraciones: el plan quedó a "
+                   "medias. Deshaz con `undo` si hace falta.")
+            fail(m, "límite de iteraciones agotado a mitad del plan")
+            return m
+
+        # LA VERIFICACIÓN DE VERDAD, en código.
+        from magi.modules.infrastructure.naoko_repair import run_test_suite
+        await self._narrate(m, "ejecuto la suite para comprobar el resultado")
+        verde, salida = await run_test_suite(project_root())
+        if not verde:
+            await self._narrate(
+                m, "la suite quedó EN ROJO tras aplicar el plan. No avanzo a "
+                   "publicación:\n" + salida[-1200:])
+            fail(m, "la suite quedó en rojo tras aplicar el plan")
+            return m
+        await self._narrate(m, "suite en verde tras aplicar el plan")
 
         from magi.modules.infrastructure.improvement import advance
         advance(m, Stage.ESPERANDO_PUBLICACION)
         m.release_notes = await self._release_notes(m)
-        await self._narrate(m, "aplicado. Te pregunto antes de publicar.")
+        await self._narrate(m, "aplicado y verificado. Te pregunto antes de "
+                               "publicar.")
         return m
 
     async def _release_notes(self, m) -> str:
@@ -680,22 +776,33 @@ Devuelve tu diagnóstico y tu parche."""
                 f"tu aprobación explícita")
 
         root = project_root()
-        await self._narrate(m, "compilando en local antes de publicar")
+        await self._narrate(m, "ejecuto la suite completa antes de publicar")
         ok, salida = await self._local_build()
-        await self._narrate(m, f"compilación local: {'ok' if ok else 'FALLÓ'}")
+        await self._narrate(m, f"suite local: {'verde' if ok else 'ROJA'}")
         if not ok:
-            from magi.modules.infrastructure.improvement import fail
-            fail(m, f"la compilación local falló:\n{salida[-600:]}")
+            fail(m, f"la suite local quedó en rojo:\n{salida[-600:]}")
             await self._narrate(
-                m, "no publico con la compilación rota. Queda para reintentar.")
+                m, "no publico con la suite en rojo. Queda para reintentar.")
             return m
+
+        # LAS NOTAS DE LA RELEASE, AL FICHERO. `release.yml` publica el cuerpo
+        # de la release desde `RELEASE_NOTES.md` (`body_path`). `_release_notes`
+        # generaba el texto, lo guardaba en `m.release_notes` y de ahí solo
+        # viajaba a SQLite: nadie escribía el fichero. Resultado: la release
+        # v5.1.1 salía con las notas congeladas de v5.1.0, describiendo cosas
+        # que no eran las novedades. Se escribe ANTES del commit para que
+        # `_changed_files` lo recoja y entre en la etiqueta.
+        if m.release_notes:
+            notas = root / "RELEASE_NOTES.md"
+            notas.write_text(m.release_notes.strip() + "\n", encoding="utf-8")
+            await self._narrate(m, f"notas de la release escritas en "
+                                   f"{notas.name} ({len(m.release_notes)} car.)")
 
         await self._narrate(m, "actualizando el README")
         await self._update_readme(m)
         await self._narrate(m, "commit, etiqueta y push")
         etiqueta = await self._git_push(f"mejora: {m.title[:60]}", publish=True)
         if not etiqueta:
-            from magi.modules.infrastructure.improvement import fail
             fail(m, "el push o la etiqueta no salieron; nada se publicó")
             await self._narrate(m, "no se pudo publicar. Queda para reintentar.")
             return m
@@ -708,17 +815,49 @@ Devuelve tu diagnóstico y tu parche."""
         return m
 
     async def _local_build(self) -> tuple[bool, str]:
-        """Compilación local. Publicar con el build roto es publicar un fallo."""
+        """
+        La suite completa en local. Publicar con la suite en rojo es publicar
+        un fallo, y la etiqueta ya no se puede retirar de la vista de nadie.
+
+        NO se llama «compilación» porque no compila: la compilación de verdad
+        es PyInstaller y la hace `release.yml` en Windows. Se llamaba así y lo
+        narraba así, que es peor que no hacerlo: un .exe que no compila pasaba
+        esta puerta después de que Naoko afirmara haberlo compilado.
+
+        `sys.executable`, no `"python"`: en cualquier máquina sin `python` en
+        el PATH —Linux y macOS habituales, o Windows con el lanzador `py`— el
+        código de salida era 127 y publicar fallaba SIEMPRE, dejando la mejora
+        rebotando entre `fallida` y `esperando_publicacion` sin salida.
+        """
+        import sys
         from magi.core.paths import project_root
-        proc = await asyncio.create_subprocess_shell(
-            "python -m pytest tests/ -q", cwd=str(project_root()),
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "pytest", "tests/", "-q", "--no-header",
+            cwd=str(project_root()),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         from magi.core.cancel import tracked
         async with tracked(proc):
-            out, _ = await proc.communicate()
+            try:
+                # Con timeout: sin él, un pytest colgado dejaba la mejora en
+                # `publicando` para siempre, y eso empuja al usuario al botón
+                # de parada, que es el otro camino por el que se quedaba
+                # atascada.
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+            except asyncio.TimeoutError:
+                proc.kill()
+                return False, "la suite no terminó en 15 minutos: se abortó"
         return proc.returncode == 0, (out or b"").decode("utf-8", "replace")
 
     async def _update_readme(self, m) -> None:
+        """
+        Añade una línea al README, UNA sola vez.
+
+        No era idempotente: cada intento de publicación insertaba otra viñeta
+        igual, y el ciclo permite reintentar publicación explícitamente
+        (`fallida -> esperando_publicacion`). Dos reintentos dejaban la misma
+        frase tres veces — la reincidencia exacta del fallo de v5.0.28 que
+        appendeaba al README en cada reparación.
+        """
         from magi.core.paths import project_root
         readme = project_root() / "README.md"
         if not readme.exists():
@@ -726,6 +865,8 @@ Devuelve tu diagnóstico y tu parche."""
         marca = "<!-- naoko:mejoras -->"
         entrada = f"- **{m.title}** — {m.rationale or 'mejora aplicada'}\n"
         texto = readme.read_text(encoding="utf-8")
+        if entrada.strip() in texto:
+            return
         if marca in texto:
             texto = texto.replace(marca, marca + "\n" + entrada, 1)
         else:

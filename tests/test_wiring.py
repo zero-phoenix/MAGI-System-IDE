@@ -660,3 +660,144 @@ def test_las_acciones_de_la_paleta_existen():
     despacho = despacho[:despacho.index("};")]
     for i in sorted(ids):
         assert f'"{i}"' in despacho, f"el comando '{i}' no tiene manejador"
+
+
+#: Distribución en requirements.txt -> módulo que se importa, cuando no
+#: coinciden. Sin esto, `pyyaml` parecería no instalado porque nadie escribe
+#: `import pyyaml`.
+_ALIAS_PAQUETE = {
+    "pyyaml": "yaml",
+    "pytest-asyncio": "pytest_asyncio",
+    "pillow": "PIL",
+    "python-docx": "docx",
+    "scikit-learn": "sklearn",
+    "pywebview": "webview",
+}
+
+
+def _modulos_que_el_runner_importa() -> dict[str, pathlib.Path]:
+    """
+    Todo módulo de `magi` que el runner acabará importando de verdad.
+
+    Son dos raíces, no una: lo que alcanza `main.py` (arrancar el sistema) y
+    lo que alcanzan los tests (correr la suite). Mirar el árbol entero daría
+    falsos positivos —el desván importa `chardet`, `jinja2`, `ruamel` y
+    `python-magic`, y da igual porque nadie lo importa—; mirar solo `main.py`
+    dejaría fuera un módulo que solo usan los tests. Esta es la lista exacta
+    de ficheros cuyo import duro puede tumbar la compilación.
+    """
+    files = {_module_name(f): f for f in (ROOT / "magi").rglob("*.py")}
+    pendientes = ["magi.main"]
+    for t in (ROOT / "tests").glob("*.py"):
+        pendientes.extend(_magi_imports(t))
+
+    vistos: set[str] = set()
+    while pendientes:
+        mod = pendientes.pop()
+        for cand in (mod, mod.rpartition(".")[0]):
+            if cand in files and cand not in vistos:
+                vistos.add(cand)
+                pendientes.extend(_magi_imports(files[cand]))
+    return {m: files[m] for m in vistos}
+
+
+def _paquetes_declarados() -> set[str]:
+    """Los módulos importables que `requirements.txt` garantiza."""
+    import re
+
+    nombres: set[str] = set()
+    for linea in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        linea = linea.split("#")[0].strip()
+        if not linea:
+            continue
+        dist = re.split(r"[<>=!~\[; ]", linea)[0].strip().lower()
+        if dist:
+            nombres.add(dist)
+            nombres.add(dist.replace("-", "_"))
+            if dist in _ALIAS_PAQUETE:
+                nombres.add(_ALIAS_PAQUETE[dist])
+    return nombres
+
+
+def _imports_de_nivel_superior(ruta):
+    """
+    Módulos importados ARRIBA y sin `try`.
+
+    La distinción es deliberada y es la regla del proyecto: un import a nivel
+    de módulo sin proteger declara una dependencia DURA —si falta, el módulo
+    entero no se puede importar—. Uno dentro de `try/except ImportError`, o
+    dentro de una función, declara una capacidad OPCIONAL. Como los nodos de
+    un `try` no están en `arbol.body`, mirar solo el cuerpo distingue las dos
+    cosas sin ninguna heurística.
+    """
+    import ast
+
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    for n in arbol.body:
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                yield n.lineno, a.name.split(".")[0]
+        elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
+            yield n.lineno, n.module.split(".")[0]
+
+
+def test_los_workflows_instalan_desde_requirements():
+    """
+    La lista de dependencias de CI se escribía a mano en dos ficheros y se
+    quedó atrás dos veces: primero sin `websockets`, después sin `numpy`. Una
+    lista duplicada a mano SIEMPRE se queda atrás; la única cura es que no
+    haya lista. Los workflows instalan de `requirements.txt` y este test
+    impide volver a la enumeración.
+    """
+    for wf in ("ci.yml", "release.yml"):
+        texto = (ROOT / ".github/workflows" / wf).read_text(encoding="utf-8")
+        assert "pip install -r requirements.txt" in texto, (
+            f"{wf} tiene que instalar de requirements.txt, no enumerar "
+            f"paquetes a mano: la enumeración se queda atrás y tumba el "
+            f"release, que depende de los tests")
+
+
+def test_requirements_cubre_todo_import_duro_del_sistema_y_de_la_suite():
+    """
+    LA GUARDA QUE FALTABA, y que costó dos compilaciones.
+
+    Primera versión: `test_rpc_transport.py` importaba `websockets` arriba y
+    los workflows instalaban cinco paquetes a mano. La recolección de pytest
+    reventaba, el job de tests fallaba y, como el build del release lleva
+    `needs: test`, NO se generaba el .exe.
+
+    Segunda versión, que la primera guarda no cazaba porque solo miraba los
+    tests: `magi/modules/skills/loader.py` importa `numpy` y `sklearn` arriba,
+    el kernel lo importa, y ningún test los nombra. La suite entera se caía
+    por una dependencia que ningún fichero de tests menciona. Por eso ahora se
+    recorre también el código de producción: lo que rompe la suite no es lo
+    que los tests importan, es lo que acaba importándose.
+
+    Se encontró simulando el entorno del runner en un venv limpio. Leer los
+    ficheros no lo habría encontrado nunca — cuarta regla del proyecto.
+    """
+    import sys
+
+    declarados = _paquetes_declarados()
+    propios = {"magi", "source_helpers", "conftest", "tests"}
+
+    ficheros = sorted((ROOT / "tests").glob("*.py"))
+    ficheros += sorted(_modulos_que_el_runner_importa().values())
+
+    faltan: dict[str, set[str]] = {}
+    for f in ficheros:
+        for lineno, m in _imports_de_nivel_superior(f):
+            if (m in sys.stdlib_module_names or m in declarados
+                    or m in propios):
+                continue
+            faltan.setdefault(m, set()).add(
+                f"{f.relative_to(ROOT)}:{lineno}")
+
+    assert not faltan, (
+        "estos módulos se importan a nivel de módulo SIN proteger y "
+        "requirements.txt no los declara, así que el runner se caerá al "
+        "importarlos (y sin tests verdes no hay .exe): "
+        + "; ".join(f"{m} <- {', '.join(sorted(fs))}"
+                    for m, fs in sorted(faltan.items()))
+        + ". O lo añades a requirements.txt, o lo envuelves en "
+          "try/except ImportError para declararlo opcional de verdad.")

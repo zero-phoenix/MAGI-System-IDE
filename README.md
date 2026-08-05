@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**571 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+**598 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
 
 ---
 
@@ -348,5 +348,21 @@ Cuatro reglas, cada una nacida de un fallo real de esta reconstrucción:
    emergencia escribía una línea de log y devolvía una cadena con aspecto de
    éxito; el visor de diffs recibía el original vacío y pintaba todo en verde;
    la contabilidad de tokens se calculaba y se tiraba. Ninguno daba error.
+5. **«No he podido comprobarlo» no es «está bien».** Es la regla más cara de
+   las cinco, porque el fallo se disfraza de éxito. Sin Pillow, el observador
+   de imágenes devolvía «correcto» sobre una captura que nunca llegó a abrir;
+   sin pypdf, un PDF de páginas en blanco salía aprobado; un vídeo con un solo
+   fotograma extraído se daba por no congelado sin haber comparado nada. En
+   los tres casos el aviso existía —enterrado en la evidencia, que no entra en
+   el veredicto—. Ahora, cuando el sistema no puede mirar, lo dice en los
+   problemas y el veredicto es negativo.
+
+Y su corolario, que apareció una y otra vez: **el instrumento de medida es el
+mejor escondite**. El listado del desván comprobaba tres ficheros por
+subcadena; el limpiador de comentarios pegaba los tokens sin espacios y dejaba
+pasar todas las guardas que buscaban una frase; el fetcher congelado de los
+tests casaba solo el dominio, así que una URL con parámetros incompatibles
+—que la API real rechaza siempre con HTTP 400— pasaba en verde para siempre.
+Todos verdes, todos sin comprobar nada.
 
 <!-- naoko:mejoras -->

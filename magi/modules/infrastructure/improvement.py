@@ -138,7 +138,11 @@ TRANSICIONES: dict[Stage, set[Stage]] = {
     Stage.REDACTANDO: {Stage.PLAN_BORRADOR, Stage.FALLIDA, Stage.DESCARTADA},
     Stage.PLAN_BORRADOR: {Stage.RONDA, Stage.DESCARTADA},
     Stage.RONDA: {Stage.RONDA, Stage.PLAN_FINAL, Stage.FALLIDA, Stage.DESCARTADA},
-    Stage.PLAN_FINAL: {Stage.EJECUTANDO, Stage.RONDA, Stage.DESCARTADA},
+    # Sin vuelta a RONDA: con las seis rondas ya registradas,
+    # `next_actor` devuelve None, el bucle de `run_circuit` no da una
+    # sola vuelta y la mejora queda en `ronda`, que no es compuerta.
+    # Volver a criticar un plan final es empezar una mejora nueva.
+    Stage.PLAN_FINAL: {Stage.EJECUTANDO, Stage.DESCARTADA},
     Stage.EJECUTANDO: {Stage.ESPERANDO_PUBLICACION, Stage.FALLIDA, Stage.DESCARTADA},
     Stage.ESPERANDO_PUBLICACION: {Stage.PUBLICANDO, Stage.DESCARTADA},
     # Solo se llega a PUBLICADO desde PUBLICANDO y habiendo salido bien.

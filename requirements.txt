@@ -24,5 +24,11 @@ pypdf
 python-docx
 
 # Tests (CI)
+#
+# `websockets` y `pyyaml` los usan los tests, no el sistema: test_rpc_transport
+# abre un servidor real y test_improvement comprueba los workflows de GitHub.
+# Faltaban en la lista de CI y habrían tumbado la compilación del release, que
+# depende de los tests — sin ellos no hay .exe.
 pytest>=8.0
 pytest-asyncio>=0.23
+pyyaml
