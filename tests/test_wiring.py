@@ -630,3 +630,33 @@ def test_la_lista_de_exentos_no_se_queda_rancia():
     handlers = set(re.findall(r'register_handler\("([^"]+)"', kernel))
     fantasmas = sorted(RPC_SIN_INTERFAZ - handlers)
     assert not fantasmas, f"RPC_SIN_INTERFAZ nombra handlers inexistentes: {fantasmas}"
+
+
+def test_la_paleta_alcanza_todas_las_pestañas():
+    """
+    §7.3. Una capacidad que hay que ir a buscar a la cuarta pestaña es, en la
+    práctica, una capacidad que no se usa — versión suave del mismo problema
+    que la pieza construida y no conectada.
+
+    Las pestañas del catálogo se DERIVAN de la misma lista que pinta la barra:
+    dos listas a mano se desincronizan, y el síntoma sería una pestaña que
+    existe y a la que la paleta no llega.
+    """
+    from source_helpers import code_of
+    app = code_of(ROOT / "magi-gui/src/App.tsx")
+    assert "CommandPalette" in app
+    assert "PESTAÑAS.map" in app, "el catálogo no se deriva de las pestañas"
+    # La barra tiene que usar la misma constante, no una lista repetida.
+    assert '{[...PESTAÑAS,' in app, "la barra de pestañas duplica la lista"
+
+
+def test_las_acciones_de_la_paleta_existen():
+    """Un id sin manejador es un comando que no hace nada al pulsarlo."""
+    from source_helpers import code_of
+    app = code_of(ROOT / "magi-gui/src/App.tsx")
+    import re
+    ids = set(re.findall(r'\{\s*id:\s*"([a-z]+)"', app))
+    despacho = app[app.index("const ejecutarComando"):]
+    despacho = despacho[:despacho.index("};")]
+    for i in sorted(ids):
+        assert f'"{i}"' in despacho, f"el comando '{i}' no tiene manejador"

@@ -10,6 +10,8 @@ import DiffViewer from './DiffViewer';
 import AgentMessageCard from './components/AgentMessageCard';
 import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
+import CommandPalette from './components/CommandPalette';
+import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
 import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
@@ -172,6 +174,31 @@ export default function App() {
   const handleStopAll = () => {
     sysCommand("EMERGENCY_STOP");
     stopEverything();
+  };
+
+  // §7.3 — catálogo de la paleta. Las pestañas se derivan de la misma lista
+  // que pinta la barra, para que añadir una no exija acordarse de esto.
+  const PESTAÑAS = ["Plan", "Código", "Vista previa", "Terminal", "Naoko",
+                    "Configuración", "Gráfico HDC", "Estado de Motores IA",
+                    "Coste", "Sistema"];
+
+  const comandos: Command[] = [
+    { id: "cancel", title: "Parar solo esta tarea", group: "Ejecución",
+      keywords: "cancelar detener turno conversacion", dangerous: true },
+    { id: "stopall", title: "Parar todo", group: "Ejecución",
+      keywords: "emergencia kill procesos", dangerous: true },
+    { id: "newchat", title: "Conversación nueva", group: "Ejecución",
+      keywords: "limpiar empezar" },
+    ...PESTAÑAS.map((t) => ({
+      id: `tab:${t}`, title: `Ir a ${t}`, group: "Paneles", keywords: t,
+    })),
+  ];
+
+  const ejecutarComando = (id: string) => {
+    if (id.startsWith("tab:")) { setActiveTab(id.slice(4)); return; }
+    if (id === "cancel") { handleCancelTask(); return; }
+    if (id === "stopall") { handleStopAll(); return; }
+    if (id === "newchat") { startNewConversation(); return; }
   };
 
   // §7.3 — parar solo esta conversación. Si tienes tres abiertas y una se va
@@ -516,7 +543,7 @@ export default function App() {
         {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
         <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
           <div className="tabs">
-            {["Plan", "Código", "Vista previa", "Terminal", "Naoko", "Configuración", "Gráfico HDC", "Estado de Motores IA", "Coste", "Sistema", ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
+            {[...PESTAÑAS, ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
                 key={tab}
                 className={`tab ${activeTab === tab ? "on" : ""}`}
@@ -867,6 +894,8 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <CommandPalette commands={comandos} onRun={ejecutarComando} />
 
       <div className="foot">
         <div>

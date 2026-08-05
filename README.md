@@ -319,9 +319,13 @@ restricción.
 contexto (§7.4), visor de diffs real (§7.3) y el arranque de la descomposición
 de `App.tsx` (§7.1). La interfaz tiene tests por primera vez y entran en CI.
 
-**Siguiente** — el layout multi-panel completo (§7.2), paleta de comandos, y
-la recogida de resultados de ComfyUI, que exige un ComfyUI real contra el que
-probarla.
+**Siguiente** — el layout multi-panel completo (§7.2) y la recogida de
+resultados de ComfyUI, que exige un ComfyUI real contra el que probarla.
+
+**Ctrl+K** abre la paleta de comandos: filtra por subsecuencia, así que
+«pse» encuentra «Parar Solo Esta tarea» sin mirar el teclado. Cada entrada
+muestra a qué panel pertenece, a propósito — la paleta debe enseñar dónde vive
+cada cosa, no sustituir a la interfaz.
 
 ### Sobre capacidades que existen y no se pueden usar
 
