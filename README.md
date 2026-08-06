@@ -53,6 +53,12 @@ Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que l
 da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
 ejecutado el caso** vale mucho más que una que lo sospecha.
 
+Las **44 herramientas** se reparten por rol y se acotan por dominio antes de
+entrar en el prompt. No es una optimización cosmética: el catálogo completo son
+4,7 KB en cada turno, y un proveedor gratuito con eso delante deja de responder.
+Acotado por lo que se está haciendo, Melchior reparando código ve 12
+herramientas y 890 bytes.
+
 ---
 
 ## Naoko: repara sola, mejora contigo
@@ -70,131 +76,81 @@ reparar y mejorar no son lo mismo:
 **Publicar es siempre tuyo**, aunque el cambio sea una reparación: subir a
 GitHub es visible para terceros y no se deshace con un `undo`.
 
-### El circuito de mejora
+### El ciclo de mejora
 
-Naoko tiene rol creativo de desarrollo: propone cuando detecta un método más
-eficiente o más rápido —citando fichero y línea— y tiene **prohibido** proponer
-reescrituras por elegancia o cambios de nomenclatura. Una propuesta sin un antes
-y un después medibles es ruido, y el ruido hace que se dejen de leer las buenas.
-
-Cuando tiene una idea (o cuando la propones tú), el plan da **dos vueltas
-completas** al enjambre antes de volver a ti:
+Cuando Naoko detecta un método más eficiente o más rápido —citando fichero y
+línea, nunca una vaguedad— o cuando la propuesta es tuya, el plan da **dos
+vueltas completas** al enjambre antes de volver a ti:
 
 ```
-Naoko detecta algo mejorable
-    │
-    ├─ [COMPUERTA] ¿desarrollo un plan?
-    │
-Naoko redacta un plan extenso
-    │
-    ├─ [COMPUERTA] ¿lo paso al enjambre?
-    │
-┌───▼───────────────────────────────────────────────┐
-│  MELCHIOR   analiza, mejora y añade sus críticas   │
-│  BALTHASAR  examina el plan Y lo de Melchior;      │
-│             crítica popperiana, con ejecución      │
-│  CASPER     evalúa las tres cosas por separado,    │
-│             se pronuncia y añade temas nuevos      │
-└───┬───────────────────────────────────────────────┘
-    │  vuelve automáticamente — 2 circuitos
-    │
-CASPER entrega el plan hiperperfeccionado
-    │
-    ├─ [COMPUERTA] ¿lo apruebo y lo ejecuto?
-    │
-NAOKO ejecuta, narrando cada paso
-    │
-    └─ [COMPUERTA] ¿lo publico?
-           └─ compilación local → README → etiqueta
-              → Actions compila el .exe y lo adjunta en .zip
+        tú apruebas la idea
+                │
+                ▼
+        NAOKO redacta el plan
+                │
+                ▼
+        tú apruebas el borrador
+                │
+                ▼
+   ┌────────────────────────────────┐
+   │  MELCHIOR   analiza y mejora   │
+   │       ▼                        │   ×2 circuitos
+   │  BALTHASAR  crítica popperiana │
+   │       ▼      del plan Y de lo  │
+   │             que dijo Melchior  │
+   │  CASPER     evalúa las tres    │
+   │             cosas por separado │
+   │             y añade temas      │
+   └────────────────────────────────┘
+                │
+                ▼
+     plan hiperperfeccionado → tú decides
+                │
+                ▼
+   NAOKO ejecuta, narrando cada paso
+                │
+                ▼
+        tú autorizas publicar
 ```
 
-**Dos vueltas y no una** porque la segunda es donde el circuito gana algo: en la
-primera cada nodo ve el plan por primera vez; en la segunda lo ve **ya criticado
-por los otros dos**, que es cuando una crítica puede refutar a otra. Una sola
-vuelta son tres opiniones en paralelo disfrazadas de debate.
+Las compuertas viven en la **máquina de estados**, no en el prompt. La
+diferencia importa: un modelo puede ignorar «consulta antes de continuar», pero
+no puede inventarse una transición que no existe. Y lo mismo vale para la
+verificación — la suite se ejecuta en código, no se le pide amablemente al
+modelo que la ejecute.
 
-Tus propias propuestas entran por el mismo sitio y recorren lo mismo: que la
-idea sea tuya no la exime de la crítica.
-
-**Las compuertas viven en la máquina de estados, no en el prompt.** Un modelo
-puede ignorar «consulta antes de continuar»; no puede inventarse una transición
-que no existe. Y si una fase revienta, la mejora queda en un estado del que se
-sale —reintentar o descartar—, no bloqueada para siempre.
+Mientras trabaja, Naoko es **expresa**: cada herramienta que llama, cada fichero
+que toca y cada resultado de la suite salen a la vista en el panel de mejoras y
+en el terminal.
 
 ---
 
 ## Qué sabe hacer
 
-44 herramientas que el enjambre invoca directamente. El catálogo entero no cabe
-en el prompt de un proveedor gratuito, así que **cada tarea recibe solo su
-dominio**:
-
-| Tarea | Herramientas | Catálogo |
-|---|---|---|
-| «arregla el bug del scroll» | 12 | 890 chars |
-| «dibuja una página de manga» | 19 | 1 865 chars |
-| «analiza los fundamentales de Apple» | 23 | 2 185 chars |
-| «porta el dynarec de PPSSPP a Vita» | 26 | 2 485 chars |
-
 ### Ingeniería inversa y emuladores
 
-| Herramienta | Qué hace |
-|---|---|
-| `binary_identify` | formato, ISA, endianness, punto de entrada, consola probable **y entropía** |
-| `binary_entropy` | detecta binarios cifrados o comprimidos, y localiza las zonas |
-| `console_profile` | CPU, RAM, GPU, base de carga y formatos de PSP, NDS, Vita, GBA, PSX, N64, 3DS |
-| `disassemble` | Capstone: MIPS y ARM, con modo Thumb y endianness explícitos |
-| `emulate_code` | ejecuta un fragmento con Unicorn y devuelve los registros |
-| `differential_test` | compara tu emulador contra Unicorn y localiza la instrucción que diverge |
-| `compare_consoles` · `analyze_port` · `suggest_port_base` | qué cuesta portar, subsistema a subsistema |
-| `index_emulator` · `locate_subsystem` · `compare_emulators` | sobre el **código real** de un emulador |
+Desensamblado con **Capstone** (MIPS, ARM, x86), emulación con **Unicorn**,
+prueba diferencial entre dos implementaciones, matriz de portabilidad entre
+consolas e indexado del código real de un emulador para poder citarlo.
 
-La entropía va integrada en `binary_identify` a propósito: un EBOOT.BIN cifrado
-se ve igual que código roto, y al pasarlo por Capstone salen instrucciones sin
-sentido. La conclusión natural —y equivocada— es que falla el decodificador.
+Y **entropía de Shannon** por regiones, que es lo que distingue un binario
+cifrado de código roto: la media global de un EBOOT no dice nada porque mezcla
+cabecera y carga útil, y una sección cifrada dentro de un fichero por lo demás
+normal solo se ve mirando por tramos.
 
-```
-analyze_port psp vita
-─────────────────────────────────────────────────────────────
-gpu       irreducible   pipeline fijo → programable: el backend
-                        gráfico se reescribe entero, no se adapta
-dynarec   reemplazar    frontend de MIPS y emisión para ARM; la IR
-                        intermedia sí se reutiliza
-frontend  reutilizable  interfaz, configuración, entrada, grabación
-─────────────────────────────────────────────────────────────
-reutilización estimada: 55 %
-```
+### Fábrica de artefactos que se mira a sí misma
 
-Y `suggest_port_base vita` responde **Nintendo 3DS** (71 %) antes que PSP (55 %),
-porque ARMv6K→ARMv7-A con shaders en ambas reutiliza más que MIPS→ARM con
-pipeline fijo — aunque PPSSPP sea el emulador más conocido.
+    ESPECIFICAR → GENERAR → EJECUTAR/RENDERIZAR → OBSERVAR → CRITICAR → ITERAR
 
-### Fábrica de artefactos con bucle de observación
+La clave es OBSERVAR. Un sistema que genera un juego y te lo entrega sin
+haberlo arrancado ha *generado código de juego*; uno que lo arranca, captura un
+fotograma y lo mira, ha *hecho un juego*.
 
-El sistema **mira lo que produce** antes de dártelo:
-
-| Artefacto | Qué observa |
-|---|---|
-| Programa | lo arranca y captura salida y código de retorno |
-| Juego | lo ejecuta headless, avanza fotogramas y **captura la pantalla** |
-| Imagen | tamaño, número de colores, color dominante |
-| Documento | páginas, párrafos, palabras; detecta plantillas vacías |
-| Vídeo | duración, códec, y si está **en negro o congelado** |
-| Datos | filas, columnas; detecta el CSV con cabecera y cero filas |
-
-El caso que justifica el bucle entero: un juego donde el jugador es del mismo
-color que el fondo. El código es correcto, los tests pasarían, y en pantalla no
-se ve nada.
-
-```
-[FALLA] juego: 30 fotogramas dibujados
-  · 320x240, 1 colores; el dominante (20, 20, 30) ocupa el 100%
-  problemas observados:
-  · la pantalla es de un solo color: el juego dibuja pero no se ve nada
-```
-
-No gasta cuota de visión: es análisis de histograma con Pillow.
+Hay rama de observación para las seis clases: programas, juegos, imágenes,
+documentos, **vídeo** y **datos**. Las dos últimas faltaban, y su ausencia no
+daba error: un `.mp4` y un `.csv` se despachaban a «ejecutar como Python» y el
+agente recibía `SyntaxError: source code cannot contain null bytes` al pedir que
+se mirase el vídeo que acababa de hacer.
 
 ### Vídeo programático
 
@@ -231,7 +187,9 @@ Un dato **no se puede construir sin fuente y fecha** — no es un campo opcional
 Y se distinguen dos fechas que casi todo el mundo confunde: a qué momento se
 refiere el dato, y cuándo lo descargamos nosotros. Confundirlas es cómo un
 sistema acaba diciendo «el paro es del 4,2 %» citando una cifra de hace catorce
-meses.
+meses. La unidad tampoco se supone: un emisor extranjero que presenta 20-F ante
+la SEC lo hace en su moneda, y rotular esos euros como dólares es inventarse el
+dato con aspecto de rigor.
 
 #### Sobre «las habilidades de Warren Buffett»
 
@@ -284,7 +242,9 @@ sobre **dos salidas**:
 - **Parar.** `PARAR ESTA` cancela una conversación; `PARAR TODO` es la parada de
   emergencia. Manda primero `SIGTERM` para que los procesos cierren limpio y
   solo `SIGKILL` si no atienden, y devuelve un informe de lo que paró **de
-  verdad**, incluidos los procesos que no murieron.
+  verdad**: los procesos que murieron, los que no, y las tareas del enjambre que
+  agotaron el margen y siguen corriendo. Un botón de parada que dice haber
+  parado algo que sigue vivo es peor que no tenerlo.
 
 La misma copia que da la reversibilidad alimenta el **panel de aprobación**: qué
 ficheros toca el cambio, su contenido antes y después con un diff real, las
@@ -305,7 +265,8 @@ ficheros toca el cambio, su contenido antes y después con un diff real, las
   sobre la misma familia de modelo.
 - **Panel de sistema**: salud (latencias y tasas de fallo), banco de evaluación
   y auto-mejora medible.
-- **Panel de mejoras**: el ciclo de Naoko con sus compuertas.
+- **Panel de mejoras**: el ciclo de Naoko con sus compuertas, y lo que va
+  haciendo mientras lo hace.
 
 ---
 
@@ -316,7 +277,7 @@ git clone https://github.com/4n0th1ng/MAGI-System-IDE
 cd MAGI-System-IDE
 pip install -r requirements.txt
 
-cd magi-gui && npm install && npm run build && cd ..
+cd magi-gui && npm ci && npm run build && cd ..
 python -m magi.main
 ```
 
@@ -330,11 +291,17 @@ puede hacer**, en vez de fingir.
 Cada release publica el ejecutable dentro de un `.zip` listo para descargar,
 compilado por GitHub Actions tras pasar la suite completa.
 
+El `.exe` funciona por sí solo, pero **para ejecutar código Python necesita un
+Python instalado en la máquina**. Es una consecuencia de cómo funciona un
+empaquetado onefile, y afecta a las herramientas que ejecutan (`run_tests`,
+`python_exec`), a la verificación de propuestas y al bucle de observación de
+programas y juegos. Si no lo encuentra, lo dice; no lo intenta a medias.
+
 ---
 
 ## Cómo está construido esto
 
-Cuatro reglas, cada una nacida de un fallo real de esta reconstrucción:
+Seis reglas, cada una nacida de un fallo real de esta reconstrucción:
 
 1. **Todo cambio se conecta o se borra.** Nunca se añade sin conectar. Tres
    veces se escribió la pieza correcta, con sus tests en verde, y no la llamaba
@@ -348,26 +315,30 @@ Cuatro reglas, cada una nacida de un fallo real de esta reconstrucción:
    emergencia escribía una línea de log y devolvía una cadena con aspecto de
    éxito; el visor de diffs recibía el original vacío y pintaba todo en verde;
    la contabilidad de tokens se calculaba y se tiraba. Ninguno daba error.
-5. **«No he podido comprobarlo» no es «está bien».** Es la regla más cara de
-   las cinco, porque el fallo se disfraza de éxito. Sin Pillow, el observador
-   de imágenes devolvía «correcto» sobre una captura que nunca llegó a abrir;
-   sin pypdf, un PDF de páginas en blanco salía aprobado; un vídeo con un solo
-   fotograma extraído se daba por no congelado sin haber comparado nada. En
-   los tres casos el aviso existía —enterrado en la evidencia, que no entra en
-   el veredicto—. Ahora, cuando el sistema no puede mirar, lo dice en los
-   problemas y el veredicto es negativo.
+5. **«No he podido comprobarlo» no es «está bien».** Es la más cara de las seis,
+   porque el fallo se disfraza de éxito. Sin Pillow, el observador de imágenes
+   devolvía «correcto» sobre una captura que nunca llegó a abrir; sin pypdf, un
+   PDF de páginas en blanco salía aprobado; un `.parquet` que nadie sabía leer
+   se resumía como «1 registros». En los tres casos el aviso existía, enterrado
+   en la evidencia, que no entra en el veredicto. Ahora, cuando el sistema no
+   puede mirar, lo dice entre los problemas y el veredicto es negativo.
 6. **El binario publicado no es el mismo programa que el que ejecutas al
    desarrollar.** Dentro del `.exe`, `sys.executable` es el propio `.exe`: seis
    sitios lanzaban Python con él y, en el binario que la gente se descarga,
    relanzaban MAGI en vez de ejecutar los tests, el código propuesto o el juego
    recién generado. Nada daba error; daban el resultado de otro programa.
 
-Y su corolario, que apareció una y otra vez: **el instrumento de medida es el
+Y el corolario, que apareció una y otra vez: **el instrumento de medida es el
 mejor escondite**. El listado del desván comprobaba tres ficheros por
 subcadena; el limpiador de comentarios pegaba los tokens sin espacios y dejaba
-pasar todas las guardas que buscaban una frase; el fetcher congelado de los
-tests casaba solo el dominio, así que una URL con parámetros incompatibles
-—que la API real rechaza siempre con HTTP 400— pasaba en verde para siempre.
-Todos verdes, todos sin comprobar nada.
+pasar en vacío todas las guardas que buscaban una frase; el fetcher congelado de
+los tests casaba solo el dominio, así que una URL con parámetros que la API real
+rechaza siempre con HTTP 400 llevaba meses en verde; y los cinco tests que
+custodiaban la compuerta de publicación leían el código fuente buscando
+subcadenas, de modo que cuatro mutantes que rompían la compuerta de verdad
+—uno hacía que la autocorrección publicara sin permiso— dejaban la suite entera
+en verde.
+
+Todos verdes. Ninguno comprobando nada.
 
 <!-- naoko:mejoras -->
