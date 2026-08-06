@@ -98,13 +98,83 @@ DEFAULT_SWARM_FAMILIES = {
 }
 
 
+def _uses_browser(cls) -> bool:
+    """
+    True si este proveedor de g4f abre un navegador real para evadir Cloudflare.
+
+    REGLA DEL PROYECTO (§I.3): la inferencia es de nube gratuita y SIN abrir
+    nada visible al usuario. Algunos providers de g4f (Gemini, OpenaiChat) lo
+    declaran con `use_nodriver=True`; Cloudflare lo niega pero lo activa en
+    runtime según el modelo. Abrir una ventana de Chrome rompe la premisa del
+    sistema, así que aquí se filtran TODOS los que puedan hacerlo.
+    """
+    if getattr(cls, "use_nodriver", False):
+        return True
+    if getattr(cls, "webdriver", None):
+        return True
+    return False
+
+
 def _resolve(name: str):
-    """Obtiene la clase de proveedor g4f por nombre, o None si no existe."""
+    """Obtiene la clase de proveedor g4f por nombre, o None si no existe.
+
+    Devuelve None (y lo deja caer al siguiente candidato) para cualquier
+    proveedor que use navegador: la cadena de la familia salta al siguiente
+    candidato que NO abra nada. Si una familia entera dependiera del navegador,
+    `complete()` la reporta como agotada en vez de abrir Chrome en silencio.
+    """
     try:
         import g4f.Provider as P
     except ImportError:
         return None
-    return getattr(P, name, None)
+    cls = getattr(P, name, None)
+    if cls is not None and _uses_browser(cls):
+        logger.info(
+            "[%s] descartado: abre navegador (prohibido por §I.3)", name)
+        return None
+    return cls
+
+
+# Marca para aplicar el guard una sola vez por proceso.
+_browser_guard_installed = False
+
+
+def _disable_g4f_browser() -> None:
+    """
+    Parchea g4f para que NINGÚN proveedor pueda abrir un navegador.
+
+    La primera línea de defensa (`_resolve`) descarta a los proveedores que
+    declaran `use_nodriver`. Pero g4f/requests/__init__.py puede lanzar
+    Chrome/zendriver por debajo para evadir retos de Cloudflare en providers
+    que NO lo declaran (visto en runtime: una ventana de Chrome se abre al
+    pedir inferencia). Aquí se reemplaza el punto de lanzamiento por una
+    excepción controlada, así el candidato falla limpio y `complete()` salta
+    al siguiente proveedor HTTP en vez de abrir nada visible. §I.3.
+    """
+    global _browser_guard_installed
+    if _browser_guard_installed:
+        return
+    _browser_guard_installed = True
+    try:
+        from g4f import requests as g4f_req
+    except ImportError:
+        return
+
+    class _NoBrowser(Exception):
+        """MAGI prohíbe abrir navegadores (§I.3)."""
+
+    # El punto único de lanzamiento. Cualquier proveedor que lo llame recibe
+    # una excepción y cae al siguiente candidato de la familia.
+    async def _blocked(*a, **kw):
+        raise _NoBrowser(
+            "g4f intentó abrir un navegador, prohibido por §I.3")
+
+    for fn in ("get_nodriver", "get_args_from_nodriver",
+               "get_args_from_browser"):
+        if hasattr(g4f_req, fn):
+            setattr(g4f_req, fn, _blocked)
+    logger.info(
+        "[g4f] navegador deshabilitado: ningún proveedor abrirá Chrome")
 
 
 class G4FProvider(BaseProvider):
@@ -132,6 +202,7 @@ class G4FProvider(BaseProvider):
 
     def _get_client(self):
         if self._client is None:
+            _disable_g4f_browser()
             try:
                 from g4f.client import AsyncClient
             except ImportError as e:

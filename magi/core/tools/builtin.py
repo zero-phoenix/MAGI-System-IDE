@@ -304,9 +304,20 @@ def build_registry() -> ToolRegistry:
             import httpx
         except ImportError:
             return ToolResult(False, "", error="httpx no instalado")
+        # User-Agent de navegador real: con "MAGI/9.0" los sitios devuelven
+        # 403 (visto con britannica.com) porque lo identifican como bot.
+        headers = {
+            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/131.0.0.0 Safari/537.36"),
+            "Accept": ("text/html,application/xhtml+xml,application/xml;"
+                       "q=0.9,*/*;q=0.8"),
+            "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+        }
         try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as c:
-                r = await c.get(url, headers={"User-Agent": "MAGI/9.0"})
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30,
+                                         headers=headers) as c:
+                r = await c.get(url)
                 r.raise_for_status()
                 text = re.sub(r"<script.*?</script>|<style.*?</style>", "",
                               r.text, flags=re.DOTALL | re.I)
