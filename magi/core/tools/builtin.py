@@ -13,6 +13,7 @@ import asyncio
 import os
 import re
 import shutil
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -327,6 +328,80 @@ def build_registry() -> ToolRegistry:
         except Exception as e:
             return ToolResult(False, "", error=str(e))
 
+    # -------------------------------------------------- git / gh / build
+    # Acceso real al sistema de desarrollo: git y gh CLI con las credenciales
+    # del usuario (heredadas vía os.environ en run_command), compilación del
+    # binario y entornos aislados. Todas se apoyan en run_command, que ya
+    # inscribe el proceso en el supervisor de parada (§7.3).
+
+    @reg.tool("git", "Ejecuta un comando de git en el repo. Operaciones comunes: "
+              "status, add, commit -m, push, pull, log, diff, branch, checkout.",
+              {"type": "object",
+               "properties": {"args": {"type": "string",
+                                       "description": "argumentos tras 'git', ej: 'status --short'"}},
+               "required": ["args"]}, access={"exec"}, dangerous=True)
+    async def git(args: str, ctx: ToolContext):
+        return await run_command(f"git {args}", ctx=ctx)
+
+    @reg.tool("gh", "Ejecuta la GitHub CLI. Para runs de Actions, releases, "
+              "workflows y gestión del repo. Ej: 'run list', 'workflow run "
+              "release.yml -f tag=v5.1.1', 'release list'.",
+              {"type": "object",
+               "properties": {"args": {"type": "string",
+                                       "description": "argumentos tras 'gh'"}},
+               "required": ["args"]}, access={"exec"}, dangerous=True)
+    async def gh(args: str, ctx: ToolContext):
+        return await run_command(f"gh {args}", ctx=ctx)
+
+    @reg.tool("build_exe", "Compila el ejecutable de MAGI con PyInstaller "
+              "(onefile, noconsole). Reproduce el build del workflow release.yml. "
+              "Devuelve la ruta del .exe generado.",
+              {"type": "object",
+               "properties": {"name": {"type": "string",
+                                       "description": "nombre base (sin .exe)",
+                                       "default": "MAGI-IDE-v5"}},
+               "required": []}, access={"exec"}, dangerous=True)
+    async def build_exe(name: str = "MAGI-IDE-v5", ctx: ToolContext = None):
+        if ctx is None:
+            return ToolResult(False, "", error="sin contexto")
+        raiz = ctx.cwd
+        front = raiz / "magi-gui" / "dist"
+        if not front.exists():
+            return ToolResult(False, "",
+                              error="falta magi-gui/dist: ejecuta primero el build del frontend (npm run build)")
+        cmd = (f'python -m PyInstaller --clean --onefile --noconsole '
+               f'--name "{name}" --icon "assets/icon.ico" '
+               f'--add-data "assets;assets" '
+               f'--add-data "magi-gui/dist;magi-gui/dist" '
+               f'magi/main.py')
+        res = await run_command(cmd, ctx=ctx, timeout=600)
+        if res.ok:
+            exe = raiz / "dist" / f"{name}.exe"
+            res.meta = {**(res.meta or {}), "exe": str(exe)}
+        return res
+
+    @reg.tool("create_venv", "Crea un entorno virtual Python limpio para "
+              "reproducir el entorno de CI. Devuelve la ruta del python del venv.",
+              {"type": "object",
+               "properties": {"path": {"type": "string",
+                                       "description": "ruta del venv (defecto: .venv)",
+                                       "default": ".venv"},
+                              "python": {"type": "string",
+                                         "description": "intérprete base",
+                                         "default": "python"}},
+               "required": []}, access={"exec"}, dangerous=True)
+    async def create_venv(path: str = ".venv", python: str = "python",
+                          ctx: ToolContext = None):
+        if ctx is None:
+            return ToolResult(False, "", error="sin contexto")
+        res = await run_command(f'"{python}" -m venv "{path}"', ctx=ctx, timeout=120)
+        if res.ok:
+            venv_python = (ctx.cwd / path / "Scripts" / "python.exe"
+                           if sys.platform == "win32"
+                           else ctx.cwd / path / "bin" / "python")
+            res.meta = {**(res.meta or {}), "python": str(venv_python)}
+        return res
+
     # §5.3 — toolchain de ingeniería inversa y emuladores.
     # Se registra aquí para que los tres nodos del enjambre lo tengan: sin este
     # enganche, todo magi/modules/reverse/ sería código correcto que ningún
@@ -389,6 +464,7 @@ CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
 CORE_TOOLS = {
     "read_file", "write_file", "edit_file", "delete_path", "list_dir", "grep",
     "glob", "run_command", "python_exec", "run_tests", "web_fetch", "undo",
+    "git", "gh", "build_exe", "create_venv",
 }
 
 REVERSE_TOOLS = {
