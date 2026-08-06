@@ -10,20 +10,22 @@ REVERSIBILIDAD (journal.py): toda mutación se puede deshacer.
 from __future__ import annotations
 
 import asyncio
-import fnmatch
 import os
 import re
 import shutil
-import subprocess
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-from ..paths import workspace_dir
+from ..paths import python_executable, workspace_dir
 from .journal import WriteJournal
-from .registry import Tool, ToolRegistry, ToolResult
+from .registry import ToolRegistry, ToolResult
 
+#: Ver `paths.python_executable`: dentro del bundle `sys.executable` es el
+#: propio .exe y lanzarlo relanzaría MAGI en vez de ejecutar Python.
+_SIN_PYTHON = (
+    "no hay un intérprete de Python en esta máquina. Dentro del .exe de "
+    "MAGI, lanzar `sys.executable` relanzaría MAGI en vez de ejecutar "
+    "esto. Instala Python y vuelve a intentarlo.")
 MAX_READ_BYTES = 400_000
 
 
@@ -258,11 +260,18 @@ def build_registry() -> ToolRegistry:
               {"type": "object", "properties": {"code": {"type": "string"}},
                "required": ["code"]}, access={"exec"}, dangerous=True)
     async def python_exec(code: str, ctx: ToolContext):
+        # `python_executable()` y NO `sys.executable`: dentro del .exe este
+        # último es el propio .exe, así que la herramienta con la que el
+        # enjambre ejecuta Python relanzaba MAGI y devolvía su salida como si
+        # fuera la del código. Ver `paths.python_executable`.
+        interprete = python_executable()
+        if interprete is None:
+            return ToolResult(False, "", error=_SIN_PYTHON)
         script = ctx.cwd / f"_magi_exec_{os.getpid()}.py"
         script.parent.mkdir(parents=True, exist_ok=True)
         script.write_text(code, encoding="utf-8")
         try:
-            return await run_command(f'"{sys.executable}" "{script.name}"', ctx=ctx,
+            return await run_command(f'"{interprete}" "{script.name}"', ctx=ctx,
                                      timeout=120)
         finally:
             script.unlink(missing_ok=True)
@@ -273,7 +282,14 @@ def build_registry() -> ToolRegistry:
                   "path": {"type": "string"}, "k": {"type": "string"}}},
               access={"exec"})
     async def run_tests(ctx: ToolContext, path: str = "tests", k: str = ""):
-        cmd = f'"{sys.executable}" -m pytest {path} -q --no-header'
+        # Sin esto, en el .exe la herramienta que «convierte una opinión en
+        # evidencia» devolvía la salida de MAGI arrancando. Balthasar critica
+        # habiendo ejecutado: eso es lo que le da autoridad, y en el binario
+        # publicado no ejecutaba nada.
+        interprete = python_executable()
+        if interprete is None:
+            return ToolResult(False, "", error=_SIN_PYTHON)
+        cmd = f'"{interprete}" -m pytest {path} -q --no-header'
         if k:
             cmd += f' -k "{k}"'
         return await run_command(cmd, ctx=ctx, timeout=300)

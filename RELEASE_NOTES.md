@@ -1,6 +1,6 @@
 ## MAGI System IDE v5.1.0
 
-Reconstrucción completa sobre v5.0.28. **598 tests en Python y 66 en la
+Reconstrucción completa sobre v5.0.28. **602 tests en Python y 66 en la
 interfaz**, todos en verde: sin tests verdes no hay release.
 
 **Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
@@ -101,6 +101,33 @@ más importan:
   `websockets` y sin `numpy`/`scikit-learn`. Y como el build declara
   `needs: test`, no habría habido `.exe`. Ahora se instala de
   `requirements.txt` y un test impide volver a enumerar.
+
+### El fallo que solo existía en el .exe
+
+Dentro de un onefile de PyInstaller, `sys.executable` **es el propio
+ejecutable**, no un intérprete de Python. Media docena de sitios lanzaban
+`sys.executable -m pytest ...` o `"{sys.executable}" "juego.py"`. En
+desarrollo funciona, porque allí sí es python. En el `.exe` que se descarga de
+Releases, cada una de esas llamadas **relanzaba MAGI**:
+
+- `run_tests` y `python_exec`, las herramientas con las que el enjambre
+  ejecuta código. Que Balthasar critique *habiendo ejecutado* es lo que le da
+  autoridad, y en el binario no ejecutaba nada.
+- La verificación ejecutable de propuestas (§2.5).
+- `observe_program`, `observe_game` y `capture_program`: el bucle de
+  observación acababa mirando a MAGI en lugar del artefacto recién generado.
+- La suite que Naoko corre antes de publicar.
+
+Ninguno daba error: daban el resultado de otro programa, que es peor. Ahora
+todo pasa por `paths.python_executable()`, que busca un intérprete de verdad y
+devuelve `None` si no lo hay —incluido el caso de un `python` en el PATH que
+resuelva al propio binario—, para que el sistema diga que no puede en vez de
+hacer algo raro en silencio. Comprobado construyendo un bundle real, con y sin
+Python en la máquina.
+
+Y el `.exe` se compila ahora con la misma versión de Node y el mismo `npm ci`
+que usa CI para dejar el frontend en verde: antes eran Node 20 con
+`npm install` frente a Node 22 con `npm ci`, dos diferencias con lo probado.
 
 ### «No he podido comprobarlo» no es «está bien»
 

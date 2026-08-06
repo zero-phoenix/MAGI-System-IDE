@@ -22,10 +22,11 @@ import ast
 import asyncio
 import logging
 import re
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from .paths import python_executable
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +201,17 @@ class ProposalVerifier:
 
         script = tmp / f"block_{i}.py"
         script.write_text(code, encoding="utf-8")
-        rc, out = await _run([sys.executable, str(script)], tmp, self.timeout_s)
+        interprete = python_executable()
+        if interprete is None:
+            # No se puede verificar ejecutando. Se dice, no se aprueba: la
+            # verificación ejecutable del §2.5 es justo lo que distingue una
+            # propuesta comprobada de una plausible.
+            return BlockResult(
+                lang, i, False, "run",
+                "no hay intérprete de Python con el que ejecutar el bloque: "
+                "NO se ha verificado. Dentro del .exe `sys.executable` es el "
+                "propio .exe y lanzarlo relanzaría MAGI.")
+        rc, out = await _run([interprete, str(script)], tmp, self.timeout_s)
         if rc == 0:
             return BlockResult(lang, i, True, "run", out[-800:])
         return BlockResult(lang, i, False, "run", out[-2000:])

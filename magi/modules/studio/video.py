@@ -639,7 +639,13 @@ async def capture_program(path: str | Path, out_path: str | Path,
     puede: si se mueve, si parpadea, si se congela a los dos segundos. Ese
     último caso es justamente el que una sola captura declara correcto.
     """
-    import sys
+    from ...core.paths import python_executable
+    from .artifacts import _SIN_PYTHON
+
+    interprete = python_executable()
+    if interprete is None:
+        return Observation(False, ArtifactKind.VIDEO,
+                           "sin intérprete de Python", problems=[_SIN_PYTHON])
 
     if not ffmpeg_available():
         return Observation(False, ArtifactKind.VIDEO, "sin ffmpeg",
@@ -668,7 +674,7 @@ async def capture_program(path: str | Path, out_path: str | Path,
         try:
             from .artifacts import _run as _run_shell
             rc, salida = await _run_shell(
-                f'"{sys.executable}" "{arnes.name}"', d, timeout,
+                f'"{interprete}" "{arnes.name}"', d, timeout,
                 {"MAGI_FRAMES": str(max(2, int(seconds * fps))),
                  "MAGI_EVERY": "1", "MAGI_OUT": str(tmp),
                  "MAGI_TARGET": str(objetivo),

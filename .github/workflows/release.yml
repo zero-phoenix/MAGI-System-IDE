@@ -48,10 +48,18 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
+    # Node 22 y `npm ci`, EXACTAMENTE igual que el job `gui` de ci.yml. Antes
+    # este job usaba Node 20 con `npm install`: dos diferencias con lo que CI
+    # deja en verde, y cualquiera de las dos puede tumbar el release de un
+    # commit ya probado. Vite 7 exige `^20.19.0 || >=22.12.0`, así que un
+    # `node-version: '20'` que resolviera a 20.18 fallaría; y `npm install`
+    # ignora el lock y puede instalar versiones distintas de las probadas.
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: magi-gui/package-lock.json
 
     - name: Install Python dependencies
       run: |
@@ -62,7 +70,7 @@ jobs:
     - name: Build Frontend
       working-directory: ./magi-gui
       run: |
-        npm install
+        npm ci
         npm run build
 
     - name: Build Executable (PyInstaller)

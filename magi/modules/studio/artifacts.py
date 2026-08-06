@@ -19,12 +19,22 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from ...core.paths import python_executable
+
 logger = logging.getLogger(__name__)
+
+#: Lo que se dice cuando el .exe no tiene con qué ejecutar Python.
+#: Ver `paths.python_executable`: dentro del bundle `sys.executable`
+#: es el propio .exe y lanzarlo relanzaría MAGI.
+_SIN_PYTHON = (
+    "no hay un intérprete de Python en esta máquina. El .exe de MAGI no "
+    "puede ejecutarlo por sí solo: dentro del bundle `sys.executable` es "
+    "el propio .exe, así que lanzarlo relanzaría MAGI en vez de ejecutar "
+    "esto. Instala Python y vuelve a intentarlo.")
 
 
 class ArtifactKind(str, Enum):
@@ -80,7 +90,9 @@ VIDEO_EXTS = (".mp4", ".mkv", ".mov", ".webm", ".avi", ".gif", ".m4v")
 async def observe_program(path: str | Path, *, entry: str = "",
                           timeout: int = 60) -> Observation:
     """Arranca el programa y mira si sobrevive."""
+    _interprete = python_executable()
     p = Path(path)
+    destino = p.name
     if not p.exists():
         return Observation(False, ArtifactKind.PROGRAM, "no existe",
                            problems=[f"{p} no existe"])
@@ -97,9 +109,18 @@ async def observe_program(path: str | Path, *, entry: str = "",
                 problems=[f"{p} es un directorio y no contiene ninguno de "
                           f"{', '.join(ENTRY_CANDIDATES)}. Indica `entry` con "
                           f"el comando de arranque."])
-        entry = f'"{sys.executable}" "{found}"'
+        destino = found
 
-    cmd = entry or f'"{sys.executable}" "{p.name}"'
+    # Solo hace falta un intérprete si NO nos han dado la orden de arranque:
+    # un `entry` explícito puede ser `./juego` o `node app.js`. Cuando sí hace
+    # falta y no lo hay, se dice — antes se componía la orden con el .exe de
+    # MAGI y se relanzaba MAGI en vez de ejecutar el artefacto.
+    if not entry and _interprete is None:
+        return Observation(
+            False, ArtifactKind.PROGRAM, "sin intérprete de Python",
+            artifact_path=str(p), problems=[_SIN_PYTHON])
+
+    cmd = entry or f'"{_interprete}" "{destino}"'
     cwd = p if p.is_dir() else p.parent
     rc, out = await _run(cmd, cwd, timeout)
 
@@ -217,8 +238,13 @@ async def observe_game(project_dir: str | Path, *, entry: str = "main.py",
            "MAGI_TARGET": str(target), "SDL_VIDEODRIVER": "dummy",
            "SDL_AUDIODRIVER": "dummy"}
 
+    interprete = python_executable()
+    if interprete is None:
+        harness.unlink(missing_ok=True)
+        return Observation(False, ArtifactKind.GAME, "sin intérprete de Python",
+                           artifact_path=str(d), problems=[_SIN_PYTHON])
     try:
-        rc, out = await _run(f'"{sys.executable}" "{harness.name}"', d,
+        rc, out = await _run(f'"{interprete}" "{harness.name}"', d,
                              timeout, env)
     finally:
         harness.unlink(missing_ok=True)

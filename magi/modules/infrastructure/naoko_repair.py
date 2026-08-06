@@ -159,8 +159,16 @@ async def run_test_suite(root: Path | None = None,
                          path: str = "tests") -> tuple[bool, str]:
     """La verificación que no existía en v5.0.28."""
     root = root or project_root()
-    import sys
-    rc, out = await _sh([sys.executable, "-m", "pytest", path, "-q", "--no-header"],
+    from magi.core.paths import python_executable
+    interprete = python_executable()
+    if interprete is None:
+        # En el .exe, `sys.executable` es el propio .exe: lanzarlo con
+        # `-m pytest` relanzaba MAGI y el resultado no tenía nada que ver con
+        # los tests. Mejor decir que no se puede verificar que dar por buena
+        # una verificación que no ocurrió.
+        return False, ("no hay un intérprete de Python con el que ejecutar la "
+                       "suite: la reparación NO queda verificada")
+    rc, out = await _sh([interprete, "-m", "pytest", path, "-q", "--no-header"],
                         root, timeout=600)
     return rc == 0, out[-4000:]
 

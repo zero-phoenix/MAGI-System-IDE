@@ -801,3 +801,99 @@ def test_requirements_cubre_todo_import_duro_del_sistema_y_de_la_suite():
                     for m, fs in sorted(faltan.items()))
         + ". O lo añades a requirements.txt, o lo envuelves en "
           "try/except ImportError para declararlo opcional de verdad.")
+
+
+def test_nadie_lanza_python_con_sys_executable():
+    """
+    EL FALLO QUE SOLO EXISTE EN EL BINARIO PUBLICADO.
+
+    Dentro de un onefile de PyInstaller, `sys.executable` **es el propio
+    .exe**, no un intérprete. Comprobado construyendo uno:
+
+        sys.executable = /tmp/pyi-p/d/probe
+        frozen = True
+
+    Media docena de sitios lanzaban `[sys.executable, "-m", "pytest", ...]` o
+    `"{sys.executable}" "juego.py"`. En desarrollo funciona, porque ahí
+    `sys.executable` sí es python. En el .exe que la gente se descarga de
+    Releases, cada una de esas llamadas RELANZA MAGI:
+
+      · `run_test_suite` y `_local_build`, que es la puerta previa a publicar:
+        `MAGI-IDE-v5.exe -m pytest` arranca otra GUI y otro servidor.
+      · `observe_program`, `observe_game` y `capture_program`: el bucle de
+        observación del §5 acababa mirando a MAGI en lugar del artefacto que
+        se acababa de generar.
+
+    Ninguno da error. Dan el resultado de otro programa, que es peor. Y
+    ninguna de las cuatro reglas anteriores lo caza: el código está conectado,
+    tiene tests, se invoca desde la interfaz y arranca — solo que arrancar en
+    desarrollo no es arrancar congelado.
+
+    `paths.python_executable()` es la única puerta permitida.
+    """
+    import ast
+
+    permitidos = {"magi/core/paths.py"}
+    culpables: list[str] = []
+
+    for f in sorted((ROOT / "magi").rglob("*.py")):
+        rel = str(f.relative_to(ROOT)).replace("\\", "/")
+        if rel in permitidos or any(rel.startswith(f"magi/{d}/")
+                                    for d in ATTIC_DIRS):
+            continue
+        try:
+            arbol = ast.parse(f.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for n in ast.walk(arbol):
+            # `sys.executable` en cualquier posición: en una lista de
+            # argumentos, dentro de una f-string, da igual.
+            if (isinstance(n, ast.Attribute) and n.attr == "executable"
+                    and getattr(n.value, "id", None) == "sys"):
+                culpables.append(f"{rel}:{n.lineno}")
+
+    assert not culpables, (
+        "`sys.executable` fuera de magi/core/paths.py: dentro del .exe es el "
+        "propio .exe y lanzarlo relanza MAGI en vez de ejecutar Python. Usa "
+        "`paths.python_executable()`, que devuelve None si no hay intérprete "
+        "en vez de hacer algo raro en silencio. Sitios: " + ", ".join(culpables))
+
+
+def test_python_executable_no_devuelve_el_propio_ejecutable_congelado(monkeypatch):
+    """
+    La otra mitad: que la puerta no caiga a `sys.executable` cuando no
+    encuentra intérprete. Devolver el .exe «por si acaso» reintroduciría el
+    fallo entero con una capa de indirección encima.
+    """
+    import shutil
+    import sys as _sys
+
+    import magi.core.paths as paths
+
+    paths.python_executable.cache_clear()
+    monkeypatch.setattr(paths, "is_frozen", lambda: True)
+    monkeypatch.setattr(shutil, "which", lambda n: None)
+    monkeypatch.setattr(_sys, "platform", "linux")
+    try:
+        assert paths.python_executable() is None
+    finally:
+        paths.python_executable.cache_clear()
+
+
+def test_python_executable_descarta_el_alias_que_apunta_al_exe(monkeypatch):
+    """
+    Un `python` en el PATH que resuelva al propio binario —un alias, o el .exe
+    renombrado— sería el mismo fallo colándose por la puerta buena.
+    """
+    import shutil
+    import sys as _sys
+
+    import magi.core.paths as paths
+
+    paths.python_executable.cache_clear()
+    monkeypatch.setattr(paths, "is_frozen", lambda: True)
+    monkeypatch.setattr(shutil, "which", lambda n: _sys.executable)
+    try:
+        assert paths.python_executable() is None
+    finally:
+        paths.python_executable.cache_clear()

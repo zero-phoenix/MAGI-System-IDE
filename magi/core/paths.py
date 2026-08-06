@@ -16,6 +16,7 @@ from pathlib import Path
 __all__ = [
     "project_root", "data_dir", "workspace_dir", "journal_dir",
     "db_path", "logs_dir", "cache_dir", "is_frozen", "describe",
+    "python_executable",
 ]
 
 _ENV_ROOT = "MAGI_ROOT"
@@ -26,6 +27,62 @@ _ENV_WORKSPACE = "MAGI_WORKSPACE"
 def is_frozen() -> bool:
     """True si corremos dentro de un bundle de PyInstaller."""
     return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+
+
+@lru_cache(maxsize=1)
+def python_executable() -> str | None:
+    """
+    Un intérprete de Python de VERDAD, o `None` si no hay ninguno.
+
+    EL FALLO QUE ESTO CIERRA, y que solo existe en el binario publicado.
+    Dentro de un onefile de PyInstaller, `sys.executable` **es el propio
+    .exe**, no un intérprete. Comprobado:
+
+        sys.executable = /tmp/pyi-p/d/probe
+        frozen = True
+
+    Media docena de sitios lanzaban `[sys.executable, "-m", "pytest", ...]` o
+    `"{sys.executable}" "juego.py"`. En desarrollo funciona porque
+    `sys.executable` sí es python. En el .exe que se descarga de Releases,
+    cada una de esas llamadas **relanza MAGI entero**:
+
+      · `run_test_suite` y `_local_build` (la puerta previa a publicar):
+        MAGI-IDE-v5.exe -m pytest -> arranca otra GUI y otro servidor.
+      · `observe_program`, `observe_game`, `capture_program`: el bucle de
+        observación del §5 acababa mirando a MAGI en vez de al artefacto que
+        acababa de generar.
+
+    Ninguno daba error: daban resultados de otro programa. Que es peor.
+
+    Devuelve `None` en vez de caer a `sys.executable` a propósito: quien no
+    tenga Python instalado necesita que se lo digan, no que el sistema haga
+    algo raro en silencio. Quinta regla del proyecto.
+    """
+    if not is_frozen():
+        return sys.executable
+
+    import shutil
+    import subprocess
+
+    for nombre in ("python3", "python"):
+        ruta = shutil.which(nombre)
+        if ruta and Path(ruta).resolve() != Path(sys.executable).resolve():
+            return ruta
+
+    # Windows: el lanzador `py` existe aunque `python` no esté en el PATH.
+    if sys.platform == "win32":
+        lanzador = shutil.which("py")
+        if lanzador:
+            try:
+                r = subprocess.run([lanzador, "-3", "-c",
+                                    "import sys; print(sys.executable)"],
+                                   capture_output=True, text=True, timeout=15)
+                salida = r.stdout.strip()
+                if r.returncode == 0 and salida and Path(salida).exists():
+                    return salida
+            except Exception:
+                pass
+    return None
 
 
 @lru_cache(maxsize=1)

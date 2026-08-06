@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**598 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+**602 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
 
 ---
 
@@ -356,6 +356,11 @@ Cuatro reglas, cada una nacida de un fallo real de esta reconstrucción:
    los tres casos el aviso existía —enterrado en la evidencia, que no entra en
    el veredicto—. Ahora, cuando el sistema no puede mirar, lo dice en los
    problemas y el veredicto es negativo.
+6. **El binario publicado no es el mismo programa que el que ejecutas al
+   desarrollar.** Dentro del `.exe`, `sys.executable` es el propio `.exe`: seis
+   sitios lanzaban Python con él y, en el binario que la gente se descarga,
+   relanzaban MAGI en vez de ejecutar los tests, el código propuesto o el juego
+   recién generado. Nada daba error; daban el resultado de otro programa.
 
 Y su corolario, que apareció una y otra vez: **el instrumento de medida es el
 mejor escondite**. El listado del desván comprobaba tres ficheros por

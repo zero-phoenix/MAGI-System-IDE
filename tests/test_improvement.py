@@ -854,3 +854,34 @@ async def test_si_el_commit_falla_no_se_etiqueta_nada(tmp_path, monkeypatch):
     assert etiqueta is None, "devolvió etiqueta con el commit fallido"
     assert ordenes == [], f"llegó a ejecutar git: {ordenes}"
     assert "commit FALLÓ" in n.bus.textos()
+
+
+def test_el_build_del_release_usa_el_mismo_node_que_ci():
+    """
+    El job `gui` de CI deja el frontend en verde con Node 22 y `npm ci`; el
+    build del release lo compilaba con Node 20 y `npm install`. Dos
+    diferencias con lo probado, y cualquiera basta para que falle el release
+    de un commit que CI declaró bueno — el peor momento para enterarse, porque
+    la etiqueta ya está publicada.
+
+    Vite 7 exige `^20.19.0 || >=22.12.0`: un `'20'` que resolviera a 20.18 se
+    cae. Y `npm install` ignora el lock, así que puede instalar versiones que
+    nadie ha compilado nunca.
+    """
+    import yaml
+
+    ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    rel = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
+
+    def node_de(pasos):
+        p = next(s for s in pasos
+                 if str(s.get("uses", "")).startswith("actions/setup-node"))
+        return str(p["with"]["node-version"])
+
+    assert node_de(ci["jobs"]["gui"]["steps"]) == node_de(rel["jobs"]["build"]["steps"]), \
+        "el release compila el frontend con otra versión de Node que la que CI prueba"
+
+    build = "\n".join(str(s.get("run", "")) for s in rel["jobs"]["build"]["steps"])
+    assert "npm ci" in build, "el release tiene que instalar del lock, como CI"
+    assert "npm install" not in build, \
+        "`npm install` ignora package-lock.json: puede instalar algo no probado"
