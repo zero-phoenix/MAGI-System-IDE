@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Etiqueta a publicar (debe existir como tag git)'
+        required: true
+        default: 'v5.1.1'
 
 permissions:
   contents: write
@@ -11,8 +17,12 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.RELEASE_TAG }}
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -37,10 +47,16 @@ jobs:
   build:
     runs-on: windows-latest
     needs: test          # sin tests verdes no hay release
+    env:
+      # En push de tag vale github.ref_name ("v5.1.1"); en dispatch manual
+      # tomamos el input. Así un mismo workflow sirve para ambas vías.
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
     steps:
-    - name: Checkout repository
+    - name: Checkout repository (en el tag a publicar)
       uses: actions/checkout@v4
+      with:
+        ref: ${{ env.RELEASE_TAG }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -84,8 +100,8 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref_name }}
-        name: "MAGI System IDE ${{ github.ref_name }}"
+        tag_name: ${{ env.RELEASE_TAG }}
+        name: "MAGI System IDE ${{ env.RELEASE_TAG }}"
         files: dist/MAGI-IDE-v5.zip
         body_path: RELEASE_NOTES.md
         draft: false
