@@ -160,6 +160,18 @@ def _disable_g4f_browser() -> None:
     except ImportError:
         return
 
+    # DEFENSA PRIMERA: que g4f crea que NO tiene ninguna forma de abrir
+    # navegador. g4f/requests/__init__.py detecta paquetes al importar y
+    # guarda has_webview/has_nodriver/has_cdp; los providers los consultan
+    # para decidir si intentan la ruta de navegador. La causa real de las
+    # ventanas era has_webview=True: g4f detecta pywebview (el backend de la
+    # propia GUI de MAGI) y lo reutiliza como navegador para evadir
+    # Cloudflare, llamando webview.create_window(). Poner las flags a False
+    # hace que ningún provider lo intente.
+    for flag in ("has_webview", "has_nodriver", "has_cdp"):
+        if hasattr(g4f_req, flag):
+            setattr(g4f_req, flag, False)
+
     class _NoBrowser(Exception):
         """MAGI prohíbe abrir navegadores (§I.3)."""
 
@@ -169,12 +181,17 @@ def _disable_g4f_browser() -> None:
         raise _NoBrowser(
             "g4f intentó abrir un navegador, prohibido por §I.3")
 
-    for fn in ("get_nodriver", "get_args_from_nodriver",
-               "get_args_from_browser"):
+    # TODAS las rutas por las que g4f abre una ventana: nodriver/zendriver
+    # (Chrome vía CDP), webview (pywebview — el propio backend de la GUI de
+    # MAGI, que g4f detecta y reutiliza como navegador), CDP directo y la
+    # sesión de nodriver. Sin cubrir las cuatro, alguna ventana se abre.
+    for fn in ("get_nodriver", "get_nodriver_session",
+               "get_args_from_nodriver", "get_args_from_browser",
+               "get_args_from_webview", "get_args_from_cdp"):
         if hasattr(g4f_req, fn):
             setattr(g4f_req, fn, _blocked)
     logger.info(
-        "[g4f] navegador deshabilitado: ningún proveedor abrirá Chrome")
+        "[g4f] navegador deshabilitado: ningún proveedor abrirá Chrome/webview")
 
 
 class G4FProvider(BaseProvider):
