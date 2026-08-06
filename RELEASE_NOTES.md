@@ -1,10 +1,25 @@
-## MAGI System IDE v5.1.0
+## MAGI System IDE v5.1.1
 
 Reconstrucción completa sobre v5.0.28. **602 tests en Python y 66 en la
 interfaz**, todos en verde: sin tests verdes no hay release.
 
 **Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
 compilado por GitHub Actions tras pasar la suite completa.
+
+### Qué corrige v5.1.1 respecto a v5.1.0
+
+v5.1.0 salió con su workflow roto y nunca generó ejecutable. Esta versión
+cierra los tres bloqueos:
+
+- **El CI no compilaba.** Los workflows instalaban una lista de paquetes
+  escrita a mano a la que le faltaban `websockets`, `numpy`, `scikit-learn`
+  y `pyyaml`. Como `build` depende de `test`, no se generaba el `.exe`.
+  Ahora ambos workflows instalan desde `requirements.txt`.
+- **El `.exe` relanzaba MAGI.** Dentro de un onefile de PyInstaller,
+  `sys.executable` es el propio `.exe`, no un intérprete. Seis sitios que
+  lanzaban Python relanzaban MAGI en su lugar. `magi.core.paths.python_executable()`
+  resuelve un intérprete real o devuelve `None` en vez de hacer algo raro.
+- **README reescrito.**
 
 ---
 
