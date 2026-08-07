@@ -130,6 +130,16 @@ FAMILY_SPECS: dict[str, list[Candidate]] = {
 # registro las prefiere al repartir el enjambre.
 VERIFIED_FAMILIES = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
 
+#: Margen antes de cubrir una petición lenta con el siguiente candidato.
+#: 4 s sale de las latencias medidas: los candidatos sanos contestan entre
+#: 0,9 y 3,4 s, así que a los 4 s ya no es "va lento", es "algo pasa".
+HEDGE_AFTER_S = 4.0
+
+#: Tope de llamadas simultáneas por familia. Con 2 se cubre el caso que duele
+#: —un candidato colgado— sin convertir cada petición en una tormenta de
+#: peticiones contra proveedores gratuitos.
+HEDGE_MAX = 2
+
 # Reparto por defecto del enjambre.
 #
 # Antes: MELCHIOR=deepseek, BALTHASAR=claude, CASPER=qwen. Esas tres familias
@@ -276,6 +286,10 @@ class G4FProvider(BaseProvider):
         self.default_model = self.candidates[0][1] or "default"
         self._client = None
         self._live: Candidate | None = None   # candidato que funcionó la última vez
+        #: Latencia media medida por candidato, en ms. Se llena sola con cada
+        #: respuesta y ordena los intentos: el catálogo dice quién PUEDE
+        #: contestar, esto dice quién contesta RÁPIDO hoy.
+        self._latencia: dict[Candidate, float] = {}
 
     # ------------------------------------------------------------------ setup
 
@@ -299,66 +313,139 @@ class G4FProvider(BaseProvider):
 
     def _ordered(self) -> list[Candidate]:
         """
-        Orden de intento: afinidad primero, capaces-de-navegador al final.
+        Orden de intento: los rápidos primero, capaces-de-navegador al final.
 
-        1. El último candidato que funcionó (afinidad, evita repetir sondeos).
-        2. Los que solo hablan HTTP.
-        3. Los que podrían intentar abrir un navegador. El cortafuegos los
-           corta en 0ms si lo intentan, así que estar en la lista no cuesta
+        1. Los que solo hablan HTTP, ORDENADOS POR LATENCIA MEDIDA. Los que
+           aún no se han probado van justo detrás del más rápido conocido, para
+           que se les dé una oportunidad sin castigar al que ya va bien.
+        2. Los que podrían intentar abrir un navegador. El cortafuegos los
+           corta en 0 ms si lo intentan, así que estar en la lista no cuesta
            nada; ponerlos al final evita gastar ese intento cuando hay una
            alternativa limpia.
+
+        Antes mandaba la afinidad a secas: el último que funcionó iba primero
+        para siempre. En el registro del usuario eso dejaba a `Yqcloud` en
+        cabeza de la familia gpt aunque una de sus respuestas tardara 13,9 s
+        —el pico que arrastraba la etapa entera— habiendo alternativas de 2 s
+        en la misma familia. Con la latencia medida el orden se corrige solo.
         """
         def puede_abrir_navegador(c: Candidate) -> bool:
             cls = _resolve(c[0])
             return cls is not None and _uses_browser(cls)
 
-        resto = [c for c in self.candidates if c != self._live]
-        limpios = [c for c in resto if not puede_abrir_navegador(c)]
-        degradados = [c for c in resto if puede_abrir_navegador(c)]
-        cabeza = [self._live] if (self._live and self._live in self.candidates) else []
-        return cabeza + limpios + degradados
+        conocidas = [v for v in self._latencia.values()]
+        sin_medir = min(conocidas) if conocidas else 0.0
+
+        def coste(c: Candidate) -> float:
+            return self._latencia.get(c, sin_medir)
+
+        limpios = sorted((c for c in self.candidates if not puede_abrir_navegador(c)),
+                         key=coste)
+        degradados = [c for c in self.candidates if puede_abrir_navegador(c)]
+        return limpios + degradados
+
+    def _anota_latencia(self, cand: Candidate, ms: float) -> None:
+        """Media móvil: una respuesta lenta suelta no destierra a un candidato."""
+        previa = self._latencia.get(cand)
+        self._latencia[cand] = ms if previa is None else previa * 0.7 + ms * 0.3
 
     # ------------------------------------------------------------- inferencia
 
+    async def _pedir(self, cand: Candidate, messages: list, req: CompletionRequest
+                     ) -> tuple[Candidate, str]:
+        """Una llamada a un candidato. Devuelve (candidato, texto) o lanza."""
+        name, model = cand
+        cls = _resolve(name)
+        if cls is None:
+            raise ProviderError(f"{name}: no existe en g4f")
+        t0 = time.monotonic()
+        kwargs: dict[str, Any] = {"model": model or "", "messages": messages,
+                                  "provider": cls}
+        if req.temperature is not None:
+            kwargs["temperature"] = req.temperature
+        resp = await self._get_client().chat.completions.create(**kwargs)
+        content = (resp.choices[0].message.content or "") if resp.choices else ""
+        if not content.strip():
+            raise ProviderError(f"{name}: respuesta vacía")
+        self._anota_latencia(cand, (time.monotonic() - t0) * 1000)
+        return cand, content
+
     async def complete(self, req: CompletionRequest) -> CompletionResponse:
+        """
+        Pide a la familia, con PETICIÓN CUBIERTA.
+
+        Antes se probaban los candidatos en serie: si el primero tardaba 14 s,
+        se esperaban los 14 s. Y así fue en el registro del usuario — una sola
+        respuesta de `Yqcloud` a 13.953 ms arrastró la etapa entera de
+        Melchior, con alternativas de 2 s esperando su turno en la misma
+        familia.
+
+        Ahora, si el primer candidato no ha contestado en `HEDGE_AFTER_S`, se
+        lanza el siguiente EN PARALELO sin cancelar al primero, y gana el que
+        conteste antes. El caso bueno no cambia (una sola llamada, mismo
+        coste); el caso malo deja de pagar la cola de latencia entera. Es la
+        misma respuesta, antes: no se recorta nada.
+
+        Si un candidato falla en firme, entra el siguiente de inmediato en vez
+        de esperar el margen, que es lo que ya hacía la versión en serie.
+        """
         started = time.monotonic()
-        client = self._get_client()
+        self._get_client()
         messages = [m.to_wire() for m in req.messages]
         errors: list[str] = []
+        cola = [c for c in self._ordered() if _resolve(c[0]) is not None]
+        if not cola:
+            raise ProviderError(f"familia '{self.family}': ningún candidato existe")
 
-        for name, model in self._ordered():
-            cls = _resolve(name)
-            if cls is None:
-                continue
-            try:
-                kwargs: dict[str, Any] = {
-                    "model": model or "",
-                    "messages": messages,
-                    "provider": cls,
-                }
-                if req.temperature is not None:
-                    kwargs["temperature"] = req.temperature
-                resp = await client.chat.completions.create(**kwargs)
-                content = (resp.choices[0].message.content or "") if resp.choices else ""
-                if not content.strip():
-                    errors.append(f"{name}: respuesta vacía")
-                    continue
+        pendientes: dict[asyncio.Task, Candidate] = {}
+        siguiente = 0
+        try:
+            while pendientes or siguiente < len(cola):
+                if siguiente < len(cola) and len(pendientes) < HEDGE_MAX:
+                    cand = cola[siguiente]
+                    siguiente += 1
+                    pendientes[asyncio.ensure_future(
+                        self._pedir(cand, messages, req))] = cand
 
-                self._live = (name, model)
-                usage = Usage(
-                    prompt_tokens=sum(self.estimate_tokens(str(m["content"]))
-                                      for m in messages),
-                    completion_tokens=self.estimate_tokens(content),
-                )
-                logger.info("[%s] respondió %s/%s en %.0fms",
-                            self.id, name, model or "default",
-                            (time.monotonic() - started) * 1000)
-                return self._mk_response(content, f"{name}/{model or 'default'}",
-                                         started, usage)
-            except Exception as e:
-                errors.append(f"{name}: {type(e).__name__}: {e}")
-                logger.debug("[%s] candidato %s falló: %s", self.id, name, e)
-                continue
+                if not pendientes:
+                    break
+                espera = HEDGE_AFTER_S if siguiente < len(cola) else req.timeout_s
+                hechas, _ = await asyncio.wait(
+                    pendientes, timeout=espera,
+                    return_when=asyncio.FIRST_COMPLETED)
+
+                if not hechas:
+                    continue          # nadie ha contestado: se cubre con otro
+
+                for t in hechas:
+                    cand = pendientes.pop(t)
+                    try:
+                        ganador, content = t.result()
+                    except Exception as e:
+                        errors.append(f"{cand[0]}: {type(e).__name__}: {e}")
+                        logger.debug("[%s] candidato %s falló: %s",
+                                     self.id, cand[0], e)
+                        continue
+
+                    self._live = ganador
+                    usage = Usage(
+                        prompt_tokens=sum(self.estimate_tokens(str(m["content"]))
+                                          for m in messages),
+                        completion_tokens=self.estimate_tokens(content),
+                    )
+                    nombre, modelo = ganador
+                    logger.info("[%s] respondió %s/%s en %.0fms%s",
+                                self.id, nombre, modelo or "default",
+                                (time.monotonic() - started) * 1000,
+                                f" (cubierto x{len(pendientes) + 1})"
+                                if pendientes else "")
+                    return self._mk_response(
+                        content, f"{nombre}/{modelo or 'default'}", started, usage)
+        finally:
+            # Las llamadas cubiertas que perdieron la carrera se cancelan: la
+            # respuesta ya está, seguir esperándolas solo gastaría cuota.
+            for t in pendientes:
+                t.cancel()
 
         raise ProviderError(
             f"familia '{self.family}' agotada ({len(self.candidates)} candidatos): "

@@ -49,9 +49,16 @@ class SwarmAgentBase:
         """
         from magi.core.prompts import style_fragment
         from magi.core.context import get_context
+        from magi.core import idioma
 
+        # El idioma sale del enunciado del usuario. Sin esta línea un
+        # proveedor gratuito puede contestar en otro: se vio a Naoko responder
+        # en chino a un «hola», y los tres nodos comparten el mismo catálogo
+        # de proveedores, así que están igual de expuestos.
+        lang = idioma.detectar(user_prompt)
         full_sys = "\n\n".join([
             sys_prompt,
+            f"IDIOMA: {idioma.instruccion(lang)}",
             style_fragment(narrative_style),
             get_context().render(),
         ])
@@ -95,9 +102,12 @@ class SwarmAgentBase:
         from magi.core.tools import ToolContext, registry_for_role
         from magi.core.tools.journal import WriteJournal
         from magi.core.paths import workspace_dir
+        from magi.core import idioma
 
         full_sys = "\n\n".join([
-            sys_prompt, style_fragment(narrative_style), get_context().render()])
+            sys_prompt,
+            f"IDIOMA: {idioma.instruccion(idioma.detectar(user_prompt))}",
+            style_fragment(narrative_style), get_context().render()])
 
         ctx = ToolContext(task_id=task_id,
                           cwd=workspace_dir(),

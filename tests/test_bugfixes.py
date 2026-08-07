@@ -98,11 +98,20 @@ async def test_timeout_reaps_the_process():
     """
     kill() sin wait() dejaba el transporte sin limpiar: proceso zombi y
     "RuntimeError: Event loop is closed" al recolectarlo.
+
+    El comando que se cuelga es un Python, no `sleep`. `sleep` no existe en
+    Windows: el proceso moría al instante con rc=1 y el test comprobaba el
+    manejo de un comando inexistente en vez del de un timeout. En el runner de
+    CI pasaba por accidente, porque Git for Windows deja un `sleep.exe` en el
+    PATH; en un Windows limpio daba rojo. Un test que mide otra cosa según la
+    máquina no mide nada.
     """
+    import sys as _sys
     tmp = pathlib.Path(tempfile.mkdtemp())
     ctx = ToolContext(task_id="t", cwd=tmp, journal=WriteJournal("t", tmp / ".j"))
+    colgado = f'"{_sys.executable}" -c "import time; time.sleep(5)"'
     r = await build_registry().execute(
-        "run_command", {"command": "sleep 5", "timeout": 1}, ctx)
+        "run_command", {"command": colgado, "timeout": 1}, ctx)
     assert not r.ok and "timeout" in r.error
     await asyncio.sleep(0.05)   # si quedara sin recolectar, saltaría aquí
 

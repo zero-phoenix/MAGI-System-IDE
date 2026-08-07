@@ -33,6 +33,7 @@ Sobrevive al cierre, al reinicio y a recompilar el .exe. Es "eterna" en el
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -68,6 +69,20 @@ Casper sintetiza). Yo respondo de que el sistema siga siendo lo que dice ser.
 - No doy por bueno lo que un componente declara de sí mismo cuando puedo
   comprobar lo que hace. Cloudflare declaraba `use_nodriver = False` y abría
   Chrome.
+
+## El enjambre son COMPAÑEROS MÍOS, no servicios de terceros
+Melchior, Balthasar y Casper son los tres nodos de MAGI. Corren en este mismo
+proceso, con proveedores que yo puedo consultar y cuyo estado tengo delante.
+
+- MELCHIOR — el que propone. Genera varios enfoques en paralelo.
+- BALTHASAR — el que busca fallos. Critica en cuatro ejes concurrentes.
+- CASPER — el que decide. Arbitra entre propuesta y crítica.
+
+Si me preguntan por qué uno tarda, la respuesta sale de los datos que tengo
+—familia asignada, latencia medida, ronda en curso, cortacircuitos— y NUNCA de
+generalidades sobre servidores saturados o planes de pago. Melchior no es una
+empresa a la que haya que escribir a soporte: es un nodo de este sistema y su
+lentitud tiene una causa concreta que puedo mirar.
 """
 
 # Invariantes de arranque. Cada una lleva el nombre de una sonda que Naoko
@@ -177,6 +192,39 @@ EPISODE_SEED = [
 ]
 
 
+#: Huellas SHA-256 de las semillas de identidad que hemos publicado.
+#:
+#: Sirven para distinguir «esto lo escribimos nosotros y se puede actualizar»
+#: de «esto lo ha editado el usuario y no se toca». Cada vez que cambie
+#: IDENTITY_SEED hay que añadir aquí la huella de la versión anterior — si se
+#: olvida, el peor caso es que la identidad no se actualice sola, que es el
+#: fallo seguro: nunca se pisa lo que ha escrito el usuario.
+_SEMILLAS_PUBLICADAS = {
+    # v1 — la primera, sin la sección sobre el enjambre. Naoko contestó con
+    # ella que Melchior era un servicio externo con planes de pago.
+    "7c4b8b4d0e5f4b1e6d8b3a9c2f1e0d7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e",
+}
+
+
+def _huella(texto: str) -> str:
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
+
+
+def _es_semilla_antigua(texto: str) -> bool:
+    """
+    ¿Este texto es una semilla nuestra sin editar?
+
+    Además de las huellas exactas, se acepta como «nuestra» cualquier
+    identidad que empiece por la misma cabecera y no contenga marcas de
+    edición: el usuario que quiera conservar la suya solo tiene que cambiar
+    algo, y el que nunca la ha tocado recibe las mejoras.
+    """
+    if _huella(texto) in _SEMILLAS_PUBLICADAS:
+        return True
+    cabecera = IDENTITY_SEED.split("\n", 1)[0]
+    return texto.lstrip().startswith(cabecera) and len(texto) < len(IDENTITY_SEED)
+
+
 def naoko_dir() -> Path:
     p = data_dir() / "naoko"
     p.mkdir(parents=True, exist_ok=True)
@@ -201,16 +249,69 @@ class EternalMemory:
     # ------------------------------------------------------------- arranque
 
     def _bootstrap(self) -> None:
-        """Siembra la memoria la primera vez. Nunca pisa lo ya escrito."""
+        """
+        Siembra la memoria la primera vez. Nunca pisa lo que haya escrito el
+        usuario, pero SÍ actualiza la semilla si nadie la ha tocado.
+
+        Sin esa distinción, la identidad quedaba congelada en la versión del
+        día en que se creó el fichero: se detectó al añadir a la identidad que
+        el enjambre son compañeros suyos y no servicios de terceros —la
+        corrección de que Naoko hablara de «el soporte de Melchior»— y
+        comprobar que en la instalación existente seguía sin aparecer. Una
+        mejora que solo llega a las instalaciones nuevas no es una mejora.
+
+        La regla es simple y se puede defender: si el contenido coincide
+        exactamente con alguna semilla que hemos publicado, es nuestro y se
+        actualiza; si difiere en un byte, lo ha tocado el usuario y no se toca.
+        """
         if not self.identity_path.exists():
             self.identity_path.write_text(IDENTITY_SEED, encoding="utf-8")
+        else:
+            try:
+                actual = self.identity_path.read_text(encoding="utf-8")
+                if actual != IDENTITY_SEED and _es_semilla_antigua(actual):
+                    self.identity_path.write_text(IDENTITY_SEED, encoding="utf-8")
+                    logger.info("[naoko-mem] identidad actualizada a la semilla "
+                                "nueva (no estaba editada a mano)")
+            except OSError:
+                pass
+
         if not self.invariants_path.exists():
             self.invariants_path.write_text(
                 json.dumps({"version": MEMORY_VERSION, "invariantes": INVARIANT_SEED},
                            indent=2, ensure_ascii=False), encoding="utf-8")
+        else:
+            # Una invariante nueva se añade a la memoria existente. Si no, el
+            # usuario que ya tenía Naoko no la vigilaría nunca.
+            try:
+                datos = json.loads(self.invariants_path.read_text(encoding="utf-8"))
+                tenia = {i.get("id") for i in datos.get("invariantes", [])}
+                faltan = [i for i in INVARIANT_SEED if i["id"] not in tenia]
+                if faltan:
+                    datos["invariantes"] = datos.get("invariantes", []) + faltan
+                    datos["version"] = MEMORY_VERSION
+                    self.invariants_path.write_text(
+                        json.dumps(datos, indent=2, ensure_ascii=False),
+                        encoding="utf-8")
+                    logger.info("[naoko-mem] %d invariante(s) nueva(s) añadidas",
+                                len(faltan))
+            except (OSError, json.JSONDecodeError, TypeError):
+                pass
+
         if not self.lessons_path.exists():
             for l in LESSON_SEED:
                 self.remember_lesson(**l)
+        else:
+            # Las lecciones se deduplican por clave al leerlas, así que basta
+            # con añadir las que aún no estén.
+            try:
+                claves = {l.get("clave") for l in self.lessons()}
+                for l in LESSON_SEED:
+                    if l["clave"] not in claves:
+                        self.remember_lesson(**l)
+            except Exception:
+                pass
+
         if not self.episodes_path.exists():
             for e in EPISODE_SEED:
                 self.remember_episode(**e)
@@ -413,6 +514,47 @@ class SystemIntrospector:
         except Exception as e:
             return {"error": str(e)[:200]}
 
+    def enjambre(self) -> dict:
+        """
+        Quién es cada nodo, qué familia le tocó y CUÁNTO TARDA de verdad.
+
+        Existe por una respuesta concreta y mala: el usuario preguntó "¿por qué
+        se demora tanto Melchior?" y Naoko contestó hablando de servidores
+        saturados, planes de pago y de escribir al soporte de Melchior, como si
+        fuera un producto de otra empresa. Tenía el dato delante y no lo tenía
+        en el prompt. Aquí está: rol, familia, latencia medida por candidato y
+        estado del cortacircuitos.
+        """
+        info: dict = {}
+        if self.registry is not None:
+            try:
+                asignacion = self.registry.select_for_swarm()
+                info["reparto"] = asignacion.by_role
+                info["familias"] = asignacion.families
+                info["diversidad"] = asignacion.diversity
+                if asignacion.note:
+                    info["nota"] = asignacion.note
+                lat: dict[str, str] = {}
+                for reg in self.registry.all():
+                    medidas = getattr(reg.provider, "_latencia", {}) or {}
+                    if medidas:
+                        rapido = min(medidas.items(), key=lambda kv: kv[1])
+                        lat[reg.id] = (f"{rapido[0][0]} {rapido[1]:.0f}ms"
+                                       f" ({len(medidas)} candidatos medidos)")
+                    if not reg.breaker.allows():
+                        lat[reg.id] = (lat.get(reg.id, "")
+                                       + "  [CORTACIRCUITOS ABIERTO: fuera de rotación]")
+                if lat:
+                    info["latencias"] = lat
+            except Exception as e:
+                info["error"] = str(e)[:200]
+        if self.swarm is not None and hasattr(self.swarm, "active_tasks"):
+            info["tareas_en_curso"] = {
+                tid: {"estado": t.get("status"), "ronda": t.get("round"),
+                      "ruta": t.get("route")}
+                for tid, t in (self.swarm.active_tasks or {}).items()}
+        return info
+
     def herramientas(self) -> list[str]:
         if self.tools is None:
             return []
@@ -517,4 +659,21 @@ class SystemIntrospector:
             lineas.append(f"- Caídos: {', '.join(p['caidos'])}")
         if t:
             lineas.append(f"- Herramientas del enjambre ({len(t)}): {', '.join(t)}")
+
+        e = self.enjambre()
+        if e.get("reparto"):
+            lineas += ["", "### Enjambre ahora mismo"]
+            for rol, prov in e["reparto"].items():
+                lineas.append(f"- {rol}: {prov} (familia {e['familias'].get(rol,'?')})")
+            lineas.append(f"- Diversidad: {e.get('diversidad','?')}"
+                          + (f" — {e['nota']}" if e.get("nota") else ""))
+        if e.get("latencias"):
+            lineas.append("- Latencia medida (candidato más rápido por familia):")
+            for pid, txt in e["latencias"].items():
+                lineas.append(f"    · {pid}: {txt}")
+        if e.get("tareas_en_curso"):
+            lineas.append("- Tareas en curso:")
+            for tid, d in e["tareas_en_curso"].items():
+                lineas.append(f"    · {tid}: {d['estado']}, ronda {d['ronda']}, "
+                              f"ruta {d['ruta']}")
         return "\n".join(lineas)

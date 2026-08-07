@@ -225,6 +225,14 @@ export function useMagiSocket(port: number = 20128) {
   const fetchHealth = () => rpc("obs.metrics", {}, 15_000);
   const fetchRunningTasks = () => rpc("task.running", {}, 10_000);
 
+  // Configuración y vista previa. Las dos pestañas existían en la barra y no
+  // tenían nada detrás: Configuración no pintaba nada, y Vista previa cargaba
+  // un http://localhost:3000 que nadie levanta, así que enseñaba la página de
+  // error del navegador.
+  const fetchConfig = () => rpc("sys.config", {}, 20_000);
+  const listArtifacts = (limite = 200) => rpc("artifacts.list", { limite }, 15_000);
+  const readArtifact = (path: string) => rpc("artifacts.read", { path }, 20_000);
+
   // Ciclo de mejora de Naoko. `decide` puede arrancar una fase larga (redactar
   // el plan, dos circuitos del enjambre, aplicar) pero devuelve en cuanto la
   // lanza: el progreso llega por el evento `naoko.improvement`.
@@ -292,5 +300,6 @@ export function useMagiSocket(port: number = 20128) {
   return { sendCommand, sendGitClone, cancelTask, stopEverything,
            fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
            listImprovements, proposeImprovement, decideImprovement,
-           fetchTelemetry, requestFileContent, sendNaokoChat };
+           fetchTelemetry, requestFileContent, sendNaokoChat,
+           fetchConfig, listArtifacts, readArtifact };
 }

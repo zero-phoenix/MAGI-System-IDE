@@ -44,6 +44,78 @@ def test_no_pisa_lo_ya_escrito_al_re_sembrar(tmp_path):
     assert len(EternalMemory(root=root).episodes(limit=None)) == n
 
 
+# ------------------------------------------------------- actualización
+
+def test_una_identidad_vieja_sin_editar_se_actualiza(tmp_path):
+    """
+    Una mejora que solo llega a las instalaciones nuevas no es una mejora.
+    Al añadir a la identidad que el enjambre son compañeros de Naoko —la
+    corrección de que hablara de «el soporte de Melchior»—, la instalación
+    que ya existía se quedó con la versión vieja.
+    """
+    from magi.modules.infrastructure import naoko_memory as nm
+
+    root = tmp_path / "naoko"
+    root.mkdir(parents=True)
+    vieja = nm.IDENTITY_SEED.split("\n", 1)[0] + "\n\nversión antigua y corta.\n"
+    (root / "identity.md").write_text(vieja, encoding="utf-8")
+
+    m = EternalMemory(root=root)
+    assert m.identity() == nm.IDENTITY_SEED
+
+
+def test_una_identidad_editada_por_el_usuario_NO_se_toca(tmp_path):
+    from magi.modules.infrastructure import naoko_memory as nm
+
+    root = tmp_path / "naoko"
+    root.mkdir(parents=True)
+    mia = ("# Mi Naoko\n\nLa he reescrito entera a mi gusto y quiero que se "
+           "quede así, con bastante texto para que no parezca una semilla "
+           "recortada de las nuestras ni por asomo.\n" + "relleno. " * 200)
+    (root / "identity.md").write_text(mia, encoding="utf-8")
+
+    assert EternalMemory(root=root).identity() == mia
+
+
+def test_una_invariante_nueva_llega_a_una_memoria_existente(tmp_path):
+    from magi.modules.infrastructure import naoko_memory as nm
+    import json as _json
+
+    root = tmp_path / "naoko"
+    root.mkdir(parents=True)
+    (root / "invariants.json").write_text(
+        _json.dumps({"version": 1, "invariantes": [nm.INVARIANT_SEED[0]]}),
+        encoding="utf-8")
+
+    ids = {i["id"] for i in EternalMemory(root=root).invariants()}
+    assert ids == {i["id"] for i in nm.INVARIANT_SEED}
+
+
+def test_una_leccion_nueva_llega_a_una_memoria_existente(tmp_path):
+    from magi.modules.infrastructure import naoko_memory as nm
+
+    root = tmp_path / "naoko"
+    root.mkdir(parents=True)
+    (root / "lessons.jsonl").write_text(
+        '{"clave": "vieja", "leccion": "algo"}\n', encoding="utf-8")
+
+    claves = {l["clave"] for l in EternalMemory(root=root).lessons()}
+    assert "vieja" in claves, "no se pierde lo que ya había"
+    assert {l["clave"] for l in nm.LESSON_SEED} <= claves
+
+
+def test_la_identidad_nombra_a_los_tres_nodos_del_enjambre():
+    """
+    Naoko respondió a «¿por qué se demora tanto Melchior?» hablando de
+    servidores saturados y del soporte de Melchior, como si fuera un producto
+    de otra empresa. Melchior es un nodo de este mismo sistema.
+    """
+    from magi.modules.infrastructure import naoko_memory as nm
+    for nodo in ("MELCHIOR", "BALTHASAR", "CASPER"):
+        assert nodo in nm.IDENTITY_SEED
+    assert "terceros" in nm.IDENTITY_SEED
+
+
 def test_las_lecciones_se_deduplican_por_clave(mem):
     mem.remember_lesson(clave="k", leccion="primera versión")
     mem.remember_lesson(clave="k", leccion="versión corregida")

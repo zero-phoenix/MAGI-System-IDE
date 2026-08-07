@@ -71,6 +71,11 @@ _ALLOWED_BINARIES = ("msedgewebview2", "webview2", "webview")
 _violations: list[dict] = []
 _installed = False
 
+#: True mientras `self_test()` se comprueba a sí mismo. Las sondas del propio
+#: cortafuegos no son intentos de abrir un navegador y no deben registrarse
+#: como tales.
+_probing = False
+
 
 class BrowserBlocked(RuntimeError):
     """MAGI prohíbe abrir navegadores (§I.3)."""
@@ -136,6 +141,15 @@ def _install_cdp_block() -> None:
         return
 
     def _no_chrome(*a, **kw):
+        # `_probing` distingue "g4f está buscando Chrome para lanzarlo" de
+        # "MAGI se está comprobando a sí misma". Sin esa distinción, cada
+        # `self_test()` —que Naoko ejecuta al arrancar y cada 3 minutos—
+        # contaba como intento de abrir navegador: el log se llenaba de
+        # WARNING y Naoko informaba de intentos que nunca ocurrieron. Avisar
+        # de algo que no ha pasado gasta la credibilidad del aviso que sí
+        # importa, que es justo lo contrario de para lo que está este módulo.
+        if _probing:
+            return None
         _record("cdp.find_chrome_path", "búsqueda de binario de navegador")
         return None
 
@@ -256,19 +270,24 @@ def self_test() -> dict:
     Comprueba que las cuatro capas están puestas. Lo usa Naoko para saber si
     la invariante §I.3 sigue viva en el proceso en marcha.
     """
+    global _probing
     report: dict[str, bool] = {"popen": getattr(subprocess.Popen, "_magi_guarded", False)}
     import webbrowser
     report["webbrowser"] = getattr(webbrowser.open, "_magi_guarded", False)
+    _probing = True                   # ver `_no_chrome`: esto no es un intento
     try:
-        from g4f.requests import cdp
-        report["cdp"] = cdp.find_chrome_path() is None
-    except Exception:
-        report["cdp"] = True          # g4f/cdp no cargado = nada que abrir
+        try:
+            from g4f.requests import cdp
+            report["cdp"] = cdp.find_chrome_path() is None
+        except Exception:
+            report["cdp"] = True      # g4f/cdp no cargado = nada que abrir
+    finally:
+        _probing = False
     try:
         from g4f import requests as g4f_req
         report["nodriver"] = not any(getattr(g4f_req, f, False) for f in _BROWSER_FLAGS)
     except Exception:
         report["nodriver"] = True
-    report["ok"] = all(report.values())
+    report["ok"] = all(v for k, v in report.items() if isinstance(v, bool))
     report["violations"] = violation_count()
     return report

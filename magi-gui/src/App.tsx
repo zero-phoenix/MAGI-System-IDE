@@ -13,6 +13,8 @@ import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
 import NaokoPanel from './components/NaokoPanel';
 import ImprovementPanel from './components/ImprovementPanel';
+import ConfigPanel from './components/ConfigPanel';
+import PreviewPanel from './components/PreviewPanel';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
@@ -42,7 +44,8 @@ export default function App() {
   const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
           fetchHealth, runBenchmark, runSelfImprovement,
           listImprovements, proposeImprovement, decideImprovement,
-          requestFileContent, sendNaokoChat } = useMagiSocket(20128);
+          requestFileContent, sendNaokoChat,
+          fetchConfig, listArtifacts, readArtifact } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -557,40 +560,20 @@ export default function App() {
           </div>
           <div className="cbody" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             
+            {/* Antes: un <iframe src="http://localhost:3000"> fijo en el
+                código. Nadie levanta ese puerto, así que la pestaña enseñaba
+                la página de error del navegador —cuadro blanco con nube— sobre
+                una interfaz negra. Ahora enseña los artefactos que MAGI
+                genera de verdad, y la URL queda como modo secundario. */}
             {activeTab === "Vista previa" && (
-              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                <div style={{ padding: "10px", background: "#050a0b", borderBottom: "1px solid var(--dim)", display: "flex", gap: "10px" }}>
-                  <span style={{ color: "var(--dim)", fontSize: "12px", alignSelf: "center" }}>URL:</span>
-                  <input 
-                    type="text" 
-                    id="previewUrl"
-                    defaultValue="http://localhost:3000"
-                    style={{ flex: 1, background: "#000", border: "1px solid var(--gr)", color: "#cfe0e4", padding: "4px 8px", fontSize: "12px" }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const iframe = document.getElementById('previewIframe') as HTMLIFrameElement;
-                        if (iframe) iframe.src = e.currentTarget.value;
-                      }
-                    }}
-                  />
-                  <button 
-                    className="bt go" 
-                    onClick={() => {
-                      const input = document.getElementById('previewUrl') as HTMLInputElement;
-                      const iframe = document.getElementById('previewIframe') as HTMLIFrameElement;
-                      if (iframe && input) iframe.src = input.value;
-                    }}
-                  >
-                    Actualizar
-                  </button>
-                </div>
-                <iframe 
-                  id="previewIframe"
-                  src="http://localhost:3000" 
-                  style={{ flex: 1, width: "100%", border: "none", background: "#fff" }}
-                  title="Live Preview"
-                />
-              </div>
+              <PreviewPanel listArtifacts={listArtifacts}
+                            readArtifact={readArtifact} />
+            )}
+
+            {/* La pestaña estaba en la barra y NO tenía render: se pulsaba y
+                no aparecía nada. */}
+            {activeTab === "Configuración" && (
+              <ConfigPanel fetchConfig={fetchConfig} />
             )}
             
             {activeTab === "Terminal" && (

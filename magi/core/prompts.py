@@ -119,14 +119,25 @@ ROLE_PROMPTS = {
 
 def build_system_prompt(role: str, *, narrative_style: str | None = None,
                         execution_context: str | None = None,
-                        extra: str | None = None) -> str:
+                        extra: str | None = None,
+                        lang: str | None = None) -> str:
     """
-    Ensambla el prompt de sistema: rol + estilo + contexto real de ejecución.
+    Ensambla el prompt de sistema: rol + idioma + estilo + contexto real.
 
     El bloque de contexto (§4.3) es lo que hace que Melchior deje de proponer
     comandos de Linux en Windows y que todos sepan qué día es.
+
+    `lang` fija el idioma de la respuesta. Los proveedores gratuitos de g4f
+    son puertas a modelos con sesgos de idioma distintos, y sin decírselo
+    contestan a veces en otro: se vio a Naoko responder en chino a un «hola».
+    Lo que le pasa a Naoko le puede pasar a los tres nodos del enjambre, así
+    que la instrucción se pone aquí, donde se construyen todos los prompts, y
+    no en cada sitio por separado.
     """
     parts = [ROLE_PROMPTS.get(role.upper(), ROLE_PROMPTS["MELCHIOR"])]
+    if lang:
+        from .idioma import instruccion
+        parts.append(f"IDIOMA: {instruccion(lang)}")
     parts.append(style_fragment(narrative_style))
     if execution_context:
         parts.append(execution_context)

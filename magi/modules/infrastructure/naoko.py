@@ -8,6 +8,7 @@ from magi.core.bus import MagiBus, BusEvent
 from magi.core.providers.cloud import FreeCloudLLM
 from magi.core.store.database import MagiDatabase
 from magi.core.paths import project_root, workspace_dir
+from magi.core import idioma
 from magi.modules.infrastructure.naoko_memory import (
     EternalMemory, SystemIntrospector,
 )
@@ -110,8 +111,15 @@ class NaokoAgent:
                            "\n".join(f"- [{p.get('fecha','?')}] {p.get('resumen','')[:200]}"
                                      for p in previos))
 
+        # Idioma del usuario. Sin esta línea, algunos proveedores gratuitos
+        # contestan en chino o en inglés a un saludo corto: pasó con un
+        # «hola naoko» y la respuesta llegó en chino.
+        lang = idioma.detectar(user_msg)
+
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
 No eres un agente de generación de código del Enjambre (Melchior, Balthasar, Casper), sino la supervisora autónoma global.
+
+IDIOMA: {idioma.instruccion(lang)}
 
 {eternal}
 
@@ -144,19 +152,23 @@ No eres un agente de generación de código del Enjambre (Melchior, Balthasar, C
   exacto que aparece arriba."""
         
         try:
-            response = await self._generate_with_rotation(system_prompt, user_msg, image=image_data)
+            response = await self._generate_with_rotation(
+                system_prompt, user_msg, image=image_data, lang=lang)
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": response}))
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Inactiva"}))
         except Exception as e:
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error interno en Naoko: {e}"}))
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Error"}))
 
-    async def _generate_with_rotation(self, system_prompt: str, user_prompt: str, image: str | None = None) -> str:
+    async def _generate_with_rotation(self, system_prompt: str, user_prompt: str,
+                                      image: str | None = None,
+                                      lang: str | None = None) -> str:
         # Rotación por familias VERIFICADAS (barrido empírico 2026-08-06).
         # Antes rotaba entre claude-3.5-sonnet, qwen-2.5-coder y deepseek: las
         # tres familias están hoy sin ningún candidato vivo, así que Naoko
         # gastaba tres rondas de fallos antes de llegar a la única que servía.
         models = ["gpt-4o", "gemini-1.5-flash", "command-a", "llama-3.1-70b"]
+        lang = lang or idioma.detectar(user_prompt)
         for model in models:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
             try:
@@ -164,7 +176,21 @@ No eres un agente de generación de código del Enjambre (Melchior, Balthasar, C
                     response, _ = await self.llm.generate_vision(system_prompt, user_prompt, image_data_url=image, model=model)
                 else:
                     response, _ = await self.llm.generate(system_prompt, user_prompt, model=model)
-                    
+
+                # El modelo puede contestar en otro idioma: pasó de verdad, un
+                # «hola naoko» devolvió «嗨~请问有什么可以帮你的吗». Una respuesta
+                # que el usuario no puede leer no es una respuesta, así que se
+                # pasa al siguiente proveedor en vez de entregarla.
+                if not idioma.coincide(response, lang):
+                    logger.warning("[naoko] %s respondió en otro idioma "
+                                   "(esperado %s); roto de proveedor",
+                                   model, lang)
+                    await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                        "agent": "NAOKO",
+                        "content": f"⚠️ {model} respondió en otro idioma. "
+                                   f"Repitiendo con otro proveedor..."}))
+                    continue
+
                 if not response.startswith("SYS_EMERGENCY_STOP"):
                     return response
             except Exception as e:

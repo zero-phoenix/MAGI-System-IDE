@@ -437,7 +437,10 @@ def test_nadie_pide_el_catalogo_sin_acotar():
     import re
     ofensores = []
     for f in (ROOT / "magi").rglob("*.py"):
-        rel = str(f.relative_to(ROOT))
+        # as_posix(): el mismo fallo de separador que tenía `_call_graph`. En
+        # Windows `str(Path)` da 'magi\\gui\\...' y el filtro busca 'magi/gui/',
+        # así que el ático NO se excluía y este guard señalaba código muerto.
+        rel = f.relative_to(ROOT).as_posix()
         if any(rel.startswith(f"magi/{d}/") for d in ATTIC_DIRS):
             continue
         src = f.read_text(encoding="utf-8")

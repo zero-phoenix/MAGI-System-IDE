@@ -69,10 +69,93 @@ class Kernel:
         self.rpc.register_handler("obs.metrics", self._handle_metrics)
         self.rpc.register_handler("naoko.self_improve", self._handle_self_improve)
         self.rpc.register_handler("eval.run", self._handle_eval_run)
-        
+        # §GUI — la pestaña Configuración estaba en la barra sin nada detrás:
+        # se pulsaba y no aparecía nada. Y Vista previa apuntaba a un
+        # localhost:3000 que nadie levanta, así que el usuario veía la página
+        # de error del navegador. Estos dos endpoints les dan contenido real.
+        self.rpc.register_handler("sys.config", self._handle_config)
+        self.rpc.register_handler("artifacts.list", self._handle_artifacts_list)
+        self.rpc.register_handler("artifacts.read", self._handle_artifacts_read)
+
     async def _handle_metrics(self, payload, websocket):
         """Panel de salud (§3.4): latencias, herramientas, alertas."""
         return self.metrics.snapshot()
+
+    async def _handle_config(self, payload, websocket):
+        """
+        Configuración REAL del sistema, leída del sistema, no de una copia.
+
+        Todo lo que devuelve se consulta en vivo: el reparto del enjambre sale
+        del registro de proveedores, las latencias de las medidas por cada
+        backend y el estado del cortafuegos de su propia sonda. Una pantalla de
+        configuración que muestre valores escritos a mano es justo la clase de
+        cosa que este proyecto ha estado desmontando.
+        """
+        from magi.core import no_browser, paths
+        from magi.core.providers.cloud import get_registry
+        from magi.core.providers.backends.g4f_backend import (
+            FAMILY_SPECS, VERIFIED_FAMILIES, HEDGE_AFTER_S, HEDGE_MAX,
+        )
+        from magi.core.tools import ALL_DOMAINS, registry_for_role
+
+        reg = await get_registry()
+        asignacion = reg.select_for_swarm()
+
+        familias = []
+        for r in reg.all():
+            medidas = getattr(r.provider, "_latencia", {}) or {}
+            familias.append({
+                "id": r.id,
+                "familia": r.family,
+                "prioridad": r.priority,
+                "verificada": r.family in VERIFIED_FAMILIES,
+                "disponible": r.available,
+                "en_rotacion": r.breaker.allows(),
+                "llamadas": r.calls,
+                "tokens_in": r.tokens_in,
+                "tokens_out": r.tokens_out,
+                "candidatos": [
+                    {"proveedor": n, "modelo": m or "(por defecto)",
+                     "latencia_ms": round(medidas.get((n, m), 0)) or None}
+                    for n, m in FAMILY_SPECS.get(r.family, [])
+                ],
+            })
+
+        # `task_hint=""` a propósito, y explícito para que se vea que es una
+        # decisión: aquí SÍ se quiere el catálogo entero. Esto es una pantalla
+        # de consulta, no un prompt — enseña de qué es capaz cada rol, no lo
+        # que se le va a mandar en una tarea concreta. Sin el argumento, el
+        # guard `test_nadie_pide_el_catalogo_sin_acotar` no puede distinguir
+        # este caso legítimo del descuido que existe para cazar.
+        herramientas = {rol: sorted(registry_for_role(rol, task_hint="").names())
+                        for rol in ("MELCHIOR", "BALTHASAR", "CASPER")}
+
+        return {
+            "enjambre": {"reparto": asignacion.by_role,
+                         "familias": asignacion.families,
+                         "diversidad": asignacion.diversity,
+                         "nota": asignacion.note},
+            "familias": familias,
+            "inferencia": {"hedge_after_s": HEDGE_AFTER_S,
+                           "hedge_max": HEDGE_MAX,
+                           "cache_entradas": len(reg.cache),
+                           "familias_verificadas": list(VERIFIED_FAMILIES)},
+            "herramientas": herramientas,
+            "dominios": sorted(ALL_DOMAINS),
+            "rutas": paths.describe(),
+            "cortafuegos": no_browser.self_test(),
+            "violaciones": no_browser.violations()[:5],
+        }
+
+    async def _handle_artifacts_list(self, payload, websocket):
+        """Ficheros que MAGI ha generado en el workspace, para la vista previa."""
+        from magi.modules.studio.preview import listar_artefactos
+        return listar_artefactos(limite=int((payload or {}).get("limite", 200)))
+
+    async def _handle_artifacts_read(self, payload, websocket):
+        """Contenido de un artefacto, listo para pintarlo en la vista previa."""
+        from magi.modules.studio.preview import leer_artefacto
+        return leer_artefacto((payload or {}).get("path", ""))
 
     async def _handle_self_improve(self, payload, websocket):
         """
