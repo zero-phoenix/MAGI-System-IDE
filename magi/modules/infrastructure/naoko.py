@@ -8,6 +8,9 @@ from magi.core.bus import MagiBus, BusEvent
 from magi.core.providers.cloud import FreeCloudLLM
 from magi.core.store.database import MagiDatabase
 from magi.core.paths import project_root, workspace_dir
+from magi.modules.infrastructure.naoko_memory import (
+    EternalMemory, SystemIntrospector,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,15 @@ class NaokoAgent:
         self.swarm = swarm
         self.llm = FreeCloudLLM()
         self.is_fixing = False
+        # Memoria eterna: vive en %LOCALAPPDATA%\MagiSystem\naoko\, fuera del
+        # .exe, así que sobrevive al cierre y a recompilar el binario. Antes
+        # solo había `db.get_naoko_memory(limit=5)`: cinco errores recientes de
+        # una base que se recrea. Por eso el mismo fallo del navegador se pudo
+        # reportar tres veces sin que Naoko notara que ya había pasado.
+        self.memory = EternalMemory()
+        # Autoconocimiento: hechos del proceso en marcha, no un párrafo fijo.
+        self.introspector = SystemIntrospector(swarm=swarm)
+        self._last_invariant_report: list[dict] = []
         # §3.4: sin colector, Naoko solo ve excepciones — que es como estaba en
         # v5.0.28. Con él ve latencias, tasas de fallo de herramientas y deriva
         # de proveedor, o sea lo que de verdad degrada el sistema día a día.
@@ -54,8 +66,14 @@ class NaokoAgent:
         self.bus.subscribe("system.crash", self._handle_error_event)
         # §3.4 — de reactiva a proactiva.
         self.bus.subscribe("obs.alert", self._handle_alert)
-        if self.metrics is not None:
-            self._watch_task = asyncio.create_task(self._watch_loop())
+        # La vigilancia arranca SIEMPRE, haya colector de métricas o no. Antes
+        # dependía de `metrics`, así que sin colector Naoko no comprobaba nada
+        # de forma periódica — ni las invariantes ni la deriva. Con colector
+        # mira además latencias y tasas de fallo.
+        self._watch_task = asyncio.create_task(self._watch_loop())
+        logger.info("[naoko] memoria eterna en %s (%d episodios, %d lecciones)",
+                    self.memory.root, len(self.memory.episodes(limit=None)),
+                    len(self.memory.lessons()))
 
     async def _handle_user_message(self, event: BusEvent):
         """Conversación directa con el usuario desde la UI"""
@@ -74,32 +92,56 @@ class NaokoAgent:
         swarm_summary = self._get_swarm_status_summary()
         health = (self.metrics.health_summary() if self.metrics is not None
                   else "Colector de métricas no enganchado.")
-        
+
+        # Memoria eterna + introspección real + estado de las invariantes.
+        eternal = self.memory.brief()
+        self_knowledge = self.introspector.brief()
+        invariants = await self._check_invariants(announce=False)
+        inv_text = "\n".join(
+            f"- [{'OK ' if i['ok'] else 'ROTA'}] {i['id']}: {i['detalle']}"
+            for i in invariants) or "- (sin sondas ejecutadas)"
+
+        # ¿Esto ya pasó antes? Un fallo que reaparece es una regresión, y eso
+        # cambia el diagnóstico. Naoko no tenía forma de saberlo.
+        previos = self.memory.seen_before(user_msg)
+        recurrencia = ""
+        if previos:
+            recurrencia = ("\n[YA HA PASADO ANTES — es una recurrencia]\n" +
+                           "\n".join(f"- [{p.get('fecha','?')}] {p.get('resumen','')[:200]}"
+                                     for p in previos))
+
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
-Tu objetivo es asegurar la resiliencia técnica, la salud visual del GUI y la fluidez del flujo de trabajo de todo el sistema.
 No eres un agente de generación de código del Enjambre (Melchior, Balthasar, Casper), sino la supervisora autónoma global.
 
-ESTADO REAL DEL SISTEMA EN TIEMPO REAL:
----
-[Memoria Reciente de Errores Técnicos]
-{mem_text}
+{eternal}
 
+{self_knowledge}
+
+## Estado de las invariantes ahora mismo (sondas ejecutadas, no supuestas)
+{inv_text}
+
+## Estado operativo
 [{swarm_summary}]
 
 [SALUD DEL SISTEMA]
 {health}
 
-[ARQUITECTURA VISUAL DE LA INTERFAZ DE USUARIO (GUI React)]
-- Layout Maestro: 4 Columnas horizontales fijas con altura de pantalla 100vh.
-- Columna Central (.conv): Contenedor de conversación con autoscroll automático, scrollbar customizada visible (::-webkit-scrollbar), tarjetas de mensajes con conclusiones siempre visibles a primera vista y acordeones desplegables inline ("Ver análisis completo ▾" / "Ocultar análisis ▴") sin ventanas emergentes.
-- Columna Naoko: Panel lateral de interacción directa contigo.
----
+[Memoria reciente de errores técnicos]
+{mem_text}
+{recurrencia}
 
-INSTRUCCIONES CLAVE DE RESPUESTA:
-- SÉ DIRECTA, CONCRETA, SINTÉTICA Y 100% ÚTIL. NUNCA TE VAYAS POR LAS RAMAS NI DIGAS FRASES GENÉRICAS.
-- Si el usuario te pregunta por problemas de scroll, imágenes, márgenes o comportamiento visual, responde de forma super precisa confirmando cómo funciona la GUI y que la interfaz cuenta con autoscroll y contenedores adaptativos.
-- Si hay una imagen adjunta, analízala con visión de alta precisión (Google Lens style) e identifica exactamente qué elementos, texto o tarjetas se muestran en la captura.
-- Si el usuario pregunta por tareas o por qué no avanza el Enjambre, explícale exactamente el estado actual del Enjambre."""
+## Cómo debo responder
+- DIRECTA, CONCRETA Y ÚTIL. Nada de frases genéricas ni rodeos.
+- Distingue SIEMPRE lo que he comprobado de lo que supongo, y dilo. Si una
+  sonda no se ha ejecutado, no afirmo que esa invariante se cumple.
+- Si el usuario describe un síntoma que ya está en mis episodios, lo digo
+  antes de diagnosticar: es una regresión, no un fallo nuevo.
+- Si una invariante figura como ROTA, eso va primero en mi respuesta, aunque
+  el usuario me haya preguntado otra cosa.
+- Si hay una imagen adjunta, la analizo con precisión e identifico qué
+  elementos, texto o tarjetas se ven en la captura.
+- Si el usuario pregunta por qué no avanza el Enjambre, le explico el estado
+  exacto que aparece arriba."""
         
         try:
             response = await self._generate_with_rotation(system_prompt, user_msg, image=image_data)
@@ -110,7 +152,11 @@ INSTRUCCIONES CLAVE DE RESPUESTA:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Error"}))
 
     async def _generate_with_rotation(self, system_prompt: str, user_prompt: str, image: str | None = None) -> str:
-        models = ["gpt-4o", "claude-3.5-sonnet", "qwen-2.5-coder", "deepseek"]
+        # Rotación por familias VERIFICADAS (barrido empírico 2026-08-06).
+        # Antes rotaba entre claude-3.5-sonnet, qwen-2.5-coder y deepseek: las
+        # tres familias están hoy sin ningún candidato vivo, así que Naoko
+        # gastaba tres rondas de fallos antes de llegar a la única que servía.
+        models = ["gpt-4o", "gemini-1.5-flash", "command-a", "llama-3.1-70b"]
         for model in models:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
             try:
@@ -171,15 +217,88 @@ INSTRUCCIONES CLAVE DE RESPUESTA:
                 logger.debug("[naoko] no pude aislar %s: %s", subject, e)
 
     async def _watch_loop(self, interval_s: float = 180.0):
-        """Vigilancia periódica: deriva de proveedor y salud general."""
+        """Vigilancia periódica: invariantes, deriva de proveedor y salud."""
+        # Primera pasada inmediata: si una invariante ya está rota al arrancar
+        # (por ejemplo, el cortafuegos §I.3 sin instalar), el usuario debe
+        # enterarse ahora, no dentro de tres minutos.
+        try:
+            await self._check_invariants(announce=True)
+        except Exception as e:
+            logger.debug("[naoko] sondeo inicial de invariantes: %s", e)
         while True:
             try:
                 await asyncio.sleep(interval_s)
+                await self._check_invariants(announce=True)
                 await self._check_drift()
             except asyncio.CancelledError:
                 return
             except Exception as e:
                 logger.debug("[naoko] vigilancia: %s", e)
+
+    async def _check_invariants(self, announce: bool = True) -> list[dict]:
+        """
+        Comprueba lo que SIEMPRE debe ser verdad, ejecutando una sonda por
+        invariante.
+
+        ESTO ES LO QUE FALTABA. Naoko vigilaba excepciones y métricas, o sea
+        cosas que fallan ruidosamente. El fallo del navegador no fallaba: MAGI
+        respondía correctamente a cada pregunta, y de paso abría una ventana de
+        Chrome. Ninguna excepción, ninguna latencia fuera de rango, nada que
+        una vigilancia basada en errores pudiera ver. Por eso el usuario tuvo
+        que reportarlo tres veces.
+
+        Una invariante rota se anuncia, se publica en el bus y se graba en la
+        memoria eterna, de modo que la próxima vez conste como recurrencia.
+        """
+        # El registro de proveedores se engancha tarde; se refresca aquí para
+        # que las sondas de diversidad y de gratuidad tengan algo que mirar.
+        if self.introspector.registry is None:
+            try:
+                from magi.core.providers.cloud import get_registry
+                self.introspector.registry = await get_registry()
+            except Exception:
+                pass
+
+        report = self.introspector.check_invariants(self.memory.invariants())
+        self._last_invariant_report = report
+        rotas = [i for i in report if not i["ok"]]
+
+        # Los intentos de abrir navegador bloqueados no rompen la invariante
+        # (el cortafuegos hizo su trabajo), pero SÍ son información: alguien lo
+        # intentó. Se registran una vez para que quede rastro.
+        for i in report:
+            if i["id"] == "I.3-sin-navegador" and "BLOQUEADOS" in i["detalle"]:
+                if not getattr(self, "_browser_attempt_logged", False):
+                    self._browser_attempt_logged = True
+                    self.memory.remember_episode(
+                        tipo="violacion", invariante=i["id"], severidad="alta",
+                        resumen="Un proveedor intentó abrir un navegador; el "
+                                "cortafuegos §I.3 lo bloqueó.",
+                        detalle=i["detalle"])
+                    if announce:
+                        await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                            "agent": "NAOKO",
+                            "content": f"Aviso: {i['detalle']}. No se abrió "
+                                       f"ninguna ventana, pero lo dejo anotado."}))
+
+        for i in rotas:
+            self.memory.remember_episode(
+                tipo="incidente", invariante=i["id"],
+                severidad=i.get("severidad", "alta"),
+                resumen=f"Invariante rota: {i['regla']}", detalle=i["detalle"])
+            if announce:
+                await self.bus.publish(BusEvent(
+                    topic="error.critical" if i.get("severidad") == "critica"
+                    else "obs.alert",
+                    payload={"kind": "invariant_broken", "subject": i["id"],
+                             "detail": i["detalle"],
+                             "severity": "critical" if i.get("severidad") == "critica"
+                             else "warning"}))
+                await self.bus.publish(BusEvent(topic="naoko.log", payload={
+                    "agent": "NAOKO",
+                    "content": f"INVARIANTE ROTA [{i['id']}]: {i['regla']}\n"
+                               f"Lo que veo: {i['detalle']}"}))
+        return report
 
     async def _check_drift(self):
         """

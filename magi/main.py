@@ -5,6 +5,15 @@ import sys
 import os
 import signal
 import threading
+
+# §I.3 — ANTES QUE NADA. El cortafuegos de navegador se instala en la primera
+# línea ejecutable del proceso, antes de importar webview, g4f o cualquier
+# módulo que pueda arrastrarlos. La capa de subprocess.Popen no depende de g4f,
+# así que instalarla aquí garantiza que ninguna ruta —conocida o futura— pueda
+# lanzar una ventana de navegador durante el arranque ni durante la inferencia.
+from magi.core.no_browser import install as _install_browser_guard
+_install_browser_guard()
+
 import webview
 from magi.gui_server import GUIServer
 

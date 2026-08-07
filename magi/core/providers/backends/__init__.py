@@ -19,12 +19,31 @@ __all__ = [
     "build_swarm_providers", "build_default_registry",
 ]
 
-# Orden de preferencia entre familias. Las primeras son las que mejor
-# rendimiento han dado para razonamiento y código.
+# Orden de preferencia entre familias.
+#
+# El orden anterior (deepseek 10, claude 15, qwen 20, ...) reflejaba qué
+# familias razonan mejor EN TEORÍA. El problema es que `select_for_swarm`
+# reparte los tres nodos por este orden, así que Melchior, Balthasar y Casper
+# acababan en deepseek, claude y qwen: las tres familias que en la verificación
+# empírica del 2026-08-06 no tienen ni un solo candidato vivo. El registro
+# anunciaba "diversidad=full" con tres proveedores que no responden.
+#
+# Ahora manda lo verificado. Delante van las familias con al menos un candidato
+# que contestó de verdad, ordenadas por latencia medida; detrás, las que hoy
+# están agotadas —siguen registradas, porque pueden revivir, pero no se llevan
+# los puestos del enjambre.
 _PRIORITY = {
-    "deepseek": 10, "claude": 15, "qwen": 20, "gemini": 30,
-    "gpt": 40, "command": 50, "glm": 55, "llama": 60,
-    "perplexity": 70, "auto": 99,
+    # verificadas: responden por HTTP, sin navegador (ms medidos)
+    "gpt": 10,          # Yqcloud 2000ms · WeWordle 2389ms · CopilotApp 1156ms
+    "gemini": 15,       # Gemini/gemini-3.5-flash 3421ms
+    "command": 20,      # CohereForAI command-a-03-2025 1078ms
+    "llama": 25,        # Groq 922ms
+    "hf": 30,           # HuggingSpace 890ms
+    "perplexity": 35,   # Perplexity/auto 7921ms (respuesta pobre)
+    # sin candidato vivo hoy: se registran, pero al final
+    "deepseek": 60, "claude": 65, "qwen": 70, "glm": 75,
+    # red de seguridad
+    "auto": 99,
 }
 
 

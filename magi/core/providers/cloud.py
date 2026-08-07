@@ -47,7 +47,11 @@ _ALIAS_TO_FAMILY = {
     "gpt-4o-mini": "gpt",
     "gpt-4": "gpt",
     "gemini-1.5-flash": "gemini",
+    "gemini-3.5-flash": "gemini",
     "llama-3.1-70b": "llama",
+    "command-a": "command",
+    "command-a-03-2025": "command",
+    "perplexity": "perplexity",
 }
 
 # Frases que indican rechazo del proveedor. Se usan SOLO para reintentar en otra

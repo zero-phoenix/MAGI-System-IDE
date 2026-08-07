@@ -33,8 +33,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
 from typing import Any, AsyncIterator, Iterable
+
+from ...no_browser import install as install_browser_guard
 
 from ..base import (
     BaseProvider, CompletionRequest, CompletionResponse, Delta,
@@ -46,14 +49,66 @@ logger = logging.getLogger(__name__)
 # (nombre de proveedor g4f, modelo o None para el por defecto del proveedor)
 Candidate = tuple[str, str | None]
 
-# Catálogo por familia. Verificado contra g4f 7.9.4: solo proveedores con
-# working=True y needs_auth=False.
+# Catálogo por familia.
+#
+# VERIFICADO EMPÍRICAMENTE, no leído de los metadatos de g4f. El catálogo
+# anterior se construyó filtrando por `working=True and needs_auth=False`, que
+# es lo que g4f DICE de sí mismo. Al probar los 44 candidatos uno a uno contra
+# la red real (2026-08-06, g4f 7.9.4, cortafuegos §I.3 puesto) respondieron 11:
+#
+#   HuggingSpace              default              890ms   OK
+#   Groq                      default              922ms   OK
+#   CohereForAI_C4AI_Command  command-a-03-2025   1078ms   OK
+#   CopilotApp                default             1156ms   OK
+#   AnyProvider               gpt-4o              1671ms   OK
+#   Yqcloud                   gpt-4               2000ms   OK
+#   WeWordle                  gpt-4o              2389ms   OK
+#   Gemini                    gemini-3.5-flash    3421ms   OK
+#   Perplexity                auto                7921ms   OK (respuesta pobre)
+#   AnyProvider               default             8014ms   OK
+#   Ollama                    default             8139ms   EXCLUIDO: es local (§I.3)
+#
+# Y fallaron, con su motivo real: PhindAi (timeout), Qwen (error de sesión),
+# Claude (pide browser_cookie3), LMArena (pide fichero de auth), OpenaiChat y
+# Copilot (piden .har), Pollinations (402), GLM (captcha), MetaAI (403),
+# GeminiPro (429), Cloudflare y DeepInfra (INTENTARON ABRIR CHROME, bloqueados).
+#
+# Las familias que se quedaron sin ningún candidato vivo (deepseek, qwen,
+# claude, glm) se conservan a propósito: son el mapa de lo que existe, y
+# `complete()` las reporta como agotadas en vez de fingir. El reparto del
+# enjambre apunta ahora a las tres familias verificadas.
 FAMILY_SPECS: dict[str, list[Candidate]] = {
+    # --- familias con candidato verificado -------------------------------
+    "gpt": [
+        ("Yqcloud", "gpt-4"),                    # verificado 2000ms
+        ("WeWordle", "gpt-4o"),                  # verificado 2389ms
+        ("CopilotApp", None),                    # verificado 1156ms
+        ("OpenaiChat", "gpt-5"),                 # pide .har; se deja al final
+        ("Pollinations", None),
+    ],
+    "gemini": [
+        ("Gemini", "gemini-3.5-flash"),          # verificado 3421ms
+        ("Gemini", "gemini-3.1-pro"),
+        ("GeminiPro", None),
+    ],
+    "command": [
+        ("CohereForAI_C4AI_Command", "command-a-03-2025"),   # verificado 1078ms
+        ("CohereForAI_C4AI_Command", "command-r-plus"),
+    ],
+    "llama": [
+        ("Groq", None),                          # verificado 922ms
+        ("MetaAI", None),
+        ("DeepInfra", None),                     # abre navegador: va el último
+    ],
+    "perplexity": [("Perplexity", "auto")],      # verificado 7921ms
+    "hf": [("HuggingSpace", None)],              # verificado 890ms
+
+    # --- familias sin candidato vivo hoy (se declaran, no se disimulan) ---
     "deepseek": [
         ("PhindAi", "deepseek-v3"),
         ("PhindAi", "deepseek"),
-        ("Cloudflare", "deepseek-coder-6.7b"),
-        ("Cloudflare", "deepseek-distill-qwen-32b"),
+        ("Cloudflare", "deepseek-coder-6.7b"),          # abre navegador
+        ("Cloudflare", "deepseek-distill-qwen-32b"),    # abre navegador
     ],
     "qwen": [
         ("Qwen", "qwen3.7-plus"),
@@ -64,132 +119,127 @@ FAMILY_SPECS: dict[str, list[Candidate]] = {
         ("Claude", None),
         ("LMArena", "claude-sonnet-4"),
     ],
-    "gemini": [
-        ("Gemini", "gemini-3.5-flash"),
-        ("Gemini", "gemini-3.1-pro"),
-        ("GeminiPro", None),
-    ],
-    "gpt": [
-        ("OpenaiChat", "gpt-5"),
-        ("Copilot", "Copilot"),
-        ("WeWordle", "gpt-4o"),
-        ("Yqcloud", "gpt-4"),
-        ("Pollinations", None),
-    ],
-    "command": [
-        ("CohereForAI_C4AI_Command", "command-a-03-2025"),
-        ("CohereForAI_C4AI_Command", "command-r-plus"),
-    ],
     "glm": [("GLM", None)],
-    "llama": [("MetaAI", None), ("Groq", None), ("DeepInfra", None)],
-    "perplexity": [("Perplexity", "auto")],
+
     # Último recurso: auto-router de g4f. Familia "auto" para que el registro
     # sepa que NO garantiza diversidad y lo declare en la GUI.
     "auto": [("AnyProvider", "gpt-4o"), ("AnyProvider", "default")],
 }
 
-# Reparto por defecto del enjambre. Coincide con la INTENCIÓN declarada en
-# magi/modules/swarm/agents.py (Melchior=deepseek, Balthasar=claude,
-# Casper=qwen) que hasta ahora era solo un comentario.
+# Familias con al menos un candidato que respondió en la verificación. El
+# registro las prefiere al repartir el enjambre.
+VERIFIED_FAMILIES = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
+
+# Reparto por defecto del enjambre.
+#
+# Antes: MELCHIOR=deepseek, BALTHASAR=claude, CASPER=qwen. Esas tres familias
+# NO tienen hoy ni un candidato vivo (deepseek solo respondía vía Cloudflare,
+# o sea abriendo una ventana de Chrome; claude pide cookies de navegador; qwen
+# devuelve error de sesión). El enjambre quedaba sin proveedor y caía al
+# clasificador por defecto, que es justo lo que se ve en el log del usuario.
+#
+# Ahora apunta a tres familias verificadas y de linajes realmente distintos
+# —OpenAI, Google y Cohere—, que es lo que §1.1 pide de verdad: que el crítico
+# tenga sesgos distintos al proponente.
 DEFAULT_SWARM_FAMILIES = {
-    "MELCHIOR": "deepseek",
-    "BALTHASAR": "claude",
-    "CASPER": "qwen",
+    "MELCHIOR": "gpt",
+    "BALTHASAR": "gemini",
+    "CASPER": "command",
 }
+
+
+# Marcadores de código que delatan a un provider capaz de lanzar un navegador.
+# Se buscan en el FUENTE del módulo, no en lo que el provider declara de sí
+# mismo: Cloudflare y DeepInfra declaran `use_nodriver = False` y aun así abren
+# Chrome con CDPSession(headless=False). Fiarse de la declaración fue lo que
+# dejó pasar el bug durante tres intentos de arreglo.
+_BROWSER_MARKERS = (
+    "CDPSession", "SyncCDPSession", "get_shared_browser",
+    "get_nodriver", "get_args_from_nodriver", "get_args_from_webview",
+    "webview.create_window", "import webbrowser",
+)
+
+_browser_cache: dict[str, bool] = {}
 
 
 def _uses_browser(cls) -> bool:
     """
-    True si este proveedor de g4f abre un navegador real para evadir Cloudflare.
+    True si este proveedor de g4f puede abrir un navegador real.
 
     REGLA DEL PROYECTO (§I.3): la inferencia es de nube gratuita y SIN abrir
-    nada visible al usuario. Algunos providers de g4f (Gemini, OpenaiChat) lo
-    declaran con `use_nodriver=True`; Cloudflare lo niega pero lo activa en
-    runtime según el modelo. Abrir una ventana de Chrome rompe la premisa del
-    sistema, así que aquí se filtran TODOS los que puedan hacerlo.
+    nada visible al usuario.
+
+    La detección tiene dos niveles:
+
+    1. Lo que el provider declara (`use_nodriver`, `webdriver`). Pilla a
+       Gemini y OpenaiChat.
+    2. Lo que el provider HACE, leyendo el fuente de su módulo. Pilla a
+       Cloudflare y DeepInfra, que declaran `use_nodriver = False` y aun así
+       llaman `CDPSession(headless=False)` -> subprocess.Popen(chrome.exe) sin
+       `--headless`, o sea una ventana visible. Ese era el bug real: Cloudflare
+       es justo el provider que respondía en todos los logs del usuario.
+
+    Leer el fuente en vez de mantener una lista negra hace que la defensa
+    siga valiendo cuando g4f añada providers nuevos.
     """
     if getattr(cls, "use_nodriver", False):
         return True
     if getattr(cls, "webdriver", None):
         return True
-    return False
+
+    key = f"{getattr(cls, '__module__', '')}.{getattr(cls, '__name__', '')}"
+    if key in _browser_cache:
+        return _browser_cache[key]
+
+    verdict = False
+    try:
+        import inspect
+        src = inspect.getsource(sys.modules[cls.__module__])
+        verdict = any(m in src for m in _BROWSER_MARKERS)
+    except Exception:
+        verdict = False          # sin fuente (congelado); el cortafuegos cubre
+    _browser_cache[key] = verdict
+    return verdict
 
 
 def _resolve(name: str):
-    """Obtiene la clase de proveedor g4f por nombre, o None si no existe.
+    """
+    Obtiene la clase de proveedor g4f por nombre, o None si no existe.
 
-    Devuelve None (y lo deja caer al siguiente candidato) para cualquier
-    proveedor que use navegador: la cadena de la familia salta al siguiente
-    candidato que NO abra nada. Si una familia entera dependiera del navegador,
-    `complete()` la reporta como agotada en vez de abrir Chrome en silencio.
+    NO descarta a los proveedores capaces de abrir navegador; los DEGRADA al
+    final de la cola (ver `_ordered`). El cambio es deliberado:
+
+    quien impide que se abra una ventana es el cortafuegos de
+    magi/core/no_browser.py, que corta subprocess.Popen a nivel de proceso. Con
+    esa garantía puesta, descartar por precaución solo hacía perder proveedores
+    buenos: `Gemini` declara `use_nodriver=True` y sin embargo responde por
+    HTTP en 3.4s usando cookies en caché. Descartarlo dejaba la familia gemini
+    entera sin candidatos a cambio de nada.
+
+    Con el orden degradado, un proveedor así se intenta el último; si de verdad
+    trata de abrir Chrome, el cortafuegos lo corta en 0ms y la familia salta al
+    siguiente. Se gana disponibilidad sin ceder ni un pixel de §I.3.
     """
     try:
         import g4f.Provider as P
     except ImportError:
         return None
-    cls = getattr(P, name, None)
-    if cls is not None and _uses_browser(cls):
-        logger.info(
-            "[%s] descartado: abre navegador (prohibido por §I.3)", name)
-        return None
-    return cls
-
-
-# Marca para aplicar el guard una sola vez por proceso.
-_browser_guard_installed = False
+    return getattr(P, name, None)
 
 
 def _disable_g4f_browser() -> None:
     """
-    Parchea g4f para que NINGÚN proveedor pueda abrir un navegador.
+    Activa el cortafuegos de navegador de MAGI (magi/core/no_browser.py).
 
-    La primera línea de defensa (`_resolve`) descarta a los proveedores que
-    declaran `use_nodriver`. Pero g4f/requests/__init__.py puede lanzar
-    Chrome/zendriver por debajo para evadir retos de Cloudflare en providers
-    que NO lo declaran (visto en runtime: una ventana de Chrome se abre al
-    pedir inferencia). Aquí se reemplaza el punto de lanzamiento por una
-    excepción controlada, así el candidato falla limpio y `complete()` salta
-    al siguiente proveedor HTTP en vez de abrir nada visible. §I.3.
+    Se conserva el nombre porque es el punto de enganche que ya llamaba el
+    backend, pero la lógica vive ahora en un módulo propio, con test y con
+    `self_test()` para que Naoko pueda comprobar la invariante §I.3 en vivo.
+
+    Se llama en cada `_get_client()` a propósito: `install()` es idempotente y
+    reaplica las capas que dependen de g4f, así que da igual si el módulo se
+    importó antes o después de que g4f estuviera cargado.
     """
-    global _browser_guard_installed
-    if _browser_guard_installed:
-        return
-    _browser_guard_installed = True
-    try:
-        from g4f import requests as g4f_req
-    except ImportError:
-        return
-
-    # DEFENSA 1 (la que cierra la causa real): que g4f crea que NO tiene
-    # ninguna forma de abrir navegador. g4f/requests/__init__.py detecta
-    # paquetes al importar y guarda has_webview/has_nodriver/has_cdp; los
-    # providers los consultan para decidir si intentan la ruta de navegador.
-    # La causa de las ventanas era has_webview=True: g4f detecta pywebview
-    # (el backend de la propia GUI de MAGI) y lo reutiliza como navegador
-    # para evadir Cloudflare, llamando webview.create_window(). Poner las
-    # flags a False hace que ningún provider lo intente.
-    for flag in ("has_webview", "has_nodriver", "has_cdp"):
-        if hasattr(g4f_req, flag):
-            setattr(g4f_req, flag, False)
-
-    class _NoBrowser(Exception):
-        """MAGI prohíbe abrir navegadores (§I.3)."""
-
-    # DEFENSA 2: cualquier función de lanzamiento que haya llegado a
-    # registrarse queda cortada. Cubre las 6 rutas por las que g4f abre una
-    # ventana (nodriver, su sesión, webview, cdp, browser). Por si un provider
-    # no consulta las flags y llama directamente.
-    async def _blocked(*a, **kw):
-        raise _NoBrowser(
-            "g4f intentó abrir un navegador, prohibido por §I.3")
-
-    for fn in ("get_nodriver", "get_nodriver_session",
-               "get_args_from_nodriver", "get_args_from_browser",
-               "get_args_from_webview", "get_args_from_cdp"):
-        if hasattr(g4f_req, fn):
-            setattr(g4f_req, fn, _blocked)
-    logger.info(
-        "[g4f] navegador deshabilitado: ningún proveedor abrirá Chrome/webview")
+    install_browser_guard()
 
 
 class G4FProvider(BaseProvider):
@@ -234,10 +284,25 @@ class G4FProvider(BaseProvider):
         return any(_resolve(name) is not None for name, _ in self.candidates)
 
     def _ordered(self) -> list[Candidate]:
-        """El último candidato que funcionó va primero (afinidad)."""
-        if self._live and self._live in self.candidates:
-            return [self._live] + [c for c in self.candidates if c != self._live]
-        return self.candidates
+        """
+        Orden de intento: afinidad primero, capaces-de-navegador al final.
+
+        1. El último candidato que funcionó (afinidad, evita repetir sondeos).
+        2. Los que solo hablan HTTP.
+        3. Los que podrían intentar abrir un navegador. El cortafuegos los
+           corta en 0ms si lo intentan, así que estar en la lista no cuesta
+           nada; ponerlos al final evita gastar ese intento cuando hay una
+           alternativa limpia.
+        """
+        def puede_abrir_navegador(c: Candidate) -> bool:
+            cls = _resolve(c[0])
+            return cls is not None and _uses_browser(cls)
+
+        resto = [c for c in self.candidates if c != self._live]
+        limpios = [c for c in resto if not puede_abrir_navegador(c)]
+        degradados = [c for c in resto if puede_abrir_navegador(c)]
+        cabeza = [self._live] if (self._live and self._live in self.candidates) else []
+        return cabeza + limpios + degradados
 
     # ------------------------------------------------------------- inferencia
 
