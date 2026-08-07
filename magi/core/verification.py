@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import logging
+import os
 import re
 import tempfile
 from dataclasses import dataclass, field
@@ -108,9 +109,18 @@ async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0,
                task_id: str | None = None) -> tuple[int, str]:
     from .cancel import tracked
 
+    # PYTHONIOENCODING: la salida se decodifica más abajo como UTF-8, pero un
+    # Python hijo en Windows escribe con la página de códigos de la consola
+    # (cp1252/cp850), no UTF-8. Resultado: cualquier acento del traceback
+    # llegaba como U+FFFD. Y este proyecto habla español, así que el mensaje
+    # de error de la verificación —lo que se le enseña al usuario Y lo que se
+    # le devuelve al modelo para que corrija— salía mutilado justo en la
+    # palabra que explicaba el fallo. Fijar la codificación del hijo lo hace
+    # determinista en las dos plataformas.
+    entorno = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd, cwd=str(cwd),
+            *cmd, cwd=str(cwd), env=entorno,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
     except FileNotFoundError as e:
         return 127, str(e)

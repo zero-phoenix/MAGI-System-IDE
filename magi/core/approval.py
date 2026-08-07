@@ -53,6 +53,23 @@ BINARY_HINT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
                ".mp4", ".mkv", ".webm", ".mp3", ".wav", ".db", ".sqlite")
 
 
+def _normaliza_saltos(s: str) -> str:
+    """
+    CRLF y CR sueltos -> LF.
+
+    En Windows, `Path.write_text("a\\n")` deja 'a\\r\\n' en disco: el modo texto
+    de Python traduce el salto al escribir. Aquí se lee en BINARIO para no
+    corromper nada, así que el CRLF llega intacto — y el panel de revisión
+    acababa mostrando como cambio lo que solo era el final de línea del
+    sistema operativo. Con ficheros grandes eso es un diff entero en rojo por
+    nada, y el usuario no puede ver el cambio de verdad.
+
+    Se normaliza SOLO para revisar y comparar. Ni el journal ni la escritura
+    tocan los bytes: deshacer sigue restaurando el fichero exacto.
+    """
+    return s.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _read_text(p: Path | str | None) -> tuple[str, str]:
     """
     Lee un fichero como texto. Devuelve (contenido, motivo_si_no_se_pudo).
@@ -76,10 +93,11 @@ def _read_text(p: Path | str | None) -> tuple[str, str]:
     if b"\x00" in datos[:8192]:
         return "", "binario (contiene bytes nulos)"
     if len(datos) > MAX_BYTES_PER_FILE:
-        recorte = datos[:MAX_BYTES_PER_FILE].decode("utf-8", "replace")
+        recorte = _normaliza_saltos(
+            datos[:MAX_BYTES_PER_FILE].decode("utf-8", "replace"))
         return (recorte + f"\n\n… [recortado: {len(datos):,} bytes en total] …",
                 "")
-    return datos.decode("utf-8", "replace"), ""
+    return _normaliza_saltos(datos.decode("utf-8", "replace")), ""
 
 
 @dataclass

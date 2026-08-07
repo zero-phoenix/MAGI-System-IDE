@@ -113,22 +113,78 @@ async def test_cancelar_una_tarea_no_toca_las_demas():
 async def test_usa_terminate_antes_que_kill():
     """
     Matar sin avisar puede dejar a medias justamente la escritura que se
-    quería parar. Primero SIGTERM, y solo si no atiende, SIGKILL.
+    quería parar. Primero terminate(), y solo si no atiende, kill().
+
+    La garantía se comprueba INSTRUMENTANDO el proceso, no leyendo su código
+    de salida. La versión anterior lanzaba un hijo que atendía a SIGTERM y
+    salía con 0, y exigía `returncode == 0`. Eso solo vale en Unix: en Windows
+    no existe SIGTERM, `terminate()` es TerminateProcess y el hijo muere con
+    código 1 sin poder atender nada. El test daba rojo en Windows por una
+    diferencia de plataforma, no por un fallo — y al hacerlo tapaba el resto.
+
+    Lo que de verdad promete `_kill_one` es el ORDEN: terminate antes que
+    kill, y kill solo si el proceso no se rinde. Eso se puede comprobar igual
+    en las dos plataformas, y es una comprobación más fuerte que la de antes:
+    la anterior habría pasado aunque se llamara a kill() de más, mientras el
+    proceso saliera con 0.
     """
     sup = TaskSupervisor()
-    # Este proceso SÍ atiende a SIGTERM y sale con código 0.
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-c",
-        "import signal,sys,time\n"
-        "signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))\n"
-        "while True: time.sleep(0.1)",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    proc = await _proceso_eterno()
     sup.register_process("t1", proc)
-    await asyncio.sleep(0.4)          # que llegue a instalar el handler
+    await asyncio.sleep(0.2)
+
+    orden: list[str] = []
+    real_terminate, real_kill = proc.terminate, proc.kill
+    proc.terminate = lambda: (orden.append("terminate"), real_terminate())[1]
+    proc.kill = lambda: (orden.append("kill"), real_kill())[1]
 
     await sup.cancel("t1")
-    assert proc.returncode == 0, \
-        f"salió con {proc.returncode}: se usó SIGKILL sin dar margen a SIGTERM"
+
+    assert orden, "no se intentó terminar el proceso de ninguna forma"
+    assert orden[0] == "terminate", \
+        f"se fue directo a kill() sin dar margen: {orden}"
+    assert proc.returncode is not None, "el proceso sigue vivo"
+
+
+@pytest.mark.asyncio
+async def test_da_el_margen_completo_antes_de_matar():
+    """
+    Contraprueba del anterior: si el proceso NO se rinde, se le espera la
+    gracia entera antes de recurrir a kill(). Sin esto, "terminate primero"
+    podría cumplirse en el papel llamando a los dos seguidos.
+    """
+    import time as _t
+
+    import magi.core.cancel as cancel_mod
+
+    sup = TaskSupervisor()
+    proc = await _proceso_eterno()
+    sup.register_process("t1", proc)
+    await asyncio.sleep(0.2)
+
+    marcas: dict[str, float] = {}
+    real_terminate, real_kill = proc.terminate, proc.kill
+
+    def _terminate():
+        marcas["terminate"] = _t.monotonic()
+        # No se propaga: se simula un proceso que ignora la petición amable,
+        # que es lo que hace un proceso terco en Unix con SIGTERM y lo que en
+        # Windows no se puede provocar de otra forma.
+
+    def _kill():
+        marcas["kill"] = _t.monotonic()
+        real_kill()
+
+    proc.terminate, proc.kill = _terminate, _kill
+    await sup.cancel("t1")
+
+    assert "terminate" in marcas and "kill" in marcas, \
+        f"faltó una de las dos fases: {sorted(marcas)}"
+    margen = marcas["kill"] - marcas["terminate"]
+    assert margen >= cancel_mod.GRACE_SECONDS * 0.8, (
+        f"solo esperó {margen:.2f}s antes de matar; la gracia es "
+        f"{cancel_mod.GRACE_SECONDS}s")
+    assert proc.returncode is not None
 
 
 @pytest.mark.asyncio
@@ -370,30 +426,43 @@ async def test_no_pierde_los_procesos_inscritos_durante_la_espera():
     proceso inscrito mientras se esperaba a otro —hasta 6 segundos por
     proceso— se perdía del registro sin haber sido tocado: seguía vivo, ya
     invisible, y la siguiente parada decía "no había nada en marcha".
+
+    La ventana se abre ENGANCHÁNDOSE al barrido, no durmiendo.
+
+    Antes se lanzaba un proceso que ignoraba SIGTERM para que `_kill_one`
+    agotara sus 3 segundos de gracia, y una corrutina se inscribía a los 0.5s
+    "dentro de la ventana". En Windows no hay SIGTERM que ignorar: terminate()
+    mata en el acto, `cancel()` volvía en milisegundos, la corrutina no había
+    llegado a correr y el test estallaba con KeyError. Dependía de una carrera
+    de relojes, que es exactamente lo que no debe decidir si un test pasa.
+
+    Ahora el proceso tardío se inscribe DESDE DENTRO del primer `_kill_one`.
+    La condición que se quiere provocar —"aparece un proceso mientras se está
+    barriendo"— se cumple por construcción, en cualquier plataforma y sin
+    esperas.
     """
     sup = TaskSupervisor()
-    terco = await asyncio.create_subprocess_exec(
-        sys.executable, "-c",
-        "import signal,time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-        "while True: time.sleep(0.1)",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-    sup.register_process("t1", terco)
-    await asyncio.sleep(0.4)
+    primero = await _proceso_eterno()
+    sup.register_process("t1", primero)
+    await asyncio.sleep(0.2)
 
-    tardio = {}
+    tardio: dict = {}
+    kill_original = sup._kill_one
 
-    async def inscribir_tarde():
-        await asyncio.sleep(0.5)      # dentro de la ventana de gracia
-        p = await _proceso_eterno()
-        tardio["proc"] = p
-        sup.register_process("t1", p)
+    async def kill_e_inscribe_uno_nuevo(proc):
+        if "proc" not in tardio:
+            p = await _proceso_eterno()
+            tardio["proc"] = p
+            sup.register_process("t1", p)
+        return await kill_original(proc)
 
-    asyncio.create_task(inscribir_tarde())
+    sup._kill_one = kill_e_inscribe_uno_nuevo
     await sup.cancel("t1")
-    await asyncio.sleep(0.3)
 
+    assert "proc" in tardio, "el enganche no llegó a inscribir el proceso tardío"
     assert tardio["proc"].returncode is not None, \
-        "el proceso inscrito durante la espera sobrevivió e quedó invisible"
+        "el proceso inscrito durante la espera sobrevivió y quedó invisible"
+    assert primero.returncode is not None
     assert not sup.is_running("t1")
 
 

@@ -47,6 +47,16 @@ jobs:
       if: runner.os == 'Linux'
       run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+    # En Windows faltaba, y ahí los tests de vídeo no se saltaban: FALLABAN,
+    # porque comprueban el mensaje de "no existe el punto de entrada" y lo que
+    # recibían era "ffmpeg no está instalado". Dos fallos permanentes en rojo
+    # que no eran del código. Instalarlo también aquí es lo coherente con la
+    # nota de arriba: verde sin comprobar nada es peor que rojo, así que se
+    # comprueba de verdad en las dos plataformas.
+    - name: Install ffmpeg (Windows)
+      if: runner.os == 'Windows'
+      run: choco install ffmpeg -y --no-progress
+
     - name: Run tests
       run: python -m pytest tests/ -v --tb=short
 

@@ -57,7 +57,14 @@ ATTIC_DIRS = {
 def _call_graph() -> dict[str, set[str]]:
     calls: dict[str, set[str]] = defaultdict(set)
     for f in (ROOT / "magi").rglob("*.py"):
-        rel = str(f.relative_to(ROOT))
+        # `as_posix()`, no `str()`. En Windows `str(Path)` da
+        # 'magi\\core\\kernel.py' y la tabla WIRING dice 'magi/core/kernel.py',
+        # así que las 31 comprobaciones de cableado fallaban en Windows por el
+        # separador. Y lo grave no era eso: el filtro de ATTIC_DIRS de la línea
+        # siguiente busca '/attic/', que nunca casaba, de modo que en Windows
+        # el grafo de llamadas INCLUÍA el código del ático. Un símbolo que solo
+        # se invoca desde código muerto habría pasado por cableado real.
+        rel = f.relative_to(ROOT).as_posix()
         if any(f"/{d}/" in rel or rel.startswith(f"magi/{d}/") for d in ATTIC_DIRS):
             continue
         try:

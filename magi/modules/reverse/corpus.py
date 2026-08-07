@@ -256,7 +256,14 @@ def index_source_tree(root: str | Path, *, name: str = "",
         idx.total_files += 1
         idx.total_lines += n_lines
 
-        rel = str(path.relative_to(r))
+        # `as_posix()`, no `str()`. `_classify` pesa la RUTA por encima del
+        # contenido —un fichero bajo GPU/ es del subsistema gráfico aunque
+        # mencione 'cycles' de pasada—, y esas pistas están escritas con '/'.
+        # En Windows `str(Path)` da 'GPU\\...', ninguna casaba, y la
+        # clasificación se iba con cualquier palabra suelta del contenido: el
+        # fallo exacto que ese peso existe para evitar. Analizar el árbol de
+        # PPSSPP desde Windows daba subsistemas mal repartidos, en silencio.
+        rel = path.relative_to(r).as_posix()
         sub, score, sig = _classify(rel, text)
         if not sub or score < min_score:
             continue
