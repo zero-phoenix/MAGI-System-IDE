@@ -369,11 +369,17 @@ def build_registry() -> ToolRegistry:
         if not front.exists():
             return ToolResult(False, "",
                               error="falta magi-gui/dist: ejecuta primero el build del frontend (npm run build)")
+        # Las exclusiones son las mismas que release.yml, para que compilar
+        # desde el enjambre y compilar en CI den el mismo binario. Sin ellas,
+        # PyInstaller se cuelga importando torch al resolver DLLs.
+        excluidos = ("torch torchvision torchaudio tensorflow transformers "
+                     "onnxruntime markitdown magika PyQt5 PySide2 PySide6")
         cmd = (f'python -m PyInstaller --clean --onefile --noconsole '
                f'--name "{name}" --icon "assets/icon.ico" '
                f'--add-data "assets;assets" '
                f'--add-data "magi-gui/dist;magi-gui/dist" '
-               f'magi/main.py')
+               + "".join(f'--exclude-module {m} ' for m in excluidos.split())
+               + 'magi/main.py')
         res = await run_command(cmd, ctx=ctx, timeout=600)
         if res.ok:
             exe = raiz / "dist" / f"{name}.exe"
@@ -464,6 +470,20 @@ CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
 CORE_TOOLS = {
     "read_file", "write_file", "edit_file", "delete_path", "list_dir", "grep",
     "glob", "run_command", "python_exec", "run_tests", "web_fetch", "undo",
+}
+
+# Herramientas de repositorio y publicación.
+#
+# Estaban en CORE_TOOLS, o sea en el prompt de TODOS los dominios, y eso puso
+# rojo a test_catalog_stays_within_a_free_provider_window: el catálogo de
+# reverse/MELCHIOR llegó a 2782 caracteres con el techo en 2700.
+#
+# El propio test dice qué hacer cuando salta: "reducir PARÁMETROS o afinar el
+# dominio, no reescribir textos". Afinar el dominio es lo correcto aquí, y no
+# solo por el número: quien está portando un dynarec de PSP a Vita no necesita
+# `gh workflow run` ni `build_exe` en su prompt. Son herramientas de otra
+# tarea, y ofrecerlas es ruido que empuja al modelo a usarlas.
+DEVOPS_TOOLS = {
     "git", "gh", "build_exe", "create_venv",
 }
 
@@ -488,6 +508,16 @@ WORLD_TOOLS = {
 }
 
 _DOMAIN_HINTS = {
+    # Repositorio y publicación. Sin estas pistas, `git` y `gh` quedarían
+    # inalcanzables cuando se los pide por su nombre — el mismo fallo que
+    # tuvo "gasto militar" en el dominio del mundo.
+    "devops": (
+        "git", "commit", "rama", "branch", "push", "pull", "merge",
+        "repositorio", "repo", "github", "actions", "workflow", "runner",
+        "ci", "release", "publicar", "tag", "etiqueta", "compilar",
+        "compila", "build", "ejecutable", ".exe", "pyinstaller", "venv",
+        "entorno virtual", "despliegue", "desplegar", "versión", "version",
+    ),
     "reverse": (
         "binario", "firmware", "rom", "emulador", "emular", "desensambl",
         "dynarec", "ensamblador", "ingenieria inversa", "ingeniería inversa",
@@ -537,6 +567,7 @@ _DOMAIN_HINTS = {
 # lista mantenida a mano que se desincroniza de la realidad. Si se deriva, no
 # puede desincronizarse.
 _DOMAIN_TOOLSETS: dict[str, set[str]] = {
+    "devops": DEVOPS_TOOLS,
     "reverse": REVERSE_TOOLS,
     "studio": STUDIO_TOOLS,
     "world": WORLD_TOOLS,
