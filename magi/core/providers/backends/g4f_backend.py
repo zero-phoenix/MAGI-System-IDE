@@ -159,6 +159,19 @@ _BROWSER_MARKERS = (
     "webview.create_window", "import webbrowser",
 )
 
+# Respaldo para el .exe. `inspect.getsource` no funciona dentro de un bundle
+# de PyInstaller: el fuente .py no viaja, solo el .pyc. Sin esta lista, el
+# binario publicado intentaría Cloudflare antes que a un candidato limpio (el
+# cortafuegos lo cortaría igual, así que no hay ventana, pero se gasta un
+# intento y el orden deja de coincidir con el de desarrollo). Se mantiene
+# corta y explícita: es un respaldo, no la defensa.
+_BROWSER_PROVIDERS_CONOCIDOS = frozenset({
+    "Cloudflare", "DeepInfra", "Gemini", "OpenaiChat", "Copilot",
+    "CopilotSession", "CopilotAccount", "LMArena", "Grok", "Pi",
+    "GoogleSearch", "HuggingChat", "HailuoAI", "MicrosoftDesigner",
+    "OpenaiAccount", "GLM",
+})
+
 _browser_cache: dict[str, bool] = {}
 
 
@@ -191,13 +204,14 @@ def _uses_browser(cls) -> bool:
     if key in _browser_cache:
         return _browser_cache[key]
 
-    verdict = False
+    nombre = getattr(cls, "__name__", "")
     try:
         import inspect
         src = inspect.getsource(sys.modules[cls.__module__])
         verdict = any(m in src for m in _BROWSER_MARKERS)
     except Exception:
-        verdict = False          # sin fuente (congelado); el cortafuegos cubre
+        # Congelado en el .exe: no hay fuente. Cae al respaldo estático.
+        verdict = nombre in _BROWSER_PROVIDERS_CONOCIDOS
     _browser_cache[key] = verdict
     return verdict
 
