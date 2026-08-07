@@ -1,12 +1,84 @@
-## MAGI System IDE v5.1.1
+## MAGI System IDE v5.1.2
 
-Reconstrucción completa sobre v5.0.28. **602 tests en Python y 66 en la
+Reconstrucción completa sobre v5.0.28. **634 tests en Python y 66 en la
 interfaz**, todos en verde: sin tests verdes no hay release.
 
 **Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
 compilado por GitHub Actions tras pasar la suite completa.
 
-### Qué corrige v5.1.1 respecto a v5.1.0
+---
+
+### Qué corrige v5.1.2: MAGI abría ventanas de navegador
+
+Se reportó tres veces y se «arregló» dos, sin éxito. La causa estaba en un
+sitio que ninguno de los dos arreglos miraba.
+
+**La causa, con traza de ejecución capturada:**
+
+```
+g4f/Provider/Cloudflare.py:117   CDPSession(headless=False).start()
+  -> g4f/requests/cdp.py:284     start()
+  -> g4f/requests/cdp.py:233     subprocess.Popen([chrome.exe,
+                                   --remote-debugging-port=56014])
+                                 sin --headless  =>  ventana visible
+```
+
+`Cloudflare` declara `use_nodriver = False`, así que pasaba limpiamente el
+filtro del primer arreglo. E importa `CDPSession` *dentro* del método, en
+tiempo de llamada, así que tampoco tocaba ninguna de las funciones parcheadas
+por el segundo. Y era justo el proveedor que respondía en todos los registros
+del usuario: **cada respuesta correcta abría una ventana**. `DeepInfra` hace lo
+mismo. Peor: `cdp.py` se engancha a un Chrome del usuario que ya esté abierto
+con depuración remota, y le abre pestañas.
+
+**La defensa ahora** (`magi/core/no_browser.py`, 4 capas):
+
+1. CDP cortado: `find_chrome_path`, `find_running_cdp_port`,
+   `get_shared_browser`, `CDPSession` y `SyncCDPSession`.
+2. `nodriver`/`webview` con re-parcheo de las copias que los módulos de
+   proveedor **ya habían importado por valor** — el motivo real de que el
+   segundo arreglo no hiciera nada.
+3. `webbrowser.open` neutralizado.
+4. Interruptor sobre `subprocess.Popen`: ningún binario de navegador se
+   ejecuta, venga de donde venga. Excluye `msedgewebview2.exe`, que es la
+   propia interfaz de MAGI.
+
+Se instala en la primera línea ejecutable de `main.py`, antes de importar
+nada. **Verificado:** 44 proveedores probados contra la red real, 0 ventanas.
+
+### El catálogo de proveedores, verificado uno a uno
+
+El catálogo anterior se construyó filtrando por lo que g4f **dice** de sí
+mismo (`working=True and needs_auth=False`). Al probar los 44 candidatos
+contra la red real respondieron 11: HuggingSpace 890ms, Groq 922ms, Cohere
+`command-a` 1078ms, CopilotApp 1156ms, Yqcloud 2000ms, WeWordle 2389ms,
+Gemini `3.5-flash` 3421ms, Perplexity 7921ms y el auto-router.
+
+El reparto del enjambre pasa de `deepseek`/`claude`/`qwen` —las tres **sin un
+solo candidato vivo**, que es por lo que el kernel caía al clasificador por
+defecto— a `gpt`/`gemini`/`command`: tres linajes verificados y realmente
+distintos, que es lo que §1.1 pedía de verdad.
+
+### Naoko: memoria eterna y autoconocimiento
+
+Naoko no detectó el fallo del navegador ni una sola vez, por dos carencias
+distintas:
+
+- **No sabía qué debe ser verdad.** Vigilaba excepciones y métricas, o sea
+  cosas que fallan ruidosamente. El fallo del navegador no fallaba: MAGI
+  respondía bien y de paso abría Chrome. Ahora comprueba **invariantes**
+  ejecutando una sonda por cada una, y una invariante rota se anuncia antes
+  que cualquier otra cosa.
+- **No recordaba nada.** Tenía los 5 errores más recientes de una base que se
+  recrea. Ahora la memoria vive en `%LOCALAPPDATA%\MagiSystem\naoko\`, fuera
+  del `.exe` —un onefile se extrae en un temporal que se borra al salir—, así
+  que sobrevive al cierre y a recompilar el binario: identidad, invariantes,
+  episodios y lecciones, en append-only. Y reconoce recurrencias: si un
+  síntoma ya está en sus episodios, lo dice antes de diagnosticar.
+
+---
+
+### Qué corrigió v5.1.1 respecto a v5.1.0
 
 v5.1.0 salió con su workflow roto y nunca generó ejecutable. Esta versión
 cierra los tres bloqueos:

@@ -90,8 +90,16 @@ jobs:
         npm run build
 
     - name: Build Executable (PyInstaller)
+      # --exclude-module: pila de ML que MAGI NO usa. Entra de polizón por
+      # g4f/tools/files.py -> markitdown -> magika -> onnxruntime -> torch.
+      # Además de hinchar el binario, colgaba la compilación: PyInstaller
+      # importa cada paquete recolectado en un proceso aislado para resolver
+      # sus DLLs y se quedaba parado indefinidamente en torch/__init__.py:265
+      # (_load_dll_libraries), en el paso "Looking for dynamic libraries".
+      # Diagnosticado con py-spy sobre el proceso bloqueado. Verificado que
+      # MAGI arranca, registra sus 11 proveedores e infiere sin ellos.
       run: |
-        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "assets;assets" --add-data "magi-gui/dist;magi-gui/dist" magi/main.py
+        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "assets;assets" --add-data "magi-gui/dist;magi-gui/dist" --exclude-module torch --exclude-module torchvision --exclude-module torchaudio --exclude-module tensorflow --exclude-module transformers --exclude-module onnxruntime --exclude-module markitdown --exclude-module magika --exclude-module PyQt5 --exclude-module PySide2 --exclude-module PySide6 magi/main.py
 
     - name: Zip Release
       run: |
