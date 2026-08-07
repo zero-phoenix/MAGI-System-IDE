@@ -1,14 +1,65 @@
-## MAGI System IDE v5.1.2
+## MAGI System IDE v5.1.3
 
-Reconstrucción completa sobre v5.0.28. **634 tests en Python y 66 en la
-interfaz**, todos en verde: sin tests verdes no hay release.
+Reconstrucción completa sobre v5.0.28. **Suite completa en verde en Linux y
+Windows**, por primera vez en el proyecto: sin tests verdes no hay release.
 
 **Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
 compilado por GitHub Actions tras pasar la suite completa.
 
 ---
 
-### Qué corrige v5.1.2: MAGI abría ventanas de navegador
+### Qué corrige v5.1.3
+
+Todo sale de una captura de pantalla de la interfaz y del registro que la
+acompañaba.
+
+**Dos pestañas que no enseñaban nada.**
+«Configuración» estaba en la barra, se podía pulsar y no aparecía nada: el
+panel nunca se había escrito. Ahora muestra el estado real del sistema —reparto
+del enjambre, latencia medida por candidato, cortacircuitos, capas del
+cortafuegos, herramientas por rol y rutas—, todo leído en vivo.
+
+«Vista previa» tenía un `<iframe src="http://localhost:3000">` fijo en el
+código. Nadie levanta ese puerto, así que lo que se veía era la página de error
+del navegador: un cuadro blanco con una nube, a fondo blanco dentro de una
+interfaz negra. El error de fondo era asumir que MAGI construye servidores web;
+MAGI construye **artefactos**. Ahora los lista del más reciente al más antiguo,
+con visor por tipo: imágenes sobre tablero de ajedrez para que un PNG
+transparente no parezca vacío, HTML, vídeo, audio, PDF y texto. La URL sigue
+disponible en su propio modo.
+
+**Naoko respondía en chino.**
+A un «hola naoko» contestó `嗨~请问有什么可以帮你的吗`. Los proveedores gratuitos
+son puertas a modelos con sesgos de idioma distintos y un saludo corto da poca
+señal. Ahora se le dice en qué idioma contestar **y se comprueba la respuesta**:
+si vino en otro alfabeto se rota de proveedor en vez de entregarla. La misma
+defensa se aplica a los tres nodos del enjambre.
+
+**Naoko no sabía quién es Melchior.**
+Ante «¿por qué se demora tanto Melchior?» habló de servidores saturados, planes
+de pago y de escribir al soporte de Melchior, como si fuera un producto de otra
+empresa. Melchior es un nodo de este mismo proceso y Naoko tenía el dato
+delante. Ahora su identidad declara que el enjambre son compañeros suyos, y su
+prompt incluye el reparto real, la latencia medida y las tareas en curso.
+
+**El sistema iba lento.**
+El registro mostraba 11 llamadas y ~49 s de proveedor, con un pico de 13.953 ms
+de Yqcloud que arrastraba la etapa entera de Melchior habiendo alternativas de
+2 s en la misma familia. Ahora hay **petición cubierta**: si un candidato no
+contesta en 4 s se lanza el siguiente en paralelo y gana el que responda antes.
+El caso bueno no cambia; el malo deja de pagar la cola de latencia. Y el orden
+de intento lo decide la latencia medida, no la afinidad a secas.
+
+**Un aviso falso, que era mío.**
+`self_test()` consultaba la ruta de Chrome para comprobar la capa CDP, y eso
+contaba como intento de abrir navegador: el registro se llenaba de
+`BLOQUEADO cdp.find_chrome_path` y Naoko informaba de intentos que nunca
+ocurrieron. Avisar de algo que no ha pasado gasta la credibilidad del aviso que
+sí importa.
+
+---
+
+### Qué corrigió v5.1.2: MAGI abría ventanas de navegador
 
 Se reportó tres veces y se «arregló» dos, sin éxito. La causa estaba en un
 sitio que ninguno de los dos arreglos miraba.
