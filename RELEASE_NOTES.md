@@ -1,4 +1,4 @@
-## MAGI System IDE v5.1.4
+## MAGI System IDE v5.1.5
 
 Reconstrucción completa sobre v5.0.28. **Suite completa en verde en Linux y
 Windows**: sin tests verdes no hay release.
@@ -8,7 +8,43 @@ compilado por GitHub Actions tras pasar la suite completa.
 
 ---
 
-### Qué corrige v5.1.4
+### Qué corrige v5.1.5: un import olvidado congelaba la aplicación entera
+
+`ALL_DOMAINS` no estaba reexportado en `magi/core/tools/__init__.py`, así que
+el panel de Configuración lanzaba `ImportError` en cada llamada. Eso solo
+debería haber roto una pestaña. Rompió el sistema:
+
+```
+ImportError  →  log ERROR  →  evento error.critical  →  Naoko diagnostica
+con inferencia real  →  su cola se llena  →  el bus BLOQUEA al productor
+→  el productor era el propio logging  →  todo se para
+```
+
+Y el aviso de «cola llena» era a su vez un WARNING, que volvía a pasar por el
+mismo camino generando otro evento: **el sistema se ahogaba con sus propios
+mensajes de que se estaba ahogando**. De ahí los cientos de líneas idénticas.
+Escribir «crea un documento de word en mi escritorio» no hacía nada, porque ya
+no quedaba nadie libre para atenderlo.
+
+**Los tres defectos de diseño que convirtieron un typo en un congelamiento:**
+
+- **El bus bloqueaba al productor** cuando la cola se llenaba. Ahora descarta
+  el evento más antiguo y sigue: un bus de diagnóstico jamás debe hacer
+  esperar a quien produce. *Medido: 500 eventos con el consumidor colgado
+  pasan en 31 ms; antes se colgaba indefinidamente.*
+- **El puente de logs se realimentaba.** Ahora no reentra, no repite el mismo
+  mensaje dentro de 30 s, y un handler RPC roto no despierta al enjambre.
+  *Medido: 200 errores idénticos → 1 evento.*
+- **La cabecera sondeaba cada 30 s pasara lo que pasara.** Ahora espacia los
+  reintentos y se aparta a los cinco fallos, avisando en pantalla.
+
+Y un test de humo que recorre el registro de handlers **real** e invoca cada
+uno: un handler que nadie llama en los tests no existe hasta que un usuario
+pulsa la pestaña. Cuando se añada el siguiente, entra solo.
+
+---
+
+### Qué corrigió v5.1.4
 
 **Tu pregunta se perdía sin avisar.** Mientras una tarea esperaba tu
 aprobación, cualquier cosa que escribieras se absorbía como su respuesta. Una
