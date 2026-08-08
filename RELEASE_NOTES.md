@@ -1,14 +1,55 @@
-## MAGI System IDE v5.1.3
+## MAGI System IDE v5.1.4
 
 Reconstrucción completa sobre v5.0.28. **Suite completa en verde en Linux y
-Windows**, por primera vez en el proyecto: sin tests verdes no hay release.
+Windows**: sin tests verdes no hay release.
 
 **Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
 compilado por GitHub Actions tras pasar la suite completa.
 
 ---
 
-### Qué corrige v5.1.3
+### Qué corrige v5.1.4
+
+**Tu pregunta se perdía sin avisar.** Mientras una tarea esperaba tu
+aprobación, cualquier cosa que escribieras se absorbía como su respuesta. Una
+pregunta nueva y sin relación se gastaba como comentario a otra propuesta y
+nunca se contestaba. Desde fuera parecía que el sistema no responde. Ahora se
+mira **qué** has escrito, no solo en qué estado está lo anterior; ante la duda,
+pregunta nueva.
+
+**Se podía aprobar por accidente.** La comprobación era por subcadena: el «si»
+de «siempre», de «análisis» o de «sigue así» daba la propuesta por aprobada, la
+cerraba y **disparaba la ejecución automática de su código**. Ahora se comparan
+palabras enteras y un rechazo en la misma frase gana.
+
+**El enjambre seguía llamando a proveedores muertos.** Los tres nodos tenían su
+familia escrita a fuego (`deepseek`, `claude`, `qwen`). Cuando el catálogo se
+reverificó y esas familias se quedaron sin candidatos vivos, la corrección no
+les llegó: seguían gastando seis intentos condenados por ronda —dos de ellos
+intentando abrir Chrome— antes de dar con uno que respondiera. **Esa era la
+demora.** Ahora la familia se deriva del único sitio donde se decide.
+
+**Un acento tumbaba la respuesta a medias.** `'charmap' codec can't encode` no
+era un fallo de proveedor: era la consola de Windows reventando al escribir una
+tilde, y esa excepción abortaba el streaming y obligaba a pedir la respuesta
+entera otra vez. En un proyecto que habla español ocurría casi siempre.
+
+**Naoko no respondía a lo que se le preguntaba.** A «hice una pregunta pero
+nadie me responde» contestó «¿qué pregunta era?», teniendo delante, en su
+propio prompt, la tarea que estaba esperándole a él. Ahora ante una queja
+operativa la primera frase lleva el dato concreto.
+
+**`prov-a`, `prov-b`, `prov-c`** no significaban nada y ya ni correspondían a
+proveedores reales. Se sustituyen por el rol, la familia que lo atiende y su
+latencia medida. **MOTOR** y **ESTILO** explican qué hacen: el primero cambia
+cuánto se piensa, no qué modelo se usa; el segundo solo afecta a la redacción.
+
+Medido tras el cambio: tres preguntas reales en **13,1 s** (antes ~49 s solo de
+proveedor), las tres en español, sin un solo intento condenado.
+
+---
+
+### Qué corrigió v5.1.3
 
 Todo sale de una captura de pantalla de la interfaz y del registro que la
 acompañaba.
