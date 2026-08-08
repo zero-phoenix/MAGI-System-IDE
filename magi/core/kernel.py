@@ -119,6 +119,13 @@ class Kernel:
                      "latencia_ms": round(medidas.get((n, m), 0)) or None}
                     for n, m in FAMILY_SPECS.get(r.family, [])
                 ],
+                # Por qué cada candidato NO se intenta. Sin esto, una familia
+                # agotada se veía como una lista de proveedores sin explicar,
+                # y no había forma de saber si faltaba instalar algo, si era
+                # cuota o si el cortafuegos lo había cortado.
+                "descartados": (r.provider.motivos_descartados()
+                                if hasattr(r.provider, "motivos_descartados")
+                                else {}),
             })
 
         # `task_hint=""` a propósito, y explícito para que se vea que es una

@@ -34,7 +34,13 @@ class FamilyEcho(EchoProvider):
 @pytest.fixture
 async def swarm_registry():
     reg = ProviderRegistry()
-    for fam in ("deepseek", "claude", "qwen", "gpt", "gemini"):
+    # Se registran las familias del reparto REAL más un par de sobrantes. La
+    # lista estaba fija en ("deepseek", "claude", "qwen", ...) y al cambiar el
+    # reparto los tres nodos se quedaban sin su proveedor en el banco.
+    from magi.core.providers.backends.g4f_backend import DEFAULT_SWARM_FAMILIES
+    familias = list(dict.fromkeys(
+        list(DEFAULT_SWARM_FAMILIES.values()) + ["llama", "hf", "auto"]))
+    for fam in familias:
         reg.register(FamilyEcho(f"g4f-{fam}", fam), priority=10)
     await reg.probe_all()
     set_registry(reg)
@@ -82,9 +88,14 @@ async def test_three_agents_hit_three_distinct_families(swarm_registry, bus_capt
     families = {a: by_agent[a]["family"] for a in ("MELCHIOR", "BALTHASAR", "CASPER")}
     assert len(set(families.values())) == 3, (
         f"los tres nodos deben usar familias distintas, pero fueron: {families}")
-    assert families["MELCHIOR"] == "deepseek"
-    assert families["BALTHASAR"] == "claude"
-    assert families["CASPER"] == "qwen"
+    # Se comparan contra el reparto DECLARADO, no contra nombres fijos. Este
+    # test tenía "deepseek"/"claude"/"qwen" escritos a mano y se puso rojo al
+    # cambiar el reparto: la misma copia desincronizada que tenían los agentes,
+    # reproducida en el test que debía protegerlos.
+    from magi.core.providers.backends.g4f_backend import DEFAULT_SWARM_FAMILIES
+    for rol, esperada in DEFAULT_SWARM_FAMILIES.items():
+        assert families[rol] == esperada, (
+            f"{rol} debería usar {esperada} y usó {families[rol]}")
 
 
 @pytest.mark.asyncio

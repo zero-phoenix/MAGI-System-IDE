@@ -42,21 +42,52 @@ class NaokoAgent:
         self._watch_task = None
 
     def _get_swarm_status_summary(self) -> str:
+        """
+        Estado del enjambre, redactado para poder RESPONDER con él.
+
+        La versión anterior listaba los datos correctamente y aun así Naoko
+        contestó «¿qué pregunta era?» a un usuario que se quejaba de que nadie
+        le respondía. El dato estaba; lo que faltaba era decir explícitamente
+        qué significa y qué hay que hacer, para que no hubiera que deducirlo.
+        """
         if not self.swarm or not hasattr(self.swarm, 'active_tasks'):
-            return "Estado del Enjambre: No conectado o sin tareas activas registadas."
-        
-        tasks = self.swarm.active_tasks
+            return ("Estado del Enjambre: no conectado. NO puedo afirmar nada "
+                    "sobre tareas en curso.")
+
+        tasks = self.swarm.active_tasks or {}
         if not tasks:
-            return "Estado del Enjambre: Sin tareas en progreso. Todo el flujo está inactivo y saludable."
-            
-        summary = ["Estado Actual de Tareas del Enjambre (Swarm):"]
+            return ("Estado del Enjambre: ninguna tarea registrada. Si el "
+                    "usuario dice que preguntó algo y no obtuvo respuesta, su "
+                    "petición NO llegó al enjambre: hay que mirar el registro, "
+                    "no consolarle.")
+
+        esperando = [(t, d) for t, d in tasks.items()
+                     if d.get("status") == "WAITING_USER_APPROVAL"]
+        en_curso = [(t, d) for t, d in tasks.items()
+                    if d.get("status") == "in_progress"]
+
+        summary = [f"Estado del Enjambre: {len(tasks)} tarea(s) registrada(s)."]
         for tid, tdata in tasks.items():
-            status = tdata.get("status", "desconocido")
-            rnum = tdata.get("round", 1)
-            cmd = tdata.get("command", "")[:80]
-            summary.append(f"- Tarea [{tid}]: Estado='{status}', Ronda={rnum}, Orden='{cmd}'")
-            if status == "WAITING_USER_APPROVAL":
-                summary.append("  -> ALERTA DE FLUJO: La tarea está actualmente PAUSADA esperando que el usuario apruebe ('sí' / 'apruebo') o entregue cambios adicionales.")
+            summary.append(
+                f"- [{tid}] estado={tdata.get('status','?')} "
+                f"ronda={tdata.get('round',1)} ruta={tdata.get('route','?')} "
+                f"orden='{(tdata.get('command') or '')[:70]}'")
+
+        if esperando:
+            ids = ", ".join(t for t, _ in esperando)
+            summary.append(
+                f"\nLECTURA OBLIGADA: {ids} NO está atascada ni caída: está "
+                f"esperando al USUARIO. El enjambre ya hizo su trabajo y pidió "
+                f"su visto bueno. Si se queja de que nadie responde, ESTA es la "
+                f"explicación y hay que dársela: le toca a él escribir 'sí' o "
+                f"'apruebo' para cerrarla, o pedir un cambio concreto. "
+                f"Cualquier otra cosa que escriba se tratará como pregunta "
+                f"nueva y abrirá su propia tarea.")
+        if en_curso:
+            ids = ", ".join(f"{t} (ronda {d.get('round',1)})" for t, d in en_curso)
+            summary.append(
+                f"\nEN CURSO: {ids}. Si se queja de demora, ESTO es la demora, "
+                f"y la latencia medida de cada familia está más arriba.")
         return "\n".join(summary)
 
     async def start(self):
@@ -148,8 +179,34 @@ IDIOMA: {idioma.instruccion(lang)}
   el usuario me haya preguntado otra cosa.
 - Si hay una imagen adjunta, la analizo con precisión e identifico qué
   elementos, texto o tarjetas se ven en la captura.
-- Si el usuario pregunta por qué no avanza el Enjambre, le explico el estado
-  exacto que aparece arriba."""
+
+## REGLA DURA: los datos antes que la empatía
+Tengo el estado del sistema delante, en este mismo prompt. Si el usuario se
+queja de algo operativo —que nadie responde, que va lento, que no avanza, que
+se quedó parado— MI PRIMERA FRASE contiene el dato concreto que lo explica, y
+solo después, si viene a cuento, el tono humano.
+
+Ejemplo de lo que NO debo hacer, y que ya hice:
+    Usuario: «hice una pregunta pero nadie me responde»
+    Yo:      «¡Qué fastidio que nadie te haya respondido! ¿Qué pregunta era?»
+
+Era una respuesta vacía: preguntaba por algo que YO ya tenía delante. En la
+sección de estado de arriba estaba la tarea concreta, su estado y su ronda.
+La respuesta correcta era decir qué tarea está esperando qué, y qué tiene que
+hacer él para desbloquearla.
+
+Antes de responder a una queja operativa me obligo a mirar, en este orden:
+1. ¿Hay una tarea en WAITING_USER_APPROVAL? Entonces el enjambre no está
+   parado: está esperándole a ÉL. Se lo digo, con el id y qué escribir.
+2. ¿Hay una tarea en curso y en qué ronda? Eso es la demora, y digo la
+   latencia medida de la familia que la está atendiendo.
+3. ¿Hay alguna familia con el cortacircuitos abierto o agotada? Eso explica
+   los reintentos.
+4. Solo si NADA de lo anterior aplica, digo que no lo veo y qué miraría.
+
+Nunca pregunto «¿qué pregunta era?» ni «¿puedes darme más detalles?» sobre
+algo que aparece en mi propio estado. Nunca hablo de servidores saturados,
+planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         
         try:
             response = await self._generate_with_rotation(

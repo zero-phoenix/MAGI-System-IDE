@@ -220,6 +220,24 @@ class SwarmAgentBase:
                         topic="agent.delta_end",
                         payload={"task_id": task_id, "agent": self.role_name}))
         except Exception as e:
+            # Si YA hay texto, no se tira. Antes cualquier excepción a mitad
+            # del flujo mandaba a pedir la respuesta entera otra vez, y la
+            # excepción más frecuente no era del proveedor: era escribir un
+            # acento en la consola cp1252 de Windows. Se perdían diez segundos
+            # de respuesta ya generada por un problema de codificación del log.
+            #
+            # La causa se cierra en magi/core/consola.py; esto es la red: una
+            # respuesta parcial y utilizable vale más que repetir la llamada.
+            if chunks:
+                logger.warning("[%s] el flujo se cortó (%s), pero ya había "
+                               "%d fragmentos: me quedo con lo recibido",
+                               self.role_name, e, len(chunks))
+                await self.bus.publish(BusEvent(
+                    topic="agent.delta_end",
+                    payload={"task_id": task_id, "agent": self.role_name}))
+                return ("".join(chunks), provider_id,
+                        self._family_of(provider_id))
+
             logger.warning("[%s] streaming falló (%s); caigo a no-streaming",
                            self.role_name, e)
             await self.bus.publish(BusEvent(
@@ -232,15 +250,43 @@ class SwarmAgentBase:
 
         return "".join(chunks), provider_id, self._family_of(provider_id)
 
+def _familia_por_defecto(rol: str) -> str:
+    """
+    Familia asignada a un rol, tomada del ÚNICO sitio donde se decide.
+
+    Los tres nodos tenían su familia escrita a fuego en la clase
+    (`family = "deepseek"`, `"claude"`, `"qwen"`). Cuando el catálogo se
+    reverificó y esas tres familias resultaron no tener ni un candidato vivo,
+    se actualizó `DEFAULT_SWARM_FAMILIES`... y a los agentes no les llegó,
+    porque leían su propio atributo. El resultado está en el registro del
+    usuario:
+
+        [MELCHIOR] Analizando comando con deepseek...
+        [registry] g4f-deepseek falló: familia 'deepseek' agotada (4 candidatos)
+        [registry] g4f-claude falló: familia 'claude' agotada (2 candidatos)
+        [registry] g4f-claude falló: ... (x4)
+
+    Cada ronda gastaba seis intentos contra proveedores que no pueden
+    responder —dos de ellos intentando abrir Chrome, bloqueados— antes de
+    caer a los que sí. Eso es la demora que se notaba.
+
+    Derivarlo elimina la clase de fallo entera: no puede haber dos verdades
+    sobre qué familia usa cada nodo si solo hay una escrita.
+    """
+    from magi.core.providers.backends.g4f_backend import DEFAULT_SWARM_FAMILIES
+    return DEFAULT_SWARM_FAMILIES.get(rol.upper(), "auto")
+
+
 class MelchiorAgent(SwarmAgentBase):
     """Melchior - El Arquitecto (Propone soluciones)"""
-    family = "deepseek"
     role_name = "MELCHIOR"
     tool_role = "MELCHIOR"
     seed = 11
+
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "deepseek"
+        self.family = _familia_por_defecto("MELCHIOR")
+        self.provider = self.family
         
     async def generate_proposal(self, task_id: str, command: str, round_num: int,
                                 last_proposal: dict | None = None,
@@ -302,13 +348,14 @@ class MelchiorAgent(SwarmAgentBase):
 
 class BalthasarAgent(SwarmAgentBase):
     """Balthasar - El Crítico (Busca fallas en la propuesta)"""
-    family = "claude"
     role_name = "BALTHASAR"
     tool_role = "BALTHASAR"
     seed = 22
+
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "claude"
+        self.family = _familia_por_defecto("BALTHASAR")
+        self.provider = self.family
         
     async def generate_critique(self, task_id: str, proposal: dict, round_num: int,
                                 engine: str = "fast",
@@ -356,13 +403,14 @@ class BalthasarAgent(SwarmAgentBase):
 
 class CasperAgent(SwarmAgentBase):
     """Casper - El Árbitro (Toma la decisión final o fuerza otra ronda)"""
-    family = "qwen"
     role_name = "CASPER"
     tool_role = "CASPER"
     seed = 33
+
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         super().__init__(blackboard, bus)
-        self.provider = "qwen"
+        self.family = _familia_por_defecto("CASPER")
+        self.provider = self.family
         
     async def arbitrate(self, task_id: str, proposal: dict, critique: dict,
                         round_num: int, engine: str = "fast",
@@ -484,3 +532,21 @@ Tu objetivo es entregar la RESPUESTA FINAL COMPLETA, PROFUNDA, DIDÁCTICA Y ALTA
         ))
         
         return content
+
+
+# Se fija también en la CLASE, no solo en la instancia.
+#
+# Al mover la familia a `__init__` para que la leyera de DEFAULT_SWARM_FAMILIES,
+# `MelchiorAgent.family` quedó valiendo "auto" —el defecto de la clase base— y
+# eso lo cazó `test_each_agent_declares_a_distinct_family`, que comprueba la
+# diversidad del enjambre (§1.1) sin instanciar nada. Tenía razón el test: si
+# el atributo de clase miente, cualquiera que lo lea sin instanciar se lleva un
+# dato falso.
+#
+# Va aquí abajo, después de las tres clases, porque `_familia_por_defecto`
+# importa el backend de proveedores y hacerlo en la cabecera crearía un ciclo.
+for _cls, _rol in ((MelchiorAgent, "MELCHIOR"),
+                   (BalthasarAgent, "BALTHASAR"),
+                   (CasperAgent, "CASPER")):
+    _cls.family = _familia_por_defecto(_rol)
+del _cls, _rol

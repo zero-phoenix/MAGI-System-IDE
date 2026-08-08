@@ -3,6 +3,7 @@ import logging
 from magi.core.blackboard import Blackboard
 from magi.core.bus import MagiBus, BusEvent
 from .agents import MelchiorAgent, BalthasarAgent, CasperAgent
+from .intencion import aprueba as _aprueba, es_respuesta_a_aprobacion
 from .parallel import (
     critique_multi_axis, format_variants_for_critic, generate_variants,
 )
@@ -138,13 +139,44 @@ class SwarmOrchestrator:
         # La absorción SOLO tiene sentido cuando la tarea previa está esperando
         # respuesta del usuario: ahí sí, lo que escribes es la respuesta.
         # Nunca cuando está en progreso.
+        # Y AUN ASÍ SEGUÍA TRAGÁNDOSE PREGUNTAS. El arreglo anterior acotó la
+        # absorción a WAITING_USER_APPROVAL, pero eso no basta: mientras una
+        # tarea espera tu visto bueno, CUALQUIER cosa que escribas se convertía
+        # en su respuesta. Ocurrió tal cual —el usuario escribió "dime por que
+        # la soledad duele", una pregunta nueva y sin relación, y el registro
+        # dice:
+        #
+        #     [SWARM] task_84hkn8xp se trata como respuesta a task_29ceb5d6
+        #     [SWARM] Feedback del usuario recibido. Reanudando debate (Ronda 2)
+        #
+        # Su pregunta no se contestó nunca: se gastó como comentario a otra
+        # propuesta. Desde fuera parece que el sistema no responde, y no hay
+        # forma de darse cuenta.
+        #
+        # Ahora se mira QUÉ has escrito, no solo en qué estado está lo
+        # anterior. Solo se absorbe si de verdad parece una respuesta a la
+        # pregunta pendiente; una pregunta nueva abre su propia tarea y se
+        # avisa de que la otra sigue esperando.
         if (task_id not in self.active_tasks and self.latest_task_id
                 and self.latest_task_id in self.active_tasks):
             prev = self.active_tasks[self.latest_task_id]
             if prev["status"] == "WAITING_USER_APPROVAL":
-                logger.info("[SWARM] %s se trata como respuesta a %s (pendiente "
-                            "de aprobación)", task_id, self.latest_task_id)
-                task_id = self.latest_task_id
+                if es_respuesta_a_aprobacion(command):
+                    logger.info("[SWARM] %s se trata como respuesta a %s "
+                                "(pendiente de aprobación)",
+                                task_id, self.latest_task_id)
+                    task_id = self.latest_task_id
+                else:
+                    logger.info("[SWARM] %s es una petición NUEVA, no una "
+                                "respuesta a %s: arranca por separado",
+                                task_id, self.latest_task_id)
+                    await self.bus.publish(BusEvent(
+                        topic="TERMINAL_OUT",
+                        payload={"content":
+                                 f"[SWARM] Lo tomo como pregunta nueva. La tarea "
+                                 f"{self.latest_task_id} sigue esperando tu "
+                                 f"aprobación; escribe 'sí' o 'apruebo' cuando "
+                                 f"quieras cerrarla."}))
             else:
                 logger.info("[SWARM] %s arranca en paralelo (la anterior sigue "
                             "en progreso)", task_id)
@@ -161,7 +193,11 @@ class SwarmOrchestrator:
             state["use_tools"] = use_tools
             self._persist(task_id)
             if state["status"] == "WAITING_USER_APPROVAL":
-                if any(word in command.lower().strip() for word in ["si", "sí", "apruebo", "ok", "adelante", "ejecuta", "yes", "claro"]):
+                # `in` sobre una lista de subcadenas daba aprobaciones falsas:
+                # el «si» de «siempre», «análisis» o «sigue así» cerraba la
+                # tarea y lanzaba la auto-ejecución de los bloques de código.
+                # Ahora se comparan palabras enteras y sin acentos.
+                if _aprueba(command):
                     state["status"] = "completed"
                     self._persist(task_id)
                     await self.bus.publish(BusEvent(

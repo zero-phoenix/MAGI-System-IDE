@@ -103,7 +103,14 @@ FAMILY_SPECS: dict[str, list[Candidate]] = {
     "perplexity": [("Perplexity", "auto")],      # verificado 7921ms
     "hf": [("HuggingSpace", None)],              # verificado 890ms
 
-    # --- familias sin candidato vivo hoy (se declaran, no se disimulan) ---
+    # --- familias sin candidato vivo hoy -----------------------------------
+    #
+    # Se conservan como mapa de lo que existe, pero sus candidatos ROTOS se
+    # marcan y NO se intentan (ver `_ROTOS`). Dejarlos vivos costaba caro: el
+    # registro del usuario muestra seis intentos fallidos por ronda antes de
+    # llegar a un proveedor que pudiera responder, dos de ellos intentando
+    # abrir Chrome. `complete()` reporta la familia como agotada, que es lo
+    # honesto, pero sin gastar el turno en llamadas imposibles.
     "deepseek": [
         ("PhindAi", "deepseek-v3"),
         ("PhindAi", "deepseek"),
@@ -129,6 +136,45 @@ FAMILY_SPECS: dict[str, list[Candidate]] = {
 # Familias con al menos un candidato que respondió en la verificación. El
 # registro las prefiere al repartir el enjambre.
 VERIFIED_FAMILIES = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
+
+#: Proveedores que NO pueden responder en este entorno, con el motivo medido.
+#:
+#: No es una lista de «va lento» ni de «a veces falla»: es de «no existe forma
+#: de que conteste, y comprobarlo cuesta un turno». El registro del usuario
+#: mostraba esto en CADA ronda del enjambre:
+#:
+#:   PhindAi: BaseSession.__init__() got an unexpected keyword argument 'proxy'
+#:   Claude:  MissingRequirementsError: Install "browser_cookie3" package
+#:   LMArena: No auth file found and nodriver is not available
+#:   Cloudflare: BrowserBlocked: MAGI no abre navegadores (§I.3)
+#:
+#: Seis intentos condenados antes de llegar a uno vivo. Saltárselos no pierde
+#: nada —ninguno podía contestar— y `complete()` sigue reportando la familia
+#: como agotada, que es la información verdadera.
+#:
+#: Cada entrada lleva su motivo para que se pueda revisar: si g4f arregla la
+#: incompatibilidad de `proxy`, se quita la línea y PhindAi vuelve.
+ROTOS: dict[str, str] = {
+    "PhindAi": "incompatible con la versión instalada de curl_cffi "
+               "(BaseSession.__init__() no acepta 'proxy')",
+    "Qwen": "AsyncSession.request() no acepta 'proxy' en esta versión",
+    "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
+    "LMArena": "exige fichero de autenticación y nodriver",
+    "GLM": "responde con captcha",
+    "MetaAI": "responde 403 desde esta red",
+    "OpenaiChat": "exige un fichero .har de sesión",
+    "Copilot": "exige un fichero .har de sesión",
+    "Pollinations": "responde 402 (pago requerido)",
+    "GeminiPro": "responde 429 (cuota agotada)",
+    "Ollama": "es un motor LOCAL: lo prohíbe §I.3",
+    # Estos dos no tienen NINGUNA vía que no sea abrir Chrome: su único camino
+    # es CDPSession, que el cortafuegos corta siempre. Aquí no es una
+    # preferencia, es que no pueden contestar. Distinto de `Gemini`, que
+    # declara usar navegador y sin embargo responde por HTTP: ese se queda,
+    # solo que el último de su familia.
+    "Cloudflare": "su única vía es CDPSession (abrir Chrome), bloqueada por §I.3",
+    "DeepInfra": "su única vía es SyncCDPSession (abrir Chrome), bloqueada por §I.3",
+}
 
 #: Margen antes de cubrir una petición lenta con el siguiente candidato.
 #: 4 s sale de las latencias medidas: los candidatos sanos contestan entre
@@ -339,10 +385,49 @@ class G4FProvider(BaseProvider):
         def coste(c: Candidate) -> float:
             return self._latencia.get(c, sin_medir)
 
-        limpios = sorted((c for c in self.candidates if not puede_abrir_navegador(c)),
+        # Los ROTOS no entran: no pueden contestar, y comprobarlo cuesta un
+        # turno. Cada ronda del enjambre gastaba seis llamadas condenadas de
+        # antemano. Si al descartarlos la familia se queda sin nadie,
+        # `complete()` la reporta agotada — que es lo que pasaba, solo que sin
+        # esperar a comprobarlo seis veces.
+        #
+        # Los capaces-de-navegador SÍ entran, pero al final. Excluirlos del
+        # todo fue un error que este mismo cambio introdujo y que cazó
+        # `test_las_familias_verificadas_si_tienen_candidatos`: `Gemini`
+        # declara `use_nodriver=True` y sin embargo responde por HTTP en 3,4 s
+        # —está en el registro del usuario contestando una y otra vez—, así que
+        # descartarlo dejaba la familia gemini ENTERA sin candidatos. Los que
+        # de verdad solo saben abrir Chrome (Cloudflare, DeepInfra) están en
+        # ROTOS, que es donde les corresponde.
+        vivos = [c for c in self.candidates if c[0] not in ROTOS]
+        limpios = sorted((c for c in vivos if not puede_abrir_navegador(c)),
                          key=coste)
-        degradados = [c for c in self.candidates if puede_abrir_navegador(c)]
+        degradados = sorted((c for c in vivos if puede_abrir_navegador(c)),
+                            key=coste)
         return limpios + degradados
+
+    def motivos_descartados(self) -> dict[str, str]:
+        """
+        Por qué cada candidato NO se intenta. Lo enseña Configuración.
+
+        Solo lista lo que de verdad queda fuera de `_ordered()`. La primera
+        versión también marcaba «abriría un navegador» a candidatos que sí se
+        usan —`Gemini` lo declara y responde por HTTP—, y una pantalla de
+        diagnóstico que dice que algo está descartado cuando se está usando es
+        peor que no tener pantalla.
+        """
+        en_cola = {n for n, _ in self._ordered()}
+        fuera: dict[str, str] = {}
+        for nombre, _ in self.candidates:
+            if nombre in en_cola:
+                continue
+            if nombre in ROTOS:
+                fuera[nombre] = ROTOS[nombre]
+            elif _resolve(nombre) is None:
+                fuera[nombre] = "no existe en esta versión de g4f"
+            else:
+                fuera[nombre] = "descartado por el cortafuegos §I.3"
+        return fuera
 
     def _anota_latencia(self, cand: Candidate, ms: float) -> None:
         """Media móvil: una respuesta lenta suelta no destierra a un candidato."""

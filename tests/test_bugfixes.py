@@ -18,6 +18,7 @@ from magi.core.providers.cloud import FreeCloudLLM, set_registry
 from magi.core.providers.registry import ProviderRegistry
 from magi.core.providers.backends.echo import EchoProvider
 from magi.core.tools import ToolContext, WriteJournal, build_registry
+from magi.modules.swarm.agents import MelchiorAgent
 
 
 # ------- BUG 1: la interfaz declaraba la familia PEDIDA, no la que respondió
@@ -28,10 +29,17 @@ async def test_reports_actual_family_when_its_own_is_down():
     Si la familia del nodo está caída, el registro conmuta a otra. Publicar
     self.family en ese caso es mentir en la interfaz — la misma clase de engaño
     que "G4F_Auto_Router(gpt-4o) (deepseek)" en v5.0.28.
+
+    La familia propia se DERIVA, no se escribe. Antes este test fijaba
+    "deepseek" a mano y se puso rojo al cambiar el reparto del enjambre — el
+    mismo fallo que tenían los agentes: dos verdades sobre qué familia usa
+    cada nodo.
     """
+    propia = MelchiorAgent.family
     reg = ProviderRegistry()
-    reg.register(EchoProvider("g4f-deepseek", "deepseek", fail_times=99))
-    reg.register(EchoProvider("g4f-gpt", "gpt", canned="respuesta desde gpt"))
+    reg.register(EchoProvider(f"g4f-{propia}", propia, fail_times=99))
+    reg.register(EchoProvider("g4f-suplente", "suplente",
+                              canned="respuesta del suplente"))
     await reg.probe_all()
     set_registry(reg)
     try:
@@ -43,15 +51,14 @@ async def test_reports_actual_family_when_its_own_is_down():
 
         bus.subscribe("AGENT_POST", cap)
 
-        from magi.modules.swarm.agents import MelchiorAgent
         agent = MelchiorAgent(Blackboard(), bus)
         agent.llm = FreeCloudLLM(reg)
         await agent.generate_proposal("t", "algo", 1)
         await asyncio.sleep(0.15)
 
         p = posts[0]
-        assert p["family"] == "gpt", "debe publicarse la familia que respondió"
-        assert p["family_expected"] == "deepseek"
+        assert p["family"] == "suplente", "debe publicarse la familia que respondió"
+        assert p["family_expected"] == propia
         assert p["degraded"] and "no disponible" in p["degraded"]
     finally:
         set_registry(None)
@@ -59,8 +66,9 @@ async def test_reports_actual_family_when_its_own_is_down():
 
 @pytest.mark.asyncio
 async def test_no_degradation_flag_when_family_is_healthy():
+    propia = MelchiorAgent.family
     reg = ProviderRegistry()
-    reg.register(EchoProvider("g4f-deepseek", "deepseek", canned="ok"))
+    reg.register(EchoProvider(f"g4f-{propia}", propia, canned="ok"))
     await reg.probe_all()
     set_registry(reg)
     try:
@@ -71,13 +79,12 @@ async def test_no_degradation_flag_when_family_is_healthy():
                 posts.append(e.payload)
 
         bus.subscribe("AGENT_POST", cap)
-        from magi.modules.swarm.agents import MelchiorAgent
         agent = MelchiorAgent(Blackboard(), bus)
         agent.llm = FreeCloudLLM(reg)
         await agent.generate_proposal("t", "algo", 1)
         await asyncio.sleep(0.15)
 
-        assert posts[0]["family"] == "deepseek"
+        assert posts[0]["family"] == propia
         assert posts[0]["degraded"] is None
     finally:
         set_registry(None)

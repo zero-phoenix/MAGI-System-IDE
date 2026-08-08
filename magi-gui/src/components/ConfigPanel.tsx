@@ -21,6 +21,7 @@ type Familia = {
   disponible: boolean | null; en_rotacion: boolean;
   llamadas: number; tokens_in: number; tokens_out: number;
   candidatos: Candidato[];
+  descartados?: Record<string, string>;
 };
 type Config = {
   enjambre: { reparto: Record<string, string>; familias: Record<string, string>;
@@ -190,12 +191,24 @@ export function ConfigPanel({ fetchConfig }: { fetchConfig: () => Promise<any> }
                 <td style={td}>{f.prioridad}</td>
                 <td style={td}>{f.llamadas}</td>
                 <td style={td}>
-                  {f.candidatos.map((c, i) => (
-                    <div key={i} style={{ color: c.latencia_ms ? "#cfe0e4" : "var(--dim)" }}>
-                      {c.proveedor} · {c.modelo}
-                      {c.latencia_ms ? ` · ${c.latencia_ms} ms` : " · sin medir"}
-                    </div>
-                  ))}
+                  {f.candidatos.map((c, i) => {
+                    const motivo = f.descartados?.[c.proveedor];
+                    return (
+                      <div key={i} title={motivo || undefined}
+                           style={{
+                             color: motivo ? "#6b7a7d"
+                                           : (c.latencia_ms ? "#cfe0e4" : "var(--dim)"),
+                             textDecoration: motivo ? "line-through" : "none",
+                           }}>
+                        {c.proveedor} · {c.modelo}
+                        {motivo
+                          ? <span style={{ textDecoration: "none", color: "#fbbf24" }}>
+                              {"  — "}{motivo}
+                            </span>
+                          : (c.latencia_ms ? ` · ${c.latencia_ms} ms` : " · sin medir")}
+                      </div>
+                    );
+                  })}
                 </td>
               </tr>
             ))}

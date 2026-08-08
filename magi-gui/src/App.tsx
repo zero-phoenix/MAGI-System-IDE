@@ -15,6 +15,7 @@ import NaokoPanel from './components/NaokoPanel';
 import ImprovementPanel from './components/ImprovementPanel';
 import ConfigPanel from './components/ConfigPanel';
 import PreviewPanel from './components/PreviewPanel';
+import ProveedoresEnCabecera from './components/ProveedoresEnCabecera';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
@@ -26,8 +27,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("Vista previa");
   const { 
     connected, messages, activeConversationId, setActiveConversationId, 
-    startNewConversation, addMessage, terminalOutput, 
-    metrics, telemetry,
+    startNewConversation, addMessage, terminalOutput,
+    // `metrics` ya no se usa aquí: alimentaba las etiquetas prov-a/prov-b/
+    // prov-c de la cabecera, que no significaban nada y se han sustituido por
+    // el reparto real del enjambre leído de `sys.config`.
+    telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
     sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert,
@@ -261,23 +265,44 @@ export default function App() {
           <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
         </div>
         <div className="q">
-          <select 
-            value={engine} 
+          {/* Los dos selectores no decían qué hacen: "MOTOR: Inferencia
+              Optimizada" y "ESTILO: Técnico" son nombres, no explicaciones, y
+              el usuario preguntó para qué sirven. Ahora cada opción lleva su
+              efecto real en el título, y el <select> entero explica el mando.
+              Ninguno cambia QUÉ modelo se usa: eso lo decide el reparto del
+              enjambre, que se ve a la derecha. */}
+          <select
+            value={engine}
             onChange={(e) => setEngine(e.target.value)}
+            title={"MOTOR — cuánto se piensa cada respuesta.\n\n"
+                   + "· Optimizada: temperatura normal, menos vueltas. Rápida.\n"
+                   + "· Superior: temperatura más baja y más iteraciones de "
+                   + "herramientas. Más lenta y más literal.\n\n"
+                   + "No cambia el modelo: cambia cómo se le pregunta."}
             style={{ background: "#000", color: "#cfe0e4", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
           >
-            <option value="fast">MOTOR: Inferencia Optimizada</option>
-            <option value="deep">MOTOR: Razonamiento Superior (Seguro)</option>
+            <option value="fast" title="Rápida: temperatura normal, menos iteraciones">
+              MOTOR: Rápido
+            </option>
+            <option value="deep" title="Cuidadosa: menos temperatura, más iteraciones y verificación">
+              MOTOR: Cuidadoso
+            </option>
           </select>
-          <select 
-            value={narrativeStyle} 
+          <select
+            value={narrativeStyle}
             onChange={(e) => { setNarrativeStyle(e.target.value); try { window.localStorage?.setItem("magi.narrativeStyle", e.target.value); } catch {} }}
+            title={"ESTILO — cómo te escriben la respuesta los tres nodos.\n\n"
+                   + "· Técnico: preciso, con detalle de ingeniería.\n"
+                   + "· Sintético: al grano, lo mínimo para decidir.\n"
+                   + "· Creativo: explora alternativas y analogías.\n"
+                   + "· Analítico: desmenuza el porqué paso a paso.\n\n"
+                   + "Solo afecta a la redacción, no a lo que se hace."}
             style={{ background: "#000", color: "var(--acc)", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
           >
-            <option value="tecnico">ESTILO: Técnico (Ingeniería)</option>
-            <option value="sintetico">ESTILO: Sintético (Resumido)</option>
-            <option value="creativo">ESTILO: Creativo (Innovación)</option>
-            <option value="analitico">ESTILO: Analítico (Profundo)</option>
+            <option value="tecnico" title="Preciso, con detalle de ingeniería">ESTILO: Técnico</option>
+            <option value="sintetico" title="Al grano, lo mínimo para decidir">ESTILO: Sintético</option>
+            <option value="creativo" title="Explora alternativas y analogías">ESTILO: Creativo</option>
+            <option value="analitico" title="Desmenuza el porqué paso a paso">ESTILO: Analítico</option>
           </select>
           {route && (
             <span title={route.reason} style={{ marginRight: 10 }}>
@@ -285,10 +310,13 @@ export default function App() {
               <span style={{ color: "var(--dim)" }}> · {route.max_rounds}r</span>
             </span>
           )}
-          <span>prov-a <b>{metrics?.prov_a || "0/0"}</b></span>
-          <span>prov-b <b>{metrics?.prov_b || "offline"}</b></span>
-          <span>prov-c <b>{metrics?.prov_c || "offline"}</b></span>
-          <span style={{cursor: "pointer"}} onClick={() => setActiveTab("Configuración")}>⚙</span>
+          {/* Antes: "prov-a 31/50 · prov-b agotado · prov-c ok". Tres etiquetas
+              que no significan nada para nadie — ni siquiera decían a qué
+              proveedor correspondía cada letra. Ahora se nombra la familia
+              real que atiende a cada nodo, con su latencia medida. */}
+          <ProveedoresEnCabecera fetchConfig={fetchConfig} />
+          <span style={{cursor: "pointer"}} title="Abrir Configuración"
+                onClick={() => setActiveTab("Configuración")}>⚙</span>
           <span style={{cursor: "pointer", color: "var(--acc)", marginRight: 10}}
                 title="Para solo esta conversación; las demás siguen"
                 onClick={handleCancelTask}>PARAR ESTA</span>

@@ -14,6 +14,14 @@ import threading
 from magi.core.no_browser import install as _install_browser_guard
 _install_browser_guard()
 
+# Y la consola en UTF-8, por el mismo motivo de orden: escribir un acento en la
+# consola cp1252 de Windows lanza UnicodeEncodeError, y esa excepción subía por
+# el bucle de streaming y lo abortaba a mitad de respuesta —"streaming falló
+# ('charmap' codec can't encode characters...)"—, forzando pedir la respuesta
+# entera otra vez. Este proyecto habla español: no era un caso raro.
+from magi.core.consola import configurar as _configurar_consola
+_configurar_consola()
+
 import webview
 from magi.gui_server import GUIServer
 
