@@ -78,27 +78,72 @@ class MagiBus:
             # TODO: persist in event_log before broadcasting (SQLite)
             logger.debug(f"Event {event.topic} is critical. Should persist to WAL.")
             
-        # Match topic_glob (simplificado para match exacto o prefijo simple en este mock)
         for glob, queues in self.subscribers.items():
             if self._match_topic(glob, event.topic):
                 for q in queues:
                     try:
                         q.put_nowait(event)
                     except asyncio.QueueFull:
-                        if event.topic.startswith("telemetry.") or event.topic == "inference.token":
-                            # Backpressure: drop old telemetry, replace with new
-                            try:
-                                q.get_nowait() # descarta el más antiguo
-                                q.put_nowait(event)
-                                self.dropped_counts[event.topic] = self.dropped_counts.get(event.topic, 0) + 1
-                                logger.warning(f"Cola llena. Evento {event.topic} viejo descartado.")
-                            except (asyncio.QueueEmpty, asyncio.QueueFull):
-                                pass
-                        else:
-                            # Backpressure: bloquea al productor
-                            logger.warning(f"Cola llena para {event.topic}. Productor bloqueado esperando espacio.")
-                            await q.put(event) # esto pausa la corrutina productora
-                            
+                        self._descartar_el_mas_viejo(q, event)
+
+    def _descartar_el_mas_viejo(self, q: asyncio.Queue, event: "BusEvent") -> None:
+        """
+        Cola llena: se tira el evento MÁS ANTIGUO y entra el nuevo. Nunca se
+        bloquea al productor.
+
+        EL BLOQUEO QUE ESTO ELIMINA
+        ===========================
+        La versión anterior, para todo lo que no fuera telemetría, hacía:
+
+            logger.warning("Cola llena ... Productor bloqueado esperando espacio")
+            await q.put(event)          # <-- pausa la corrutina productora
+
+        Y con eso un fallo tonto congeló el sistema entero. La secuencia real,
+        del registro del usuario:
+
+          1. `sys.config` lanzaba ImportError en cada llamada (un nombre sin
+             exportar).
+          2. ws_server lo registraba con nivel ERROR.
+          3. BusLogHandler convierte todo ERROR en un evento `error.critical`.
+          4. Naoko está suscrita a `error.critical` y DIAGNOSTICA cada uno
+             llamando al enjambre: segundos por evento.
+          5. Su cola se llenó.
+          6. `await q.put(...)` bloqueó al productor... que era el propio
+             sistema de logging. Todo se paró.
+          7. Y el `logger.warning` de esta misma función generaba OTRO evento
+             por el mismo camino: el remedio alimentaba la enfermedad. De ahí
+             los cientos de líneas idénticas.
+
+        El usuario escribió "crea un documento de word en mi escritorio" y no
+        pasó nada, porque ya no quedaba nadie libre para atenderle.
+
+        LA REGLA
+        ========
+        Un bus de eventos de diagnóstico JAMÁS bloquea a quien produce. Si el
+        consumidor no da abasto, el que sobra es el evento, no el sistema.
+        Perder una línea de log es un inconveniente; congelar la aplicación
+        del usuario no lo es. Y se lleva la cuenta de lo descartado para
+        poder decirlo, en vez de perderlo en silencio.
+        """
+        try:
+            q.get_nowait()                  # fuera el más viejo
+            q.put_nowait(event)
+        except (asyncio.QueueEmpty, asyncio.QueueFull):
+            pass                            # otra corrutina se nos adelantó
+        n = self.dropped_counts.get(event.topic, 0) + 1
+        self.dropped_counts[event.topic] = n
+        # Se avisa en progresión geométrica (1, 10, 100, 1000...). Registrar
+        # cada descarte volvería a generar un evento por descarte, que es
+        # justo el bucle que se está cerrando aquí. Y `logger.debug` no pasa
+        # por BusLogHandler en el nivel por defecto.
+        if n == 1 or (n % 100 == 0):
+            logger.debug("[bus] cola llena en '%s': %d evento(s) descartado(s)",
+                         event.topic, n)
+
+    def dropped_report(self) -> dict[str, int]:
+        """Qué se ha descartado y cuánto. Lo enseña el panel de sistema."""
+        return dict(self.dropped_counts)
+
     def _match_topic(self, glob: str, topic: str) -> bool:
         if glob == "*": return True
         if glob.endswith("*"):

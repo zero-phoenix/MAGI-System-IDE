@@ -43,13 +43,20 @@ export function ProveedoresEnCabecera({ fetchConfig }: {
 }) {
   const [nodos, setNodos] = useState<Nodo[]>([]);
 
+  const [error, setError] = useState(false);
+
   useEffect(() => {
     if (!fetchConfig) return;
     let vivo = true;
+    let fallos = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
     const leer = async () => {
       try {
         const c = await fetchConfig();
         if (!vivo) return;
+        fallos = 0;
+        setError(false);
         const porId: Record<string, any> = {};
         for (const f of c.familias || []) porId[f.id] = f;
         const out: Nodo[] = Object.entries(c.enjambre?.reparto || {})
@@ -66,15 +73,41 @@ export function ProveedoresEnCabecera({ fetchConfig }: {
             };
           });
         setNodos(out);
-      } catch { /* la cabecera nunca debe romper la app */ }
+      } catch {
+        // La cabecera nunca debe romper la app NI insistir contra un backend
+        // que está fallando.
+        //
+        // La primera versión reintentaba cada 30 s pasara lo que pasara. Con
+        // el handler `sys.config` roto —un nombre sin exportar— eso convirtió
+        // un error puntual en una consulta fallida cada medio minuto, cada
+        // una registrada como ERROR, cada una despertando a Naoko para
+        // diagnosticarla. Sondear a ciegas es cómodo de escribir y caro de
+        // sufrir.
+        //
+        // Ahora se espera cada vez más y se para a los cinco fallos. Si el
+        // backend se recupera, el usuario tiene el botón «Releer» de la
+        // pestaña Configuración.
+        if (!vivo) return;
+        fallos += 1;
+        setError(true);
+        if (fallos >= 5) return;
+      }
+      if (!vivo) return;
+      // Espaciado creciente: 30 s, 60 s, 2 min, 4 min... Con todo en orden
+      // basta con refrescar de vez en cuando; con algo roto, se aparta.
+      timer = setTimeout(leer, 30_000 * Math.pow(2, fallos));
     };
+
     leer();
-    // Cada 30 s: lo justo para que la latencia se vea viva sin castigar al
-    // kernel con una consulta por segundo.
-    const t = setInterval(leer, 30_000);
-    return () => { vivo = false; clearInterval(t); };
+    return () => { vivo = false; clearTimeout(timer); };
   }, [fetchConfig]);
 
+  if (error && !nodos.length) {
+    return <span style={{ color: "#f87171" }}
+                 title="El kernel no devolvió la configuración. Abre la pestaña Configuración y pulsa Releer.">
+      enjambre · sin datos
+    </span>;
+  }
   if (!nodos.length) {
     return <span style={{ color: "var(--dim)" }} title="Aún no se ha medido ningún proveedor">
       enjambre · sondeando
