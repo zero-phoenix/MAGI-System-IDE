@@ -635,7 +635,13 @@ class Kernel:
 
     async def start(self):
         logger.info("Iniciando MAGI Kernel...")
-        
+
+        # Persistencia de eventos críticos (system.started, error.critical,
+        # obs.alert...). Antes había un TODO en bus.publish: el evento se
+        # entregaba a los suscriptores pero se perdía si el proceso caía.
+        # El sink es no bloqueante: el bus nunca lo espera.
+        self.bus.attach_critical_sink(self._persist_critical_event)
+
         # Inicializamos el Logger ahora que el event_loop existe
         self.bus_logger = BusLogger(self.bus, self.db)
         
@@ -654,7 +660,60 @@ class Kernel:
         ))
         
         logger.info("Kernel listo.")
-        
+
+    async def _persist_critical_event(self, event):
+        """
+        Sink del bus: vuelca eventos críticos a task_event.
+
+        Es la persistencia que faltaba: un crash pierde los eventos en RAM, y
+        justo los críticos (system.started, error.critical, obs.alert) son los
+        que hacen falta para diagnosticar por qué se cayó. La tabla ya existía
+        (migración 0001_base); nadie escribía en ella.
+
+        Dos cuidados que no son opcionales, y que son exactamente los que
+        convierten una buena idea en un problema si se pasan por alto:
+
+        1. sqlite3 es SÍNCRONO. Llamarlo desde una corrutina para el bucle de
+           eventos entero mientras dura la escritura. Con la interfaz colgada
+           del bus, cada evento crítico se vería como un tirón en pantalla.
+           Va en asyncio.to_thread, que es como escribe todo store/database.py
+           (por eso la conexión se abre con check_same_thread=False).
+
+        2. `with sqlite3.connect(...) as conn` hace commit al salir pero NO
+           cierra la conexión — es un error de bulto muy común. Un descriptor
+           de fichero abierto por evento crítico es una fuga lenta que acaba
+           en «too many open files» tras horas de sesión. Cierre explícito en
+           finally.
+
+        Se invoca vía asyncio.create_task desde el bus: nunca bloquea el
+        broadcast. Si la BD falla, se registra en debug y el sistema sigue.
+        """
+        import json as _json
+        import time as _time
+        try:
+            payload = event.payload
+            task_id = (payload.get("task_id") if isinstance(payload, dict)
+                       else None) or "_system"
+            fila = (task_id, event.topic,
+                    _json.dumps(payload, default=str, ensure_ascii=False),
+                    _time.time())
+
+            def _escribir():
+                conn = self.db._get_connection()
+                try:
+                    with conn:  # commit/rollback
+                        conn.execute(
+                            "INSERT INTO task_event "
+                            "(task_id, topic, payload, ts) VALUES (?, ?, ?, ?)",
+                            fila)
+                finally:
+                    conn.close()  # el `with` NO lo hace
+
+            await asyncio.to_thread(_escribir)
+        except Exception as e:
+            logger.debug("[kernel] no se pudo persistir evento crítico %s: %s",
+                         event.topic, e)
+
     async def shutdown(self):
         if getattr(self, "naoko", None) is not None:
             await self.naoko.stop()

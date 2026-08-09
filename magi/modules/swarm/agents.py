@@ -29,6 +29,9 @@ class SwarmAgentBase:
     #: perfil de herramientas (MELCHIOR escribe, BALTHASAR ejecuta sin escribir,
     #: CASPER solo lee y verifica). Ver core/tools/builtin.py.
     tool_role: str = "CASPER"
+    #: cuántas familias distintas se prueban si la respuesta llega en otro
+    #: idioma. Acotado a propósito: ver _reintentar_idioma().
+    MAX_REINTENTOS_IDIOMA: int = 2
 
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         self.blackboard = blackboard
@@ -108,39 +111,73 @@ class SwarmAgentBase:
         # GUARDA DE IDIOMA. La instrucción del prompt no basta con los
         # proveedores gratuitos: CASPER llegó a entregar su aprobación en
         # chino (三个方案...) porque nadie miraba la respuesta. Si la familia
-        # propia del nodo responde en otro idioma, se rota a otra familia
-        # disponible antes de devolver. El usuario no ve nada: solo recibe la
-        # respuesta en su idioma, o la mejor que se pudo conseguir.
-        familias = [f for f in self._familias_disponibles() if f != self.family]
-        familias.insert(0, self.family)  # la propia primero
-        ultimo = (None, None)
-        for familia in familias:
+        # propia del nodo responde en otro alfabeto, se reintenta con otra
+        # familia del registry antes de devolver. El usuario no ve nada: solo
+        # recibe la respuesta en su idioma, o la mejor que se pudo conseguir.
+        content, provider_id = await self.llm.generate(
+            full_sys, user_prompt,
+            family=self.family, temperature=temp, seed=self.seed)
+        if idioma.coincide(content, lang):
+            return content, provider_id, self._family_of(provider_id)
+
+        # La familia propia respondió en otro idioma: reintento acotado.
+        logger.debug("[%s] familia %s respondió en otro idioma (esperado %s); "
+                     "reintentando", self.role_name, self.family, lang)
+        content, provider_id = await self._reintentar_idioma(
+            full_sys, user_prompt, temp=temp, lang=lang,
+            previo=(content, provider_id))
+        return content, provider_id, self._family_of(provider_id)
+
+    async def _reintentar_idioma(self, full_sys: str, user_prompt: str, *,
+                                 temp: float, lang: str,
+                                 previo: tuple[str, str]) -> tuple[str, str]:
+        """
+        Reintenta en otras familias hasta acertar el idioma, con tope.
+
+        Devuelve la primera respuesta que coincide, o la última obtenida si
+        ninguna acierta: entregar algo ilegible es mejor que no entregar nada,
+        y es un fallo visible y reversible (el usuario puede volver a pedirlo).
+
+        EL TOPE NO ES PRUDENCIA DECORATIVA. `coincide()` es un detector
+        heurístico y es tolerante a propósito, pero puede dar un falso negativo
+        —un bloque de código, una respuesta corta llena de tecnicismos—. Sin
+        tope, ese único falso negativo dispara una llamada por cada familia
+        verificada del catálogo: hasta diez, por agente, por ronda, y son tres
+        agentes. Treinta llamadas de red para un turno que debería costar tres.
+        El daño de no acertar el idioma es una respuesta ilegible; el de
+        reintentar sin freno es un sistema que no responde. Dos intentos cubren
+        el caso real (una familia con sesgo de idioma) sin abrir esa puerta.
+        """
+        from magi.core import idioma
+        content, provider_id = previo
+        candidatas = self._otras_familias_del_registry()[:self.MAX_REINTENTOS_IDIOMA]
+        for familia in candidatas:
             try:
-                content, provider_id = await self.llm.generate(
+                alt, alt_pid = await self.llm.generate(
                     full_sys, user_prompt,
                     family=familia, temperature=temp, seed=self.seed)
             except Exception as e:
-                logger.debug("[%s] familia %s falló: %s",
+                logger.debug("[%s] reintento en %s falló: %s",
                              self.role_name, familia, e)
                 continue
-            ultimo = (content, provider_id)
-            if idioma.coincide(content, lang):
-                return content, provider_id, self._family_of(provider_id)
-            logger.debug("[%s] familia %s respondió en otro idioma (esperado %s)",
-                         self.role_name, familia, lang)
-        # Ninguna familia acertó el idioma: devolver la última respuesta.
-        # Entregar algo es mejor que entregar nada; que esté en otro idioma es
-        # un fallo visible y reversible (el usuario puede pedir de nuevo).
-        content, provider_id = ultimo if ultimo != (None, None) else ("", "")
-        return content, provider_id, self._family_of(provider_id)
+            if idioma.coincide(alt, lang):
+                return alt, alt_pid
+            content, provider_id = alt, alt_pid  # quedarse con la última
+        return content, provider_id
 
-    def _familias_disponibles(self) -> list[str]:
-        """Familias de proveedor sanas, para rotar si la propia falla de idioma."""
+    def _otras_familias_del_registry(self) -> list[str]:
+        """Familias distintas a la propia, para rotar si la propia falla de idioma.
+
+        Lee del catálogo de familias verificadas de g4f. El registry es async
+        y aquí no podemos esperarlo, pero las familias verificadas son las que
+        el registry registraría. Si el catálogo no está cargado, no hay
+        rotación y se devuelve lo que haya.
+        """
         try:
             from magi.core.providers.backends.g4f_backend import VERIFIED_FAMILIES
-            return list(VERIFIED_FAMILIES)
+            return [f for f in VERIFIED_FAMILIES if f != self.family]
         except Exception:
-            return [self.family]
+            return []
 
     @staticmethod
     def _family_of(provider_id: str) -> str:
@@ -294,9 +331,16 @@ class SwarmAgentBase:
         from magi.core.prompts import style_fragment
         from magi.core.context import get_context
         from magi.core.providers.base import CompletionRequest, Message
+        from magi.core import idioma
 
+        # La instrucción de idioma faltaba aquí (estaba en _ask pero no en
+        # _ask_stream). Como _ask_stream es el camino principal del enjambre,
+        # las tres IA respondían sin que se les dijera en qué idioma hablar.
+        lang = idioma.detectar(user_prompt)
         full_sys = "\n\n".join([
-            sys_prompt, style_fragment(narrative_style), get_context().render()])
+            sys_prompt,
+            f"IDIOMA: {idioma.instruccion(lang)}",
+            style_fragment(narrative_style), get_context().render()])
         temp = temperature if engine == "fast" else max(0.1, temperature - 0.2)
 
         reg = await self.llm._reg()
@@ -342,6 +386,35 @@ class SwarmAgentBase:
                 turno.familia = self._family_of(provider_id)
                 turno.tokens(entrada=len(full_sys) + len(user_prompt),
                              salida=len("".join(chunks)))
+
+            # GUARDA DE IDIOMA EN EL CAMINO DE STREAMING.
+            #
+            # Esta era la mitad que faltaba. La INSTRUCCIÓN de idioma se había
+            # añadido aquí, pero la COMPROBACIÓN solo existía en _ask. Y como
+            # _ask_stream es el camino real del enjambre —_ask solo se usa como
+            # red cuando el flujo falla—, una respuesta en chino seguía
+            # llegando entera al usuario. Es exactamente lo de la captura: los
+            # tres nodos hablando en otro idioma con la guarda ya «arreglada».
+            #
+            # El texto ya se ha visto pasar en vivo; no se puede des-enviar.
+            # Lo que sí se puede es no dejarlo como respuesta final: se cierra
+            # el flujo con el mismo `aborted` que ya usa el fallback de error
+            # (el front borra el buffer parcial al recibirlo) y se reintenta
+            # sin streaming. El usuario ve el texto raro desaparecer y llegar
+            # la respuesta buena, que es el comportamiento menos malo posible
+            # cuando el proveedor ya ha hablado.
+            texto = "".join(chunks)
+            if texto and not idioma.coincide(texto, lang):
+                logger.debug("[%s] el flujo llegó en otro idioma (esperado %s); "
+                             "reintento sin streaming", self.role_name, lang)
+                await self.bus.publish(BusEvent(
+                    topic="agent.delta_end",
+                    payload={"task_id": task_id, "agent": self.role_name,
+                             "aborted": True, **self._rama()}))
+                alt, alt_pid = await self._reintentar_idioma(
+                    full_sys, user_prompt, temp=temp, lang=lang,
+                    previo=(texto, provider_id))
+                return alt, alt_pid, self._family_of(alt_pid)
         except Exception as e:
             if turno:
                 turno.fallo(e)

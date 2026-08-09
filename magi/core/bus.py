@@ -23,6 +23,28 @@ class MagiBus:
         # Workers cuya creación quedó pendiente por no haber bucle de eventos.
         self._pending_workers: List[asyncio.Queue] = []
         self._worker_tasks: List[asyncio.Task] = []
+        # Persistencia opcional de eventos críticos. El Kernel engancha aquí
+        # su MagiDatabase al arrancar. Sin esto, un crash pierde los eventos
+        # críticos (system.started, error.critical, obs.alert...) que justo
+        # son los que hacen falta para diagnosticar por qué se cayó.
+        self._critical_sink: Callable[["BusEvent"], Any] | None = None
+        # Tareas de persistencia en vuelo. Guardar la referencia NO es
+        # decorativo: el bucle de eventos solo mantiene una referencia DÉBIL a
+        # las tareas, así que una tarea sin dueño puede ser recolectada por el
+        # GC a mitad de ejecución. El evento crítico desaparecería en silencio
+        # — justo el fallo que esta persistencia venía a evitar, y de los que
+        # no se reproducen a voluntad. El done_callback la descarta al acabar,
+        # así que el conjunto no crece.
+        self._sink_tasks: set[asyncio.Task] = set()
+
+    def attach_critical_sink(self, sink: Callable[["BusEvent"], Any]) -> None:
+        """Engancha un receptor para eventos críticos (lo llama el Kernel).
+
+        El sink recibe el evento y decide qué hacer (típicamente: insertarlo en
+        task_event). Se invoca de forma no bloqueante: el bus nunca espera al
+        sink, y un fallo del sink nunca impide el broadcast.
+        """
+        self._critical_sink = sink
         
     def subscribe(self, topic_glob: str, handler: Callable[[BusEvent], Any], maxsize: int = 1024) -> str:
         queue = asyncio.Queue(maxsize=maxsize)
@@ -74,10 +96,34 @@ class MagiBus:
     async def publish(self, event: BusEvent) -> None:
         if self._pending_workers:
             self.start_pending_workers()
-        if event.critical:
-            # TODO: persist in event_log before broadcasting (SQLite)
-            logger.debug(f"Event {event.topic} is critical. Should persist to WAL.")
-            
+        if event.critical and self._critical_sink is not None:
+            # Persistencia de eventos críticos (system.started, error.critical,
+            # obs.alert...). Fire-and-forget: el bus NUNCA espera al sink ni
+            # deja de hacer broadcast si el sink falla. Un crash pierde los
+            # eventos en RAM; con esto quedan en task_event para diagnóstico.
+            #
+            # El principio del bus (§backpressure) se respeta: la persistencia
+            # no bloquea al productor. Si el sink va lento, su task se acumula,
+            # pero el evento ya se ha entregado a los suscriptores.
+            tarea = asyncio.create_task(self._persist_critical(event))
+            self._sink_tasks.add(tarea)
+            tarea.add_done_callback(self._sink_tasks.discard)
+
+        # EL BROADCAST. Va aquí, en publish, y no puede ir en ningún otro
+        # sitio: es lo único que hace que el bus sea un bus.
+        #
+        # Al introducir la persistencia, este bucle acabó dentro del método
+        # nuevo (_persist_critical) en vez de quedarse en publish. El efecto
+        # era total y silencioso: publish() dejaba de entregar a los
+        # suscriptores, y el broadcast solo ocurría de rebote, para eventos
+        # critical y únicamente si había un sink enganchado. Sin sink —el caso
+        # de los tests y de cualquier arranque antes de Kernel.start()— el
+        # sistema entero se quedaba mudo: ni interfaz, ni Naoko, ni telemetría,
+        # ni enjambre. Una indentación.
+        #
+        # Es la clase de fallo contra la que el proyecto ya tiene un principio
+        # escrito: no basta con que el código nuevo funcione, hay que mirar qué
+        # le pasó al que ya estaba.
         for glob, queues in self.subscribers.items():
             if self._match_topic(glob, event.topic):
                 for q in queues:
@@ -85,6 +131,13 @@ class MagiBus:
                         q.put_nowait(event)
                     except asyncio.QueueFull:
                         self._descartar_el_mas_viejo(q, event)
+
+    async def _persist_critical(self, event: "BusEvent") -> None:
+        """Invoca el sink de persistencia. Aislada para que un fallo no propague."""
+        try:
+            await self._critical_sink(event)  # type: ignore[misc]
+        except Exception as e:
+            logger.debug("[bus] sink crítico falló para %s: %s", event.topic, e)
 
     def _descartar_el_mas_viejo(self, q: asyncio.Queue, event: "BusEvent") -> None:
         """

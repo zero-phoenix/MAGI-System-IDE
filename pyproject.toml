@@ -21,7 +21,14 @@ filterwarnings = [
     # (es cómo curl_cffi funciona bajo Proactor) pero ensucia la salida de
     # tests. No podemos cambiar de policy: el SelectorEventLoop no soporta
     # asyncio.subprocess en Windows, que el proyecto sí usa (Naoko, run_tests).
-    "ignore:Proactor event loop does not implement add_reader:curl_cffi.utils.CurlCffiWarning",
+    #
+    # Se filtra POR MENSAJE, sin nombrar la clase curl_cffi.utils.CurlCffiWarning.
+    # Nombrarla obliga a pytest a importar curl_cffi al leer la configuración, y
+    # donde no está instalado —el runner de Linux del CI, un clon recién hecho—
+    # eso emite «PytestConfigWarning: Failed to import filter module». Es decir:
+    # el filtro puesto para quitar un warning creaba otro en la mitad de las
+    # máquinas. Sin la clase, el filtro es inerte donde no hace falta.
+    "ignore:Proactor event loop does not implement add_reader",
     # Naoko lanza un _watch_loop en su constructor. Aunque el test lo cancela,
     # el recolector de Python puede emitir ResourceWarning sobre transports
     # que ya están cerrándose. Cosmético.

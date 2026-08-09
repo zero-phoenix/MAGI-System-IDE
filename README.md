@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**786 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+**Más de 780 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
 
 **[⬇ Descargar el ejecutable de Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta.
 

@@ -42,22 +42,46 @@ def _cuenta_items_de_test() -> int:
     return sum(1 for line in r.stdout.splitlines() if "::" in line)
 
 
-def test_el_readme_cita_la_cantidad_real_de_tests(readme):
-    """El README dice 'N tests en Python'. N debe ser >= el conteo real.
+TOLERANCIA_TESTS = 0.85  # el suelo declarado no puede quedarse >15% por debajo
 
-    >= (no ==) a propósito: entre el momento en que se actualiza el README y el
-    en que se añaden tests, la cifra del README puede quedarse corta y eso es
-    aceptable. Lo que NO es aceptable es que diga 625 cuando hay 782: sería
-    infradeclarar la suite, lo que oculta trabajo.
+
+def test_el_readme_cita_la_cantidad_real_de_tests(readme):
+    """El README declara un SUELO de tests: 'más de N tests en Python'.
+
+    LA CIFRA ES UN SUELO, Y ESO CAMBIA LA ASERCIÓN
+    ==============================================
+    La primera versión de este test comparaba `declarado >= real`, es decir,
+    exigía que el README fuese siempre igual o mayor que la suite. El efecto
+    práctico era el contrario del buscado: **cada commit que añadía un test
+    dejaba la suite en rojo** hasta que alguien editara el README. Se cumplió
+    de inmediato — el commit que introdujo tests/test_guarda_idioma.py subió el
+    conteo de 786 a 789 y dejó el CI roto sin tocar una línea de producción.
+
+    Un test que castiga añadir tests acaba enseñando a no añadirlos.
+
+    La regla correcta tiene dos mitades, y las dos importan:
+
+      1. La afirmación debe ser VERDADERA: si el README dice «más de 780»,
+         tiene que haber al menos 780. Nunca falla por crecer.
+      2. La afirmación no puede volverse INÚTIL: si el README dijera «más de
+         10» habiendo 800, sería técnicamente cierto y no informaría de nada.
+         Por eso el suelo no puede quedarse más de un 15% por debajo.
+
+    Entre ambas queda margen para más de cien tests nuevos sin tocar el README,
+    y sigue siendo imposible que se quede en «625» habiendo 800.
     """
     m = re.search(r"(\d+)\s+tests?\s+en\s+Python", readme)
     assert m, "El README debería citar 'N tests en Python'"
     declarado = int(m.group(1))
     real = _cuenta_items_de_test()
-    assert declarado >= real, (
-        f"El README declara {declarado} tests pero la suite tiene {real}. "
-        f"Actualiza README.md con el número real ({real}) "
-        f"o un valor mayor (la cifra es un suelo, no un techo).")
+    assert real >= declarado, (
+        f"El README declara más de {declarado} tests pero la suite solo tiene "
+        f"{real}: la afirmación es FALSA. Se han borrado tests, o el número "
+        f"del README nunca fue cierto.")
+    assert declarado >= int(real * TOLERANCIA_TESTS), (
+        f"El README declara más de {declarado} tests y la suite tiene {real}: "
+        f"la cifra se ha quedado obsoleta y ya no informa. Actualiza README.md "
+        f"a un suelo cercano a {real}.")
 
 
 def test_el_readme_cita_la_cantidad_real_de_herramientas(readme):
