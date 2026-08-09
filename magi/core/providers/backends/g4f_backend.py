@@ -77,7 +77,7 @@ Candidate = tuple[str, str | None]
 # claude, glm) se conservan a propósito: son el mapa de lo que existe, y
 # `complete()` las reporta como agotadas en vez de fingir. El reparto del
 # enjambre apunta ahora a las tres familias verificadas.
-FAMILY_SPECS: dict[str, list[Candidate]] = {
+_FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
     # --- familias con candidato verificado -------------------------------
     "gpt": [
         ("Yqcloud", "gpt-4"),                    # verificado 2000ms
@@ -135,7 +135,7 @@ FAMILY_SPECS: dict[str, list[Candidate]] = {
 
 # Familias con al menos un candidato que respondió en la verificación. El
 # registro las prefiere al repartir el enjambre.
-VERIFIED_FAMILIES = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
+_VERIFICADAS_BASE = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
 
 #: Proveedores que NO pueden responder en este entorno, con el motivo medido.
 #:
@@ -154,7 +154,7 @@ VERIFIED_FAMILIES = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
 #:
 #: Cada entrada lleva su motivo para que se pueda revisar: si g4f arregla la
 #: incompatibilidad de `proxy`, se quita la línea y PhindAi vuelve.
-ROTOS: dict[str, str] = {
+_ROTOS_BASE: dict[str, str] = {
     "PhindAi": "incompatible con la versión instalada de curl_cffi "
                "(BaseSession.__init__() no acepta 'proxy')",
     "Qwen": "AsyncSession.request() no acepta 'proxy' en esta versión",
@@ -179,12 +179,12 @@ ROTOS: dict[str, str] = {
 #: Margen antes de cubrir una petición lenta con el siguiente candidato.
 #: 4 s sale de las latencias medidas: los candidatos sanos contestan entre
 #: 0,9 y 3,4 s, así que a los 4 s ya no es "va lento", es "algo pasa".
-HEDGE_AFTER_S = 4.0
+_HEDGE_AFTER_S_BASE = 4.0
 
 #: Tope de llamadas simultáneas por familia. Con 2 se cubre el caso que duele
 #: —un candidato colgado— sin convertir cada petición en una tormenta de
 #: peticiones contra proveedores gratuitos.
-HEDGE_MAX = 2
+_HEDGE_MAX_BASE = 2
 
 # Reparto por defecto del enjambre.
 #
@@ -197,11 +197,61 @@ HEDGE_MAX = 2
 # Ahora apunta a tres familias verificadas y de linajes realmente distintos
 # —OpenAI, Google y Cohere—, que es lo que §1.1 pide de verdad: que el crítico
 # tenga sesgos distintos al proponente.
-DEFAULT_SWARM_FAMILIES = {
+_REPARTO_BASE = {
     "MELCHIOR": "gpt",
     "BALTHASAR": "gemini",
     "CASPER": "command",
 }
+
+
+# ---------------------------------------------------------------------------
+# Los nombres públicos salen del CATÁLOGO, no de las constantes de arriba.
+#
+# Las constantes se conservan íntegras como `_*_BASE` y actúan de respaldo: si
+# el JSON falta, no valida o trae un esquema desconocido, estos valores salen
+# de ellas y todo funciona exactamente igual que antes.
+#
+# Lo que se gana: arreglar un proveedor caído pasa de recompilar 158 MB de
+# ejecutable a editar `%LOCALAPPDATA%\MagiSystem\catalogo_proveedores.json`.
+# Ver `core/providers/catalogo.py`.
+# ---------------------------------------------------------------------------
+from magi.core.providers.catalogo import catalogo as _catalogo   # noqa: E402
+
+_CAT = _catalogo()
+
+FAMILY_SPECS: dict[str, list[Candidate]] = _CAT.family_specs
+VERIFIED_FAMILIES: tuple[str, ...] = _CAT.verificadas
+ROTOS: dict[str, str] = _CAT.rotos
+HEDGE_AFTER_S: float = _CAT.hedge_tras_s
+HEDGE_MAX: int = _CAT.hedge_max
+DEFAULT_SWARM_FAMILIES: dict[str, str] = _CAT.reparto
+
+#: Tope de caracteres del prompt. ANTES NO HABÍA NINGUNO: se mandaba lo que
+#: hiciera falta y, si no cabía, el error se leía como "proveedor roto" y se
+#: rotaba a otro que fallaba por lo mismo.
+VENTANA_CONTEXTO: int = _CAT.ventana_contexto
+
+
+def recargar_catalogo() -> dict:
+    """
+    Relee el catálogo sin reiniciar MAGI. Para el botón de la pestaña
+    Configuración: editas el JSON, pulsas, y ya está.
+    """
+    global _CAT, FAMILY_SPECS, VERIFIED_FAMILIES, ROTOS
+    global HEDGE_AFTER_S, HEDGE_MAX, DEFAULT_SWARM_FAMILIES, VENTANA_CONTEXTO
+    _CAT = _catalogo(recargar=True)
+    FAMILY_SPECS = _CAT.family_specs
+    VERIFIED_FAMILIES = _CAT.verificadas
+    ROTOS = _CAT.rotos
+    HEDGE_AFTER_S = _CAT.hedge_tras_s
+    HEDGE_MAX = _CAT.hedge_max
+    DEFAULT_SWARM_FAMILIES = _CAT.reparto
+    VENTANA_CONTEXTO = _CAT.ventana_contexto
+    return _CAT.informe()
+
+
+def informe_catalogo() -> dict:
+    return _CAT.informe()
 
 
 # Marcadores de código que delatan a un provider capaz de lanzar un navegador.

@@ -29,7 +29,16 @@ from ..paths import db_path
 
 logger = logging.getLogger(__name__)
 
-RESUMABLE = ("in_progress", "WAITING_USER_APPROVAL")
+# `interrumpida`: estaba en curso cuando el proceso murió. Es reanudable, pero
+# NO está corriendo. Antes no existía este estado, y por eso una tarea que
+# quedó a medias volvía como `in_progress` para siempre: figuraba trabajando
+# sin que nadie la ejecutara, y `submit_task` descartaba en silencio todo lo
+# que el usuario escribiera después. Ver `reconciliar()`.
+INTERRUMPIDA = "interrumpida"
+EN_CURSO = "in_progress"
+ESPERANDO_USUARIO = "WAITING_USER_APPROVAL"
+
+RESUMABLE = (EN_CURSO, ESPERANDO_USUARIO, INTERRUMPIDA)
 
 
 @dataclass
@@ -47,10 +56,28 @@ class TaskState:
     last_critique: dict | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    # Ciclo de vida (migración 0003). `titulo` va aparte de `command` porque en
+    # la base real de este equipo hay dos tareas con `command` vacío: se
+    # crearon sin orden y nadie pudo nombrarlas después.
+    titulo: str = ""
+    archivada: bool = False
+    borrada: bool = False
+    sin_leer_en: float | None = None
+    bifurcada_de: str | None = None
+    motivo_cierre: str | None = None
 
     @property
     def resumable(self) -> bool:
-        return self.status in RESUMABLE
+        return (self.status in RESUMABLE
+                and not self.archivada and not self.borrada)
+
+    @property
+    def nombre(self) -> str:
+        """Cómo se enseña en una lista. Nunca vacío."""
+        if self.titulo:
+            return self.titulo
+        t = (self.command or "").strip().splitlines()[0] if self.command else ""
+        return (t[:60] + "…") if len(t) > 60 else (t or f"(sin orden) {self.task_id}")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -65,7 +92,30 @@ class TaskState:
             last_proposal=json.loads(row["last_proposal"]) if row["last_proposal"] else None,
             last_critique=json.loads(row["last_critique"]) if row["last_critique"] else None,
             created_at=row["created_at"], updated_at=row["updated_at"],
+            **cls._ciclo_de_vida(row),
         )
+
+    @staticmethod
+    def _ciclo_de_vida(row: sqlite3.Row) -> dict:
+        """
+        Lee las columnas de la migración 0003 si están.
+
+        Se comprueba en vez de darlas por hechas porque un test puede crear la
+        tabla a mano y porque una base a la que le falte la migración debe
+        seguir cargando, no reventar.
+        """
+        try:
+            k = set(row.keys())
+        except Exception:
+            return {}
+        return {
+            "titulo": (row["titulo"] or "") if "titulo" in k else "",
+            "archivada": bool(row["archivada"]) if "archivada" in k else False,
+            "borrada": bool(row["borrada"]) if "borrada" in k else False,
+            "sin_leer_en": row["sin_leer_en"] if "sin_leer_en" in k else None,
+            "bifurcada_de": row["bifurcada_de"] if "bifurcada_de" in k else None,
+            "motivo_cierre": row["motivo_cierre"] if "motivo_cierre" in k else None,
+        }
 
 
 class TaskStore:
@@ -80,61 +130,25 @@ class TaskStore:
         c.row_factory = sqlite3.Row
         return c
 
-    def _migrate(self, c) -> None:
-        """Añade columnas nuevas a bases existentes sin perder datos."""
-        cols = {r["name"] for r in c.execute("PRAGMA table_info(task_state)")}
-        for col, ddl in (("max_rounds", "INTEGER NOT NULL DEFAULT 3"),
-                         ("use_tools", "INTEGER NOT NULL DEFAULT 1")):
-            if cols and col not in cols:
-                c.execute(f"ALTER TABLE task_state ADD COLUMN {col} {ddl}")
-                logger.info("[store] migración: columna %s añadida", col)
-
     def _init(self) -> None:
+        """
+        El esquema ya no se crea aquí: lo llevan las migraciones.
+
+        Antes esto era un `CREATE TABLE IF NOT EXISTS` gigante más un
+        `_migrate()` que añadía dos columnas a mano. Funcionaba mientras el
+        esquema no cambiara, pero `IF NOT EXISTS` no añade columnas a una tabla
+        que ya existe: cualquier columna nueva simplemente no llegaba a las
+        máquinas que ya habían abierto MAGI una vez. Ver `migraciones.py`.
+        """
+        from .migraciones import ejecutar
         with self._conn() as c:
-            c.executescript("""
-                CREATE TABLE IF NOT EXISTS task_state (
-                    task_id         TEXT PRIMARY KEY,
-                    command         TEXT NOT NULL,
-                    status          TEXT NOT NULL,
-                    round_num       INTEGER NOT NULL DEFAULT 1,
-                    engine          TEXT NOT NULL DEFAULT 'fast',
-                    narrative_style TEXT NOT NULL DEFAULT 'tecnico',
-                    route           TEXT NOT NULL DEFAULT 'task',
-                    max_rounds      INTEGER NOT NULL DEFAULT 3,
-                    use_tools       INTEGER NOT NULL DEFAULT 1,
-                    last_proposal   TEXT,
-                    last_critique   TEXT,
-                    created_at      REAL NOT NULL,
-                    updated_at      REAL NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_task_state_status
-                    ON task_state(status, updated_at DESC);
+            ejecutar(c)
 
-                CREATE TABLE IF NOT EXISTS task_event (
-                    seq      INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_id  TEXT NOT NULL,
-                    topic    TEXT NOT NULL,
-                    payload  TEXT,
-                    ts       REAL NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_task_event_task
-                    ON task_event(task_id, seq);
-
-                CREATE TABLE IF NOT EXISTS token_ledger (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_id    TEXT,
-                    agent      TEXT,
-                    provider   TEXT,
-                    family     TEXT,
-                    tokens_in  INTEGER DEFAULT 0,
-                    tokens_out INTEGER DEFAULT 0,
-                    latency_ms REAL DEFAULT 0,
-                    ts         REAL NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_token_ledger_task
-                    ON token_ledger(task_id, ts);
-            """)
-            self._migrate(c)
+    def estado_migraciones(self) -> dict:
+        """Para la pestaña Configuración: si esta base está al día."""
+        from .migraciones import informe
+        with self._conn() as c:
+            return informe(c)
 
     # ---------------------------------------------------------------- tareas
 
@@ -144,8 +158,10 @@ class TaskStore:
             c.execute("""
                 INSERT INTO task_state (task_id, command, status, round_num, engine,
                     narrative_style, route, max_rounds, use_tools,
-                    last_proposal, last_critique, created_at, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    last_proposal, last_critique, created_at, updated_at,
+                    titulo, archivada, borrada, sin_leer_en, bifurcada_de,
+                    motivo_cierre)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     command=excluded.command, status=excluded.status,
                     round_num=excluded.round_num, engine=excluded.engine,
@@ -153,7 +169,11 @@ class TaskStore:
                     max_rounds=excluded.max_rounds, use_tools=excluded.use_tools,
                     last_proposal=excluded.last_proposal,
                     last_critique=excluded.last_critique,
-                    updated_at=excluded.updated_at
+                    updated_at=excluded.updated_at,
+                    titulo=excluded.titulo, archivada=excluded.archivada,
+                    borrada=excluded.borrada, sin_leer_en=excluded.sin_leer_en,
+                    bifurcada_de=excluded.bifurcada_de,
+                    motivo_cierre=excluded.motivo_cierre
             """, (
                 state.task_id, state.command, state.status, state.round,
                 state.engine, state.narrative_style, state.route,
@@ -161,6 +181,8 @@ class TaskStore:
                 json.dumps(state.last_proposal, ensure_ascii=False) if state.last_proposal else None,
                 json.dumps(state.last_critique, ensure_ascii=False) if state.last_critique else None,
                 state.created_at, state.updated_at,
+                state.titulo, int(state.archivada), int(state.borrada),
+                state.sin_leer_en, state.bifurcada_de, state.motivo_cierre,
             ))
 
     def load(self, task_id: str) -> TaskState | None:
@@ -170,11 +192,18 @@ class TaskStore:
         return TaskState.from_row(row) if row else None
 
     def resumable(self) -> list[TaskState]:
-        """Lo que el kernel rehidrata al arrancar."""
+        """
+        Lo que el kernel rehidrata al arrancar.
+
+        Excluye archivadas y borradas. Antes no lo hacía —no existían esas
+        columnas— así que devolvía TODO lo que alguna vez estuvo abierto: en
+        esta máquina, 7 tareas desde el 7 de agosto, 4 de ellas "en curso".
+        """
         q = ",".join("?" * len(RESUMABLE))
         with self._conn() as c:
             rows = c.execute(
                 f"SELECT * FROM task_state WHERE status IN ({q}) "
+                f"AND archivada=0 AND borrada=0 "
                 f"ORDER BY updated_at DESC", RESUMABLE).fetchall()
         return [TaskState.from_row(r) for r in rows]
 
@@ -183,6 +212,112 @@ class TaskStore:
             rows = c.execute("SELECT * FROM task_state ORDER BY updated_at DESC "
                              "LIMIT ?", (limit,)).fetchall()
         return [TaskState.from_row(r) for r in rows]
+
+    def reconciliar(self) -> list[str]:
+        """
+        FASE 0. Toda tarea `in_progress` al arrancar estaba corriendo cuando el
+        proceso murió: pasa a `interrumpida`.
+
+        Se llama ANTES de rehidratar, cuando todavía no hay ningún bucle vivo,
+        así que no hace falta preguntar cuáles corren — la respuesta es
+        ninguna. Para el caso general (reconciliar con el proceso ya en
+        marcha) está `reconciliar_vivas()`.
+
+        POR QUÉ ESTO DESBLOQUEA LA APLICACIÓN
+        =====================================
+        `_rehydrate()` devolvía esas tareas a `active_tasks` como `in_progress`
+        sin volver a lanzar su bucle: zombis. Y `submit_task` tenía
+
+            elif state["status"] == "in_progress":
+                return   # sin evento, sin fila, sin motivo
+
+        Encadenado: la fila `default` de esta máquina llevaba `in_progress`
+        desde el 8 de agosto a las 22:38, así que TODO lo que el usuario
+        escribiera —que siempre va con id `default`— chocaba contra ella y se
+        descartaba en silencio. En cada arranque, para siempre, porque la fila
+        nunca cambiaba.
+
+        Devuelve los ids reconciliados.
+        """
+        with self._conn() as c:
+            ids = [r["task_id"] for r in c.execute(
+                "SELECT task_id FROM task_state "
+                "WHERE status=? AND archivada=0 AND borrada=0", (EN_CURSO,))]
+            if ids:
+                c.execute(
+                    "UPDATE task_state SET status=?, motivo_cierre=?, "
+                    "updated_at=? WHERE status=? AND archivada=0 AND borrada=0",
+                    (INTERRUMPIDA,
+                     "el proceso se cerró mientras estaba en curso",
+                     time.time(), EN_CURSO))
+        if ids:
+            logger.warning(
+                "[store] %d tarea(s) quedaron a medias y pasan a interrumpida: "
+                "%s. Son reanudables; NO estaban corriendo.",
+                len(ids), ", ".join(ids))
+        return ids
+
+    def reconciliar_vivas(self, esta_viva) -> list[str]:
+        """
+        Igual, pero preguntando por cada tarea si su bucle sigue vivo.
+
+        `esta_viva` es normalmente `supervisor().is_running`, que ya existía en
+        `core/cancel.py:163` y era la ÚNICA fuente que sabía de verdad si algo
+        se estaba ejecutando. Nadie la consultaba salvo el botón de parada.
+        """
+        rec: list[str] = []
+        with self._conn() as c:
+            ids = [r["task_id"] for r in c.execute(
+                "SELECT task_id FROM task_state "
+                "WHERE status=? AND archivada=0 AND borrada=0", (EN_CURSO,))]
+            for tid in ids:
+                try:
+                    if esta_viva(tid):
+                        continue
+                except Exception:
+                    pass
+                c.execute("UPDATE task_state SET status=?, motivo_cierre=?, "
+                          "updated_at=? WHERE task_id=?",
+                          (INTERRUMPIDA, "sin bucle de ejecución vivo",
+                           time.time(), tid))
+                rec.append(tid)
+        if rec:
+            logger.warning("[store] zombis reconciliados: %s", ", ".join(rec))
+        return rec
+
+    def archivar(self, task_id: str, motivo: str = "") -> None:
+        """
+        Sale de la vista sin perderse. Es lo que faltaba para que las tareas
+        cerradas no se acumularan indefinidamente.
+        """
+        with self._conn() as c:
+            c.execute("UPDATE task_state SET archivada=1, motivo_cierre=?, "
+                      "updated_at=? WHERE task_id=?",
+                      (motivo or None, time.time(), task_id))
+
+    def bifurcar(self, origen: str, nuevo_id: str, command: str,
+                 titulo: str = "") -> TaskState | None:
+        """
+        Nueva tarea que HEREDA el contexto de otra sin contaminarla.
+
+        Es la respuesta correcta a escribir algo nuevo mientras otra tarea
+        espera aprobación. Hasta ahora había que elegir entre absorberlo —y
+        perder la pregunta, que es lo que pasó con «dime por que la soledad
+        duele»— o abrir una tarea suelta que no sabe nada de lo anterior.
+        """
+        base = self.load(origen)
+        if base is None:
+            return None
+        hija = TaskState(
+            task_id=nuevo_id, command=command, status=EN_CURSO, round=1,
+            engine=base.engine, narrative_style=base.narrative_style,
+            route=base.route, max_rounds=base.max_rounds,
+            use_tools=base.use_tools,
+            last_proposal=base.last_proposal, last_critique=base.last_critique,
+            titulo=titulo, bifurcada_de=origen)
+        self.save(hija)
+        logger.info("[store] %s bifurcada de %s", nuevo_id, origen)
+        return hija
 
     def delete(self, task_id: str) -> None:
         with self._conn() as c:

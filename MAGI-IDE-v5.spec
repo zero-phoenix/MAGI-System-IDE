@@ -5,7 +5,11 @@ a = Analysis(
     ['magi\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets'), ('magi-gui/dist', 'magi-gui/dist')],
+    # `magi/data` lleva el catálogo de proveedores. Sin esta línea el .exe
+    # arrancaría con el respaldo de las constantes —funciona, pero se pierde
+    # justo lo que se buscaba: poder arreglar un proveedor sin recompilar.
+    datas=[('assets', 'assets'), ('magi-gui/dist', 'magi-gui/dist'),
+           ('magi/data', 'magi/data')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

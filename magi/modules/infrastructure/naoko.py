@@ -63,8 +63,26 @@ class NaokoAgent:
 
         esperando = [(t, d) for t, d in tasks.items()
                      if d.get("status") == "WAITING_USER_APPROVAL"]
-        en_curso = [(t, d) for t, d in tasks.items()
+        # EL DATO QUE FALTABA. Antes, «en curso» significaba solo «la fila dice
+        # in_progress», y eso incluía a los zombis rehidratados. Con esa
+        # premisa falsa delante, NAOKO explicaba una demora que no existía y,
+        # sin nada verdadero que añadir, rellenaba: de ahí el tres en raya.
+        #
+        # `supervisor().is_running` ya existía en core/cancel.py y era la única
+        # fuente que sabía de verdad si algo se ejecutaba. Nadie la consultaba.
+        try:
+            from magi.core.cancel import supervisor
+            vivo = supervisor().is_running
+        except Exception:
+            def vivo(_tid):
+                return False
+
+        marcadas = [(t, d) for t, d in tasks.items()
                     if d.get("status") == "in_progress"]
+        en_curso = [(t, d) for t, d in marcadas if vivo(t)]
+        zombis = [(t, d) for t, d in marcadas if not vivo(t)]
+        interrumpidas = [(t, d) for t, d in tasks.items()
+                         if d.get("status") == "interrumpida"]
 
         summary = [f"Estado del Enjambre: {len(tasks)} tarea(s) registrada(s)."]
         for tid, tdata in tasks.items():
@@ -86,9 +104,83 @@ class NaokoAgent:
         if en_curso:
             ids = ", ".join(f"{t} (ronda {d.get('round',1)})" for t, d in en_curso)
             summary.append(
-                f"\nEN CURSO: {ids}. Si se queja de demora, ESTO es la demora, "
-                f"y la latencia medida de cada familia está más arriba.")
+                f"\nEN CURSO DE VERDAD (bucle vivo comprobado): {ids}. Si se "
+                f"queja de demora, ESTO es la demora, y la latencia medida de "
+                f"cada familia está más arriba.")
+        if zombis:
+            ids = ", ".join(t for t, _ in zombis)
+            summary.append(
+                f"\nATENCIÓN — FIGURAN EN CURSO PERO NO LO ESTÁN: {ids}. No "
+                f"tienen bucle de ejecución vivo. NO son 'la demora' y NO "
+                f"están trabajando: quedaron a medias. Se reconcilian solas y "
+                f"se retoman con el siguiente mensaje del usuario. Decir que "
+                f"están en curso sería falso.")
+        if interrumpidas:
+            ids = ", ".join(t for t, _ in interrumpidas)
+            summary.append(
+                f"\nINTERRUMPIDAS (reanudables, no rotas): {ids}. Se retoman "
+                f"con lo próximo que escriba.")
         return "\n".join(summary)
+
+    def _situacion(self):
+        """
+        Reúne los HECHOS para el catálogo de diagnóstico.
+
+        Todo se lee del sistema. Lo que no se pueda averiguar se queda vacío en
+        vez de rellenarse: un diagnóstico con datos inventados es peor que no
+        diagnosticar.
+        """
+        from magi.modules.infrastructure.diagnostico import Situacion
+
+        s = Situacion()
+        if not self.swarm or not hasattr(self.swarm, "active_tasks"):
+            return s
+        s.tareas = dict(self.swarm.active_tasks or {})
+
+        try:
+            from magi.core.cancel import supervisor
+            vivo = supervisor().is_running
+        except Exception:
+            def vivo(_t):
+                return False
+
+        for tid, d in s.tareas.items():
+            est = d.get("status")
+            if est == "WAITING_USER_APPROVAL":
+                s.esperando_usuario.append(tid)
+            elif est == "interrumpida":
+                s.interrumpidas.append(tid)
+            elif est == "in_progress":
+                (s.en_curso_de_verdad if vivo(tid) else s.zombis).append(tid)
+            if vivo(tid):
+                s.vivas.add(tid)
+
+        try:
+            adm = self.swarm.admision
+            s.entradas_perdidas = len(adm.perdidas())
+            s.en_cola = sum(len(adm.en_cola(t)) for t in s.tareas)
+            s.ultimas_entradas = [e.resumen() for e in adm.recientes(5)]
+        except Exception:
+            pass
+
+        try:
+            from magi.core.providers.backends.g4f_backend import FAMILY_SPECS, ROTOS
+            s.familias_agotadas = [
+                f for f, c in FAMILY_SPECS.items()
+                if not [x for x in c if x[0] not in ROTOS]]
+        except Exception:
+            pass
+
+        try:
+            if self.metrics:
+                snap = self.metrics.snapshot() or {}
+                for p in (snap.get("providers") or []):
+                    if p.get("provider"):
+                        s.latencias[p["provider"]] = (
+                            float(p.get("avg_latency_ms", 0)) / 1000.0)
+        except Exception:
+            pass
+        return s
 
     async def start(self):
         # Suscribirse a eventos de error (desde Kernel o Providers)
@@ -107,6 +199,46 @@ class NaokoAgent:
                     self.memory.root, len(self.memory.episodes(limit=None)),
                     len(self.memory.lessons()))
 
+    async def _responder_operativa(self, pregunta: str) -> bool:
+        """
+        Contesta las preguntas sobre el propio sistema SIN modelo.
+
+        Devuelve True si la contestó. La respuesta se compone de hechos leídos
+        del sistema; el modelo no interviene, así que no puede inventar. Es
+        determinista: mismo estado, mismo texto.
+
+        Si el catálogo no reconoce la situación, la respuesta es «no lo sé,
+        esto es lo que veo» con los datos delante. Eso ES la respuesta
+        correcta: un diagnóstico improvisado da confianza falsa, que es peor
+        que no tener diagnóstico.
+        """
+        try:
+            from magi.modules.infrastructure.diagnostico import diagnosticar
+            d = diagnosticar(pregunta, self._situacion())
+        except Exception as e:                          # pragma: no cover
+            logger.warning("[naoko] el catálogo de diagnóstico falló: %s", e)
+            return False
+
+        if d is None:
+            return False
+
+        cabecera = ("Diagnóstico" if d.seguro
+                    else "No tengo causa confirmada")
+        await self.bus.publish(BusEvent(
+            topic="naoko.log",
+            payload={"agent": "NAOKO",
+                     "content": f"**{cabecera}**\n\n{d.texto}"}))
+        await self.bus.publish(BusEvent(
+            topic="naoko.diagnostico", payload=d.to_dict()))
+        try:
+            self.memory.remember_episode(
+                "diagnostico",
+                f"caso {d.caso.id if d.caso else 'ninguno encajó'}",
+                detalle=pregunta[:200])
+        except Exception:
+            pass
+        return True
+
     async def _handle_user_message(self, event: BusEvent):
         """Conversación directa con el usuario desde la UI"""
         user_msg = event.payload.get("message", "")
@@ -117,7 +249,22 @@ class NaokoAgent:
             log_content += "\n[📷 Imagen Adjuntada por el usuario]"
             
         await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": log_content}))
-        
+
+        # PRIMERO EL CATÁLOGO, DESPUÉS EL MODELO
+        # ======================================
+        # Si la pregunta es sobre el propio sistema («no responde», «tarda»,
+        # «la respuesta está a medias»), la respuesta se CONSTRUYE con datos
+        # del libro de tareas y del libro de admisión. El modelo no participa
+        # en decidir qué pasa: solo lo cuenta.
+        #
+        # Esto es lo que impide que se repita el tres en raya. Aquel fallo no
+        # fue de redacción: fue que se le pidió diagnosticar sin darle con qué,
+        # y un modelo al que le falta material produce texto plausible. Las
+        # reglas de prompt («los datos antes que la empatía») no bastaron
+        # porque el problema no era la instrucción, era el material.
+        if await self._responder_operativa(user_msg):
+            return
+
         # Recuperar memoria y estado del enjambre
         memories = await self.db.get_naoko_memory(limit=5)
         mem_text = json.dumps(memories, indent=2)

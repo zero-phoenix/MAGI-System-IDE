@@ -217,18 +217,38 @@ export default function App() {
     cancelTask(activeConversationId);
   };
 
-  const getAgentData = (agentName: string, defaultProv: string) => {
+  // Reparto REAL del enjambre, leído de `sys.config`.
+  //
+  // Antes, las tres tarjetas centrales caían a `prov-a` / `prov-b` / `prov-c`
+  // mientras no hubiera mensajes — es decir, siempre al abrir. Tres etiquetas
+  // que no significan nada para nadie; el usuario preguntó literalmente por
+  // qué no se entienden. Y encima el reparto cableado estaba mal: le daba
+  // `prov-c` a BALTHASAR y `prov-a` a CASPER, letras que no correspondían a
+  // ningún proveedor. La cabecera ya se arregló; esto se quedó sin tocar.
+  const [reparto, setReparto] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!fetchConfig) return;
+    let vivo = true;
+    fetchConfig()
+      .then((c: any) => { if (vivo) setReparto(c?.enjambre?.familias || {}); })
+      .catch(() => { /* la cabecera ya avisa; aquí se calla y usa "—" */ });
+    return () => { vivo = false; };
+  }, [fetchConfig, connected]);
+
+  const getAgentData = (agentName: string) => {
     const msgs = messages.filter(m => m.agent === agentName);
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-    const provider = lastMsg?.provider || defaultProv;
+    // Lo que respondió de verdad manda; si aún no ha hablado, la familia que
+    // le toca según el reparto; y si tampoco se sabe, un guion honesto.
+    const provider = lastMsg?.provider || reparto[agentName] || "—";
     const tel = telemetry?.find(t => t.provider === provider);
     const latency = tel ? `${tel.avg_latency_ms.toFixed(0)}ms` : '---';
     return { provider, latency };
   };
 
-  const balthasarData = getAgentData("BALTHASAR", "prov-c");
-  const casperData = getAgentData("CASPER", "prov-a");
-  const melchiorData = getAgentData("MELCHIOR", "prov-b");
+  const balthasarData = getAgentData("BALTHASAR");
+  const casperData = getAgentData("CASPER");
+  const melchiorData = getAgentData("MELCHIOR");
   
   const casperMsgs = messages.filter(m => m.agent === 'CASPER');
   const lastCasper = casperMsgs[casperMsgs.length - 1];

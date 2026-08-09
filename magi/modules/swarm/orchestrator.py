@@ -4,6 +4,8 @@ from magi.core.blackboard import Blackboard
 from magi.core.bus import MagiBus, BusEvent
 from .agents import MelchiorAgent, BalthasarAgent, CasperAgent
 from .intencion import aprueba as _aprueba, es_respuesta_a_aprobacion
+from magi.core.store.state import INTERRUMPIDA
+from magi.core.store.admision import AHORA, ENCOLAR
 from .parallel import (
     critique_multi_axis, format_variants_for_critic, generate_variants,
 )
@@ -29,6 +31,11 @@ class SwarmOrchestrator:
         self.active_tasks = {}
         self.latest_task_id = None
         self._memory: dict[str, EpisodicMemory] = {}
+        self._reconciliadas: list[str] = []
+        # Libro de admisión: toda entrada del usuario queda escrita antes de
+        # decidir qué hacer con ella. Ver `core/store/admision.py`.
+        from magi.core.store.admision import LibroDeAdmision
+        self.admision = LibroDeAdmision(self.store)
 
         # Agentes ANTES de rehidratar: _rehydrate puede reanudar una tarea.
         self.melchior = MelchiorAgent(self.blackboard, self.bus)
@@ -44,7 +51,22 @@ class SwarmOrchestrator:
         return self._memory[task_id]
 
     def _rehydrate(self) -> None:
-        """Recupera las tareas reanudables al arrancar."""
+        """
+        Recupera las tareas reanudables al arrancar.
+
+        FASE 0 — antes de leer nada, reconciliar. Todo lo que figure
+        `in_progress` en este momento estaba corriendo cuando el proceso murió:
+        no hay ni un bucle vivo todavía. Devolverlas como `in_progress` era
+        crear zombis, y un zombi con el id `default` bloqueaba la aplicación
+        entera de forma permanente.
+        """
+        try:
+            reconciliadas = self.store.reconciliar()
+            if reconciliadas:
+                self._reconciliadas = reconciliadas
+        except Exception as e:
+            logger.warning("[SWARM] no se pudo reconciliar el estado: %s", e)
+
         try:
             for st in self.store.resumable():
                 self.active_tasks[st.task_id] = {
@@ -127,6 +149,52 @@ class SwarmOrchestrator:
                           route: str = "task", max_rounds: int = 3,
                           use_tools: bool = True):
         """Inicia un nuevo flujo de trabajo en el enjambre o resume uno pausado."""
+        # LO PRIMERO: dejarlo escrito. Antes de clasificar, antes de decidir,
+        # antes de nada. Si algo revienta más abajo, el mensaje del usuario ya
+        # está en el libro y se ve que llegó.
+        #
+        # Este orden es el que hace que el fallo sea imposible, no una regla
+        # que haya que recordar respetar.
+        entrada = None
+        try:
+            entrada = self.admision.admitir(command, task_id, entrega=AHORA)
+        except Exception as e:                        # pragma: no cover
+            logger.warning("[SWARM] no se pudo registrar la entrada: %s", e)
+
+        try:
+            await self._despachar(task_id, command, engine, narrative_style,
+                                  route, max_rounds, use_tools, entrada)
+        except Exception as e:
+            if entrada is not None:
+                try:
+                    self.admision.fallar(entrada.id, str(e))
+                except Exception:
+                    pass
+            raise
+        else:
+            # Cierre del ciclo. Cualquier camino de `_despachar` que termine
+            # bien deja la entrada promovida, salvo que ya la haya encolado o
+            # resuelto él mismo. Así el invariante no depende de acordarse de
+            # cerrar el ciclo en cada rama: se cierra aquí, una vez.
+            self._cerrar_entrada(entrada, task_id)
+
+    def _cerrar_entrada(self, entrada, task_id: str) -> None:
+        if entrada is None:
+            return
+        try:
+            with self.store._conn() as c:
+                fila = c.execute(
+                    "SELECT estado, entrega FROM entrada_usuario WHERE id=?",
+                    (entrada.id,)).fetchone()
+            if fila and fila["estado"] == "admitida" and fila["entrega"] == AHORA:
+                self.admision.promover(entrada.id, task_id)
+        except Exception as e:                        # pragma: no cover
+            logger.warning("[SWARM] no se pudo cerrar la entrada %s: %s",
+                           entrada.id, e)
+
+    async def _despachar(self, task_id: str, command: str, engine: str,
+                         narrative_style: str, route: str, max_rounds: int,
+                         use_tools: bool, entrada=None):
         # Absorción de la petición en la tarea anterior.
         #
         # v5.0.28 reescribía el task_id entrante por el de la tarea previa
@@ -292,9 +360,35 @@ class SwarmOrchestrator:
                     ))
                     self._spawn_loop(task_id)
                 return
-            elif state["status"] == "in_progress":
-                return # Ignorar comandos extra mientras piensa
-                
+            elif state["status"] in ("in_progress", INTERRUMPIDA):
+                # AQUÍ ESTABA EL FALLO QUE BLOQUEABA EL SISTEMA
+                # ================================================
+                # Antes:
+                #     elif state["status"] == "in_progress":
+                #         return   # Ignorar comandos extra mientras piensa
+                #
+                # Un `return` mudo: ni evento, ni fila, ni motivo. El mensaje
+                # del usuario se evaporaba. Y como `_rehydrate()` resucitaba
+                # las tareas `in_progress` sin volver a lanzar su bucle, una
+                # tarea muerta de una sesión anterior seguía "en curso" para
+                # siempre y se tragaba TODO lo que se escribiera después. La
+                # fila `default` de esta máquina llevaba así desde el 8 de
+                # agosto a las 22:38.
+                #
+                # Ahora hay tres salidas, y las tres dejan constancia:
+                #
+                #   1. interrumpida  -> se reanuda con la orden nueva
+                #   2. viva de verdad -> se ENCOLA y se avisa
+                #   3. figura viva pero no lo está -> se reconcilia y se reanuda
+                #
+                # El caso 2 es lo que hacen Zcode (`delivery='queue'`) y Claude
+                # Code (`command_lifecycle: queued`): si el agente está
+                # ocupado, la entrada espera turno. No se tira.
+                await self._entrada_mientras_ocupada(task_id, state, command,
+                                                     entrada)
+                return
+
+
         logger.info(f"[SWARM] Iniciando tarea {task_id}: {command}")
         self.latest_task_id = task_id
         self.active_tasks[task_id] = {
@@ -317,6 +411,95 @@ class SwarmOrchestrator:
         # Arrancar el bucle de la conversación asíncronamente
         self._spawn_loop(task_id)
         
+    async def _entrada_mientras_ocupada(self, task_id: str, state: dict,
+                                        command: str, entrada) -> None:
+        """
+        Qué hacer con lo que escribes mientras la tarea ya está ocupada.
+
+        Sustituye al `return` mudo. Tres caminos, y ninguno pierde el mensaje.
+        """
+        from magi.core.cancel import supervisor
+
+        try:
+            viva = supervisor().is_running(task_id)
+        except Exception:
+            viva = False
+
+        # 1. Interrumpida, o figura viva pero no lo está. En ambos casos no hay
+        #    nadie trabajando: se reanuda con la orden nueva. El segundo caso
+        #    es el zombi clásico, y aquí se cura solo en vez de bloquear.
+        if state["status"] == INTERRUMPIDA or not viva:
+            motivo = ("reanudada tras interrupción"
+                      if state["status"] == INTERRUMPIDA
+                      else "figuraba en curso pero no había bucle vivo")
+            logger.info("[SWARM] %s: %s. Se reanuda con la orden nueva.",
+                        task_id, motivo)
+            state["status"] = "in_progress"
+            state["command"] = command
+            state["round"] = max(1, int(state.get("round", 1)))
+            self._persist(task_id)
+            if entrada is not None:
+                self.admision.promover(entrada.id, task_id)
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content":
+                         f"[SWARM] La tarea {task_id} {motivo}. Retomo con lo "
+                         f"que acabas de escribir."}))
+            self._spawn_loop(task_id)
+            return
+
+        # 2. Viva de verdad. Se ENCOLA — que es lo que hacen Zcode
+        #    (delivery='queue') y Claude Code (command_lifecycle: queued) — y
+        #    se dice en voz alta. El turno en curso la recogerá al terminar.
+        if entrada is not None:
+            try:
+                with self.store._conn() as c:
+                    c.execute("UPDATE entrada_usuario SET entrega=? WHERE id=?",
+                              (ENCOLAR, entrada.id))
+            except Exception as e:                    # pragma: no cover
+                logger.warning("[SWARM] no se pudo encolar %s: %s",
+                               entrada.id, e)
+        pendientes = len(self.admision.en_cola(task_id))
+        logger.info("[SWARM] %s ocupada; entrada encolada (%d en cola)",
+                    task_id, pendientes)
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"content":
+                     f"[SWARM] El enjambre está trabajando en {task_id} "
+                     f"(ronda {state.get('round', 1)}). Tu mensaje queda EN "
+                     f"COLA y se atiende al terminar la ronda "
+                     f"({pendientes} en espera). No se ha perdido."}))
+        await self.bus.publish(BusEvent(
+            topic="swarm.entrada_encolada",
+            payload={"task_id": task_id, "pendientes": pendientes,
+                     "texto": command[:200]}))
+
+    async def _vaciar_cola(self, task_id: str) -> bool:
+        """
+        Recoge lo que se encoló mientras trabajábamos.
+
+        Se llama al cerrar una ronda. Devuelve True si había algo, para que el
+        bucle sepa que tiene que seguir en vez de pararse.
+        """
+        siguiente = self.admision.siguiente_en_cola(task_id)
+        if siguiente is None:
+            return False
+        state = self.active_tasks.get(task_id)
+        if state is None:
+            return False
+
+        self.admision.promover(siguiente.id, task_id)
+        state["status"] = "in_progress"
+        state["command"] = siguiente.texto
+        state["round"] = int(state.get("round", 1)) + 1
+        self._persist(task_id)
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"content":
+                     f"[SWARM] Retomo lo que dejaste en cola: "
+                     f"«{siguiente.texto[:80]}»"}))
+        return True
+
     async def _orchestrate_loop(self, task_id: str):
         state = self.active_tasks[task_id]
         
@@ -439,6 +622,11 @@ class SwarmOrchestrator:
             is_asking_approval = "¿APRUEBAS" in feedback_text or "APRUEBAS" in feedback_text or verdict["decision"] == "APPROVED"
             
             if is_asking_approval or current_round >= state.get("max_rounds", 3):
+                # Antes de pedir aprobación, mirar si escribiste algo mientras
+                # trabajábamos. Si lo hay, se atiende AHORA en vez de pedirte
+                # el visto bueno a una propuesta que ya has comentado.
+                if await self._vaciar_cola(task_id):
+                    continue
                 state["status"] = "WAITING_USER_APPROVAL"
                 self._persist(task_id)
 

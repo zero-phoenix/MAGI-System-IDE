@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "generado": "2026-08-09",
+  "nota": "Catalogo de proveedores. Antes vivia como constantes de Python en g4f_backend.py, asi que arreglar un proveedor caido exigia recompilar 158 MB de ejecutable. Se puede sobreescribir con un fichero del mismo nombre en %LOCALAPPDATA%\\MagiSystem\\.",
+  "limites": {
+    "ventana_contexto_caracteres": 120000,
+    "nota": "Ninguno de estos proveedores gratuitos publica su ventana real, asi que poner un numero por modelo seria inventarselo. Este limite conservador global es lo que hoy NO existe: MAGI monta prompts largos sin comprobar nada, y cuando no caben lee el fallo como 'proveedor roto' y rota a otro que fallara igual. Subelo por familia cuando tengas la medida."
+  },
+  "hedge": {
+    "tras_segundos": 4.0,
+    "maximo": 2
+  },
+  "reparto_enjambre": {
+    "MELCHIOR": "gpt",
+    "BALTHASAR": "gemini",
+    "CASPER": "command"
+  },
+  "rotos": {
+    "PhindAi": "incompatible con la versión instalada de curl_cffi (BaseSession.__init__() no acepta 'proxy')",
+    "Qwen": "AsyncSession.request() no acepta 'proxy' en esta versión",
+    "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
+    "LMArena": "exige fichero de autenticación y nodriver",
+    "GLM": "responde con captcha",
+    "MetaAI": "responde 403 desde esta red",
+    "OpenaiChat": "exige un fichero .har de sesión",
+    "Copilot": "exige un fichero .har de sesión",
+    "Pollinations": "responde 402 (pago requerido)",
+    "GeminiPro": "responde 429 (cuota agotada)",
+    "Ollama": "es un motor LOCAL: lo prohíbe §I.3",
+    "Cloudflare": "su única vía es CDPSession (abrir Chrome), bloqueada por §I.3",
+    "DeepInfra": "su única vía es SyncCDPSession (abrir Chrome), bloqueada por §I.3"
+  },
+  "familias": {
+    "gpt": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Yqcloud",
+          "modelo": "gpt-4",
+          "latencia_medida_ms": 2000,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "WeWordle",
+          "modelo": "gpt-4o",
+          "latencia_medida_ms": 2389,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "CopilotApp",
+          "modelo": null,
+          "latencia_medida_ms": 1156,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "OpenaiChat",
+          "modelo": "gpt-5"
+        },
+        {
+          "proveedor": "Pollinations",
+          "modelo": null
+        }
+      ]
+    },
+    "gemini": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Gemini",
+          "modelo": "gemini-3.5-flash",
+          "latencia_medida_ms": 3421,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "Gemini",
+          "modelo": "gemini-3.1-pro"
+        },
+        {
+          "proveedor": "GeminiPro",
+          "modelo": null
+        }
+      ]
+    },
+    "command": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "CohereForAI_C4AI_Command",
+          "modelo": "command-a-03-2025",
+          "latencia_medida_ms": 1078,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "CohereForAI_C4AI_Command",
+          "modelo": "command-r-plus"
+        }
+      ]
+    },
+    "llama": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Groq",
+          "modelo": null,
+          "latencia_medida_ms": 922,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "MetaAI",
+          "modelo": null
+        },
+        {
+          "proveedor": "DeepInfra",
+          "modelo": null
+        }
+      ]
+    },
+    "perplexity": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "auto",
+          "latencia_medida_ms": 7921,
+          "verificado": "2026-08-06"
+        }
+      ]
+    },
+    "hf": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "HuggingSpace",
+          "modelo": null,
+          "latencia_medida_ms": 890,
+          "verificado": "2026-08-06"
+        }
+      ]
+    },
+    "deepseek": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "PhindAi",
+          "modelo": "deepseek-v3"
+        },
+        {
+          "proveedor": "PhindAi",
+          "modelo": "deepseek"
+        },
+        {
+          "proveedor": "Cloudflare",
+          "modelo": "deepseek-coder-6.7b"
+        },
+        {
+          "proveedor": "Cloudflare",
+          "modelo": "deepseek-distill-qwen-32b"
+        }
+      ]
+    },
+    "qwen": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Qwen",
+          "modelo": "qwen3.7-plus"
+        },
+        {
+          "proveedor": "Qwen",
+          "modelo": "qwen3.6-plus"
+        },
+        {
+          "proveedor": "Qwen",
+          "modelo": "qwen3.7-max"
+        }
+      ]
+    },
+    "claude": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Claude",
+          "modelo": null
+        },
+        {
+          "proveedor": "LMArena",
+          "modelo": "claude-sonnet-4"
+        }
+      ]
+    },
+    "glm": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "GLM",
+          "modelo": null
+        }
+      ]
+    },
+    "auto": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "AnyProvider",
+          "modelo": "gpt-4o",
+          "latencia_medida_ms": 1671,
+          "verificado": "2026-08-06"
+        },
+        {
+          "proveedor": "AnyProvider",
+          "modelo": "default",
+          "latencia_medida_ms": 8014,
+          "verificado": "2026-08-06"
+        }
+      ]
+    }
+  }
+}

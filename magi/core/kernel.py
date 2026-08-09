@@ -152,7 +152,49 @@ class Kernel:
             "rutas": paths.describe(),
             "cortafuegos": no_browser.self_test(),
             "violaciones": no_browser.violations()[:5],
+            # De dónde salen los datos de proveedores y si se pueden editar sin
+            # recompilar. Antes esto no se podía ni preguntar.
+            "catalogo": self._info_catalogo(),
+            # Si esta base está al día. Un usuario con la base a medias tenía
+            # fallos incomprensibles y ninguna forma de verlo.
+            "esquema": self._info_esquema(),
+            # El libro de admisión: cuántas entradas hay en cola y cuántas se
+            # quedaron sin resolver. Cero perdidas es el estado correcto.
+            "admision": self._info_admision(),
+            "diagnostico": self._info_diagnostico(),
         }
+
+    def _info_catalogo(self) -> dict:
+        try:
+            from magi.core.providers.backends.g4f_backend import informe_catalogo
+            return informe_catalogo()
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
+
+    def _info_esquema(self) -> dict:
+        try:
+            return self.swarm.store.estado_migraciones()
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
+
+    def _info_admision(self) -> dict:
+        try:
+            adm = self.swarm.admision
+            perdidas = adm.perdidas()
+            cola = sum(len(adm.en_cola(t)) for t in self.swarm.active_tasks)
+            return {"en_cola": cola,
+                    "perdidas": len(perdidas),
+                    "ultimas": [e.resumen() for e in adm.recientes(8)]}
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
+
+    def _info_diagnostico(self) -> dict:
+        try:
+            from magi.modules.infrastructure import diagnostico as dg
+            return {"version": dg.VERSION, "casos": len(dg.CATALOGO),
+                    "texto": dg.catalogo_legible()}
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
 
     async def _handle_artifacts_list(self, payload, websocket):
         """Ficheros que MAGI ha generado en el workspace, para la vista previa."""
