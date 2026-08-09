@@ -79,10 +79,24 @@ jobs:
         cache: 'npm'
         cache-dependency-path: magi-gui/package-lock.json
 
-    - name: Install Python dependencies
+    # DEL LOCK, NO DE requirements.txt — y la diferencia con el job `test` de
+    # arriba es deliberada, no un descuido.
+    #
+    # El job `test` instala de requirements.txt: prueba que el proyecto sigue
+    # funcionando con las versiones de HOY, que es donde quieres enterarte de
+    # que un upstream ha roto algo.
+    #
+    # Este job compila el binario que se PUBLICA. Aquí no se quiere la última
+    # versión: se quiere exactamente la que se probó. Sin lock, recompilar este
+    # mismo tag dentro de seis meses produce un .exe distinto, y una versión
+    # publicada que no se puede reproducir no se puede depurar.
+    #
+    # El lock es de Windows (lleva pythonnet/clr-loader, de pywebview) y por eso
+    # solo se usa aquí. Ver la cabecera de requirements.lock.
+    - name: Install Python dependencies (bloqueadas)
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.lock
         pip install pyinstaller pywebview
 
     - name: Build Frontend

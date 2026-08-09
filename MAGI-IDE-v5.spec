@@ -40,11 +40,42 @@ a = Analysis(
     # con estos módulos bloqueados en sys.meta_path, magi.main importa, los 11
     # proveedores se registran, el enjambre reparte gpt/gemini/command con
     # diversidad completa y la inferencia responde.
+    #
+    # SEGUNDO GRUPO: lo que se cuela desde el Python de quien compila.
+    #
+    # Auditado midiendo el bundle de una compilación local (Analysis-00.toc
+    # contra el tamaño real de cada fichero). Los que más pesaban NO eran
+    # dependencias del proyecto: eran extras opcionales de g4f que estaban
+    # instalados en el Python global de la máquina de desarrollo.
+    #
+    #     29,2 MB  speech_recognition  (modelo de lenguaje de pocketsphinx)
+    #     10,0 MB  yt_dlp
+    #      8,1 MB  pandas
+    #      7,2 MB  pypdfium2
+    #      7,2 MB  sqlalchemy
+    #      6,2 MB  openai
+    #      4,2 MB  matplotlib
+    #
+    # Ninguno aparece en requirements.lock y ninguna línea de `magi/` los
+    # importa: 55 MB de binario que dependían de qué tuviera instalado quien
+    # le diera a compilar. El .exe del release ya salía sin ellos —se compila
+    # desde el lock, en un runner limpio—, así que excluirlos NO cambia lo que
+    # se publica: hace que una compilación local produzca el MISMO binario que
+    # el release. Un binario que depende del entorno de quien lo genera no se
+    # puede depurar contra el que descarga la gente.
+    #
+    # La regla, escrita para no tener que redescubrirla: si no está en
+    # requirements.lock y magi/ no lo importa, no viaja dentro.
+    # `tests/test_bundle_coherente.py` comprueba que esta lista y el código no
+    # se contradigan.
     excludes=[
         'torch', 'torchvision', 'torchaudio',
         'tensorflow', 'transformers', 'onnxruntime',
         'markitdown', 'magika',
         'PyQt5', 'PySide2', 'PySide6',
+        'speech_recognition', 'pocketsphinx',
+        'yt_dlp', 'pandas', 'pypdfium2', 'pypdfium2_raw',
+        'sqlalchemy', 'openai', 'matplotlib',
     ],
     noarchive=False,
     optimize=0,
