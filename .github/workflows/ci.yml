@@ -60,6 +60,14 @@ jobs:
     - name: Run tests
       run: python -m pytest tests/ -v --tb=short
 
+    # Cobertura de magi/core/ (informativa). continue-on-error: la cobertura
+    # está hoy en ~79%; cuando suba, se puede convertir en umbral bloqueante.
+    # Solo en Linux para no duplicar el reporte en la matriz de OS.
+    - name: Coverage report (magi/core)
+      if: runner.os == 'Linux'
+      continue-on-error: true
+      run: python -m pytest tests/ -q --cov=magi/core --cov-report=term --cov-config=/dev/null
+
     - name: Check imports resolve
       run: |
         python -c "
@@ -81,12 +89,27 @@ jobs:
     - name: Install ruff
       run: pip install ruff
 
-    - name: Syntax and undefined names
+    - name: Syntax and undefined names (bloqueante)
       run: ruff check magi/ tests/ --select E9,F63,F7,F82
+
+    - name: Lint completo (informativo — deuda técnica visible)
+      # --exit-zero: nunca falla el workflow, solo publica el conteo en el log.
+      # El objetivo es visibilidad progresiva: cuando la deuda baje, este step
+      # pasa a bloqueante. Por ahora, reportar sin romper el desarrollo.
+      run: ruff check magi/ tests/ --statistics --exit-zero || true
+
+    - name: Type check (informativo)
+      # pyright lee pyrightconfig.json. continue-on-error: nunca falla el
+      # workflow. Misma idea que con ruff: visibilidad progresiva. El tipado de
+      # magi/ es parcial; cuando la cuenta de errores baje, quitamos el flag.
+      continue-on-error: true
+      run: |
+        pip install pyright
+        pyright magi/
 
     - name: No hardcoded machine paths
       run: |
-        if grep -rn "D:/PROYECTOS\|d:/PROYECTOS" --include="*.py" magi/ \
+        if grep -rnE "D:/PROYECTOS\|d:/PROYECTOS\|C:\\\\Users\\\\[A-Za-z]" --include="*.py" magi/ \
            | grep -v "paths.py" | grep -v "naoko_repair.py" | grep -v "_attic"; then
           echo "::error::Ruta absoluta a una máquina concreta. Usa magi.core.paths."
           exit 1

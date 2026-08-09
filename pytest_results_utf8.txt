@@ -1,9 +1,0 @@
-﻿============================= test session starts =============================
-platform win32 -- Python 3.10.11, pytest-9.1.1, pluggy-1.6.0
-rootdir: D:\PROYECTOS\MAGI System IDE
-plugins: anyio-4.14.2
-collected 24 items
-
-scratch\test_area0.py F                                                  [  4%]
-scratch\test_area1.py .                                                  [  8%]
-scratch\test_area11.py 

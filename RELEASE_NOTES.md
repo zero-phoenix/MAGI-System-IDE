@@ -17,6 +17,108 @@ suscripciones**.
 
 ---
 
+# v5.2.0 — el bus volvió a entregar, y ahora se ve por qué tarda
+
+Esta versión sale de auditar los cambios de la anterior antes de publicarlos. La
+auditoría encontró **siete fallos**, y uno de ellos habría dejado el programa sin
+hacer absolutamente nada.
+
+### El grave: el bus de eventos había dejado de entregar
+
+Al añadir la persistencia de eventos críticos, el bucle de reparto de
+`MagiBus.publish` acabó **dentro del método nuevo** en vez de quedarse donde
+estaba. Un nivel de indentación.
+
+El efecto era total y silencioso: `publish()` dejaba de entregar nada a los
+suscriptores. El reparto solo ocurría de rebote, para eventos marcados como
+críticos y únicamente si había un receptor de disco enganchado — es decir, nunca
+antes de que el kernel terminara de arrancar. Sin interfaz, sin Naoko, sin
+telemetría, sin enjambre.
+
+No lanzaba excepción, no escribía en el log y no rompía ningún import. Un
+sistema que ya no hace nada tiene el mismo aspecto que uno inactivo. Ahora hay
+cinco tests que cubren las tres combinaciones que distinguían el fallo, y se ha
+comprobado que fallan al reintroducirlo.
+
+### Las tres IA hablan tu idioma, esta vez de verdad
+
+Casper llegó a entregar su aprobación en chino con la instrucción de idioma
+puesta en el prompt. La versión anterior añadió una comprobación… en `_ask`, y el
+enjambre usa `_ask_stream`. **El arreglo estaba escrito y no arreglaba nada.**
+
+Ahora se comprueba en los dos caminos. Si la respuesta llega en otro alfabeto se
+rota de familia y se reintenta, con tope de dos intentos: el detector es
+heurístico y sin tope un solo falso negativo disparaba hasta treinta llamadas de
+red por turno. Y Naoko ha dejado de comentar cada rotación — llenaba la pantalla
+de mensajes que no describían tu problema.
+
+### Arranque: 3,4 segundos menos
+
+`scikit-learn` —con scipy, numpy y joblib detrás, unos 790 módulos— se cargaba en
+**cada apertura del IDE** por una búsqueda de skills que la mayoría de
+instalaciones no usa nunca. El intento anterior de arreglarlo movió el import al
+constructor de la clase, y el kernel **instancia** esa clase al arrancar: se
+seguía pagando entero.
+
+Medido: 3565 ms → 191 ms. Y hay un test que falla si sklearn, g4f, capstone,
+Pillow o cualquiera de las doce librerías pesadas vuelve a colarse en el
+arranque, porque una regresión así no rompe nada: el sistema hace exactamente lo
+mismo, solo que más tarde.
+
+### Nuevo panel: dónde se va el tiempo
+
+La telemetría llevaba desde su creación guardando la duración de cada turno y de
+cada uso de herramienta. **Nadie las leía.** El panel enseñaba una media, y una
+media no distingue dos situaciones que no se parecen en nada:
+
+```
+A: siempre tarda 4 s                          media = 4 s
+B: suele tardar 1 s, y 1 de cada 10, 30 s     media = 4 s
+```
+
+A es un límite del proveedor. B es la cola de la distribución, y es la que
+recuerdas, porque es la vez que te quedaste mirando la pantalla sin saber si el
+sistema seguía vivo.
+
+Ahora se ven los cinco agentes, familias y herramientas más lentos ordenados por
+**p95**, con su mediana y su peor caso, y una frase que dice si el problema es
+*lento* o *irregular* —que no se arreglan igual—. Se avisa además cuando una
+herramienta se sale de **su propio** histórico: que `run_tests` tarde 40 s es
+normal y que `read_file` tarde 4 s no lo es, y un umbral común no puede
+distinguirlas.
+
+### Los eventos críticos sobreviven a una caída
+
+La tabla `task_event` existía desde la primera migración y nadie escribía en
+ella. Ahora el arranque, los errores graves y las alertas de observabilidad se
+guardan antes de perderse — en un hilo aparte, porque persistir lo que se mide no
+puede frenar lo medido, y cerrando la conexión, porque `with sqlite3.connect(...)`
+hace commit pero **no** cierra y eso fuga un descriptor por evento.
+
+### Y lo que no se ve
+
+- **Finales de línea.** El árbol de trabajo era CRLF y el repositorio LF. En
+  Windows no se notaba; desde el CI o desde WSL, git daba **todo** el repositorio
+  por modificado (+57.378/−57.029). Un `git add -A` desde ahí lo habría reescrito
+  entero y dejado `git blame` inservible.
+- **Binario reproducible.** `requirements.lock` fija las 66 dependencias con las
+  que se compiló esta versión. Recompilar este tag dentro de seis meses da el
+  mismo `.exe`.
+- **«Conecta o borra» con mecanismo.** `scripts/huerfanos.py` encuentra el código
+  público que nadie llama —108 hoy— y el CI falla si mañana son 109. Era una
+  norma; ahora es un trinquete.
+- **El .spec y el código, de acuerdo.** El binario excluye la pila de ML que MAGI
+  no usa. Si alguien escribiera `import torch`, los tests seguirían verdes, el CI
+  también, el `.exe` compilaría… y reventaría al abrirlo en tu máquina. Ahora se
+  comprueba.
+- **Un test que castigaba añadir tests.** El guardián del README exigía que la
+  cifra declarada fuese mayor o igual que la real, así que cada commit con tests
+  nuevos dejaba el CI en rojo. Ahora la cifra es un suelo.
+
+**845 tests en Python · 80 en la interfaz.**
+
+---
+
 # v5.1.6 — el sistema estaba bloqueado de forma permanente
 
 Si en v5.1.5 escribías algo y no pasaba absolutamente nada, no era lentitud ni

@@ -1,12 +1,23 @@
 import os
 import json
 import logging
-import numpy as np
 from pathlib import Path
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger(__name__)
+
+# numpy y sklearn se importan de forma DIFERIDA, y hay un matiz que decide si
+# el diferimiento sirve de algo o es puro adorno.
+#
+# Antes estaban arriba, al nivel del módulo: el Kernel importa AASLoader, y eso
+# arrastraba numpy + scipy + sklearn al arranque — unos 2,5 s de import en frío
+# para algo que solo se usa al buscar skills. Bajarlos al __init__ NO arregla
+# nada, porque kernel.py:42 hace `self.skills_loader = AASLoader()` en el
+# constructor: el __init__ se ejecuta siempre y el import ocurre igual.
+#
+# El diferimiento real exige bajarlos hasta donde de verdad hacen falta: crear
+# el vectorizador la primera vez que hay corpus que vectorizar. Con eso, la
+# instalación típica —que no tiene clonado agentic-awesome-skills— no paga ni
+# un milisegundo de sklearn, porque load() sale antes por el `exists()`.
 
 class AASLoader:
     """
@@ -20,9 +31,23 @@ class AASLoader:
         self.repo_path = Path(repo_path)
         self.skills = {}
         self.skill_ids = []
-        self.vectorizer = TfidfVectorizer(stop_words='english')
+        # None hasta que haya algo que vectorizar. Ver _get_vectorizer().
+        self.vectorizer = None
         self.tfidf_matrix = None
-        
+
+    def _get_vectorizer(self):
+        """El vectorizador, creado la primera vez que se pide.
+
+        Aquí es donde se paga el import de sklearn, y solo aquí: si no hay
+        skills clonadas —el caso de casi cualquier instalación— no se paga
+        nunca. El atributo sigue siendo `self.vectorizer`, así que quien lo
+        leyera desde fuera ve lo mismo en cuanto hay índice.
+        """
+        if self.vectorizer is None:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            self.vectorizer = TfidfVectorizer(stop_words='english')
+        return self.vectorizer
+
     def load(self):
         """Descubre e indexa los skills disponibles."""
         if not self.repo_path.exists():
@@ -57,20 +82,24 @@ class AASLoader:
                 
         if count > 0:
             corpus = [self.skills[sid]["description"] for sid in self.skill_ids]
-            self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
+            self.tfidf_matrix = self._get_vectorizer().fit_transform(corpus)
                 
         logger.info(f"[AASLoader] {count} skills de agentic-awesome-skills indexadas y vectorizadas (TF-IDF) exitosamente.")
         return count
 
     def search(self, query: str, top_k: int = 5):
         """Busca las skills más relevantes usando RAG (TF-IDF y Similitud del Coseno)."""
-        if not self.skills or self.tfidf_matrix is None:
+        if not self.skills or self.tfidf_matrix is None or self.vectorizer is None:
             return "No hay skills disponibles."
-            
+
+        # Imports diferidos: numpy y sklearn solo hacen falta al buscar.
+        import numpy as np
+        from sklearn.metrics.pairwise import cosine_similarity
+
         # Vectorizar la query y comparar
         query_vec = self.vectorizer.transform([query])
         similarities = cosine_similarity(query_vec, self.tfidf_matrix).flatten()
-        
+
         # Obtener los índices con mayor similitud
         top_indices = np.argsort(similarities)[::-1][:top_k]
         

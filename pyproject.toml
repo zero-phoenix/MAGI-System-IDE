@@ -1,0 +1,80 @@
+# Configuración centralizada del proyecto.
+#
+# Reúne en un solo sitio lo que antes estaba disperso: pytest.ini, las flags de
+# ruff sueltas en CI, pyrightconfig.json y requirements.txt. Misma configuración
+# que antes; ahora vive en un lugar y tiene una sola fuente de verdad.
+
+[project]
+name = "magi-system-ide"
+version = "5.2.0"
+description = "Entorno de desarrollo con un enjambre de tres inteligencias que debaten antes de actuar."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q --no-header"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    # curl_cffi (interno de g4f) registra un selector thread porque el
+    # ProactorEventLoop de Windows no implementa add_reader. Es inofensivo
+    # (es cómo curl_cffi funciona bajo Proactor) pero ensucia la salida de
+    # tests. No podemos cambiar de policy: el SelectorEventLoop no soporta
+    # asyncio.subprocess en Windows, que el proyecto sí usa (Naoko, run_tests).
+    #
+    # Dos detalles, y sin cualquiera de los dos el filtro no filtra nada:
+    #
+    # 1. NO se nombra la clase curl_cffi.utils.CurlCffiWarning. Nombrarla obliga
+    #    a pytest a importar curl_cffi al leer la configuración, y donde no está
+    #    instalado —el runner de Linux del CI, un clon recién hecho— eso emite
+    #    «PytestConfigWarning: Failed to import filter module»: el filtro puesto
+    #    para quitar un aviso creaba otro en la mitad de las máquinas.
+    #
+    # 2. El `(?s).*` del principio NO es adorno. El campo de mensaje es una
+    #    expresión regular ANCLADA AL INICIO (re.match), y el mensaje real de
+    #    curl_cffi empieza con un salto de línea y cuatro espacios:
+    #
+    #        CurlCffiWarning: \n    Proactor event loop does not implement...
+    #
+    #    Un patrón que empiece por «Proactor» no casa nunca, y el filtro parece
+    #    puesto sin estarlo. Es el fallo más silencioso de esta clase: la
+    #    configuración es válida, pytest no protesta, y el aviso sigue saliendo.
+    "ignore:(?s).*Proactor event loop does not implement add_reader",
+    # Naoko lanza un _watch_loop en su constructor. Aunque el test lo cancela,
+    # el recolector de Python puede emitir ResourceWarning sobre transports
+    # que ya están cerrándose. Cosmético.
+    "ignore:unclosed transport:ResourceWarning",
+]
+
+# --- ruff ---------------------------------------------------------------
+# line-length = 100 sigue la convención REAL del código (p99 = 100, solo el 1%
+# de las líneas la supera). Forzar 88 habría reformateado medio repositorio.
+[tool.ruff]
+line-length = 100
+extend-exclude = [
+    "magi/_attic",      # andamiaje retirado: se conserva como mapa, no se mantiene
+    "magi-gui",         # frontend TypeScript/Tauri, no es código Python
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Set inicial deliberadamente CONSERVADOR: errores y warnings que indican
+# bugs reales o problemas de mantenimiento, no estilo opinable. Se amplía
+# progresivamente a medida que la deuda existente se salda.
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes (unused imports/vars, undefined names...)
+    "W",    # pycodestyle warnings
+    "I",    # isort (orden de imports)
+    "UP",   # pyupgrade (sintaxis moderna)
+    "B",    # flake8-bugbear (bugs comunes probables)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests pueden tener imports sin uso (fixtures) y nombres ambigüos.
+"tests/**/*.py" = ["F401", "F841"]
+
+# NOTA: la config de pyright sigue en pyrightconfig.json. pyright no está en
+# requirements (es opcional, para desarrollo) y no podemos verificar localmente
+# si lee [tool.pyright] desde aquí, así que no se duplica.

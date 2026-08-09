@@ -1,0 +1,60 @@
+# Finales de línea: LF en el repositorio, nativos en el disco.
+#
+# EL FALLO
+# ========
+# El árbol de trabajo tenía CRLF y todos los blobs del repositorio LF. En
+# Windows no se notaba, porque el `core.autocrlf=true` global de Git for
+# Windows normaliza al vuelo. Fuera de esa máquina —un runner de Linux del CI,
+# un contenedor, un clon en WSL— git comparaba CRLF contra LF y daba TODO el
+# repositorio por modificado: 340 ficheros, +57.378/-57.029 líneas de ruido.
+#
+# Eso no es cosmético. Es una mina:
+#
+#  - Un `git add -A` desde cualquiera de esos entornos commitea el repositorio
+#    entero reescrito. El historial deja de servir: `git blame` apunta a ese
+#    commit para cada línea de cada fichero, y cualquier revisión posterior se
+#    vuelve imposible de leer.
+#  - Un diff de 57.000 líneas esconde perfectamente un cambio de tres.
+#
+# LA REGLA
+# ========
+# `text=auto` deja que git detecte qué es texto y qué es binario, guarde
+# siempre LF y entregue en el disco lo que corresponda a cada sistema. Es
+# portátil por construcción y no depende de la configuración de nadie.
+#
+# Verificado antes de añadir esto: 0 blobs con CRLF en HEAD. La normalización
+# no toca el historial ni produce diff.
+* text=auto
+
+# Excepciones donde el final de línea es semántico, no una preferencia:
+# un .sh con CRLF no arranca ("bad interpreter"), y un .bat con LF puede
+# comerse la última línea.
+*.sh   text eol=lf
+*.bash text eol=lf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binarios declarados a mano: no dependen de la heurística.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.exe  binary
+*.dll  binary
+*.so   binary
+*.dylib binary
+*.zip  binary
+*.gz   binary
+*.7z   binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.ttf  binary
+*.woff binary
+*.woff2 binary
+*.db   binary
+*.sqlite binary
+*.sqlite3 binary

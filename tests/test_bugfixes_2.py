@@ -36,13 +36,25 @@ def test_bus_subscribe_works_without_an_event_loop():
     assert len(bus._pending_workers) == 1
 
 
-def test_kernel_constructs_outside_the_loop():
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+async def test_kernel_constructs_outside_the_loop():
     """main.py construye el Kernel fuera del bucle asyncio."""
     from magi.core.kernel import Kernel
     k = Kernel(host="127.0.0.1", port=20993)
-    assert k.metrics is not None
-    assert "obs.metrics" in k.rpc.handlers
-    assert "naoko.self_improve" in k.rpc.handlers
+    try:
+        assert k.metrics is not None
+        assert "obs.metrics" in k.rpc.handlers
+        assert "naoko.self_improve" in k.rpc.handlers
+    finally:
+        # El constructor de Naoko lanza asyncio.create_task(self._watch_loop()).
+        # Sin esta limpieza, el transport queda vivo al acabar el test y el GC
+        # lanza "Event loop is closed" / "unclosed transport" como warning.
+        if k.naoko._watch_task is not None:
+            k.naoko._watch_task.cancel()
+            try:
+                await k.naoko._watch_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 def _bus_subscribed_outside_the_loop():
