@@ -14,6 +14,9 @@
  * docena de sesiones desmontando exactamente esa clase de mentira.
  */
 import { useCallback, useEffect, useState } from "react";
+import {
+  Estadistica, Telemetria, hayDatos, lectura, ms, ordenadas,
+} from "../lib/latencia";
 
 type Candidato = { proveedor: string; modelo: string; latencia_ms: number | null };
 type Familia = {
@@ -34,6 +37,7 @@ type Config = {
   rutas: Record<string, any>;
   cortafuegos: Record<string, any>;
   violaciones: { source: string; detail: string }[];
+  telemetria?: Telemetria;
 };
 
 const DIVERSIDAD: Record<string, { txt: string; color: string }> = {
@@ -65,6 +69,109 @@ function Pastilla({ ok, si, no }: { ok: boolean; si: string; no: string }) {
       color: ok ? "#4ade80" : "#f87171",
       border: `1px solid ${ok ? "#1f6b3a" : "#6b1f1f"}`,
     }}>{ok ? si : no}</span>
+  );
+}
+
+/**
+ * Tabla de un grupo (agentes, familias o herramientas) ordenada por p95.
+ *
+ * La columna «mediana» va antes que «p95» a propósito: leídas en ese orden,
+ * las dos juntas cuentan la historia sin necesidad de explicarla — «suele
+ * tardar esto, y cuando va mal, esto otro».
+ */
+function TablaLatencia({ que, filas }: { que: string; filas: Estadistica[] }) {
+  if (!filas.length) return null;
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <div style={{ fontSize: "11px", color: "var(--dim)", marginBottom: "4px",
+                    textTransform: "uppercase", letterSpacing: "1px" }}>
+        {que}
+      </div>
+      <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={th}>{que}</th>
+            <th style={th}>medidas</th>
+            <th style={th}>mediana</th>
+            <th style={th}>p95</th>
+            <th style={th}>peor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.clave}>
+              <td style={td}>
+                {f.clave}
+                {!f.fiable && (
+                  <span style={{ color: "#fbbf24", marginLeft: 6, fontSize: "10px" }}>
+                    pocas medidas
+                  </span>
+                )}
+                <div style={{ fontSize: "11px", color: "var(--dim)", marginTop: 2 }}>
+                  {lectura(f)}
+                </div>
+              </td>
+              <td style={td}>{f.n}</td>
+              <td style={td}>{ms(f.mediana_ms)}</td>
+              <td style={{ ...td, color: "var(--acc)" }}>{ms(f.p95_ms)}</td>
+              <td style={{ ...td, color: "var(--dim)" }}>{ms(f.peor_ms)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Dónde se va el tiempo. Ordenado por p95, no por media.
+ *
+ * Los datos ya estaban en la base desde que existe la telemetría: cada turno y
+ * cada uso de herramienta se guardan con su duración. Lo único que faltaba era
+ * leerlos — es el mismo patrón que ya apareció con la contabilidad de tokens y
+ * con el panel de salud: la pieza construida y el cable que no está.
+ */
+function TiempoPerdido({ tel }: { tel?: Telemetria }) {
+  const cuellos = tel?.cuellos;
+  const avisos = tel?.avisos_lentitud ?? [];
+  if (!hayDatos(cuellos) && !avisos.length) return null;
+
+  return (
+    <div style={caja}>
+      <div style={titulo}>Dónde se va el tiempo</div>
+
+      {avisos.length > 0 && (
+        <div style={{ border: "1px solid #fbbf24", padding: "8px 10px",
+                      marginBottom: "12px", fontSize: "12px" }}>
+          <div style={{ color: "#fbbf24", marginBottom: 4 }}>
+            Se han salido de su propio comportamiento
+          </div>
+          {avisos.map((a) => (
+            <div key={a.herramienta} style={{ marginBottom: 3 }}>
+              <b>{a.herramienta}</b>: {ms(a.ultima_ms)} en su última ejecución,
+              {" "}{a.veces_el_p95}× su p95 habitual ({ms(a.p95_historico_ms)}
+              {" "}sobre {a.muestras} medidas).
+            </div>
+          ))}
+          <div style={{ color: "var(--dim)", fontSize: "11px", marginTop: 5 }}>
+            Cada herramienta se compara consigo misma, no con un umbral común:
+            que <i>run_tests</i> tarde 40 s es normal y que <i>read_file</i>
+            {" "}tarde 4 s no lo es.
+          </div>
+        </div>
+      )}
+
+      <TablaLatencia que="agente" filas={ordenadas(cuellos?.agentes)} />
+      <TablaLatencia que="familia" filas={ordenadas(cuellos?.familias)} />
+      <TablaLatencia que="herramienta" filas={ordenadas(cuellos?.herramientas)} />
+
+      <div style={{ fontSize: "11px", color: "var(--dim)" }}>
+        Se ordena por p95 y no por la media. Una media no distingue «siempre
+        tarda 4 s» de «suele tardar 1 s y una de cada diez veces tarda 30»: son
+        el mismo número y problemas distintos. El p95 dice cuánto tarda cuando
+        va mal; la columna «peor», cuánto puede llegar a tardar.
+      </div>
+    </div>
   );
 }
 
@@ -166,6 +273,9 @@ export function ConfigPanel({ fetchConfig }: { fetchConfig: () => Promise<any> }
           sin pagar la cola de latencia.
         </div>
       </div>
+
+      {/* ------------------------------------------ §3.2 dónde se va el tiempo */}
+      <TiempoPerdido tel={cfg.telemetria} />
 
       {/* ---------------------------------------------------- proveedores */}
       <div style={caja}>

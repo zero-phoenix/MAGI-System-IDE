@@ -45,6 +45,7 @@ porque no pudo escribir una métrica es peor que uno sin métricas.
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -187,7 +188,7 @@ class Telemetria:
     # ------------------------------------------------------------- turnos
 
     def turno(self, task_id: str, agente: str = "", *, familia: str = "",
-              proveedor: str = "", ronda: int | None = None) -> "_Contexto":
+              proveedor: str = "", ronda: int | None = None) -> _Contexto:
         t = Turno(id=f"tur_{uuid.uuid4().hex[:12]}", task_id=task_id,
                   agente=agente, familia=familia, proveedor=proveedor,
                   ronda=ronda)
@@ -381,6 +382,162 @@ def herramientas_que_fallan(store, minimo: int = 5) -> list[dict]:
              "solo_lectura": bool(f["solo_lectura"]),
              "fallos": f["fallos"], "total": f["total"],
              "tasa": round(f["fallos"] / f["total"], 3)} for f in filas]
+
+
+#: por debajo de esto un p95 es literalmente «lo peor que he visto», no un
+#: percentil. Se sigue devolviendo, pero marcado, para no vender como medida lo
+#: que es una anécdota.
+MUESTRA_FIABLE = 20
+
+
+def _percentil(valores: list[float], q: float) -> float | None:
+    """
+    Percentil por rango más cercano. Sin interpolar, y es deliberado.
+
+    Interpolar inventa un número que nunca ocurrió. Aquí el valor devuelto es
+    siempre una latencia REAL medida, lo que importa cuando la respuesta se va
+    a leer como «esto es lo que llega a tardar».
+    """
+    if not valores:
+        return None
+    orden = sorted(valores)
+    i = min(len(orden) - 1, max(0, math.ceil(q * len(orden)) - 1))
+    return round(orden[i], 1)
+
+
+def _agrupa(filas, clave: str, valor: str) -> dict[str, list[float]]:
+    grupos: dict[str, list[float]] = {}
+    for f in filas:
+        k = f[clave] or "(sin nombre)"
+        grupos.setdefault(k, []).append(f[valor])
+    return grupos
+
+
+def _estadisticas(nombre: str, ms: list[float]) -> dict:
+    return {
+        "clave": nombre,
+        "n": len(ms),
+        "mediana_ms": _percentil(ms, 0.50),
+        "p95_ms": _percentil(ms, 0.95),
+        "peor_ms": round(max(ms), 1),
+        "fiable": len(ms) >= MUESTRA_FIABLE,
+    }
+
+
+def cuellos_de_botella(store, *, top: int = 5, minimo: int = 3,
+                       muestra: int = 2000) -> dict:
+    """
+    Dónde se va el tiempo, ordenado por p95 y no por media.
+
+    POR QUÉ p95 Y NO LA MEDIA
+    =========================
+    Hasta ahora solo se guardaba una latencia media por proveedor. Una media no
+    distingue «siempre tarda 4 s» de «suele tardar 1 s y una de cada diez veces
+    tarda 30». Las dos dan la misma media y son problemas completamente
+    distintos: el primero es un límite del proveedor, el segundo es la cola de
+    la distribución, y es la que el usuario recuerda porque es la que le hace
+    esperar mirando la pantalla.
+
+    El p95 responde a la pregunta que de verdad se hace: «cuando va mal, ¿cuánto
+    tarda?». Por eso también se devuelve `peor_ms`: el p95 acota lo habitual,
+    el peor acota lo posible.
+
+    No se calcula nada nuevo. Los turnos y los usos de herramienta ya se
+    guardan con su duración desde que existe la telemetría; esto es leer lo que
+    llevaba ahí todo el tiempo sin que nadie lo mirara.
+    """
+    try:
+        with store._conn() as c:
+            turnos = c.execute(
+                "SELECT agente, familia, ms_total FROM turno"
+                " WHERE ms_total IS NOT NULL AND estado=?"
+                " ORDER BY inicio DESC LIMIT ?",
+                (COMPLETADO, muestra)).fetchall()
+            usos = c.execute(
+                "SELECT herramienta, ms FROM uso_herramienta"
+                " WHERE ms IS NOT NULL AND estado='completada'"
+                " ORDER BY inicio DESC LIMIT ?", (muestra,)).fetchall()
+    except Exception as e:                                  # pragma: no cover
+        return {"error": str(e)}
+
+    def top_de(grupos: dict[str, list[float]]) -> list[dict]:
+        filas = [_estadisticas(k, v) for k, v in grupos.items() if len(v) >= minimo]
+        filas.sort(key=lambda d: d["p95_ms"] or 0, reverse=True)
+        return filas[:top]
+
+    return {
+        "agentes": top_de(_agrupa(turnos, "agente", "ms_total")),
+        "familias": top_de(_agrupa(turnos, "familia", "ms_total")),
+        "herramientas": top_de(_agrupa(usos, "herramienta", "ms")),
+        "muestra_fiable_desde": MUESTRA_FIABLE,
+    }
+
+
+#: cuánto hay que pasarse del p95 para que merezca un aviso. Ver más abajo.
+MARGEN_AVISO = 1.5
+
+
+def herramientas_fuera_de_su_p95(store, *, minimo: int = MUESTRA_FIABLE,
+                                 margen: float = MARGEN_AVISO,
+                                 muestra: int = 2000) -> list[dict]:
+    """
+    Herramientas cuya última ejecución se salió de su propio p95 histórico.
+
+    La comparación es contra SÍ MISMA, no contra un umbral global, y esa es
+    toda la idea. `run_tests` tardando 40 s es normal; `read_file` tardando 4 s
+    no lo es en absoluto, y un umbral único o bien deja pasar el segundo o bien
+    marca el primero cada vez. Cada herramienta trae su propia definición de
+    «raro» en su historial.
+
+    POR QUÉ HAY UN MARGEN Y NO BASTA CON «SUPERAR EL p95»
+    =====================================================
+    Un percentil 95 se supera, por definición, en 1 de cada 20 ejecuciones. Un
+    aviso que salte cada vez que se cruza esa línea salta constantemente aunque
+    no pase nada — y un aviso que salta siempre deja de leerse, que es la forma
+    habitual de que un sistema de alertas acabe sin servir para nada.
+
+    Peor aún: superar el p95 por un 0,25% no significa nada. Una herramienta
+    con p95 de 40 s que tarda 40,1 s está comportándose con toda normalidad;
+    marcarla es cambiar información por ruido.
+
+    Con `margen`, el aviso deja de decir «esto está por encima de una línea
+    estadística» y pasa a decir «esto se ha salido de su carácter». Que es lo
+    único que justifica interrumpir a alguien.
+
+    Se exige además `minimo` ejecuciones previas: comparar contra el p95 de
+    tres muestras es comparar contra el máximo.
+    """
+    try:
+        with store._conn() as c:
+            filas = c.execute(
+                "SELECT herramienta, ms, inicio FROM uso_herramienta"
+                " WHERE ms IS NOT NULL AND estado='completada'"
+                " ORDER BY inicio DESC LIMIT ?", (muestra,)).fetchall()
+    except Exception:                                       # pragma: no cover
+        return []
+
+    por_herramienta: dict[str, list] = {}
+    for f in filas:                       # llegan de más reciente a más antigua
+        por_herramienta.setdefault(f["herramienta"] or "(sin nombre)", []).append(f)
+
+    avisos = []
+    for nombre, hist in por_herramienta.items():
+        if len(hist) <= minimo:
+            continue
+        ultima, previas = hist[0], [h["ms"] for h in hist[1:]]
+        umbral = _percentil(previas, 0.95)
+        if umbral is None or ultima["ms"] <= umbral * margen:
+            continue
+        avisos.append({
+            "herramienta": nombre,
+            "ultima_ms": round(ultima["ms"], 1),
+            "p95_historico_ms": umbral,
+            "mediana_ms": _percentil(previas, 0.50),
+            "veces_el_p95": round(ultima["ms"] / umbral, 2) if umbral else None,
+            "muestras": len(previas),
+        })
+    avisos.sort(key=lambda d: d["veces_el_p95"] or 0, reverse=True)
+    return avisos
 
 
 def sirve_el_hedging(store) -> dict:

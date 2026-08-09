@@ -174,7 +174,14 @@ class Kernel:
             store = self.swarm.store
             return {**tl.resumen(store),
                     "herramientas_que_fallan": tl.herramientas_que_fallan(store),
-                    "hedging": tl.sirve_el_hedging(store)}
+                    "hedging": tl.sirve_el_hedging(store),
+                    # Dónde se va el tiempo ordenado por p95, no por media: una
+                    # media no distingue «siempre tarda 4 s» de «suele tardar 1
+                    # y a veces 30», y son problemas distintos. Datos que ya se
+                    # guardaban desde que existe la telemetría y que nadie leía.
+                    "cuellos": tl.cuellos_de_botella(store),
+                    # Y lo que se ha salido HOY de su propio comportamiento.
+                    "avisos_lentitud": tl.herramientas_fuera_de_su_p95(store)}
         except Exception as e:                            # pragma: no cover
             return {"error": str(e)}
 
