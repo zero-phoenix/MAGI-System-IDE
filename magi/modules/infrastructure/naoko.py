@@ -160,16 +160,20 @@ class NaokoAgent:
             s.entradas_perdidas = len(adm.perdidas())
             s.en_cola = sum(len(adm.en_cola(t)) for t in s.tareas)
             s.ultimas_entradas = [e.resumen() for e in adm.recientes(5)]
-        except Exception:
-            pass
+        except Exception as e:
+            # Sin admisión, Naoko no ve colas ni entradas perdidas. El estado
+            # parcial sigue siendo útil, pero que fallara no debe ser secreto.
+            logger.debug("[naoko] admisión no disponible al construir estado: %s", e)
 
         try:
             from magi.core.providers.backends.g4f_backend import FAMILY_SPECS, ROTOS
             s.familias_agotadas = [
                 f for f, c in FAMILY_SPECS.items()
                 if not [x for x in c if x[0] not in ROTOS]]
-        except Exception:
-            pass
+        except Exception as e:
+            # Importación diferida del catálogo de proveedores. Si falla, Naoko
+            # no ve qué familias están agotadas: diagnostica a ciegas.
+            logger.debug("[naoko] familias agotadas no determinables: %s", e)
 
         try:
             if self.metrics:
@@ -178,8 +182,9 @@ class NaokoAgent:
                     if p.get("provider"):
                         s.latencias[p["provider"]] = (
                             float(p.get("avg_latency_ms", 0)) / 1000.0)
-        except Exception:
-            pass
+        except Exception as e:
+            # Sin latencias, Naoko no detecta deriva de proveedor.
+            logger.debug("[naoko] snapshot de métricas no disponible: %s", e)
         return s
 
     async def start(self):
@@ -235,8 +240,11 @@ class NaokoAgent:
                 "diagnostico",
                 f"caso {d.caso.id if d.caso else 'ninguno encajó'}",
                 detalle=pregunta[:200])
-        except Exception:
-            pass
+        except Exception as e:
+            # Si la memoria episódica falla, el diagnóstico se pierde del
+            # histórico y Naoko no aprende del caso. El diagnóstico en sí se
+            # entregó; que no se recuerde no debe ser secreto.
+            logger.warning("[naoko] diagnóstico no grabado en memoria: %s", e)
         return True
 
     async def _handle_user_message(self, event: BusEvent):
@@ -486,8 +494,11 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
             try:
                 from magi.core.providers.cloud import get_registry
                 self.introspector.registry = await get_registry()
-            except Exception:
-                pass
+            except Exception as e:
+                # Sin registro, las invariantes de diversidad y gratuidad no
+                # se pueden comprobar. El resto del informe sigue, pero Naoko
+                # no ve ese flanco: conviene que conste.
+                logger.warning("[naoko] registro de proveedores no disponible para invariantes: %s", e)
 
         report = self.introspector.check_invariants(self.memory.invariants())
         self._last_invariant_report = report

@@ -90,9 +90,18 @@ jobs:
       # pasa a bloqueante. Por ahora, reportar sin romper el desarrollo.
       run: ruff check magi/ tests/ --statistics --exit-zero || true
 
+    - name: Type check (informativo)
+      # pyright lee pyrightconfig.json. continue-on-error: nunca falla el
+      # workflow. Misma idea que con ruff: visibilidad progresiva. El tipado de
+      # magi/ es parcial; cuando la cuenta de errores baje, quitamos el flag.
+      continue-on-error: true
+      run: |
+        pip install pyright
+        pyright magi/
+
     - name: No hardcoded machine paths
       run: |
-        if grep -rn "D:/PROYECTOS\|d:/PROYECTOS" --include="*.py" magi/ \
+        if grep -rnE "D:/PROYECTOS\|d:/PROYECTOS\|C:\\\\Users\\\\[A-Za-z]" --include="*.py" magi/ \
            | grep -v "paths.py" | grep -v "naoko_repair.py" | grep -v "_attic"; then
           echo "::error::Ruta absoluta a una máquina concreta. Usa magi.core.paths."
           exit 1

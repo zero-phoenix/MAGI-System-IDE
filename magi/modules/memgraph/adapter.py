@@ -13,7 +13,23 @@ class MemGraphAdapter:
     Adaptador del motor de grafo de memoria de código (DeusData/codebase-memory-mcp).
     Maneja la validación de seguridad A13-1 y la persistencia de los deltas de conocimiento.
     """
-    def __init__(self, bus: MagiBus, bin_path: str = r"C:\Users\D\.local\bin\codebase-memory-mcp.exe"):
+    def __init__(self, bus: MagiBus, bin_path: str | None = None):
+        """
+        bin_path resuelve en este orden:
+          1. Argumento explícito (tests, configuración manual).
+          2. Variable de entorno CODEBASE_MEMORY_MCP.
+          3. data_dir() / "codebase-memory-mcp.exe" (junto al resto de binarios
+             del usuario, en LOCALAPPDATA/Library/Application Support).
+        Si no se encuentra, is_binary_present=False y el adaptador funciona en
+        modo degradado (start() ya lo avisa). Antes el default era una ruta
+        absoluta a una máquina concreta, así que el binario no se encontraba en
+        ninguna otra.
+        """
+        from magi.core.paths import data_dir
+        import os
+        if bin_path is None:
+            bin_path = (os.environ.get("CODEBASE_MEMORY_MCP")
+                        or str(data_dir() / "codebase-memory-mcp.exe"))
         self.bus = bus
         self.bin_path = Path(bin_path)
         self.is_binary_present = self.bin_path.exists()
