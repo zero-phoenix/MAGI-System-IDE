@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**625 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+**786 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
 
 **[⬇ Descargar el ejecutable de Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta.
 
@@ -202,7 +202,7 @@ Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que l
 da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
 ejecutado el caso** vale mucho más que una que lo sospecha.
 
-Las **44 herramientas** se reparten por rol y se acotan por dominio antes de
+Las **48 herramientas** se reparten por rol y se acotan por dominio antes de
 entrar en el prompt. No es una optimización cosmética: el catálogo completo son
 4,7 KB en cada turno, y un proveedor gratuito con eso delante deja de responder.
 Acotado por lo que se está haciendo, Melchior reparando código ve 12

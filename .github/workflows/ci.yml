@@ -60,6 +60,14 @@ jobs:
     - name: Run tests
       run: python -m pytest tests/ -v --tb=short
 
+    # Cobertura de magi/core/ (informativa). continue-on-error: la cobertura
+    # está hoy en ~79%; cuando suba, se puede convertir en umbral bloqueante.
+    # Solo en Linux para no duplicar el reporte en la matriz de OS.
+    - name: Coverage report (magi/core)
+      if: runner.os == 'Linux'
+      continue-on-error: true
+      run: python -m pytest tests/ -q --cov=magi/core --cov-report=term --cov-config=/dev/null
+
     - name: Check imports resolve
       run: |
         python -c "

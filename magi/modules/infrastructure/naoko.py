@@ -393,23 +393,26 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                 # «hola naoko» devolvió «嗨~请问有什么可以帮你的吗». Una respuesta
                 # que el usuario no puede leer no es una respuesta, así que se
                 # pasa al siguiente proveedor en vez de entregarla.
+                #
+                # La rotación es INTERNA: el usuario no necesita ver «⚠️ el
+                # modelo X respondió en chino, repitiendo». Ese mensaje es
+                # ruido que no ayuda al problema que planteó. Solo se loguea a
+                # debug; el usuario recibe la respuesta correcta, o nada.
                 if not idioma.coincide(response, lang):
-                    logger.warning("[naoko] %s respondió en otro idioma "
-                                   "(esperado %s); roto de proveedor",
-                                   model, lang)
-                    await self.bus.publish(BusEvent(topic="naoko.log", payload={
-                        "agent": "NAOKO",
-                        "content": f"⚠️ {model} respondió en otro idioma. "
-                                   f"Repitiendo con otro proveedor..."}))
+                    logger.debug("[naoko] %s respondió en otro idioma "
+                                 "(esperado %s); rotando en silencio",
+                                 model, lang)
                     continue
 
                 if not response.startswith("SYS_EMERGENCY_STOP"):
                     return response
             except Exception as e:
-                await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"⚠️ Fallo en {model}: {e}. Rotando a siguiente IA en la nube..."}))
+                logger.debug("[naoko] fallo en %s: %s; rotando", model, e)
                 
-        await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": "⛔ Todas las IAs gratuitas agotadas. Entrando en enfriamiento de 60 segundos..."}))
-        await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Agotada - Pausa 60s"}))
+        # Agotamiento real: aquí sí hay que avisar, porque el usuario va a
+        # esperar una respuesta que no llegará. El status ya lo dice claro.
+        await self.bus.publish(BusEvent(topic="naoko.status",
+                                        payload={"status": "Agotada - Pausa 60s"}))
         await asyncio.sleep(60)
         raise Exception("Todos los modelos gratuitos fallaron.")
 

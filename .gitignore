@@ -46,3 +46,7 @@ _t.txt
 _w.txt
 _w*.txt
 pytest_results*.txt
+
+# Cobertura de tests (generado por pytest-cov)
+.coverage
+htmlcov/

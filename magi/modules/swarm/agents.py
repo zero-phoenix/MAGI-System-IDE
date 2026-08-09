@@ -104,10 +104,43 @@ class SwarmAgentBase:
             get_context().render(),
         ])
         temp = temperature if engine == "fast" else max(0.1, temperature - 0.2)
-        content, provider_id = await self.llm.generate(
-            full_sys, user_prompt,
-            family=self.family, temperature=temp, seed=self.seed)
+
+        # GUARDA DE IDIOMA. La instrucción del prompt no basta con los
+        # proveedores gratuitos: CASPER llegó a entregar su aprobación en
+        # chino (三个方案...) porque nadie miraba la respuesta. Si la familia
+        # propia del nodo responde en otro idioma, se rota a otra familia
+        # disponible antes de devolver. El usuario no ve nada: solo recibe la
+        # respuesta en su idioma, o la mejor que se pudo conseguir.
+        familias = [f for f in self._familias_disponibles() if f != self.family]
+        familias.insert(0, self.family)  # la propia primero
+        ultimo = (None, None)
+        for familia in familias:
+            try:
+                content, provider_id = await self.llm.generate(
+                    full_sys, user_prompt,
+                    family=familia, temperature=temp, seed=self.seed)
+            except Exception as e:
+                logger.debug("[%s] familia %s falló: %s",
+                             self.role_name, familia, e)
+                continue
+            ultimo = (content, provider_id)
+            if idioma.coincide(content, lang):
+                return content, provider_id, self._family_of(provider_id)
+            logger.debug("[%s] familia %s respondió en otro idioma (esperado %s)",
+                         self.role_name, familia, lang)
+        # Ninguna familia acertó el idioma: devolver la última respuesta.
+        # Entregar algo es mejor que entregar nada; que esté en otro idioma es
+        # un fallo visible y reversible (el usuario puede pedir de nuevo).
+        content, provider_id = ultimo if ultimo != (None, None) else ("", "")
         return content, provider_id, self._family_of(provider_id)
+
+    def _familias_disponibles(self) -> list[str]:
+        """Familias de proveedor sanas, para rotar si la propia falla de idioma."""
+        try:
+            from magi.core.providers.backends.g4f_backend import VERIFIED_FAMILIES
+            return list(VERIFIED_FAMILIES)
+        except Exception:
+            return [self.family]
 
     @staticmethod
     def _family_of(provider_id: str) -> str:
@@ -171,6 +204,35 @@ class SwarmAgentBase:
             seed=self.seed, on_event=on_event, agent_name=self.role_name)
 
         logger.info("[%s] %s", self.role_name, turn.summary())
+
+        # GUARDA DE IDIOMA (mismo principio que en _ask). El bucle de
+        # herramientas puede terminar con un texto en otro idioma si el
+        # proveedor se despista en el último paso. Un reintento con otra
+        # familia cuesta, pero entregar un análisis ilegible cuesta más.
+        lang = idioma.detectar(user_prompt)
+        if turn.text and not idioma.coincide(turn.text, lang):
+            logger.debug("[%s] turno con herramientas en otro idioma "
+                         "(esperado %s); reintentando con otra familia",
+                         self.role_name, lang)
+            for familia in self._familias_disponibles():
+                if f"g4f-{familia}" == f"g4f-{self.family}":
+                    continue
+                try:
+                    turn = await run_agent(
+                        registry=registry,
+                        tools=registry_for_role(self.tool_role, task_hint=user_prompt),
+                        system_prompt=full_sys, user_prompt=user_prompt, ctx=ctx,
+                        prefer_provider=f"g4f-{familia}",
+                        max_iters=max_iters,
+                        temperature=0.4 if engine == "fast" else 0.2,
+                        seed=self.seed, on_event=on_event, agent_name=self.role_name)
+                    if idioma.coincide(turn.text, lang):
+                        logger.info("[%s] reintento en %s acertó el idioma",
+                                    self.role_name, familia)
+                        break
+                except Exception as e:
+                    logger.debug("[%s] reintento en %s falló: %s",
+                                 self.role_name, familia, e)
 
         # §3.4 — CONTABILIDAD DE TOKENS.
         #
