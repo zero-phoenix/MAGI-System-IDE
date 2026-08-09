@@ -34,6 +34,47 @@ class SwarmAgentBase:
         self.blackboard = blackboard
         self.bus = bus
         self.llm = FreeCloudLLM()
+        # Rama en la que trabaja este agente ahora mismo. La pone el
+        # orquestador antes de lanzar cada variante o cada eje.
+        self.rama: str | None = None
+        self.rama_rol: str = ""
+        self.rama_profundidad: int = 0
+
+    def _telemetria(self):
+        """
+        Escritor de telemetría, o None si no hay tienda a mano.
+
+        Devolver None y seguir es deliberado: los tests construyen agentes
+        sueltos, sin orquestador ni base de datos, y medir NUNCA puede ser un
+        requisito para funcionar.
+        """
+        try:
+            store = self.blackboard.get("global.task_store")
+        except Exception:
+            store = None
+        if store is None:
+            return None
+        try:
+            from magi.core.store.telemetria import Telemetria
+            return Telemetria(store)
+        except Exception:                                # pragma: no cover
+            return None
+
+    def _rama(self) -> dict:
+        """
+        Identidad de la rama, para pegarla a cada evento.
+
+        MAGI lanza 2-3 variantes de Melchior EN PARALELO y 4 ejes de crítica de
+        Balthasar EN PARALELO. Todos publicaban con el mismo `task_id` y sin
+        nada que los distinguiera, así que la interfaz no podía separar de
+        quién era cada salida y las apilaba como si fueran una conversación
+        lineal. Zcode resuelve esto con `session_task_link(role, depth, path)`
+        y Claude Code con `parent_tool_use_id` / `logical_parent_uuid`.
+        """
+        if not self.rama:
+            return {}
+        return {"rama": self.rama, "rama_rol": self.rama_rol,
+                "profundidad": self.rama_profundidad}
 
     async def _ask(self, sys_prompt: str, user_prompt: str, *,
                    engine: str = "fast", narrative_style: str = "tecnico",
@@ -203,23 +244,45 @@ class SwarmAgentBase:
 
         chunks: list[str] = []
         provider_id = f"g4f-{self.family}"
+        # Turno medido. Hasta ahora solo se guardaba una latencia media por
+        # proveedor: un número que no distingue «tarda en arrancar» de «tarda
+        # en generar». Con TTFT y tiempo total separados, la pregunta «¿por
+        # qué tarda?» tiene respuesta. Ver core/store/telemetria.py.
+        tel = self._telemetria()
+        ctx = tel.turno(task_id, self.role_name, familia=self.family,
+                        ronda=getattr(self, "_ronda", None)) if tel else None
+        turno = ctx.__enter__() if ctx else None
         try:
+            if turno:
+                turno.intento()
             async for delta in reg.stream(req, prefer=f"g4f-{self.family}"):
                 if delta.provider_id:
                     provider_id = delta.provider_id
                 if delta.text:
+                    if turno:
+                        # Solo la primera marca cuenta: es el TTFT.
+                        turno.primer_token()
                     chunks.append(delta.text)
                     await self.bus.publish(BusEvent(
                         topic="agent.delta",
                         payload={"task_id": task_id, "agent": self.role_name,
                                  "family": self._family_of(provider_id),
                                  "provider": provider_id,
-                                 "text": delta.text, "seq": delta.seq}))
+                                 "text": delta.text, "seq": delta.seq,
+                                 **self._rama()}))
                 if delta.done:
                     await self.bus.publish(BusEvent(
                         topic="agent.delta_end",
-                        payload={"task_id": task_id, "agent": self.role_name}))
+                        payload={"task_id": task_id, "agent": self.role_name,
+                                 **self._rama()}))
+            if turno:
+                turno.proveedor = provider_id
+                turno.familia = self._family_of(provider_id)
+                turno.tokens(entrada=len(full_sys) + len(user_prompt),
+                             salida=len("".join(chunks)))
         except Exception as e:
+            if turno:
+                turno.fallo(e)
             # Si YA hay texto, no se tira. Antes cualquier excepción a mitad
             # del flujo mandaba a pedir la respuesta entera otra vez, y la
             # excepción más frecuente no era del proveedor: era escribir un
@@ -247,6 +310,15 @@ class SwarmAgentBase:
             return await self._ask(sys_prompt, user_prompt, engine=engine,
                                    narrative_style=narrative_style,
                                    temperature=temperature)  # ya devuelve 3-tupla
+        finally:
+            # Cerrar SIEMPRE. Un turno abierto para siempre es la misma clase
+            # de fallo que las tareas zombis, y ya la cometimos una vez: algo
+            # que figura en curso sin estarlo envenena todo lo que lo lea.
+            if ctx is not None:
+                try:
+                    ctx.__exit__(None, None, None)
+                except Exception:
+                    pass
 
         return "".join(chunks), provider_id, self._family_of(provider_id)
 

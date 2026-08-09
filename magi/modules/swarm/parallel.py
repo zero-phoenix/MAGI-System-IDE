@@ -22,6 +22,7 @@ Pero hay dos paralelismos que el grafo sí permite y que no se aprovechaban:
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 from dataclasses import dataclass, field
 
@@ -102,22 +103,38 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
     base_seed = agent.seed or 0
 
     async def one(variant: int) -> Proposal | None:
-        original_seed = agent.seed
+        # UNA COPIA POR VARIANTE, y esto arregla un fallo que llevaba aquí
+        # desde el principio.
+        #
+        # El código anterior hacía `agent.seed = ...` sobre el agente
+        # COMPARTIDO, con un `try/finally` para restaurarlo. Eso funciona en
+        # secuencial, pero estas N variantes van por `asyncio.gather`: la
+        # primera pone su semilla y en el primer `await` cede el control, la
+        # segunda la pisa, la tercera también... y las tres acaban llamando
+        # con la semilla de la última. Las «variantes con semillas distintas»
+        # eran, medido, la misma petición repetida N veces.
+        #
+        # Con una copia superficial cada rama tiene su semilla y su identidad;
+        # el blackboard, el bus y el cliente siguen compartidos, que es lo que
+        # se quiere.
+        mio = copy.copy(agent)
+        mio.seed = base_seed + variant * 101
+        # Identidad de la rama. Sin esto, las N variantes publican con el mismo
+        # task_id y la interfaz no puede separarlas: las apila como si fueran
+        # una conversación, cuando son N intentos paralelos del mismo agente.
+        mio.rama = f"{task_id}/r{round_num}/melchior/v{variant}"
+        mio.rama_rol = f"enfoque {chr(65 + variant)}"
+        mio.rama_profundidad = 1
         try:
-            # Semilla y temperatura distintas por variante: si el proveedor las
-            # respeta, divergen de verdad; si no, al menos no son idénticas.
-            agent.seed = base_seed + variant * 101
-            result = await agent.generate_proposal(
+            result = await mio.generate_proposal(
                 task_id, command, round_num, last_proposal, last_critique,
                 engine, narrative_style, use_tools)
             return Proposal(content=result["content"], variant=variant,
                             provider=result.get("provider", ""),
-                            family=result.get("family", agent.family))
+                            family=result.get("family", mio.family))
         except Exception as e:
             logger.warning("[parallel] variante %d falló: %s", variant, e)
             return None
-        finally:
-            agent.seed = original_seed
 
     results = await asyncio.gather(*(one(i) for i in range(n)),
                                    return_exceptions=True)
@@ -144,6 +161,12 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
     result = MultiCritique()
 
     async def one(axis: str):
+        # Copia por eje, por lo mismo que en las variantes: estos cuatro van
+        # por `gather` y mutar el agente compartido los haría pisarse.
+        mio = copy.copy(agent)
+        mio.rama = f"{task_id}/r{round_num}/balthasar/{axis}"
+        mio.rama_rol = f"eje {axis}"
+        mio.rama_profundidad = 1
         sys_prompt = (
             f"Eres BALTHASAR, auditor del sistema MAGI, en un pase enfocado.\n\n"
             f"{CRITIQUE_AXES[axis]}\n\n"
@@ -159,11 +182,11 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
                 # Los ejes de corrección y plataforma se benefician de EJECUTAR:
                 # una objeción con el traceback delante vale mucho más que una
                 # sospecha. Balthasar puede leer y ejecutar, no escribir.
-                content, _, _ = await agent._ask_with_tools(
+                content, _, _ = await mio._ask_with_tools(
                     sys_prompt, user, task_id=task_id, engine=engine,
                     narrative_style=narrative_style, max_iters=6)
             else:
-                content, _, _ = await agent._ask(
+                content, _, _ = await mio._ask(
                     sys_prompt, user, engine=engine,
                     narrative_style=narrative_style)
             return axis, content, None

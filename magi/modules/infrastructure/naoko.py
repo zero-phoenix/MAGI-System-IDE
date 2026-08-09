@@ -746,7 +746,20 @@ Devuelve tu diagnóstico y tu parche."""
         # mejora dentro, con la mejora marcada como «publicada» y sin salida.
         # Es el mismo fallo que 15411b5 («marcaba publicado sin publicar»)
         # reintroducido un nivel más abajo.
+        #
+        # AUDITORÍA. NAOKO va a tocar el repositorio del usuario: queda escrito
+        # en un diario solo-añadir y firmado ANTES de hacerlo, con qué ficheros
+        # y por qué. Un agente con permiso de escritura sobre tu código sin
+        # traza a prueba de manipulación es un riesgo que no compensa.
+        # Ver core/auditoria.py.
+        from magi.core.auditoria import registrar as _auditar
+        _auditar("git.commit", detalle=message[:500], ficheros=len(changed),
+                 lista=", ".join(changed[:20]), version_propuesta=str(new),
+                 publicar=bool(publish))
+
         if not await commit_files(changed, f"fix(naoko): {message[:70]}", root):
+            _auditar("git.commit.fallido", detalle=message[:500],
+                     ficheros=len(changed))
             await self.bus.publish(BusEvent(topic="naoko.log", payload={
                 "agent": "NAOKO",
                 "content": (f"El commit FALLÓ con {len(changed)} fichero(s). "
@@ -773,9 +786,13 @@ Devuelve tu diagnóstico y tu parche."""
                             f"`git push origin HEAD && git tag {new}`.")}))
             return new
 
+        # Etiquetar y empujar es lo más irreversible que hace NAOKO: sale de
+        # esta máquina. Cada orden queda auditada con su resultado real, no
+        # con la intención.
         for orden in (["git", "tag", "-a", new, "-m", message[:70]],
                       ["git", "push", "origin", "HEAD"],
                       ["git", "push", "origin", new]):
+            _auditar("git.orden", detalle=" ".join(orden), version=str(new))
             proc = await asyncio.create_subprocess_exec(
                 *orden, cwd=str(root),
                 stdout=asyncio.subprocess.PIPE,
@@ -784,11 +801,15 @@ Devuelve tu diagnóstico y tu parche."""
             async with tracked(proc):
                 salida, _ = await proc.communicate()
             if proc.returncode != 0:
+                _auditar("git.orden.fallida", detalle=" ".join(orden),
+                         codigo=proc.returncode,
+                         salida=(salida or b"").decode("utf-8", "replace")[-400:])
                 await self.bus.publish(BusEvent(topic="naoko.log", payload={
                     "agent": "NAOKO",
                     "content": (f"Falló `{' '.join(orden)}`:\n"
                                 + (salida or b"").decode("utf-8", "replace")[-500:])}))
                 return None
+        _auditar("git.publicado", detalle=message[:500], version=str(new))
         return new
 
     async def _changed_files(self, root) -> list[str]:

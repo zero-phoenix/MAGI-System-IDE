@@ -162,7 +162,35 @@ class Kernel:
             # quedaron sin resolver. Cero perdidas es el estado correcto.
             "admision": self._info_admision(),
             "diagnostico": self._info_diagnostico(),
+            # Dónde se va el tiempo. Cuatro números en vez de una media.
+            "telemetria": self._info_telemetria(),
+            # Qué ha tocado NAOKO en tu repositorio, y si la traza está intacta.
+            "auditoria": self._info_auditoria(),
         }
+
+    def _info_telemetria(self) -> dict:
+        try:
+            from magi.core.store import telemetria as tl
+            store = self.swarm.store
+            return {**tl.resumen(store),
+                    "herramientas_que_fallan": tl.herramientas_que_fallan(store),
+                    "hedging": tl.sirve_el_hedging(store)}
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
+
+    def _info_auditoria(self) -> dict:
+        try:
+            from magi.core.auditoria import auditoria
+            a = auditoria()
+            return {"verificacion": a.verificar(),
+                    "ultimas": [
+                        {"iso": e.get("iso"), "actor": e.get("actor"),
+                         "accion": e.get("accion"),
+                         "detalle": str(e.get("detalle", ""))[:160]}
+                        for e in a.entradas(10)],
+                    "diario": str(a.diario)}
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
 
     def _info_catalogo(self) -> dict:
         try:

@@ -126,15 +126,83 @@ _INCOHERENTE = ("no tiene sentido", "incoherente", "raro", "se corto",
                 "esta cortado", "no entiendo la respuesta", "a medias")
 
 
+#: Cosas que NO son MAGI. Si la frase habla de una de ellas, la queja es sobre
+#: el trabajo, no sobre el sistema.
+#:
+#: SIN ESTO EL CATÁLOGO ERA PEOR QUE EL PROBLEMA. Medido:
+#:
+#:   «el emulador de psp que me hiciste no funciona»   -> SECUESTRADA
+#:   «compila pero el juego no responde al mando»      -> SECUESTRADA
+#:   «revisa este codigo, no funciona el decompilado»  -> SECUESTRADA
+#:   «el dynarec de mips no funciona bien en ppsspp»   -> SECUESTRADA
+#:
+#: Las cinco habrían recibido un diagnóstico del propio MAGI en lugar de que
+#: alguien mirara el código. Cambiar «NAOKO se inventa cosas» por «NAOKO
+#: ignora tu pregunta y habla de sí misma» no es un arreglo.
+#: OJO CON LAS SUBCADENAS. La primera versión de esta lista traía `funcion`
+#: —de «la función que escribiste»— y eso hizo que «el sistema no FUNCIONA»
+#: dejara de reconocerse, porque `funcion` está dentro de `funciona`. Lo cazó
+#: un test que ya existía, y por eso las entradas ambiguas van con artículo o
+#: con espacio delante: `la funcion`, ` mando` (si no, `comando` picaría).
+_NO_ES_MAGI = (
+    "emulador", "emular", "psp", "vita", "nintendo", "ppsspp", " rom", "roms",
+    "dynarec", "decompil", "descompil", "ensamblador", "assembly", "opcode",
+    "compila", "codigo", "script", "la funcion", "esa funcion", "funcion que",
+    "la clase", "el modulo", "libreria", "juego", "la app", "aplicacion que",
+    "programa que", "la web", "la pagina", "el boton", "el mando",
+    "pantalla del juego", "el build", "binario", "el exe que",
+    "lo que me hiciste", "que me generaste", "tu propuesta",
+)
+
+#: Anclas que sitúan la queja EN MAGI, y que MANDAN sobre la lista anterior.
+#:
+#: El orden importa y me costó una regresión: al meter «juego» en la lista de
+#: exclusiones, la frase que originó todo esto —«pedi al sistema crear un juego
+#: de tris pero no responde»— dejó de reconocerse. Habla de un juego, sí, pero
+#: la queja es que EL SISTEMA no respondió al pedírselo.
+#:
+#: Por eso «pedi al sistema» gana a «juego». No hay ambigüedad: quien dice a
+#: quién se lo pidió está diciendo de quién se queja.
+#:
+#: `sistema` a secas NO vale como ancla («el sistema de emulación no funciona»
+#: es sobre el emulador). Hacen falta las formas que nombran al destinatario.
+_ES_MAGI = (
+    "magi", "enjambre", "melchior", "balthasar", "casper", "naoko",
+    "pedi al sistema", "pedi al enjambre", "le pedi al sistema",
+    "al sistema crear", "al sistema que", "el sistema no responde",
+    "el sistema no contesta", "te pregunte", "te pedi", "te dije",
+    "pregunte y no", "mi pregunta", "no me contestas", "no me respondes",
+    "la interfaz", "el chat", "esta conversacion",
+)
+
+
 def es_operativa(pregunta: str) -> bool:
     """
-    ¿Es una pregunta sobre el propio sistema?
+    ¿Es una queja sobre el PROPIO MAGI?
 
-    Solo estas se contestan de forma determinista. Si el usuario pregunta de
-    filosofía, NAOKO responde normal — este catálogo no se mete.
+    Solo estas se contestan de forma determinista, en tres pasos y por este
+    orden:
+
+      1. ¿Hay una queja reconocible? («no responde», «tarda», «a medias»)
+      2. ¿Nombra al destinatario? Si dice «pedí al sistema», es sobre MAGI, y
+         eso manda aunque la frase hable además de un juego o un emulador.
+      3. Si no lo nombra: ¿habla de otra cosa? Entonces no es sobre MAGI.
+      4. Si no habla de nada más y es corta, es sobre MAGI.
+
+    Acertar el destinatario es la mitad del trabajo. «No responde» a secas es
+    sobre el sistema; «el emulador que me hiciste no responde» es sobre el
+    emulador. Misma queja, dos destinatarios opuestos.
     """
     p = _limpia(pregunta)
-    return any(f in p for f in _NO_RESPONDE + _TARDA + _INCOHERENTE)
+
+    if not any(f in p for f in _NO_RESPONDE + _TARDA + _INCOHERENTE):
+        return False
+    if any(f in p for f in _ES_MAGI):
+        return True
+    if any(f in p for f in _NO_ES_MAGI):
+        return False
+    # Queja corta y suelta: no da tiempo a hablar de otra cosa.
+    return len(p.split()) <= 8
 
 
 def _quiere(claves):

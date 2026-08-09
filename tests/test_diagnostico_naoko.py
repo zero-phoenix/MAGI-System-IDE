@@ -46,6 +46,43 @@ def test_no_secuestra_las_preguntas_normales(frase):
     assert diagnosticar(frase, Situacion()) is None
 
 
+@pytest.mark.parametrize("frase", [
+    "el emulador de psp que me hiciste no funciona",
+    "compila pero el juego no responde al mando",
+    "revisa este codigo, no funciona la funcion de decompilado",
+    "el dynarec de mips no funciona bien en ppsspp",
+    "el script de descompilado se quedo colgado",
+    "el exe que generaste no responde",
+])
+def test_una_queja_sobre_TU_codigo_no_se_secuestra(frase):
+    """
+    El riesgo de tener catálogo. Estas seis frases hablan del trabajo, no del
+    sistema, y todas habrían recibido un diagnóstico de MAGI en lugar de que
+    alguien mirara el código.
+
+    Cambiar «NAOKO se inventa cosas» por «NAOKO ignora tu pregunta y habla de
+    sí misma» no habría sido un arreglo.
+    """
+    assert not es_operativa(frase)
+
+
+@pytest.mark.parametrize("frase", [
+    "el sistema no funciona",
+    "pedi al sistema crear un juego de tris pero no responde",
+    "te pregunte algo y no me contestas",
+    "el enjambre no responde",
+    "naoko tarda demasiado",
+])
+def test_y_las_quejas_sobre_MAGI_si_se_reconocen(frase):
+    """
+    El otro lado de la moneda, y donde caí una vez: al excluir «funcion» —de
+    «la función que escribiste»— dejó de reconocerse «el sistema no FUNCIONA»,
+    porque una está dentro de la otra. Y al excluir «juego» se perdió la frase
+    original del usuario, que habla de un juego pero se queja del sistema.
+    """
+    assert es_operativa(frase)
+
+
 # ---------------------------------------------- el caso real, palabra por
 #                                                 palabra
 

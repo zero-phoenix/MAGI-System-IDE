@@ -36,6 +36,14 @@ class SwarmOrchestrator:
         # decidir qué hacer con ella. Ver `core/store/admision.py`.
         from magi.core.store.admision import LibroDeAdmision
         self.admision = LibroDeAdmision(self.store)
+        # Los agentes necesitan la tienda para medir sus turnos, y el
+        # blackboard es la vía que ya existe para compartir cosas globales.
+        # Pasarla por el constructor de cada agente habría cambiado tres
+        # firmas públicas para un detalle de instrumentación.
+        try:
+            self.blackboard.post("global.task_store", self.store)
+        except Exception:                                 # pragma: no cover
+            pass
 
         # Agentes ANTES de rehidratar: _rehydrate puede reanudar una tarea.
         self.melchior = MelchiorAgent(self.blackboard, self.bus)
@@ -104,8 +112,11 @@ class SwarmOrchestrator:
             peticion = build_approval_request(
                 task_id,
                 journal=WriteJournal(task_id=task_id),
+                # `or {}` y no `get(..., {})`: el valor por defecto de `get`
+                # solo actúa si la clave falta, no si está y vale None — que
+                # es el caso de una tarea rehidratada sin propuesta.
                 summary=(verdict.get("feedback")
-                         or state.get("last_proposal", {}).get("content", "")),
+                         or (state.get("last_proposal") or {}).get("content", "")),
                 commands=list(state.get("pending_commands") or []),
                 tests_ran=bool(verificacion.get("ran")),
                 tests_passed=bool(verificacion.get("passed")),
@@ -161,9 +172,16 @@ class SwarmOrchestrator:
         except Exception as e:                        # pragma: no cover
             logger.warning("[SWARM] no se pudo registrar la entrada: %s", e)
 
+        # `_despachar` puede REASIGNAR el id: si escribes «sí, apruebo», la
+        # petición se absorbe en la tarea que esperaba tu visto bueno. Con el
+        # id original, la entrada se archivaba bajo una tarea que no llegó a
+        # existir, y el libro perdía la traza de dónde acabó el trabajo.
+        # Devolverlo es lo único que lo mantiene honesto.
+        destino = task_id
         try:
-            await self._despachar(task_id, command, engine, narrative_style,
-                                  route, max_rounds, use_tools, entrada)
+            destino = await self._despachar(
+                task_id, command, engine, narrative_style,
+                route, max_rounds, use_tools, entrada) or task_id
         except Exception as e:
             if entrada is not None:
                 try:
@@ -176,7 +194,7 @@ class SwarmOrchestrator:
             # bien deja la entrada promovida, salvo que ya la haya encolado o
             # resuelto él mismo. Así el invariante no depende de acordarse de
             # cerrar el ciclo en cada rama: se cierra aquí, una vez.
-            self._cerrar_entrada(entrada, task_id)
+            self._cerrar_entrada(entrada, destino)
 
     def _cerrar_entrada(self, entrada, task_id: str) -> None:
         if entrada is None:
@@ -274,7 +292,20 @@ class SwarmOrchestrator:
                     ))
                     
                     import re
-                    content = state.get("last_proposal", {}).get("content", "")
+                    # `.get("last_proposal", {})` NO protege de nada aquí: el
+                    # segundo argumento solo se usa si la clave FALTA. Si está
+                    # presente y vale None —que es justo lo que pasa con una
+                    # tarea rehidratada que nunca llegó a producir propuesta—
+                    # devuelve None y el `.get("content")` siguiente revienta
+                    # con AttributeError.
+                    #
+                    # Se hizo alcanzable al reanudar tareas interrumpidas: se
+                    # rehidratan con last_proposal=None y aprobarlas mataba el
+                    # turno. Con el libro de admisión el mensaje ya no se
+                    # perdía —quedaba registrado como `fallida`—, pero seguía
+                    # sin ejecutarse.
+                    prop = state.get("last_proposal") or {}
+                    content = prop.get("content") or ""
                     blocks = re.findall(r'```(\w+)?\n(.*?)```', content, re.IGNORECASE | re.DOTALL)
                     
                     if blocks:
@@ -359,7 +390,7 @@ class SwarmOrchestrator:
                         payload={"content": f"[SWARM] Feedback del usuario recibido. Reanudando debate (Ronda {state['round']})."}
                     ))
                     self._spawn_loop(task_id)
-                return
+                return task_id
             elif state["status"] in ("in_progress", INTERRUMPIDA):
                 # AQUÍ ESTABA EL FALLO QUE BLOQUEABA EL SISTEMA
                 # ================================================
@@ -386,7 +417,7 @@ class SwarmOrchestrator:
                 # ocupado, la entrada espera turno. No se tira.
                 await self._entrada_mientras_ocupada(task_id, state, command,
                                                      entrada)
-                return
+                return task_id
 
 
         logger.info(f"[SWARM] Iniciando tarea {task_id}: {command}")
@@ -410,7 +441,8 @@ class SwarmOrchestrator:
         
         # Arrancar el bucle de la conversación asíncronamente
         self._spawn_loop(task_id)
-        
+        return task_id
+
     async def _entrada_mientras_ocupada(self, task_id: str, state: dict,
                                         command: str, entrada) -> None:
         """
@@ -647,7 +679,7 @@ class SwarmOrchestrator:
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 self.memory_for(task_id).record(
                     round_num=current_round,
-                    approach=state.get("last_proposal", {}).get("content", ""),
+                    approach=(state.get("last_proposal") or {}).get("content", ""),
                     outcome="refutado",
                     reason=verdict.get("feedback", ""))
                 state["round"] += 1
