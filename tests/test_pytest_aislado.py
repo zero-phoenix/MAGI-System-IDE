@@ -54,14 +54,25 @@ def test_cada_corrida_pide_su_propio_directorio_temporal():
 
 def test_dos_corridas_seguidas_no_comparten_directorio():
     """
-    Dos llamadas dan rutas distintas. Es toda la propiedad que hace falta.
+    Llamadas seguidas dan rutas distintas. Es toda la propiedad que hace falta.
 
     Si coincidieran, el aislamiento sería decorativo: el segundo proceso
     borraría el directorio del primero exactamente igual que antes.
+
+    Se piden VARIAS a la vez y no dos, porque la primera versión de esto usaba
+    milisegundos como sufijo y dos llamadas seguidas en una máquina rápida caían
+    en el mismo. Pasó en Windows y falló en el runner de Linux al primer intento
+    — un aislamiento que depende de la resolución del reloj no es aislamiento,
+    es una probabilidad, y la que falla es justo la máquina rápida, que es donde
+    más se solapan las corridas.
     """
-    a = [x for x in _argv() if x.startswith("--basetemp=")][0]
-    b = [x for x in _argv() if x.startswith("--basetemp=")][0]
-    assert a != b, "dos corridas no pueden apuntar al mismo directorio"
+    rutas = [
+        [x for x in _argv() if x.startswith("--basetemp=")][0]
+        for _ in range(25)
+    ]
+    assert len(set(rutas)) == len(rutas), (
+        "hay directorios repetidos entre corridas consecutivas: el sufijo no "
+        "garantiza unicidad, solo la hace probable")
 
 
 def test_el_temporal_vive_bajo_los_datos_de_magi_y_no_en_el_repositorio():

@@ -13,6 +13,7 @@ import os
 import shutil
 import sys
 import time
+import uuid
 from functools import lru_cache
 from pathlib import Path
 
@@ -208,7 +209,13 @@ def pytest_argv(path: str = "tests", *extra: str) -> list[str] | None:
     base.mkdir(parents=True, exist_ok=True)
     _poda_temporales(base)
 
-    propio = base / f"run-{os.getpid()}-{int(time.time() * 1000) % 10_000_000}"
+    # El sufijo es un uuid, no una marca de tiempo. La primera versión usaba
+    # milisegundos y el runner de Linux la tumbó al primer intento: dos
+    # llamadas seguidas caían en el mismo milisegundo y devolvían el MISMO
+    # directorio. Un aislamiento que depende de que el reloj tenga suficiente
+    # resolución no es aislamiento, es una probabilidad — y la que falla es
+    # justo la máquina rápida, que es donde más se solapan las corridas.
+    propio = base / f"run-{os.getpid()}-{uuid.uuid4().hex[:12]}"
     return [interprete, "-m", "pytest", path, "-q", "--no-header",
             f"--basetemp={propio}", *extra]
 
