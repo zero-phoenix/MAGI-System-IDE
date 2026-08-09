@@ -81,8 +81,14 @@ jobs:
     - name: Install ruff
       run: pip install ruff
 
-    - name: Syntax and undefined names
+    - name: Syntax and undefined names (bloqueante)
       run: ruff check magi/ tests/ --select E9,F63,F7,F82
+
+    - name: Lint completo (informativo — deuda técnica visible)
+      # --exit-zero: nunca falla el workflow, solo publica el conteo en el log.
+      # El objetivo es visibilidad progresiva: cuando la deuda baje, este step
+      # pasa a bloqueante. Por ahora, reportar sin romper el desarrollo.
+      run: ruff check magi/ tests/ --statistics --exit-zero || true
 
     - name: No hardcoded machine paths
       run: |
