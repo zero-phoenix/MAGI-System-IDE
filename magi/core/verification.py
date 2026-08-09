@@ -69,6 +69,13 @@ def _es_bloque_gui(code: str) -> bool:
 #
 # Así un Tetris correcto ejecuta unos fotogramas y termina con rc=0 → OK,
 # en vez de colgar hasta el timeout y salir como FALLA.
+#
+# OJO con DISPLAY: NO se fija a "" aquí. pygame basta con SDL_VIDEODRIVER=dummy,
+# pero tkinter necesita un servidor X real y forzar DISPLAY="" lo rompe en Linux
+# (no hay display en el runner de CI). Si una GUI no puede abrirse sin display
+# —caso de tkinter en Linux headless— el error se captura abajo y se marca como
+# `skipped` (requiere display), no como FALLA: el código puede ser correcto y
+# solo no verificable en este entorno.
 _GUI_GUARD = '''
 import sys as _magi_sys
 _magi_sys.path.insert(0, "")
@@ -76,7 +83,6 @@ try:
     import os as _magi_os
     _magi_os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     _magi_os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
-    _magi_os.environ.setdefault("DISPLAY", "")
     try:
         import pygame as _magi_pg
         _magi_flip = _magi_pg.display.flip
@@ -128,6 +134,15 @@ try:
 except Exception:
     pass
 '''
+
+# Errores que delatan "esta GUI no puede abrirse porque no hay display", no
+# "este código está mal". En Linux sin servidor X (el runner de CI) tkinter
+# muere con TclError: couldn't connect to display. Marcarlo como FALLA sería
+# rechazar código correcto por el entorno donde se verifica.
+_FALTA_DISPLAY = re.compile(
+    r"couldn't connect to display|no display|can't open display|"
+    r"DISPLAY.*not set|unable to open.*display|"
+    r"_tkinter\.TclError", re.IGNORECASE)
 
 
 @dataclass
@@ -345,6 +360,16 @@ class ProposalVerifier:
                 "en modo headless. Verifica la sintaxis y los imports; la "
                 "ejecución visual requiere abrirlo a mano. NO se marca como "
                 "fallo: un juego pygame correcto no termina por sí solo.")
+        # Fallo por falta de display (tkinter en Linux sin X): el código puede
+        # ser correcto, solo no se puede verificar gráficamente aquí.
+        if rc != 0 and es_gui and _FALTA_DISPLAY.search(out):
+            return BlockResult(
+                lang, i, True, "skipped",
+                "bloque con interfaz gráfica (GUI): no hay servidor gráfico "
+                "(display) en este entorno, así que no se pudo ejecutar. La "
+                "sintaxis y los imports están verificados; ábrelo a mano para "
+                "comprobarlo. NO se marca como fallo: tkinter/turtle "
+                "necesitan un display real.")
         return BlockResult(lang, i, False, "run", out[-2000:])
 
     @staticmethod

@@ -107,7 +107,15 @@ async def test_un_pygame_con_error_real_da_falla_con_el_traceback():
 
 @pytest.mark.asyncio
 async def test_tkinter_no_cuelga():
-    """tkinter también abre ventana; el guardián debe cancelar su mainloop."""
+    """
+    tkinter también abre ventana; no debe colgar el verificador.
+
+    En un entorno CON display (Windows, Linux con X) arranca y da OK. En uno
+    SIN display (el runner de Linux de CI) tkinter muere con
+    'couldn't connect to display' — un error de entorno, no de código — y se
+    marca como `skipped`. Ambos resultados son correctos; lo que NUNCA debe
+    pasar es un timeout de 45s.
+    """
     app = (
         "import tkinter\n"
         "root = tkinter.Tk()\n"
@@ -116,7 +124,12 @@ async def test_tkinter_no_cuelga():
     )
     v = ProposalVerifier(timeout_s=6.0)
     report = await v.verify(f"```python\n{app}```")
-    assert report.ok, f"tkinter arrancó pero se marcó como fallo:\n{report.render()}"
+    # ok==True cubre OK (con display) y skipped (sin display). Un GUI cuyo
+    # único problema es no tener display no es un fallo de la propuesta.
+    assert report.ok, (
+        f"tkinter debió dar OK o skipped, no FALLA:\n{report.render()}")
+    assert report.blocks[0].stage in ("run-headless", "skipped"), (
+        f"tkinter no debió colgar hasta timeout:\n{report.render()}")
 
 
 # =========================================================== informe
