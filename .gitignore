@@ -36,3 +36,6 @@ magi_brain.db
 
 # Journal de deshacer
 journal/
+_build.txt 
+_s.txt 
+_suite.txt 
