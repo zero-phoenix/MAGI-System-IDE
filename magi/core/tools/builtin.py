@@ -287,10 +287,17 @@ def build_registry() -> ToolRegistry:
         # evidencia» devolvía la salida de MAGI arrancando. Balthasar critica
         # habiendo ejecutado: eso es lo que le da autoridad, y en el binario
         # publicado no ejecutaba nada.
-        interprete = python_executable()
-        if interprete is None:
+        from magi.core.paths import pytest_argv
+        # Directorio temporal propio: Balthasar puede estar ejecutando esto
+        # mientras Naoko verifica una reparación, y sin aislarlos la corrida
+        # que arranca después borra el tmp de la que ya estaba dentro. Las dos
+        # acaban con FileNotFoundError en cada test que use tmp_path — es
+        # decir, en casi todos — y la crítica «habiendo ejecutado», que es lo
+        # que da autoridad a Balthasar, se apoya en una suite falsamente roja.
+        argv = pytest_argv(path)
+        if argv is None:
             return ToolResult(False, "", error=_SIN_PYTHON)
-        cmd = f'"{interprete}" -m pytest {path} -q --no-header'
+        cmd = " ".join(f'"{a}"' if " " in a else a for a in argv)
         if k:
             cmd += f' -k "{k}"'
         return await run_command(cmd, ctx=ctx, timeout=300)

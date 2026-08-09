@@ -38,15 +38,23 @@ export default function NaokoPanel({
          </div>
        </div>
        
-       <div style={{ flex: 1, padding: "15px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+       {/* `minWidth: 0` y `overflowX: hidden` son lo que impide que un mensaje
+           largo de Naoko —un traceback, un diccionario de error sin espacios—
+           empuje el ancho de la columna y saque la barra de pestañas de la
+           pantalla. Un contenedor flex tiene `min-width: auto` por defecto, es
+           decir: se niega a encoger por debajo de su contenido. Con contenido
+           que no se puede partir, eso es un ancho infinito. */}
+       <div style={{ flex: 1, padding: "15px", overflowY: "auto", overflowX: "hidden",
+                     minWidth: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
          {naokoMessages.map((msg, i) => (
-            <div key={i} style={{ 
-              background: msg.agent === "USER" ? "rgba(10,20,25,0.9)" : "rgba(30,20,30,0.7)", 
-              border: `1px solid ${msg.agent === "USER" ? "var(--dim)" : "#d2a8ff"}`, 
-              padding: "10px", 
+            <div key={i} style={{
+              background: msg.agent === "USER" ? "rgba(10,20,25,0.9)" : "rgba(30,20,30,0.7)",
+              border: `1px solid ${msg.agent === "USER" ? "var(--dim)" : "#d2a8ff"}`,
+              padding: "10px",
               borderRadius: "8px",
               alignSelf: msg.agent === "USER" ? "flex-end" : "flex-start",
               maxWidth: "85%",
+              minWidth: 0,
               fontSize: "13px",
               wordBreak: "break-word",
               overflowWrap: "anywhere"

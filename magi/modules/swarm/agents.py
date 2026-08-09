@@ -32,6 +32,12 @@ class SwarmAgentBase:
     #: cuántas familias distintas se prueban si la respuesta llega en otro
     #: idioma. Acotado a propósito: ver _reintentar_idioma().
     MAX_REINTENTOS_IDIOMA: int = 2
+    #: y en el camino CON herramientas, uno solo. Ahí cada reintento reejecuta
+    #: el bucle de herramientas entero —entre 50 y 74 s por pasada en el caso
+    #: real—, así que el mismo tope de 2 convertiría un turno de un minuto en
+    #: uno de tres. Una respuesta en otro idioma se puede volver a pedir; tres
+    #: minutos de espera no se devuelven.
+    MAX_REINTENTOS_TOOLS: int = 1
 
     def __init__(self, blackboard: Blackboard, bus: MagiBus):
         self.blackboard = blackboard
@@ -242,34 +248,72 @@ class SwarmAgentBase:
 
         logger.info("[%s] %s", self.role_name, turn.summary())
 
-        # GUARDA DE IDIOMA (mismo principio que en _ask). El bucle de
-        # herramientas puede terminar con un texto en otro idioma si el
-        # proveedor se despista en el último paso. Un reintento con otra
-        # familia cuesta, pero entregar un análisis ilegible cuesta más.
-        lang = idioma.detectar(user_prompt)
-        if turn.text and not idioma.coincide(turn.text, lang):
-            logger.debug("[%s] turno con herramientas en otro idioma "
-                         "(esperado %s); reintentando con otra familia",
-                         self.role_name, lang)
-            for familia in self._familias_disponibles():
-                if f"g4f-{familia}" == f"g4f-{self.family}":
-                    continue
-                try:
-                    turn = await run_agent(
-                        registry=registry,
-                        tools=registry_for_role(self.tool_role, task_hint=user_prompt),
-                        system_prompt=full_sys, user_prompt=user_prompt, ctx=ctx,
-                        prefer_provider=f"g4f-{familia}",
-                        max_iters=max_iters,
-                        temperature=0.4 if engine == "fast" else 0.2,
-                        seed=self.seed, on_event=on_event, agent_name=self.role_name)
-                    if idioma.coincide(turn.text, lang):
+        # GUARDA DE IDIOMA (mismo principio que en _ask), CON RED DEBAJO.
+        #
+        # LA RED NO ES OPCIONAL, Y ESTE ES EL MOTIVO
+        # ==========================================
+        # Esta guarda existe para mejorar la respuesta: si el proveedor se
+        # despista y contesta en otro idioma, se reintenta. Nada más. Y aun así
+        # llegó a tumbar el sistema entero.
+        #
+        # El método al que llamaba se había renombrado y aquí quedó el nombre
+        # viejo. Como el `for` estaba FUERA del try, el AttributeError subía
+        # hasta arriba:
+        #
+        #   [parallel] variante 0 falló: 'MelchiorAgent' object has no
+        #              attribute '_familias_disponibles'   (x3)
+        #   [SWARM] Error catastrófico: ninguna variante de propuesta se
+        #           completó
+        #
+        # Tres variantes muertas, la orquestación caída y el usuario esperando
+        # tres minutos para no recibir nada — y todo tras haber generado ya
+        # respuestas perfectamente válidas, que se tiraron a la basura.
+        #
+        # La lección no es «cuidado al renombrar». Es que **una mejora de
+        # calidad no puede tener autoridad para matar lo que mejora**. Si el
+        # reintento falla, por el motivo que sea, se entrega lo que ya había:
+        # una respuesta en otro idioma es un problema; ninguna respuesta es
+        # otro mucho peor. Por eso todo el bloque va dentro de un try.
+        #
+        # Y el tope importa aquí más que en _ask: cada reintento reejecuta el
+        # bucle de herramientas ENTERO. En el caso real, cada pasada costó
+        # entre 50 y 74 segundos. Sin tope, un falso negativo del detector
+        # convertía un turno de un minuto en uno de diez.
+        try:
+            lang = idioma.detectar(user_prompt)
+            if turn.text and not idioma.coincide(turn.text, lang):
+                logger.debug("[%s] turno con herramientas en otro idioma "
+                             "(esperado %s); reintentando con otra familia",
+                             self.role_name, lang)
+                for familia in self._otras_familias_del_registry()[
+                        :self.MAX_REINTENTOS_TOOLS]:
+                    try:
+                        alt = await run_agent(
+                            registry=registry,
+                            tools=registry_for_role(self.tool_role,
+                                                    task_hint=user_prompt),
+                            system_prompt=full_sys, user_prompt=user_prompt,
+                            ctx=ctx,
+                            prefer_provider=f"g4f-{familia}",
+                            max_iters=max_iters,
+                            temperature=0.4 if engine == "fast" else 0.2,
+                            seed=self.seed, on_event=on_event,
+                            agent_name=self.role_name)
+                    except Exception as e:
+                        logger.debug("[%s] reintento en %s falló: %s",
+                                     self.role_name, familia, e)
+                        continue
+                    # Solo se ADOPTA el reintento si acierta el idioma. Antes
+                    # se sobrescribía `turn` con cada intento, así que un
+                    # reintento peor que el original lo sustituía igualmente.
+                    if alt.text and idioma.coincide(alt.text, lang):
                         logger.info("[%s] reintento en %s acertó el idioma",
                                     self.role_name, familia)
+                        turn = alt
                         break
-                except Exception as e:
-                    logger.debug("[%s] reintento en %s falló: %s",
-                                 self.role_name, familia, e)
+        except Exception as e:                            # pragma: no cover
+            logger.warning("[%s] la guarda de idioma falló (%s); entrego la "
+                           "respuesta original", self.role_name, e)
 
         # §3.4 — CONTABILIDAD DE TOKENS.
         #

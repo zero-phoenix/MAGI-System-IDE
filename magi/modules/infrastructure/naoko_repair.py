@@ -159,17 +159,22 @@ async def run_test_suite(root: Path | None = None,
                          path: str = "tests") -> tuple[bool, str]:
     """La verificación que no existía en v5.0.28."""
     root = root or project_root()
-    from magi.core.paths import python_executable
-    interprete = python_executable()
-    if interprete is None:
+    from magi.core.paths import pytest_argv
+    # `pytest_argv` resuelve el intérprete Y da a esta corrida su propio
+    # directorio temporal. Lo segundo importa aquí más que en ningún otro
+    # sitio: si el usuario está corriendo la suite a la vez, la corrida de
+    # Naoko le borraba el tmp y las dos fallaban con FileNotFoundError. Naoko
+    # leía eso como «la suite ya estaba roja» y se abstenía de reparar — un
+    # diagnóstico falso producido por su propia verificación.
+    argv = pytest_argv(path)
+    if argv is None:
         # En el .exe, `sys.executable` es el propio .exe: lanzarlo con
         # `-m pytest` relanzaba MAGI y el resultado no tenía nada que ver con
         # los tests. Mejor decir que no se puede verificar que dar por buena
         # una verificación que no ocurrió.
         return False, ("no hay un intérprete de Python con el que ejecutar la "
                        "suite: la reparación NO queda verificada")
-    rc, out = await _sh([interprete, "-m", "pytest", path, "-q", "--no-header"],
-                        root, timeout=600)
+    rc, out = await _sh(argv, root, timeout=600)
     return rc == 0, out[-4000:]
 
 

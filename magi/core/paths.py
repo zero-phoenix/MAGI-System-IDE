@@ -8,15 +8,20 @@ Toda ruta del sistema se resuelve aquí y solo aquí.
 """
 from __future__ import annotations
 
+import logging
 import os
+import shutil
 import sys
+import time
 from functools import lru_cache
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "project_root", "data_dir", "workspace_dir", "journal_dir",
     "db_path", "logs_dir", "cache_dir", "is_frozen", "describe",
-    "python_executable",
+    "python_executable", "pytest_argv",
 ]
 
 _ENV_ROOT = "MAGI_ROOT"
@@ -161,6 +166,70 @@ def db_path() -> Path:
     dentro. Ahora vive en el directorio de datos del usuario.
     """
     return data_dir() / "magi_brain.db"
+
+
+def pytest_argv(path: str = "tests", *extra: str) -> list[str] | None:
+    """
+    Orden para lanzar pytest CON SU PROPIO directorio temporal.
+
+    EL FALLO QUE ESTO CIERRA
+    ========================
+    MAGI lanza pytest desde tres sitios: la herramienta `run_tests` que usa
+    Balthasar para criticar habiendo ejecutado, la verificación de Naoko antes
+    de reparar, y la compuerta de publicación. Los tres invocaban `pytest` a
+    secas, así que los tres compartían el directorio temporal por defecto.
+
+    pytest guarda sus `tmp_path` en `<temp>/pytest-of-<usuario>/pytest-N`, y al
+    arrancar BORRA las corridas antiguas para no dejar basura. Con dos procesos
+    a la vez —Naoko verificando mientras el usuario corre la suite, o dos
+    reparaciones solapadas— el segundo borra el directorio del primero mientras
+    lo está usando. El resultado, medido en la máquina del usuario:
+
+        732 ERROR ... FileNotFoundError: [WinError 3] No se puede encontrar la
+        ruta: 'C:\\...\\Temp\\pytest-of-D\\pytest-2'
+
+    Todos los tests que usan `tmp_path`, que son casi todos. Y lo que Naoko
+    concluye de eso es lo peor del asunto:
+
+        [naoko] la suite ya estaba roja antes de tocar nada
+
+    Un diagnóstico falso que la deja sin reparar nada, causado por la propia
+    verificación. El instrumento de medida rompiendo lo medido — que es
+    exactamente contra lo que avisa la regla de oro de la telemetría.
+
+    Cada corrida recibe ahora un directorio propio bajo el de datos de MAGI, con
+    el PID en el nombre. No pueden colisionar.
+    """
+    interprete = python_executable()
+    if interprete is None:
+        return None
+
+    base = data_dir() / "pytest-tmp"
+    base.mkdir(parents=True, exist_ok=True)
+    _poda_temporales(base)
+
+    propio = base / f"run-{os.getpid()}-{int(time.time() * 1000) % 10_000_000}"
+    return [interprete, "-m", "pytest", path, "-q", "--no-header",
+            f"--basetemp={propio}", *extra]
+
+
+def _poda_temporales(base: Path, max_edad_s: int = 6 * 3600) -> None:
+    """
+    Borra los directorios de corridas viejas.
+
+    Con `--basetemp` explícito, pytest deja de rotar y limpiar por su cuenta:
+    o los quita alguien, o crecen para siempre. Se hace aquí y no en el
+    llamante porque un llamante que se olvide de limpiar no da error, solo va
+    llenando el disco — el tipo de fallo que solo se nota meses después.
+    """
+    try:
+        corte = time.time() - max_edad_s
+        for d in base.iterdir():
+            if d.is_dir() and d.stat().st_mtime < corte:
+                shutil.rmtree(d, ignore_errors=True)
+    except OSError as e:                                  # pragma: no cover
+        # Limpiar nunca puede impedir correr los tests.
+        logger.debug("[paths] no se pudieron podar temporales de pytest: %s", e)
 
 
 def describe() -> dict:

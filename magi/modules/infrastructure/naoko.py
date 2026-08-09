@@ -1213,13 +1213,17 @@ Devuelve tu diagnóstico y tu parche."""
         código de salida era 127 y publicar fallaba SIEMPRE, dejando la mejora
         rebotando entre `fallida` y `esperando_publicacion` sin salida.
         """
-        from magi.core.paths import project_root, python_executable
-        interprete = python_executable()
-        if interprete is None:
+        from magi.core.paths import project_root, pytest_argv
+        # Con su propio tmp: esta es la compuerta de PUBLICACIÓN, así que una
+        # suite falsamente roja por colisión de directorios temporales con otra
+        # corrida bloquearía una publicación perfectamente válida. Un guardián
+        # que se equivoca por su propia infraestructura acaba desactivado.
+        argv = pytest_argv("tests/")
+        if argv is None:
             return False, ("no hay un intérprete de Python con el que correr "
                            "la suite: no se puede publicar sin verificar")
         proc = await asyncio.create_subprocess_exec(
-            interprete, "-m", "pytest", "tests/", "-q", "--no-header",
+            *argv,
             cwd=str(project_root()),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         from magi.core.cancel import tracked

@@ -17,6 +17,88 @@ suscripciones**.
 
 ---
 
+# v5.2.1 — la guarda que mataba lo que venía a proteger
+
+Si en v5.2.0 pediste algo al enjambre y recibiste esto, esta versión lo arregla:
+
+```
+[parallel] variante 1 falló: 'MelchiorAgent' object has no attribute
+           '_familias_disponibles'
+[SWARM] Error catastrófico: ninguna variante de propuesta se completó
+```
+
+### Qué pasaba
+
+La guarda de idioma —la que impide que las tres IA te contesten en chino—
+llamaba a un método que se había renombrado. Solo en uno de los dos caminos: el
+de `_ask` se actualizó, el de `_ask_with_tools` se quedó con el nombre viejo.
+
+Y la llamada estaba **fuera** del `try`, así que el `AttributeError` subía hasta
+arriba y se llevaba por delante la variante entera. Las tres variantes muertas,
+la orquestación caída, y tú esperando tres minutos para no recibir nada —
+después de que los modelos hubieran generado ya tres respuestas perfectamente
+válidas, que se tiraron a la basura.
+
+### Lo que se ha cambiado, que es más que el nombre
+
+Corregir el nombre era una línea. Lo importante es lo otro: **una mejora de
+calidad no puede tener autoridad para matar lo que mejora.** Ahora el reintento
+entero va dentro de un `try`: si falla, por el motivo que sea, se entrega la
+respuesta original. Una respuesta en otro idioma es un problema; ninguna
+respuesta es otro mucho peor.
+
+Y tiene tope de un reintento en el camino con herramientas, porque ahí cada
+intento reejecuta el bucle completo — entre 50 y 74 segundos por pasada en el
+caso real. Un turno de un minuto se convertía en uno de diez.
+
+### Por qué no lo vio nadie, y qué se ha hecho al respecto
+
+Python resuelve los atributos al ejecutar. Esa línea solo se recorre cuando la
+respuesta llega en otro idioma, así que el import funcionaba, la sintaxis era
+válida, los 855 tests pasaban, el CI pasaba en cuatro combinaciones de sistema
+y versión, y el `.exe` compilaba. Reventaba en tu máquina.
+
+Hay ahora un test que recorre todas las clases de `magi/` y comprueba que cada
+`self.<algo>` existe en la clase o en sus bases. Un lenguaje con comprobación
+estática lo habría dicho al compilar; Python no, así que se comprueba. Verificado
+inyectando una llamada fantasma a propósito: la caza con fichero y línea.
+
+### Naoko decía que la suite estaba rota, y no lo estaba
+
+```
+[naoko] la suite ya estaba roja antes de tocar nada
+```
+
+Era falso, y lo causaba la propia verificación. MAGI lanza pytest desde tres
+sitios —la herramienta `run_tests` de Balthasar, la verificación de Naoko y la
+compuerta de publicación— y los tres compartían el directorio temporal por
+defecto. pytest borra las corridas antiguas al arrancar, así que con dos
+procesos solapados el segundo borraba el tmp del primero mientras lo usaba:
+
+```
+732 ERROR ... FileNotFoundError: [WinError 3] No se puede encontrar la ruta:
+'C:\...\Temp\pytest-of-D\pytest-2'
+```
+
+Casi todos los tests usan `tmp_path`, así que caían casi todos, y Naoko deducía
+que el proyecto estaba roto y se abstenía de reparar nada. Cada corrida tiene
+ahora su propio directorio.
+
+### La interfaz
+
+- **El panel de Naoko ya no se descuadra.** Un diccionario de error de 200
+  caracteres sin espacios es, para el navegador, una sola palabra — y una
+  palabra no se parte. El bloque se salía de su tarjeta, la tarjeta ensanchaba
+  la columna y la barra de pestañas se iba fuera de la pantalla. Un mensaje de
+  error dejaba media interfaz inalcanzable, justo cuando más falta hace poder
+  navegarla.
+- **Las pestañas ya no se esconden.** Antes se desplazaban horizontalmente y
+  con la ventana estrecha las últimas (Sistema, Mejoras) quedaban fuera de
+  alcance. Ahora pasan a la línea siguiente: ocupan un poco más de alto y están
+  todas visibles siempre.
+
+---
+
 # v5.2.0 — el bus volvió a entregar, y ahora se ve por qué tarda
 
 Esta versión sale de auditar los cambios de la anterior antes de publicarlos. La

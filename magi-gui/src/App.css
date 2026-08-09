@@ -155,6 +155,11 @@ body {
 /* columnas */
 .col {
   min-height: 0;
+  /* `min-width: 0` es el par del de arriba y hace falta por lo mismo: un hijo
+   * de flex se niega a encoger por debajo de su contenido salvo que se le diga.
+   * Sin esto, un traceback sin espacios dentro de un panel ensancha la columna
+   * y con ella toda la aplicación. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -538,11 +543,23 @@ body {
   border-left: 1px solid var(--gr);
 }
 
+/* LAS PESTAÑAS NO SE ESCONDEN.
+ *
+ * Antes: `overflow-x: auto` en una sola fila. Con la ventana estrecha —o con
+ * un mensaje largo empujando el ancho— las últimas pestañas (Sistema, Mejoras)
+ * se salían del viewport y solo aparecían al desplazar una barra que nadie ve.
+ * Una pestaña que existe y no se puede alcanzar es lo mismo que no tenerla, y
+ * este proyecto lleva media docena de sesiones quitando exactamente eso.
+ *
+ * Ahora envuelven a la línea siguiente: ocupan un poco más de alto y están
+ * TODAS visibles siempre. `min-width: 0` permite además que la columna encoja
+ * en vez de estirar la aplicación entera. */
 .tabs {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--gr);
-  overflow-x: auto;
+  min-width: 0;
 }
 
 .tab {
@@ -733,11 +750,23 @@ body {
   border-left: 1px solid var(--gr);
 }
 
+/* LAS PESTAÑAS NO SE ESCONDEN.
+ *
+ * Antes: `overflow-x: auto` en una sola fila. Con la ventana estrecha —o con
+ * un mensaje largo empujando el ancho— las últimas pestañas (Sistema, Mejoras)
+ * se salían del viewport y solo aparecían al desplazar una barra que nadie ve.
+ * Una pestaña que existe y no se puede alcanzar es lo mismo que no tenerla, y
+ * este proyecto lleva media docena de sesiones quitando exactamente eso.
+ *
+ * Ahora envuelven a la línea siguiente: ocupan un poco más de alto y están
+ * TODAS visibles siempre. `min-width: 0` permite además que la columna encoja
+ * en vez de estirar la aplicación entera. */
 .tabs {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--gr);
-  overflow-x: auto;
+  min-width: 0;
 }
 
 .tab {

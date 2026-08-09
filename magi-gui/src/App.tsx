@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import "./App.css";
 import { useMagiStore } from "./store";
 import { useMagiSocket } from "./useMagiSocket";
@@ -12,6 +12,7 @@ import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
 import NaokoPanel from './components/NaokoPanel';
+import { crearRenderCode } from './components/CodigoMarkdown';
 import ImprovementPanel from './components/ImprovementPanel';
 import ConfigPanel from './components/ConfigPanel';
 import PreviewPanel from './components/PreviewPanel';
@@ -137,32 +138,10 @@ export default function App() {
     sendCommand(`SYS_EXEC_HOST \n${code}`, activeConversationId);
   };
 
-  const renderCode = ({node, inline, className, children, ...props}: any) => {
-    const match = /language-(\w+)/.exec(className || '');
-    const codeString = String(children).replace(/\n$/, '');
-    
-    if (!inline && match) {
-      const isExecutable = ['bash', 'powershell', 'python', 'sh', 'cmd', 'ps1'].includes(match[1].toLowerCase());
-      return (
-        <div style={{ position: 'relative', marginTop: '10px', marginBottom: '10px' }}>
-          <div style={{ background: '#1a1a1a', padding: '10px', borderRadius: '4px', overflowX: 'auto' }}>
-            <code className={className} style={{ color: '#00ff00', fontFamily: 'monospace' }} {...props}>
-              {children}
-            </code>
-          </div>
-          {isExecutable && (
-            <button 
-              onClick={() => runHostScript(codeString)}
-              style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--acc)', color: '#000', border: 'none', padding: '4px 8px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              ▶ Ejecutar en PC
-            </button>
-          )}
-        </div>
-      );
-    }
-    return <code className={className} style={{background: '#333', padding: '2px 4px', borderRadius: '2px'}} {...props}>{children}</code>;
-  };
+  // El renderizador de bloques de código vive en components/: extraerlo
+  // fue lo que pidió test_app_tsx_no_vuelve_a_crecer_sin_limite cuando
+  // este fichero pasó de 900 líneas. Ver CodigoMarkdown.tsx.
+  const renderCode = useMemo(() => crearRenderCode(runHostScript), []);
 
   const handleGitPush = () => {
     if(!gitUrl.trim()) return;
