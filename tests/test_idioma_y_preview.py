@@ -55,6 +55,28 @@ def test_un_tecnicismo_en_ingles_no_es_cambio_de_idioma():
         "failover al siguiente provider de la familia.", "es") is True
 
 
+def test_una_respuesta_corta_en_ingles_no_pasa_por_espanol():
+    """
+    La regresión exacta de la captura del usuario: «las 3 ia no me hablan en
+    español». Una respuesta corta en inglés se daba por buena porque
+    `coincide()` tenía `return len(respuesta.split()) < 12`. La guarda de los
+    tres agentes y de Naoko nunca rotaba.
+    """
+    assert idioma.coincide("Sure! I will create a Tetris game for you.", "es") is False
+    assert idioma.coincide("I will build it now.", "es") is False
+    assert idioma.coincide("Of course, here is the code.", "es") is False
+
+
+def test_un_bloque_de_codigo_sin_idioma_no_se_rechaza():
+    """
+    Un bloque de código puro (sin palabras vacías de ninguna lengua) no es un
+    fallo de idioma: `detectar` cae al por defecto y no hay motivo para rotar.
+    Sin este caso, afinar la detección rompería la verificación de snippets.
+    """
+    assert idioma.coincide("def f():\n    return 42", "es") is True
+    assert idioma.coincide("x = [i*2 for i in range(10)]", "es") is True
+
+
 def test_la_instruccion_va_en_el_idioma_pedido():
     assert "español" in idioma.instruccion("es")
     assert "English" in idioma.instruccion("en")

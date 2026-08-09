@@ -50,7 +50,23 @@ _PISTAS = {
            "con", "una", "un", "es", "está", "esto", "pero", "porque",
            "hola", "qué", "cómo", "cuándo", "dónde", "gracias", "sí", "no"},
     "en": {"the", "of", "and", "to", "is", "are", "this", "that", "with",
-           "for", "how", "what", "why", "hello", "hi", "thanks", "please"},
+           "for", "how", "what", "why", "hello", "hi", "thanks", "please",
+           # Pronombres y auxiliares. Sin ellos, una frase corta en inglés
+           # ("I will build it now") no deja NINGUNA palabra vacía reconocida
+           # y `detectar` caía al por defecto (español): la respuesta pasaba
+           # por válida y la guarda de idioma no rotaba nunca. Estas palabras
+           # no aparecen en las listas de las otras lenguas latinas, así que
+           # añadirlas no crea falsos positivos en francés/italiano/etc.
+           #
+           # `i` se excluye a propósito: es LA variable de bucle por defecto
+           # en Python (`for i in range(...)`) y aparece en casi todo snippet.
+           # Como pronombre inglés va en mayúscula ("I") y la distinción se
+           # pierde al normalizar a minúscula; su valor discriminante no
+           # compensa los falsos positivos sobre código. `will`, `you`, `it`,
+           # `would`, etc. sí son distintivos y no colisionan con reservadas.
+           "you", "it", "we", "they", "my", "your", "will", "do",
+           "does", "can", "could", "would", "should", "was", "were", "has",
+           "have", "had", "did"},
     "pt": {"o", "a", "os", "as", "de", "que", "para", "com", "uma", "não",
            "está", "olá", "obrigado", "porque", "como"},
     "fr": {"le", "la", "les", "de", "que", "pour", "avec", "une", "est",
@@ -158,6 +174,31 @@ def coincide(respuesta: str, esperado: str) -> bool:
     detectado = detectar(respuesta, por_defecto=esperado)
     if detectado == esperado:
         return True
-    # Entre lenguas latinas se exige margen: una respuesta larga claramente en
-    # otro idioma sí cuenta, una frase corta ambigua no.
-    return len(respuesta.split()) < 12
+
+    # Entre lenguas latinas: una respuesta en otro idioma NO vale, por corta
+    # que sea.
+    #
+    # La línea anterior era `return len(respuesta.split()) < 12`: una respuesta
+    # corta se daba por buena SÍ O SÍ. Eso era justo el agujero por el que se
+    # colaba el bug de la captura — "Sure! I will create a Tetris game for
+    # you." (9 palabras) pasaba por español válido, así que la guarda de los
+    # tres agentes y de Naoko nunca rotaba y el usuario veía "las 3 ia no me
+    # hablan en español". El log mentía con "reintento en gemini acertó el
+    # idioma" porque esa rama solo se activa cuando la respuesta ES larga.
+    #
+    # La excepción legítima es la respuesta SIN señal de ningún idioma: un
+    # bloque de código, un número, una URL. Ahí `detectar` cae al por defecto
+    # (que es el idioma del usuario) y no hay motivo para rechazar. Pero si la
+    # detección encontró palabras vacías de OTRA lengua romance, la respuesta
+    # está en ese idioma, no en el esperado, por corta que sea.
+    palabras = {_normaliza(p) for p in _PALABRA.findall(respuesta)}
+    if not palabras:
+        return True  # sin texto evaluable: no es un fallo de idioma
+    otras = {c: len(palabras & pistas) for c, pistas in _PISTAS.items()
+             if c != esperado}
+    # Una sola coincidencia aislada puede ser ruido: `for` e `in` son
+    # reservadas de Python, `code` aparece en cualquier snippet. Una frase
+    # de verdad en otro idioma deja dos o más palabras vacías, y eso sí es
+    # señal inequívoca. Es el mismo principio que el `detectar` de alfabetos
+    # (>= 2 caracteres): una ocurrencia suelta no decide.
+    return max(otras.values()) < 2

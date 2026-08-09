@@ -17,6 +17,59 @@ suscripciones**.
 
 ---
 
+# v5.2.2 — las tres IA vuelven a hablar tu idioma, y el Tetris arranca
+
+Tres fallos confirmados a partir de la captura y el log de un usuario real:
+un «crear un juego tetris» que se quedó dando vueltas en la Ronda 5 sin
+avanzar, con las tres IA respondiendo en inglés y `Yqcloud/gpt-4` tardando
+entre 53 y 75 segundos por respuesta.
+
+### 1. La guarda de idioma se libraba en las respuestas cortas
+
+El módulo de idioma tenía, en su última línea, `return len(respuesta.split())
+< 12`: **cualquier respuesta de menos de doce palabras se daba por buena, en
+el idioma que fuera**. Una frase como *«Sure! I will create a Tetris game for
+you.»* pasaba por español válida, así que la guarda que debería rotar de
+familia nunca lo hacía. El usuario veía a los tres nodos contestarle en otro
+idioma con la guarda «arreglada».
+
+Ahora se exige señal real del idioma esperado —mínimo dos palabras vacías—,
+por corta que sea la respuesta. Un tecnicismo inglés aislado dentro de texto
+español sigue siendo válido; un bloque de código sin idioma también.
+
+### 2. La verificación no colgaba con un juego
+
+`ProposalVerifier` ejecuta cada bloque de código antes de debatirlo. Un Tetris
+pygame entra en un `mainloop` que **nunca termina**: colgaba 45 s y salía como
+`FALLA — timeout`, así que el orquestador devolvía la propuesta a Melchior una
+y otra vez sin gastar ronda. Código correcto rechazado en bucle.
+
+Ahora se detectan los bloques con interfaz gráfica (pygame, tkinter, turtle,
+arcade, mainloop) y se ejecutan **headless**: se inyecta un guardián que
+cuenta fotogramas y sale limpio tras unos pocos. Un juego que arranca da
+`OK — run-headless`; un `while True: pass` puro sigue dando `FALLA` por timeout
+(no se enmascara un bug real). Reutiliza el patrón del `PYGAME_HARNESS` del
+estudio de artefactos.
+
+### 3. La familia gpt ya no espera al más lento
+
+`Yqcloud/gpt-4` declaraba 2000 ms pero respondía en 53–75 s en uso sostenido,
+arrastrando cada etapa de Melchior aunque hubiera alternativas de 1–2 s en la
+misma familia. El catálogo se ha reordenado para poner primero a los
+candidatos rápidos verificados (`CopilotApp` ~1,1 s, `WeWordle` ~2,4 s), y la
+cobertura paralela (`hedge`) sube de 2 a 3, para que un rápido pueda ganar la
+carrera mientras el lento sigue su curso. Todo sigue siendo gratuito y sin
+claves.
+
+### Detalles
+
+- **865 tests** en la suite (Linux y Windows), 0 fallos.
+- No se toca la orquestación, el libro de admisión, el flujo de aprobación ni
+  los prompts de los agentes.
+- No se añaden dependencias: pygame ya era opcional.
+
+---
+
 # v5.2.1 — la guarda que mataba lo que venía a proteger
 
 Si en v5.2.0 pediste algo al enjambre y recibiste esto, esta versión lo arregla:

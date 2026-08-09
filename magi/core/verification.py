@@ -36,6 +36,99 @@ _BLOCK = re.compile(r"```(\w+)?\s*\n(.*?)```", re.DOTALL)
 
 CHECKABLE = {"python", "py", "json", "yaml", "yml"}
 
+# Marcadores de bloques que abren una ventana o entran en un bucle de eventos
+# que NUNCA termina por sí solo. Sin detección, `verify()` colgaba 45s en un
+# Tetris y lo marcaba como "no arranca" cuando sí arrancaba — el fallo más
+# frustrante: código correcto devuelto al autor una y otra vez.
+#
+# Se busca el framework o la llamada al mainloop, no `while True` a secas: un
+# bucle infinito sin bucle de eventos es un bug real (FALLA por timeout), no
+# una GUI. El patrón del log del usuario era un juego pygame.
+_GUI_MARKERS = re.compile(
+    r"\b(import\s+pygame|from\s+pygame|"
+    r"import\s+tkinter|from\s+tkinter|\.mainloop\s*\(|"
+    r"import\s+turtle|from\s+turtle|"
+    r"import\s+arcade|from\s+arcade|"
+    r"\.after\s*\()\b")
+
+# Tope de ejecución para un bloque GUI: no hace falta 45s para saber si un
+# juego arranca; con un par de segundos alcanza para levantar la ventana,
+# renderizar algún frame y detectar un traceback si lo hay.
+_GUI_TIMEOUT_S = 8.0
+
+
+def _es_bloque_gui(code: str) -> bool:
+    """¿Abre este bloque una ventana o un bucle de eventos que no termina?"""
+    return bool(_GUI_MARKERS.search(code))
+
+
+# Prefijo que se inyecta en el bloque para que el bucle de eventos se cancele
+# solo tras N iteraciones. Reutiliza el patrón del PYGAME_HARNESS de
+# studio/artifacts.py: parchear display.flip/update para contar frames y
+# salir por SystemExit; y parchear Tk.after y turtle para no colgarse.
+#
+# Así un Tetris correcto ejecuta unos fotogramas y termina con rc=0 → OK,
+# en vez de colgar hasta el timeout y salir como FALLA.
+_GUI_GUARD = '''
+import sys as _magi_sys
+_magi_sys.path.insert(0, "")
+try:
+    import os as _magi_os
+    _magi_os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    _magi_os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+    _magi_os.environ.setdefault("DISPLAY", "")
+    try:
+        import pygame as _magi_pg
+        _magi_flip = _magi_pg.display.flip
+        _magi_upd = _magi_pg.display.update
+        _magi_n = {"f": 0}
+        def _magi_stop():
+            _magi_pg.quit()
+            raise SystemExit(0)
+        def _magi_flip_wrap(*a, **k):
+            _magi_n["f"] += 1
+            if _magi_n["f"] >= 30:
+                _magi_stop()
+            return _magi_flip(*a, **k)
+        def _magi_upd_wrap(*a, **k):
+            _magi_n["f"] += 1
+            if _magi_n["f"] >= 30:
+                _magi_stop()
+            return _magi_upd(*a, **k)
+        _magi_pg.display.flip = _magi_flip_wrap
+        _magi_pg.display.update = _magi_upd_wrap
+    except Exception:
+        pass
+    try:
+        import tkinter as _magi_tk
+        _magi_after = _magi_tk.Tk.after
+        _magi_tk_count = {"n": 0}
+        def _magi_after_wrap(self, ms, func=None, *args):
+            _magi_tk_count["n"] += 1
+            if _magi_tk_count["n"] >= 30:
+                try:
+                    self.destroy()
+                except Exception:
+                    pass
+                raise SystemExit(0)
+            return _magi_after(self, ms, func, *args)
+        _magi_tk.Tk.after = _magi_after_wrap
+    except Exception:
+        pass
+    try:
+        import turtle as _magi_tr
+        _magi_done = _magi_tr.done
+        def _magi_done_wrap():
+            raise SystemExit(0)
+        _magi_tr.done = _magi_done_wrap
+        if hasattr(_magi_tr, "mainloop"):
+            _magi_tr.mainloop = _magi_done_wrap
+    except Exception:
+        pass
+except Exception:
+    pass
+'''
+
 
 @dataclass
 class BlockResult:
@@ -106,7 +199,8 @@ def extract_blocks(text: str) -> list[tuple[str, str]]:
 
 
 async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0,
-               task_id: str | None = None) -> tuple[int, str]:
+               task_id: str | None = None,
+               extra_env: dict | None = None) -> tuple[int, str]:
     from .cancel import tracked
 
     # PYTHONIOENCODING: la salida se decodifica más abajo como UTF-8, pero un
@@ -118,6 +212,8 @@ async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0,
     # palabra que explicaba el fallo. Fijar la codificación del hijo lo hace
     # determinista en las dos plataformas.
     entorno = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    if extra_env:
+        entorno.update(extra_env)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, cwd=str(cwd), env=entorno,
@@ -210,7 +306,18 @@ class ProposalVerifier:
             return BlockResult(lang, i, True, "syntax")
 
         script = tmp / f"block_{i}.py"
-        script.write_text(code, encoding="utf-8")
+        # ¿Abre una ventana o un bucle de eventos? Un Tetris, un snake, un
+        # juego de pygame: código correcto que ANTES salía como FALLA-timeout
+        # porque su mainloop nunca termina. Se inyecta un guardián que
+        # cuenta frames y sale limpio (SystemExit=0) tras unos pocos, y se
+        # reduce el timeout: no hacen falta 45s para saber si arranca.
+        es_gui = _es_bloque_gui(code)
+        if es_gui:
+            script.write_text(_GUI_GUARD + code, encoding="utf-8")
+            timeout = min(self.timeout_s, _GUI_TIMEOUT_S)
+        else:
+            script.write_text(code, encoding="utf-8")
+            timeout = self.timeout_s
         interprete = python_executable()
         if interprete is None:
             # No se puede verificar ejecutando. Se dice, no se aprueba: la
@@ -221,9 +328,23 @@ class ProposalVerifier:
                 "no hay intérprete de Python con el que ejecutar el bloque: "
                 "NO se ha verificado. Dentro del .exe `sys.executable` es el "
                 "propio .exe y lanzarlo relanzaría MAGI.")
-        rc, out = await _run([interprete, str(script)], tmp, self.timeout_s)
+        rc, out = await _run([interprete, str(script)], tmp, timeout)
+        # SystemExit(0) del guardián GUI termina con rc=0: el bloque arrancó.
+        # Es exactamente lo que queremos distinguir del "cuelga para siempre".
         if rc == 0:
-            return BlockResult(lang, i, True, "run", out[-800:])
+            etapa = "run-headless" if es_gui else "run"
+            return BlockResult(lang, i, True, etapa, out[-800:])
+        # rc=124 es timeout. Para un GUI, colgar significa que el guardián no
+        # pudo enganchar el bucle (p.ej. framework no instalado o API
+        # distinta): se dice que requiere GUI en vez de FALLA, porque el
+        # código puede ser correcto y solo no verificable headless.
+        if rc == 124 and es_gui:
+            return BlockResult(
+                lang, i, True, "skipped",
+                "bloque con interfaz gráfica (GUI): arrancó pero no terminó "
+                "en modo headless. Verifica la sintaxis y los imports; la "
+                "ejecución visual requiere abrirlo a mano. NO se marca como "
+                "fallo: un juego pygame correcto no termina por sí solo.")
         return BlockResult(lang, i, False, "run", out[-2000:])
 
     @staticmethod

@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**Más de 840 tests en Python · 80 en la interfaz · sin tests verdes no hay release.**
+**Más de 860 tests en Python · 80 en la interfaz · sin tests verdes no hay release.**
 
 **[⬇ Descargar el ejecutable de Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta.
 
@@ -96,6 +96,7 @@ subgraph G5["5 · VERIFICACIÓN — el código se EJECUTA antes de debatirlo"]
   VER["ProposalVerifier"]
   VER --- VE1["arranca<br/>sigue al crítico"]
   VER --- VE2["no arranca<br/>VUELVE A LA ETAPA 4<br/>sin gastar ronda"]
+  VER --- VE3["GUI / juego<br/>arranca headless<br/>se ejecuta y se valida"]
 end
 
 VER ==> BAL
@@ -235,6 +236,14 @@ La comprobación está en los **dos** caminos, el de streaming y el normal. Estu
 solo en el segundo durante una versión, y como el enjambre usa el primero, el
 arreglo no arregló nada: los tres nodos seguían contestando en chino con la
 guarda ya «puesta».
+
+Y la comprobación no se libraba por respuesta corta. Una versión anterior tenía
+`return len(respuesta.split()) < 12`: cualquier respuesta de menos de doce
+palabras se daba por buena **en el idioma que fuera**. Una frase como *«Sure! I
+will create a Tetris game for you.»* pasaba por español válida, la guarda nunca
+rotaba, y el usuario veía las tres IA contestándole en inglés. Ahora se exige un
+mínimo de señal del idioma esperado —dos palabras vacías—, por corta que sea la
+respuesta.
 
 ---
 

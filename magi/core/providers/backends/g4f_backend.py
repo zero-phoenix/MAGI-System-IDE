@@ -81,9 +81,15 @@ Candidate = tuple[str, str | None]
 _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
     # --- familias con candidato verificado -------------------------------
     "gpt": [
-        ("Yqcloud", "gpt-4"),                    # verificado 2000ms
-        ("WeWordle", "gpt-4o"),                  # verificado 2389ms
+        # Reordenado 2026-08-09: Yqcloud declaraba 2000 ms pero en uso sostenido
+        # respondió en 53-75 s (registro real del usuario, turno del Tetris),
+        # arrastrando cada etapa de Melchior aunque hubiera alternativas de 1-2 s
+        # en la misma familia. Se le baja al final de los verificados. El orden
+        # de la lista solo aplica en frío; en caliente `_ordered()` ordena por
+        # latencia medida por candidato.
         ("CopilotApp", None),                    # verificado 1156ms
+        ("WeWordle", "gpt-4o"),                  # verificado 2389ms
+        ("Yqcloud", "gpt-4"),                    # verificado, pero pico de 75s
         ("OpenaiChat", "gpt-5"),                 # pide .har; se deja al final
         ("Pollinations", None),
     ],
@@ -182,10 +188,17 @@ _ROTOS_BASE: dict[str, str] = {
 #: 0,9 y 3,4 s, así que a los 4 s ya no es "va lento", es "algo pasa".
 _HEDGE_AFTER_S_BASE = 4.0
 
-#: Tope de llamadas simultáneas por familia. Con 2 se cubre el caso que duele
-#: —un candidato colgado— sin convertir cada petición en una tormenta de
-#: peticiones contra proveedores gratuitos.
-_HEDGE_MAX_BASE = 2
+#: Tope de llamadas simultáneas por familia.
+#:
+#: Antes 2: con un candidato colgado, el hedge lanzaba UN segundo candidato en
+#: paralelo y no más. En el registro real del usuario, Yqcloud (familia gpt)
+#: tardaba 53-75 s mientras el único cobertura también podía ir lento, así que
+#: la etapa entera de Melchior se arrastraba. Con 3, un candidato rápido
+#: verificado (CopilotApp ~1,1 s, WeWordle ~2,4 s) puede ganar la carrera
+#: mientras los lentos siguen su curso. Sigue siendo gratuito y sin claves
+#: (§I.3); el coste extra es una llamada más SOLO cuando el primero no responde
+#: en `_HEDGE_AFTER_S_BASE`, no en cada petición.
+_HEDGE_MAX_BASE = 3
 
 # Reparto por defecto del enjambre.
 #

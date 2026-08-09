@@ -8,7 +8,8 @@
   },
   "hedge": {
     "tras_segundos": 4.0,
-    "maximo": 2
+    "maximo": 3,
+    "nota": "3 en vez de 2: en el registro real del usuario, Yqcloud (familia gpt) tardaba entre 53 y 75 s por respuesta mientras el hedge solo lanzaba UN segundo candidato en paralelo. Con 3, un candidato rapido verificado (CopilotApp ~1,1 s, WeWordle ~2,4 s) puede cubrir la peticion mientras el lento sigue su curso. Sigue siendo gratuito y sin claves (§I.3); el coste es una llamada mas solo cuando el primero no responde en 'tras_segundos'."
   },
   "reparto_enjambre": {
     "MELCHIOR": "gpt",
@@ -33,11 +34,12 @@
   "familias": {
     "gpt": {
       "verificada": true,
+      "nota_orden": "Reordenado 2026-08-09. Yqcloud DECLARA 2000 ms pero en el registro real del usuario (Turno Tetris) respondio en 53-75 s una y otra vez, arrastrando cada etapa de Melchior. Se le baja al final de los verificados y se sube el hedge a 3: asi CopilotApp (~1,1 s) o WeWordle (~2,4 s) pueden cubrir la peticion mientras Yqcloud sigue su curso. El orden de la lista solo aplica en frio; en caliente `_ordered()` sigue usando la latencia medida por candidato.",
       "candidatos": [
         {
-          "proveedor": "Yqcloud",
-          "modelo": "gpt-4",
-          "latencia_medida_ms": 2000,
+          "proveedor": "CopilotApp",
+          "modelo": null,
+          "latencia_medida_ms": 1156,
           "verificado": "2026-08-06"
         },
         {
@@ -47,10 +49,12 @@
           "verificado": "2026-08-06"
         },
         {
-          "proveedor": "CopilotApp",
-          "modelo": null,
-          "latencia_medida_ms": 1156,
-          "verificado": "2026-08-06"
+          "proveedor": "Yqcloud",
+          "modelo": "gpt-4",
+          "latencia_medida_ms": 2000,
+          "latencia_real_max_ms": 75000,
+          "verificado": "2026-08-06",
+          "aviso": "latencia medida en la verificacion puntual (2 s), pero en uso sostenido llego a 75 s en el registro del usuario"
         },
         {
           "proveedor": "OpenaiChat",
