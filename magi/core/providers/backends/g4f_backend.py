@@ -43,6 +43,7 @@ from ..base import (
     BaseProvider, CompletionRequest, CompletionResponse, Delta,
     ProviderError, ProviderUnavailable, Usage,
 )
+from ..cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +279,11 @@ _BROWSER_PROVIDERS_CONOCIDOS = frozenset({
     "OpenaiAccount", "GLM",
 })
 
-_browser_cache: dict[str, bool] = {}
+# Veredicto "este provider abre navegador" por clase. Es estable en runtime
+# (leer el fuente de un módulo no cambia), pero se mantiene en una caché
+# ACOTADA: un dict global sin tope crecía toda la sesión. TTL largo porque la
+# detección es determinista por proceso; maxsize holgado para el catálogo.
+_browser_cache: TTLCache[bool] = TTLCache(maxsize=256, ttl_s=3600.0)
 
 
 def _uses_browser(cls) -> bool:
@@ -307,8 +312,9 @@ def _uses_browser(cls) -> bool:
         return True
 
     key = f"{getattr(cls, '__module__', '')}.{getattr(cls, '__name__', '')}"
-    if key in _browser_cache:
-        return _browser_cache[key]
+    cached = _browser_cache.get(key)
+    if cached is not None:
+        return cached
 
     nombre = getattr(cls, "__name__", "")
     try:
@@ -318,7 +324,7 @@ def _uses_browser(cls) -> bool:
     except Exception:
         # Congelado en el .exe: no hay fuente. Cae al respaldo estático.
         verdict = nombre in _BROWSER_PROVIDERS_CONOCIDOS
-    _browser_cache[key] = verdict
+    _browser_cache.set(key, verdict)
     return verdict
 
 

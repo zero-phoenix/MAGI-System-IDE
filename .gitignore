@@ -36,7 +36,13 @@ magi_brain.db
 
 # Journal de deshacer
 journal/
-_build.txt 
-_s.txt 
-_suite.txt 
-_t.txt 
+
+# Scraps temporales: pegadas de logs de CI y outputs de pruebas locales.
+# Nunca deben entrar al repositorio.
+_build.txt
+_s.txt
+_suite.txt
+_t.txt
+_w.txt
+_w*.txt
+pytest_results*.txt

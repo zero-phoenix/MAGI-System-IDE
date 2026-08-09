@@ -40,8 +40,10 @@ jobs:
       run: python -m pytest tests/ -v
     - name: Verify no absolute machine paths
       run: |
-        ! grep -rn "D:/PROYECTOS\|d:/PROYECTOS" --include="*.py" magi/ \
-          --exclude=paths.py --exclude=naoko_repair.py || \
+        ! grep -rn "D:/PROYECTOS\|d:/PROYECTOS" \
+          --include="*.py" --include="*.json" --include="*.toml" --include="*.yml" --include="*.yaml" \
+          --exclude=paths.py --exclude=naoko_repair.py \
+          magi/ pyrightconfig.json pytest.ini || \
           (echo "Ruta absoluta detectada: el .exe no arrancaría en otra maquina" && exit 1)
 
   build:
