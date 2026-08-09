@@ -7,12 +7,15 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**602 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+**625 tests en Python · 66 en la interfaz · sin tests verdes no hay release.**
+
+**[⬇ Descargar el ejecutable de Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta.
 
 ---
 
 ## Índice
 
+- [Cómo funciona, de arriba abajo](#cómo-funciona-de-arriba-abajo)
 - [La idea](#la-idea)
 - [El enjambre](#el-enjambre)
 - [Naoko: repara sola, mejora contigo](#naoko-repara-sola-mejora-contigo)
@@ -22,6 +25,146 @@ sin suscripciones.
 - [La interfaz](#la-interfaz)
 - [Instalación](#instalación)
 - [Cómo está construido esto](#cómo-está-construido-esto)
+
+---
+
+## Cómo funciona, de arriba abajo
+
+El flujo baja en una sola dirección: **lo que escribes** entra por arriba y
+**lo que se ejecuta** sale por abajo. Cada etapa se abre en horizontal para
+enseñar sus caminos, incluidos los que **no** siguen adelante — que suelen ser
+los que explican por qué algo no pasó.
+
+```mermaid
+flowchart TD
+
+TU["TU MENSAJE<br/>escribes en la interfaz"] --> ADM
+
+subgraph G1["1 · ADMISIÓN — aquí nada desaparece en silencio"]
+  direction LR
+  ADM["se escribe ANTES<br/>de decidir nada"]
+  ADM --- AD1["ahora<br/>se atiende ya"]
+  ADM --- AD2["encolar<br/>el enjambre está ocupado:<br/>espera turno, no se tira"]
+  ADM --- AD3["descartada<br/>con MOTIVO obligatorio:<br/>lo impide la base de datos"]
+  ADM --- AD4["fallida<br/>reventó, y consta"]
+end
+
+ADM ==> EST
+
+subgraph G2["2 · ESTADO — ¿la tarea tiene bucle VIVO?"]
+  direction LR
+  EST["supervisor.is_running"]
+  EST --- ES1["nueva<br/>se crea"]
+  EST --- ES2["interrumpida<br/>se reanuda con tu orden"]
+  EST --- ES3["esperando tu visto bueno<br/>tu sí la cierra"]
+  EST --- ES4["viva de verdad<br/>tu mensaje se encola"]
+end
+
+EST ==> RUT
+
+subgraph G3["3 · RUTA — cuánto esfuerzo merece esto"]
+  direction LR
+  RUT["clasificador"]
+  RUT --- RU1["chat<br/>1 ronda"]
+  RUT --- RU2["task<br/>2 enfoques"]
+  RUT --- RU3["build<br/>3 enfoques"]
+end
+
+RUT ==> MEL
+
+subgraph G4["4 · MELCHIOR propone — N enfoques EN PARALELO"]
+  direction LR
+  MEL["una copia y una semilla<br/>por rama"]
+  MEL --- ME1["enfoque A"]
+  MEL --- ME2["enfoque B"]
+  MEL --- ME3["enfoque C"]
+end
+
+MEL ==> VER
+
+subgraph G5["5 · VERIFICACIÓN — el código se EJECUTA antes de debatirlo"]
+  direction LR
+  VER["ProposalVerifier"]
+  VER --- VE1["arranca<br/>sigue al crítico"]
+  VER --- VE2["no arranca<br/>VUELVE A LA ETAPA 4<br/>sin gastar ronda"]
+end
+
+VER ==> BAL
+
+subgraph G6["6 · BALTHASAR critica — 4 ejes EN PARALELO"]
+  direction LR
+  BAL["puede leer y ejecutar,<br/>NO escribir"]
+  BAL --- BA1["corrección"]
+  BAL --- BA2["seguridad"]
+  BAL --- BA3["rendimiento"]
+  BAL --- BA4["mantenibilidad"]
+end
+
+BAL ==> CAS
+
+subgraph G7["7 · CASPER decide"]
+  direction LR
+  CAS["arbitra"]
+  CAS --- CA1["aprobada<br/>te pide el visto bueno"]
+  CAS --- CA2["rechazada<br/>VUELVE A LA ETAPA 4<br/>ronda siguiente"]
+  CAS --- CA3["agotó rondas<br/>te lo entrega igual"]
+end
+
+CAS ==> APR
+
+subgraph G8["8 · TU APROBACIÓN — con el diff y los tests delante"]
+  direction LR
+  APR["swarm.approval_required"]
+  APR --- AP1["escribes sí<br/>se ejecuta"]
+  APR --- AP2["pides un cambio<br/>VUELVE A LA ETAPA 4"]
+  APR --- AP3["preguntas otra cosa<br/>abre tarea nueva"]
+end
+
+APR ==> EJE
+
+subgraph G9["9 · EJECUCIÓN sobre tu máquina"]
+  direction LR
+  EJE["journal + supervisor"]
+  EJE --- EJ1["escribe ficheros<br/>reversible"]
+  EJE --- EJ2["ejecuta procesos<br/>se pueden parar"]
+  EJE --- EJ3["artefactos<br/>Vista previa"]
+end
+
+EJE ==> FIN["RESULTADO<br/>se archiva, no se acumula"]
+```
+
+### Lo que corre en paralelo todo el rato
+
+Estos dos no están en la cadena de arriba porque no la bloquean: observan.
+
+```mermaid
+flowchart TD
+
+BUS["MagiBus<br/>nunca bloquea al productor<br/>si la cola se llena, tira lo más viejo"]
+
+BUS --> NAO
+BUS --> TEL
+
+subgraph H1["NAOKO — supervisión"]
+  direction LR
+  NAO["vigila"]
+  NAO --> NA1["diagnóstico operativo<br/>SIN modelo, solo datos<br/>si no sabe, lo dice"]
+  NAO --> NA2["repara<br/>en rama y con tests"]
+  NAO --> NA3["propone mejoras<br/>decides tú"]
+  NAO --> NA4["auditoría firmada<br/>HMAC encadenado"]
+end
+
+subgraph H2["TELEMETRÍA — por qué tarda"]
+  direction LR
+  TEL["mide"]
+  TEL --> TE1["turno<br/>primer token / api / total"]
+  TEL --> TE2["herramientas<br/>fallos y salidas cortadas"]
+  TEL --> TE3["hedging<br/>¿gana el 2º candidato?"]
+end
+
+NA1 --> GUI["INTERFAZ"]
+TE1 --> GUI
+```
 
 ---
 
@@ -45,9 +188,15 @@ Y un agente que solo emite texto no es un colaborador. Los tres nodos pueden
 
 | Nodo | Rol popperiano | Familia | Puede |
 |---|---|---|---|
-| **MELCHIOR** | Creador / sintetizador | `deepseek` | leer, escribir, ejecutar |
-| **BALTHASAR** | Crítico hostil / falsacionista | `claude` | leer y **ejecutar**, no escribir |
-| **CASPER** | Juez / árbitro | `qwen` | leer y verificar tests |
+| **MELCHIOR** | Creador / sintetizador | `gpt` | leer, escribir, ejecutar |
+| **BALTHASAR** | Crítico hostil / falsacionista | `gemini` | leer y **ejecutar**, no escribir |
+| **CASPER** | Juez / árbitro | `command` | leer y verificar tests |
+
+Las familias no salen de esta tabla: salen de
+`magi/data/catalogo_proveedores.json`, y la interfaz muestra la que **de verdad**
+respondió. Esta tabla llegó a decir `deepseek`, `claude` y `qwen` mucho después
+de que esas tres se quedaran sin un solo candidato vivo — documentación que
+contradice al código es peor que no tenerla.
 
 Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que le
 da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
@@ -288,8 +437,18 @@ puede hacer**, en vez de fingir.
 
 ### Binario para Windows
 
-Cada release publica el ejecutable dentro de un `.zip` listo para descargar,
-compilado por GitHub Actions tras pasar la suite completa.
+**[⬇ Descargar la última versión](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)**
+
+1. En **Assets**, descarga **`MAGI-IDE-v5.zip`**.
+2. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
+3. Ejecuta **`MAGI-IDE-v5.exe`**.
+
+Windows SmartScreen avisará porque el binario no está firmado: *Más
+información → Ejecutar de todas formas*.
+
+Va en `.zip` a propósito: Windows y muchos navegadores bloquean o marcan un
+`.exe` descargado suelto. Lo compila GitHub Actions desde el tag, tras pasar la
+suite completa; no hay ninguna subida manual de por medio.
 
 El `.exe` funciona por sí solo, pero **para ejecutar código Python necesita un
 Python instalado en la máquina**. Es una consecuencia de cómo funciona un

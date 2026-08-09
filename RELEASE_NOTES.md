@@ -1,12 +1,137 @@
-## MAGI System IDE v5.1.5
-
 Reconstrucción completa sobre v5.0.28. **Suite completa en verde en Linux y
 Windows**: sin tests verdes no hay release.
 
-**Descarga:** `MAGI-IDE-v5.zip` más abajo contiene el ejecutable de Windows,
-compilado por GitHub Actions tras pasar la suite completa.
+## Cómo instalarlo
+
+1. Descarga **`MAGI-IDE-v5.zip`** de la sección **Assets**, aquí abajo.
+2. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
+3. Ejecuta **`MAGI-IDE-v5.exe`**.
+
+Windows SmartScreen avisará porque el binario no está firmado: *Más
+información → Ejecutar de todas formas*. El `.zip` lo compila GitHub Actions
+desde este mismo tag, tras pasar la suite completa; no hay ninguna subida
+manual de por medio.
+
+No hace falta configurar nada: **sin claves de API, sin modelos locales, sin
+suscripciones**.
 
 ---
+
+# v5.1.6 — el sistema estaba bloqueado de forma permanente
+
+Si en v5.1.5 escribías algo y no pasaba absolutamente nada, no era lentitud ni
+un fallo intermitente. **Estaba bloqueado, y lo iba a seguir estando en cada
+reinicio.**
+
+### La causa
+
+Dos mitades que por separado parecen inocentes:
+
+```python
+# orchestrator.py:296  (ANTES)
+elif state["status"] == "in_progress":
+    return   # Ignorar comandos extra mientras piensa
+```
+
+Un `return` mudo: ni evento, ni registro, ni motivo. Y `_rehydrate()` devolvía
+las tareas `in_progress` a memoria **sin volver a lanzar su bucle**: zombis que
+figuran trabajando sin que nadie las ejecute.
+
+Encadenado: la interfaz siempre manda el mismo identificador de conversación.
+En cuanto una sesión moría a mitad de una tarea, esa fila quedaba `in_progress`
+para siempre, y **todo lo que escribieras después chocaba contra ella y
+desaparecía**. En una instalación real llevaba así desde hacía dos días.
+
+### El arreglo, y de dónde salió
+
+Dos sistemas agénticos sin ninguna relación entre sí resolvieron esto igual:
+
+| | Cómo lo llaman |
+|---|---|
+| Zcode Desktop | `session_input`, con `delivery IN ('startNow','guide','queue')` y `status_reason` |
+| Claude Code | `command_lifecycle`, con `queued → started` |
+
+En 92 filas de uno y 16 eventos del otro no hay **una sola** entrada de usuario
+que desaparezca sin dejar constancia. Y el valor `queue` es la respuesta
+literal al fallo: **si el agente está ocupado, tu mensaje se encola, no se
+tira.**
+
+Ahora hay un **libro de admisión**: tu mensaje se escribe *antes* de decidir
+qué hacer con él, y una restricción de la base de datos hace **imposible**
+descartarlo sin escribir por qué. No es documentación: la escritura falla.
+
+Y al arrancar se **reconcilia**: lo que figure en curso sin bucle vivo pasa a
+`interrumpida` y se retoma con lo próximo que escribas.
+
+### Lo demás que cambia
+
+**NAOKO deja de inventarse cosas.** Ante «pedí al sistema crear un juego pero
+no responde» llegó a contestar con una excusa genérica **y una partida de tres
+en raya inventada**. No fue mala redacción: su resumen de estado decía
+literalmente *«EN CURSO: … si se queja de demora, ESTO es la demora»* sobre
+tareas muertas del día anterior. Premisa falsa, explicación falsa, y sin nada
+verdadero que añadir, rellenó.
+
+Ahora las preguntas sobre el propio sistema se contestan con un **catálogo de
+diagnóstico** —síntoma → causa → arreglo— construido con datos reales y **sin
+modelo**. Es determinista: mismo estado, mismo texto. Y si ningún caso encaja,
+dice *«no lo sé, esto es lo que veo»* y enseña los datos. Eso es la respuesta
+correcta, no un fallo: un diagnóstico improvisado da confianza falsa.
+
+También distingue por fin **una tarea en curso de verdad** —con bucle vivo
+comprobado— de un zombi. Y **no secuestra tus preguntas**: si dices «el
+emulador que me hiciste no funciona», mira tu código, no se pone a hablar de sí
+misma.
+
+**Arreglar un proveedor caído ya no cuesta recompilar 158 MB.** El catálogo de
+proveedores sale de `catalogo_proveedores.json` y se puede sobreescribir en
+`%LOCALAPPDATA%\MagiSystem\`. Trae además un tope de contexto que antes no
+existía: si un prompt no cabía, el error se leía como «proveedor roto» y se
+rotaba a otro que fallaba por lo mismo.
+
+**Migraciones de esquema con checksum.** `CREATE TABLE IF NOT EXISTS` no añade
+columnas a una base ya creada, así que cualquier columna nueva no llegaba a
+quien ya hubiera abierto MAGI una vez. Siete migraciones, verificadas contra
+una base real.
+
+**Las tareas se archivan.** Sin esto solo crecían: siete acumuladas en una
+instalación de dos días.
+
+**Telemetría por turno.** A «¿por qué tarda?» ya se puede responder: primer
+token, tiempo de API y total por separado, más reintentos, salidas cortadas y
+si el segundo candidato del *hedging* llega a ganar alguna vez.
+
+**Auditoría firmada.** NAOKO aplica parches y hace `git push` sobre tu
+repositorio; ahora cada acción queda en un diario solo-añadir con HMAC
+encadenado. Encadenar —y no solo firmar— detecta además que una línea
+desapareció.
+
+**Interfaz.** Fuera `prov-a` / `prov-b` / `prov-c` de las tarjetas centrales:
+enseñan el reparto real. El cableado además estaba mal y daba `prov-c` a
+BALTHASAR.
+
+### Cuatro fallos encontrados auditando lo anterior
+
+- **Reventaba al aprobar una tarea reanudada.** `state.get("last_proposal", {})`
+  no protege de nada: el valor por defecto solo actúa si la clave *falta*, no si
+  está y vale `None`.
+- **Las variantes paralelas compartían semilla.** `generate_variants` mutaba el
+  agente compartido dentro de un `asyncio.gather`: las N «variantes con semillas
+  distintas» eran la misma petición repetida N veces.
+- El catálogo de diagnóstico secuestraba preguntas que no eran sobre MAGI.
+- La entrada del libro se archivaba bajo el identificador equivocado.
+
+### Cambios que quizá notes
+
+- Ninguna funcionalidad se ha retirado.
+- Tareas que llevaban colgadas de sesiones anteriores aparecerán como
+  **interrumpidas**. Es correcto: son reanudables y se retoman con tu próximo
+  mensaje.
+- La primera vez que arranque, migrará tu base de datos. No se pierde nada.
+
+---
+
+## Versiones anteriores
 
 ### Qué corrige v5.1.5: un import olvidado congelaba la aplicación entera
 

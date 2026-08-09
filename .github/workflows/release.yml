@@ -89,21 +89,45 @@ jobs:
         npm ci
         npm run build
 
-    - name: Build Executable (PyInstaller)
-      # --exclude-module: pila de ML que MAGI NO usa. Entra de polizón por
-      # g4f/tools/files.py -> markitdown -> magika -> onnxruntime -> torch.
-      # Además de hinchar el binario, colgaba la compilación: PyInstaller
-      # importa cada paquete recolectado en un proceso aislado para resolver
-      # sus DLLs y se quedaba parado indefinidamente en torch/__init__.py:265
-      # (_load_dll_libraries), en el paso "Looking for dynamic libraries".
-      # Diagnosticado con py-spy sobre el proceso bloqueado. Verificado que
-      # MAGI arranca, registra sus 11 proveedores e infiere sin ellos.
+    # SE COMPILA CON EL .spec, NO CON LA LÍNEA DE COMANDOS
+    # ===================================================
+    # Antes esta receta iba escrita a mano aquí, y `MAGI-IDE-v5.spec` se usaba
+    # solo en local. Dos recetas para el mismo binario es una que se queda
+    # atrás, y ya pasó: al externalizar el catálogo de proveedores se añadió
+    # `--add-data "magi/data;magi/data"` al .spec, y esta línea no se enteró.
+    # El .exe publicado habría arrancado con el respaldo de las constantes —
+    # funciona, pero pierde justo lo que se buscaba: poder arreglar un
+    # proveedor caído sin recompilar 158 MB.
+    #
+    # Con el .spec hay una sola receta y esta clase de deriva no puede ocurrir.
+    # Los `--exclude-module` (torch y compañía) también viven ahí: entran de
+    # polizón por g4f/tools/files.py -> markitdown -> magika -> onnxruntime, y
+    # además de hinchar el binario colgaban la compilación indefinidamente en
+    # torch/__init__.py:265.
+    - name: Build Executable (PyInstaller, desde el .spec)
+      run: pyinstaller --clean --noconfirm MAGI-IDE-v5.spec
+
+    - name: Verificar que el catálogo viajó dentro
+      # Un .exe sin el catálogo arranca igual, así que este fallo sería
+      # silencioso. Se comprueba antes de publicar, no después.
       run: |
-        pyinstaller --clean --onefile --noconsole --name "MAGI-IDE-v5" --icon "assets/icon.ico" --add-data "assets;assets" --add-data "magi-gui/dist;magi-gui/dist" --exclude-module torch --exclude-module torchvision --exclude-module torchaudio --exclude-module tensorflow --exclude-module transformers --exclude-module onnxruntime --exclude-module markitdown --exclude-module magika --exclude-module PyQt5 --exclude-module PySide2 --exclude-module PySide6 magi/main.py
+        if (-not (Test-Path "magi/data/catalogo_proveedores.json")) {
+          throw "falta magi/data/catalogo_proveedores.json en el repo"
+        }
+        if (-not (Test-Path "dist/MAGI-IDE-v5.exe")) {
+          throw "PyInstaller no produjo el .exe"
+        }
+        $mb = [math]::Round((Get-Item "dist/MAGI-IDE-v5.exe").Length / 1MB, 1)
+        Write-Host "exe: $mb MB"
+        if ($mb -lt 80) { throw "el .exe pesa $mb MB: se quedó algo fuera" }
 
     - name: Zip Release
+      # El usuario descarga un .zip, no el .exe suelto: Windows y muchos
+      # navegadores bloquean o avisan sobre un .exe descargado directamente.
       run: |
-        Compress-Archive -Path "dist/MAGI-IDE-v5.exe" -DestinationPath "dist/MAGI-IDE-v5.zip"
+        Compress-Archive -Path "dist/MAGI-IDE-v5.exe" -DestinationPath "dist/MAGI-IDE-v5.zip" -Force
+        $z = [math]::Round((Get-Item "dist/MAGI-IDE-v5.zip").Length / 1MB, 1)
+        Write-Host "zip: $z MB"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
