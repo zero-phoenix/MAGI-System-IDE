@@ -26,6 +26,8 @@ scratch/
 dist/
 build/
 *.spec
+# Excepto el spec principal del producto, que debe versionarse.
+!MAGI-IDE-v5.spec
 
 release/
 

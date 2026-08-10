@@ -17,6 +17,75 @@ suscripciones**.
 
 ---
 
+# v5.3.0 — MAGI empaqueta proyectos Python a .exe portable
+
+### 1. Nueva herramienta `build_project_exe`
+
+`magi/core/tools/builtin.py` registra `build_project_exe`, que convierte
+cualquier proyecto Python en un ejecutable `.exe` onefile portable:
+
+- Lee `requirements.txt` si existe e instala dependencias en un venv temporal.
+- Detecta automáticamente si el punto de entrada es una GUI (pygame, tkinter,
+  turtle, PyQt/PySide) y elige `--noconsole` o `--console`.
+- Usa un intérprete Python real, ya sea el del sistema o el embebido que
+  ahora viaja dentro del bundle.
+- Soporta assets, iconos y hidden imports.
+
+Código en `magi/modules/studio/packager.py`.
+
+### 2. Python embebido dentro del bundle
+
+`magi/core/embedded_python.py` gestiona un intérprete Python 3.10 portable
+que el `.exe` de MAGI extrae a `%LOCALAPPDATA%\MagiSystem\embedded-python`
+la primera vez que hace falta. Esto cierra el agujero histórico por el que
+`sys.executable` dentro del bundle era el propio MAGI y relanzar Python
+real ejecutaba otra instancia del IDE.
+
+`magi/core/paths.py::python_executable()` ahora devuelve, en orden:
+1. el intérprete real del sistema (si no estamos congelados),
+2. `python` / `py` del PATH (cuando estamos congelados),
+3. el intérprete embebido del bundle.
+
+### 3. Prompts para tareas `.exe`
+
+- **Melchior**: si el usuario pide un `.exe` portable, debe crear el proyecto
+  en `workspace/` y luego invocar `build_project_exe`.
+- **Balthasar**: si la propuesta genera un juego, GUI, vídeo, imagen o
+  artefacto ejecutable, debe usar `observe_artifact`/`record_program` y citar
+  lo que SE VE en su crítica.
+- **Casper**: no aprueba un `.exe`/juego/artefacto visual sin exigir y citar
+  el resultado de la observación.
+
+### 4. UX: timeout y lentitud visibles en terminal
+
+Los eventos `agent.timeout` y `agent.slow_iteration` ahora se convierten en
+mensajes `TERMINAL_OUT` automáticamente, así el usuario ve cuándo un proveedor
+está atascado en lugar de mirar una pantalla quieta.
+
+### 5. Estabilidad: timeouts controlados en `agent_loop.py`
+
+`run_agent` ahora acepta `iteration_timeout_s` y `soft_timeout_s`. Si una
+llamada al LLM se alarga, el agente devuelve una respuesta degradada en lugar
+de quedarse colgado, y emite eventos `agent.timeout` / `agent.slow_iteration`
+para que la interfaz pueda mostrar el retraso.
+
+### 6. Velocidad: proveedores ordenados por latencia observada
+
+`ProviderRegistry._candidates()` ahora ordena, tras el proveedor preferido,
+por estado del circuit breaker y por latencia **p95** real. Los proveedores
+lentos van al final sin perder la prioridad estática.
+
+### Tests
+
+- `tests/test_packager.py`: empaquetado de proyectos Python.
+- `tests/test_embedded_python.py`: extracción y uso del intérprete embebido.
+- `tests/test_agent_loop_timeout.py`: timeout y respuesta degradada.
+- `tests/test_provider_latency_sort.py`: ordenación por latencia p95.
+- `tests/test_e2e_tetris_exe.py`: flujo completo Tetris pygame -> `.exe`
+  portable onefile que arranca y ejecuta sin Python de desarrollo.
+
+---
+
 # v5.2.2 — las tres IA vuelven a hablar tu idioma, y el Tetris arranca
 
 Tres fallos confirmados a partir de la captura y el log de un usuario real:

@@ -233,6 +233,24 @@ class SwarmAgentBase:
         async def on_event(topic: str, payload: dict) -> None:
             await self.bus.publish(BusEvent(
                 topic=topic, payload={"task_id": task_id, **payload}))
+            # UX: convertir eventos de timeout/lentitud en mensajes visibles
+            # en la terminal sin depender de que el frontend los reconozca.
+            if topic == "agent.timeout":
+                await self.bus.publish(BusEvent(
+                    topic="TERMINAL_OUT",
+                    payload={"content":
+                             f"[AVISO] {self.role_name} no respondió en "
+                             f"{payload.get('timeout_s', '?')}s "
+                             f"(proveedor: {payload.get('provider', '?')}). "
+                             "Se devuelve respuesta degradada."}))
+            elif topic == "agent.slow_iteration":
+                await self.bus.publish(BusEvent(
+                    topic="TERMINAL_OUT",
+                    payload={"content":
+                             f"[AVISO] {self.role_name} iteración "
+                             f"{payload.get('iteration', '?')} lenta "
+                             f"({payload.get('elapsed_s', 0):.1f}s con "
+                             f"{payload.get('provider', '?')})."}))
 
         registry = await self.llm._reg()
         turn = await run_agent(
@@ -552,6 +570,7 @@ class MelchiorAgent(SwarmAgentBase):
 - NUNCA te niegues a crear un código, script o juego. Siempre propón un plan técnico detallado.
 - NUNCA le hagas preguntas al usuario.
 - Para realizar acciones en la máquina, proporciona el código o script (Powershell o Python) necesario dentro de un bloque de código Markdown apropiado (ej. ```powershell o ```python).
+- Si el usuario pide un ejecutable .exe portable, primero crea el proyecto Python en workspace/ y luego invoca la herramienta `build_project_exe(path=<directorio>, name=<nombre>, output=<ruta del .exe>)`. El bundle de MAGI incluye un intérprete Python embebido, así que NO dependas de que el usuario tenga Python instalado.
 - Sé directo, técnico y conciso.
 - Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
 - Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
@@ -617,6 +636,7 @@ class BalthasarAgent(SwarmAgentBase):
         sys_prompt = """Eres BALTHASAR, un ingeniero de seguridad y analista estático implacable. Tu trabajo es encontrar defectos, problemas de concurrencia, vulnerabilidades o ineficiencias en la propuesta arquitectónica de Melchior.
 - Sé implacable pero constructivo. No apruebes propuestas sin cuestionar su robustez.
 - NUNCA le hagas preguntas al usuario. Tu única función es criticar a Melchior.
+- Si la propuesta genera un juego, una GUI, un vídeo, una imagen o cualquier artefacto ejecutable, DEBES usar `observe_artifact` (o `record_program` para vídeo) sobre el resultado y citar lo que SE VE en tu crítica. No critiques solo el código si puedes mirar el artefacto.
 - Explica tus puntos de manera extremadamente clara, didáctica y fácil de entender (usa analogías simples de la vida real si ayuda).
 - Sin embargo, es fundamental que NO elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu crítica."""
@@ -674,6 +694,7 @@ Debes mejorar TODO el plan propuesto: no solo derives lo que dice Balthasar, sin
 - Eres el ÚNICO agente autorizado para hacer preguntas o consultas al usuario.
 - En la tercera ronda (veredicto final), debes decirle al usuario cómo proseguir, dando tu conclusión y juicio de valor crítico, técnico y científico.
 - Si vas a aprobar la ejecución, finaliza preguntándole explícitamente al usuario si aprueba la propuesta para su auto-ejecución nativa.
+- Si la propuesta genera un ejecutable (.exe), un juego o un artefacto visual, exige que Balthasar lo haya observado y cita el resultado de la observación en tu veredicto. No apruebes a ciegas.
 - Mantén un tono técnico y directo (sin preámbulos).
 - Explica tus puntos de manera clara, didáctica y con referencias científicas u oficiales reales (nunca blogs).
 - OBLIGATORIO: Finaliza tu respuesta con un encabezado `### CONCLUSIÓN` que resuma tu propuesta.

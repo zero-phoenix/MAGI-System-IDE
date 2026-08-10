@@ -393,6 +393,76 @@ def build_registry() -> ToolRegistry:
             res.meta = {**(res.meta or {}), "exe": str(exe)}
         return res
 
+    @reg.tool("build_project_exe",
+              "Empaqueta un proyecto Python a .exe onefile portable. Lee "
+              "requirements.txt, instala deps en venv temporal y devuelve la "
+              "ruta del .exe. Detecta GUI (pygame/tkinter) automáticamente.",
+              {"type": "object",
+               "properties": {
+                   "path": {"type": "string",
+                            "description": "directorio del proyecto Python"},
+                   "entry": {"type": "string",
+                             "description": "script de entrada (default: main.py)"},
+                   "output": {"type": "string",
+                              "description": "ruta del .exe final (default: dist/<nombre>.exe)"},
+                   "name": {"type": "string",
+                            "description": "nombre base del ejecutable"},
+                   "icon": {"type": "string",
+                            "description": "ruta a un .ico opcional"},
+                   "console": {"type": "boolean",
+                               "description": "True para mostrar consola"},
+                   "requirements": {"type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "dependencias adicionales a instalar"},
+                   "hiddenimports": {"type": "array",
+                                     "items": {"type": "string"}},
+               },
+               "required": ["path"]},
+              access={"exec"}, dangerous=True)
+    async def build_project_exe(
+            path: str,
+            ctx: ToolContext,
+            entry: str = "",
+            output: str = "",
+            name: str = "",
+            icon: str = "",
+            console: bool = False,
+            requirements: list | None = None,
+            hiddenimports: list | None = None):
+        from ...modules.studio.packager import build_project_exe as _build
+        from ...core.paths import python_executable
+
+        project_dir = ctx.resolve(path)
+        if not project_dir.is_dir():
+            return ToolResult(False, "", error=f"no existe el directorio: {project_dir}")
+
+        output_exe = ctx.resolve(output) if output else None
+        icon_path = ctx.resolve(icon) if icon else None
+
+        # Si no hay Python real disponible y no se proporcionó uno, advertir.
+        if python_executable() is None:
+            return ToolResult(
+                False,
+                "",
+                error=(
+                    "no hay intérprete Python disponible. "
+                    "Dentro del .exe de MAGI se necesita Python embebido o "
+                    "Python instalado en el sistema."
+                ),
+            )
+
+        result = await _build(
+            project_dir,
+            entry=entry or None,
+            output_exe=output_exe,
+            name=name or None,
+            icon=icon_path,
+            console=console,
+            requirements=requirements,
+            hiddenimports=hiddenimports,
+        )
+        return result.to_tool_result()
+
     @reg.tool("create_venv", "Crea un entorno virtual Python limpio para "
               "reproducir el entorno de CI. Devuelve la ruta del python del venv.",
               {"type": "object",
@@ -491,7 +561,7 @@ CORE_TOOLS = {
 # `gh workflow run` ni `build_exe` en su prompt. Son herramientas de otra
 # tarea, y ofrecerlas es ruido que empuja al modelo a usarlas.
 DEVOPS_TOOLS = {
-    "git", "gh", "build_exe", "create_venv",
+    "git", "gh", "build_exe", "build_project_exe", "create_venv",
 }
 
 REVERSE_TOOLS = {

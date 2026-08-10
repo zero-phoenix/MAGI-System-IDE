@@ -9,12 +9,13 @@ que lo hace.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
-from .providers.base import CompletionRequest, Message
+from .providers.base import CompletionRequest, Message, ProviderError, ProviderTimeout
 from .providers.registry import ProviderRegistry
 from .tools import (
     ToolContext, ToolRegistry, format_results, parse_tool_calls,
@@ -59,10 +60,16 @@ async def run_agent(
     on_event: OnEvent = None,
     agent_name: str = "AGENT",
     degraded: str | None = None,
+    iteration_timeout_s: float = 150.0,
+    soft_timeout_s: float = 60.0,
 ) -> AgentTurn:
     """
     Ciclo: pedir -> ¿pide herramientas? -> ejecutarlas -> devolver resultados
     -> repetir. Termina cuando el modelo responde sin bloques ```tool.
+
+    `iteration_timeout_s` es el toque duro por llamada al LLM. Si se excede,
+    se devuelve una respuesta degradada en vez de dejar el agente colgado.
+    `soft_timeout_s` avisa por evento cuando una iteración se está alargando.
     """
     started = time.monotonic()
     catalog = tools.catalog()
@@ -82,13 +89,45 @@ async def run_agent(
                 logger.debug("[agent_loop] on_event falló", exc_info=True)
 
     for i in range(1, max_iters + 1):
+        iter_started = time.monotonic()
         req = CompletionRequest(
-            messages=messages, temperature=temperature, seed=seed, timeout_s=150.0)
-        resp = await registry.complete(req, prefer=prefer_provider)
+            messages=messages, temperature=temperature, seed=seed,
+            timeout_s=iteration_timeout_s)
+
+        try:
+            resp = await asyncio.wait_for(
+                registry.complete(req, prefer=prefer_provider),
+                timeout=iteration_timeout_s + 5.0)
+        except (asyncio.TimeoutError, ProviderTimeout, ProviderError) as e:
+            logger.warning("[%s] iteración %d excedió %.1fs; se devuelve "
+                           "respuesta degradada: %s", agent_name, i,
+                           iteration_timeout_s, e)
+            await emit("agent.timeout", {
+                "iteration": i,
+                "timeout_s": iteration_timeout_s,
+                "provider": prefer_provider or "desconocido",
+                "error": str(e),
+            })
+            return AgentTurn(
+                text=(f"[Tiempo de espera agotado tras {iteration_timeout_s:.0f}s "
+                      f"en iteración {i}. Proveedor: {prefer_provider or 'desconocido'}. "
+                      f"Error: {e}]"),
+                iterations=i, tool_calls=used,
+                provider_id=prefer_provider or "TIMEOUT",
+                family="", model="",
+                tokens_in=tokens_in, tokens_out=tokens_out,
+                elapsed_s=time.monotonic() - started,
+                degraded=(degraded or "timeout"))
 
         provider_id, family, model = resp.provider_id, resp.family, resp.model
         tokens_in += resp.usage.prompt_tokens
         tokens_out += resp.usage.completion_tokens
+
+        elapsed_iter = time.monotonic() - iter_started
+        if elapsed_iter > soft_timeout_s:
+            await emit("agent.slow_iteration", {
+                "iteration": i, "elapsed_s": elapsed_iter,
+                "provider": provider_id, "soft_timeout_s": soft_timeout_s})
 
         calls = parse_tool_calls(resp.content)
         visible = strip_tool_calls(resp.content)
@@ -135,7 +174,8 @@ async def run_agent(
         "Has alcanzado el límite de iteraciones. Responde AHORA sin usar más "
         "herramientas: resume qué has hecho, qué has averiguado y qué queda."))
     final = await registry.complete(
-        CompletionRequest(messages=messages, temperature=temperature),
+        CompletionRequest(messages=messages, temperature=temperature,
+                          timeout_s=iteration_timeout_s),
         prefer=prefer_provider)
     return AgentTurn(
         text=strip_tool_calls(final.content), iterations=max_iters, tool_calls=used,

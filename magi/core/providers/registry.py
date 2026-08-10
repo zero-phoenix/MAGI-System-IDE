@@ -295,8 +295,16 @@ class ProviderRegistry:
     def _candidates(self, prefer: str | None, need_tools: bool,
                     need_vision: bool) -> list[Registration]:
         pool = self.healthy(need_tools=need_tools, need_vision=need_vision)
-        if prefer:
-            pool.sort(key=lambda r: (r.id != prefer, r.priority))
+        # Ordenar: preferido primero, luego por estado del breaker (cerrado
+        # antes que half-open), luego por latencia p95 observada, luego por
+        # la prioridad estática. Así los proveedores lentos van al final sin
+        # perder la preferencia explícita.
+        def _sort_key(r: Registration):
+            state_val = 0 if r.breaker.state() == "closed" else 1
+            latency = r.breaker.p95_ms() or float("inf")
+            prefer_match = 0 if (prefer and r.id == prefer) else 1
+            return (prefer_match, state_val, latency, r.priority)
+        pool.sort(key=_sort_key)
         return pool
 
     # ----------------------------------------------------------- observabilidad

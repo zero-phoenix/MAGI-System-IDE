@@ -88,6 +88,16 @@ def python_executable() -> str | None:
                     return salida
             except Exception:
                 pass
+
+    # Si estamos congelados y no hay Python del sistema, intentar el embebido
+    # que el bundle puede llevar consigo (Plan MAGI 9.0 §1.3).
+    try:
+        from .embedded_python import embedded_python_executable
+        embebido = embedded_python_executable()
+        if embebido and Path(embebido).resolve() != Path(sys.executable).resolve():
+            return embebido
+    except Exception:
+        pass
     return None
 
 
