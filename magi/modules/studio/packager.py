@@ -16,7 +16,24 @@ import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    # Solo para los tipos. El import REAL sigue dentro de `to_tool_result`
+    # porque `core.tools.registry` importa de vuelta a los módulos de studio y
+    # traerlo aquí al nivel del módulo cerraría el círculo.
+    #
+    # Sin esta declaración, la anotación `-> "ToolResult"` apunta a un nombre
+    # que no existe en el ámbito del módulo. `from __future__ import
+    # annotations` hace que no falle en tiempo de ejecución —la anotación nunca
+    # se evalúa— pero ruff sí lo ve, y con razón: es una promesa sobre un
+    # nombre que nadie puede resolver. El CI lo paró con
+    #
+    #     F821 Undefined name `ToolResult`   packager.py:84
+    #
+    # y ese job es bloqueante a propósito: los nombres indefinidos son la clase
+    # de fallo que revienta solo cuando se ejecuta la línea.
+    from ...core.tools.registry import ToolResult
 
 import logging
 
@@ -81,7 +98,7 @@ class PackagerResult:
     error: str | None = None
     meta: dict[str, Any] = field(default_factory=dict)
 
-    def to_tool_result(self) -> "ToolResult":  # type: ignore[name-defined]
+    def to_tool_result(self) -> ToolResult:
         from ...core.tools.registry import ToolResult
         return ToolResult(
             ok=self.ok,

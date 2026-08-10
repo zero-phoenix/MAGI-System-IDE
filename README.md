@@ -213,7 +213,7 @@ Que Balthasar no pueda escribir no es una restricción de seguridad: es lo que l
 da autoridad. Una crítica que dice *«esto falla con entrada vacía»* **habiendo
 ejecutado el caso** vale mucho más que una que lo sospecha.
 
-Las **48 herramientas** se reparten por rol y se acotan por dominio antes de
+Las **49 herramientas** se reparten por rol y se acotan por dominio antes de
 entrar en el prompt. No es una optimización cosmética: el catálogo completo son
 4,7 KB en cada turno, y un proveedor gratuito con eso delante deja de responder.
 Acotado por lo que se está haciendo, Melchior reparando código ve 12

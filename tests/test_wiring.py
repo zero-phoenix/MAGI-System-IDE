@@ -869,6 +869,36 @@ def test_nadie_lanza_python_con_sys_executable():
         "en vez de hacer algo raro en silencio. Sitios: " + ", ".join(culpables))
 
 
+def _sin_python_embebido(monkeypatch):
+    """
+    Deja el sistema SIN intérprete embebido, para poder probar el caso «no hay
+    ninguno».
+
+    POR QUÉ HACE FALTA, Y POR QUÉ ES UN ARREGLO Y NO UN PARCHE
+    =========================================================
+    Los dos guardas de abajo comprueban una promesa concreta: cuando no hay
+    ningún Python de verdad, `python_executable()` devuelve None y NO cae a
+    `sys.executable` —que dentro del .exe es el propio MAGI—. Esa promesa es lo
+    que impide que `run_tests` acabe relanzando la interfaz.
+
+    Al añadirse el intérprete embebido, `python_executable()` ganó una tercera
+    vía: si el bundle trae un Python dentro, lo devuelve. Correcto y deseable.
+    Pero entonces los guardas dejaron de probar lo que decían: en el CI pasaban
+    —allí no hay embebido que encontrar— y en una máquina que sí lo tiene,
+    fallaban. Un test cuyo resultado depende de qué haya instalado alrededor no
+    está comprobando una propiedad del código, está describiendo el entorno.
+
+    Y habría pasado de verde a rojo justo el día en que se empaquete el
+    embebido, que es el objetivo declarado de esa función: el guarda se caería
+    solo al cumplirse lo que vigila.
+
+    Neutralizando la tercera vía, los dos guardas vuelven a probar exactamente
+    su promesa: sin intérprete en ninguna parte, None. Nunca el .exe.
+    """
+    import magi.core.embedded_python as emb
+    monkeypatch.setattr(emb, "embedded_python_executable", lambda: None)
+
+
 def test_python_executable_no_devuelve_el_propio_ejecutable_congelado(monkeypatch):
     """
     La otra mitad: que la puerta no caiga a `sys.executable` cuando no
@@ -884,6 +914,7 @@ def test_python_executable_no_devuelve_el_propio_ejecutable_congelado(monkeypatc
     monkeypatch.setattr(paths, "is_frozen", lambda: True)
     monkeypatch.setattr(shutil, "which", lambda n: None)
     monkeypatch.setattr(_sys, "platform", "linux")
+    _sin_python_embebido(monkeypatch)
     try:
         assert paths.python_executable() is None
     finally:
@@ -903,6 +934,7 @@ def test_python_executable_descarta_el_alias_que_apunta_al_exe(monkeypatch):
     paths.python_executable.cache_clear()
     monkeypatch.setattr(paths, "is_frozen", lambda: True)
     monkeypatch.setattr(shutil, "which", lambda n: _sys.executable)
+    _sin_python_embebido(monkeypatch)
     try:
         assert paths.python_executable() is None
     finally:

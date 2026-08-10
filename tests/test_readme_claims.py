@@ -85,15 +85,38 @@ def test_el_readme_cita_la_cantidad_real_de_tests(readme):
 
 
 def test_el_readme_cita_la_cantidad_real_de_herramientas(readme):
-    """El README dice 'N herramientas'. N debe ser el conteo del registry."""
+    """
+    El README dice '**N herramientas**'. N debe ser el conteo del registry.
+
+    LA CIFRA SE BUSCA EN NEGRITA, Y ESO IMPORTA
+    ===========================================
+    La primera versión buscaba `(\\d+)\\s+herramientas?` en todo el fichero y se
+    quedaba con la PRIMERA coincidencia. Funcionaba por accidente: unas líneas
+    más abajo el README dice «Melchior reparando código ve 12 herramientas», y
+    basta reordenar dos párrafos para que el test empiece a comprobar el 12
+    contra el registry.
+
+    No habría fallado: habría pasado, comprobando otra cosa. Que es el
+    corolario que este proyecto se repite —el instrumento de medida es el mejor
+    escondite— aplicado al instrumento que vigila la documentación.
+
+    Los asteriscos anclan la afirmación canónica y solo esa.
+
+    Aquí sí es igualdad exacta, a diferencia del conteo de tests, que es un
+    suelo: las herramientas son un catálogo curado que cambia pocas veces, y
+    cuando cambia, el README describe algo que ya no existe.
+    """
     from magi.core.tools.builtin import build_registry
-    m = re.search(r"(\d+)\s+herramientas?", readme)
-    assert m, "El README debería citar 'N herramientas'"
+    m = re.search(r"\*\*(\d+)\s+herramientas\*\*", readme)
+    assert m, (
+        "El README debería citar la cifra canónica en negrita: "
+        "'**N herramientas**'. Sin los asteriscos, este test acabaría "
+        "comprobando cualquier otro número seguido de la palabra.")
     declarado = int(m.group(1))
     real = len(build_registry().names())
     assert declarado == real, (
         f"El README declara {declarado} herramientas pero el registry tiene {real}. "
-        f"Actualiza README.md (línea con 'herramientas') a {real}.")
+        f"Actualiza README.md (la línea con '**{declarado} herramientas**') a {real}.")
 
 
 def test_el_enjambre_tiene_exactamente_tres_nodos(readme):

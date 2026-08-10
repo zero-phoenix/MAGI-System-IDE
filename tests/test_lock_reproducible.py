@@ -26,6 +26,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 RAIZ = Path(__file__).resolve().parents[1]
 LOCK = RAIZ / "requirements.lock"
 REQS = RAIZ / "requirements.txt"
@@ -107,6 +109,50 @@ def test_toda_dependencia_directa_esta_en_el_lock():
         f"Regenera el lock EN EL MISMO COMMIT en el que tocas requirements.txt:\n"
         f"  python -m piptools compile --strip-extras "
         f"-o requirements.lock requirements.txt")
+
+
+def test_no_hay_submodulos_fantasma():
+    """
+    Ningún gitlink sin su entrada en .gitmodules.
+
+    EL FALLO
+    ========
+    `tools/magi-mem/codebase-memory-mcp` estaba en el índice con modo 160000
+    —un enlace a otro repositorio— y no había `.gitmodules` en el proyecto.
+    Suele pasar sin querer: se hace `git add` de un directorio que trae su
+    propio `.git` dentro y git lo registra como submódulo en vez de copiar los
+    ficheros.
+
+    El resultado, en CADA checkout del CI, en todos los jobs:
+
+        fatal: No url found for submodule path
+               'tools/magi-mem/codebase-memory-mcp' in .gitmodules
+        ##[warning]The process '/usr/bin/git' failed with exit code 128
+
+    No tumbaba nada, y esa es justo la razón para cazarlo: un aviso permanente
+    en cada job es un aviso que se aprende a ignorar, y el siguiente —el que sí
+    importa— viaja en el mismo saco. Además, quien clone el repositorio se
+    encuentra un directorio vacío donde debería haber algo, sin forma de saber
+    de dónde sacarlo.
+    """
+    import subprocess
+    r = subprocess.run(["git", "ls-files", "-s"], capture_output=True,
+                       text=True, cwd=str(RAIZ), timeout=60)
+    if r.returncode != 0:                                 # pragma: no cover
+        pytest.skip("no hay git disponible")
+
+    enlaces = [ln.split("\t", 1)[1] for ln in r.stdout.splitlines()
+               if ln.startswith("160000")]
+    if not enlaces:
+        return                                   # ni submódulos ni problema
+
+    modules = RAIZ / ".gitmodules"
+    declarados = modules.read_text(encoding="utf-8") if modules.exists() else ""
+    huerfanos = [p for p in enlaces if p not in declarados]
+    assert not huerfanos, (
+        f"gitlinks sin entrada en .gitmodules: {huerfanos}\n"
+        f"O se declaran en .gitmodules con su URL, o se sacan del índice:\n"
+        f"  git rm --cached {huerfanos[0]}")
 
 
 def test_el_lock_solo_se_usa_donde_puede_funcionar():
