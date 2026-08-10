@@ -145,12 +145,27 @@ jobs:
           throw "PyInstaller no produjo el .exe"
         }
 
-        # Suelo de tamaño. Solo el Python embebido son ~43 MB, así que un
-        # binario por debajo de 120 MB ha perdido algo gordo por el camino
-        # aunque PyInstaller haya terminado sin quejarse.
+        # QUE EL EMBEBIDO ESTÉ EN EL REPO NO PRUEBA QUE ENTRARA EN EL BINARIO.
+        #
+        # Se comprueba en el inventario que PyInstaller deja al empaquetar, que
+        # es evidencia directa de lo que viajó dentro. La primera versión de
+        # esta comprobación usaba el tamaño del .exe como proxy y se equivocó:
+        # puse el suelo en 120 MB razonando «94 MB que pesaba antes + 43 del
+        # embebido», y el binario salió a 107,3 porque dentro va comprimido.
+        # Sumar tamaños en disco para predecir el de un archivo comprimido es
+        # inventarse un número — y tumbó un build correcto.
+        $toc = "build/MAGI-IDE-v5/Analysis-00.toc"
+        if (-not (Test-Path $toc)) { throw "no encuentro el inventario $toc" }
+        if (-not (Select-String -Path $toc -Pattern "python-embed" -Quiet)) {
+          throw "el Python embebido NO entro en el binario: el .exe publicado no podria ejecutar nada"
+        }
+        Write-Host "python embebido: dentro del binario (verificado en el inventario)"
+
+        # Y un suelo de tamaño, ahora sí MEDIDO y no calculado: 94,1 MB sin
+        # embebido (v5.2.0) y 107,3 con él (v5.3.0). 100 queda entre los dos.
         $mb = [math]::Round((Get-Item "dist/MAGI-IDE-v5.exe").Length / 1MB, 1)
         Write-Host "exe: $mb MB"
-        if ($mb -lt 120) { throw "el .exe pesa $mb MB: se quedo algo fuera (el Python embebido solo ya son ~43 MB)" }
+        if ($mb -lt 100) { throw "el .exe pesa $mb MB: se quedo algo fuera" }
 
     - name: Zip Release
       # El usuario descarga un .zip, no el .exe suelto: Windows y muchos
