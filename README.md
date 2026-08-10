@@ -7,7 +7,7 @@ deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**Más de 860 tests en Python · 80 en la interfaz · sin tests verdes no hay release.**
+**Más de 880 tests en Python · 80 en la interfaz · sin tests verdes no hay release.**
 
 **[⬇ Descargar el ejecutable de Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta.
 
@@ -96,7 +96,7 @@ subgraph G5["5 · VERIFICACIÓN — el código se EJECUTA antes de debatirlo"]
   VER["ProposalVerifier"]
   VER --- VE1["arranca<br/>sigue al crítico"]
   VER --- VE2["no arranca<br/>VUELVE A LA ETAPA 4<br/>sin gastar ronda"]
-  VER --- VE3["GUI / juego<br/>arranca headless<br/>se ejecuta y se valida"]
+  VER --- VE3["GUI o juego<br/>arranca headless,<br/>cuenta fotogramas y sale"]
 end
 
 VER ==> BAL
@@ -137,7 +137,7 @@ subgraph G9["9 · EJECUCIÓN sobre tu máquina"]
   EJE["journal + supervisor"]
   EJE --- EJ1["escribe ficheros<br/>reversible"]
   EJE --- EJ2["ejecuta procesos<br/>se pueden parar"]
-  EJE --- EJ3["artefactos<br/>Vista previa"]
+  EJE --- EJ3["artefactos y .exe portables<br/>Vista previa"]
 end
 
 EJE ==> FIN["RESULTADO<br/>se archiva, no se acumula"]
@@ -175,6 +175,7 @@ end
 
 NA1 --> GUI["INTERFAZ"]
 TE4 --> GUI
+TE4 --> SEL["SELECCIÓN DE PROVEEDOR<br/>los candidatos se ordenan<br/>por p95 medido, no por lista"]
 ```
 
 ---
@@ -219,6 +220,18 @@ entrar en el prompt. No es una optimización cosmética: el catálogo completo s
 Acotado por lo que se está haciendo, Melchior reparando código ve 12
 herramientas y 890 bytes.
 
+### Dentro de una familia, gana el que ha demostrado ser rápido
+
+Una familia agrupa varios proveedores gratuitos que sirven el mismo modelo, y no
+todos van igual: en un turno real medido, Yqcloud tardó **74 segundos** en
+responder lo que otro candidato de la misma familia daba en cinco.
+
+El orden ya no es el de la lista. Los candidatos se ordenan por **estado del
+cortacircuitos y latencia p95 medida**, así que el que ha estado respondiendo
+rápido se prueba primero. Y si el primero no contesta en unos segundos, se lanza
+un segundo en paralelo y gana el que llegue antes: misma respuesta, sin pagar la
+cola de latencia.
+
 ### Los tres hablan tu idioma, y se comprueba
 
 Decirle a un modelo «responde en español» no basta cuando el modelo es un
@@ -226,24 +239,25 @@ proveedor gratuito. Casper llegó a entregar su aprobación en chino
 (`三个方案...`) con la instrucción puesta en el prompt, porque **nadie miraba la
 respuesta**.
 
-Ahora se mira. Si la respuesta llega en otro alfabeto, se rota de familia y se
-reintenta —con tope de dos intentos, porque un detector heurístico se equivoca y
-sin tope un solo falso negativo dispara treinta llamadas de red por turno—. El
-proceso es interno: tú recibes la respuesta en tu idioma, no un comentario sobre
-por qué hubo que pedirla otra vez.
+Ahora se mira. Si la respuesta llega en otro idioma, se rota de familia y se
+reintenta —con tope, porque un detector heurístico se equivoca y sin tope un
+solo falso negativo dispara treinta llamadas de red por turno—. El proceso es
+interno: tú recibes la respuesta en tu idioma, no un comentario sobre por qué
+hubo que pedirla otra vez.
 
-La comprobación está en los **dos** caminos, el de streaming y el normal. Estuvo
-solo en el segundo durante una versión, y como el enjambre usa el primero, el
-arreglo no arregló nada: los tres nodos seguían contestando en chino con la
-guarda ya «puesta».
+Esa guarda ha fallado de tres formas distintas, y las tres están arregladas
+porque las tres se vieron en uso real:
 
-Y la comprobación no se libraba por respuesta corta. Una versión anterior tenía
-`return len(respuesta.split()) < 12`: cualquier respuesta de menos de doce
-palabras se daba por buena **en el idioma que fuera**. Una frase como *«Sure! I
-will create a Tetris game for you.»* pasaba por español válida, la guarda nunca
-rotaba, y el usuario veía las tres IA contestándole en inglés. Ahora se exige un
-mínimo de señal del idioma esperado —dos palabras vacías—, por corta que sea la
-respuesta.
+- **Estaba en el camino equivocado.** La comprobación vivía en `_ask` y el
+  enjambre usa `_ask_stream`. El arreglo estaba escrito y no arreglaba nada.
+- **Se libraba por respuesta corta.** Cualquier respuesta de menos de doce
+  palabras se daba por buena *en el idioma que fuera*. «Sure! I will create a
+  Tetris game for you.» pasaba por español. Ahora se exige señal del idioma
+  esperado por corta que sea la respuesta.
+- **Mataba lo que protegía.** Llamaba a un método renombrado, fuera del `try`,
+  y tumbaba la orquestación entera: tres variantes muertas y ninguna respuesta,
+  después de haberlas generado. Ahora, si el reintento falla, se entrega la
+  original. Una mejora de calidad no puede tener autoridad sobre lo que mejora.
 
 ---
 
@@ -311,6 +325,13 @@ en el terminal. Lo que **no** hace es narrar sus reintentos internos: cuando un
 proveedor le contesta en otro idioma, rota y sigue. Un aviso por cada rotación
 llenaba la pantalla de mensajes que no describían tu problema.
 
+Y su verificación ya no se estorba a sí misma. Naoko, Balthasar y tú podéis
+ejecutar la suite a la vez: cada corrida tiene su propio directorio temporal.
+Cuando lo compartían, la que arrancaba después le borraba el temporal a la que
+estaba dentro, caían 732 tests con `FileNotFoundError` y Naoko concluía *«la
+suite ya estaba roja antes de tocar nada»* — un diagnóstico falso, producido por
+su propia comprobación, que la dejaba sin reparar nada.
+
 ---
 
 ## Qué sabe hacer
@@ -340,18 +361,29 @@ daba error: un `.mp4` y un `.csv` se despachaban a «ejecutar como Python» y el
 agente recibía `SyntaxError: source code cannot contain null bytes` al pedir que
 se mirase el vídeo que acababa de hacer.
 
-### Vídeo programático
+### Un programa con ventana se verifica sin ventana
 
-Animática Ken Burns, manga → vídeo en vertical, y grabación de un programa
-gráfico en ejecución. Un vídeo tiene dos formas de salir mal que ninguna
-comprobación barata ve, porque el fichero existe, pesa megas y se reproduce:
-**todo negro** y **congelado** —todos los fotogramas idénticos, la animación que
-no animó—. `observe_video` muestrea fotogramas separados en el tiempo y los
-compara.
+Verificar código que abre una ventana tiene una trampa: un juego correcto **no
+termina nunca**. Se queda en su bucle esperando a que juegues, y una
+verificación con temporizador lo declara colgado.
 
-Solo están construidos los escalones que dan resultado profesional hoy y sin
-coste. El gen-vídeo largo y coherente no está resuelto localmente en hardware de
-escritorio, y fingirlo sería vender humo.
+Eso hizo que pedir un Tetris se quedara dando vueltas en la ronda 5: el juego
+estaba bien, la comprobación lo mataba a los 45 segundos y el enjambre volvía a
+proponer otro.
+
+Ahora los bloques con `pygame`, `tkinter`, `turtle` o un `mainloop` se ejecutan
+**headless**, con un guardián que cuenta fotogramas y sale limpio en cuanto ve
+que la cosa se mueve. Un Tetris correcto da OK. Y un `while True: pass` pelado
+sigue dando fallo: la excepción es para las ventanas, no para los cuelgues.
+
+### De proyecto Python a `.exe` portable
+
+`build_project_exe` empaqueta un proyecto Python en un **ejecutable onefile**
+que corre en una máquina sin Python instalado. Es el último escalón de la
+fábrica: el sistema no solo genera el juego y lo mira funcionar, también te lo
+deja en un fichero que puedes pasarle a alguien.
+
+Es la misma receta con la que se compila MAGI, aplicada a lo que MAGI produce.
 
 ### Manga
 
@@ -364,6 +396,19 @@ de posición y el sistema **lo dice**, en vez de fingir que dibujó.
 `validate_manga_layout` comprueba solapes, huecos y viñetas fuera de página
 **antes** de generar nada: descubrir después que dos viñetas se pisan es tirar
 ocho generaciones.
+
+### Vídeo programático
+
+Animática Ken Burns, manga → vídeo en vertical, y grabación de un programa
+gráfico en ejecución. Un vídeo tiene dos formas de salir mal que ninguna
+comprobación barata ve, porque el fichero existe, pesa megas y se reproduce:
+**todo negro** y **congelado** —todos los fotogramas idénticos, la animación que
+no animó—. `observe_video` muestrea fotogramas separados en el tiempo y los
+compara.
+
+Solo están construidos los escalones que dan resultado profesional hoy y sin
+coste. El gen-vídeo largo y coherente no está resuelto localmente en hardware de
+escritorio, y fingirlo sería vender humo.
 
 ### Mundo real: macro, geopolítica y finanzas
 
@@ -415,6 +460,11 @@ No todo merece un debate de tres rondas.
 | `lookup` | pregunta factual | 1 llamada + web |
 | `task` | acción concreta sobre ficheros o código | Melchior + verificación |
 | `build` | proyecto, juego, emulador, investigación | debate completo iterado |
+
+Y ningún turno se queda colgado esperando para siempre: hay **plazos** en el
+bucle del agente, y al vencer se entrega lo que haya con la degradación dicha en
+voz alta. Media respuesta anunciada como media respuesta es utilizable; una
+pantalla quieta sin explicación no lo es.
 
 ---
 
@@ -469,6 +519,13 @@ persistir no puede frenar lo que se está midiendo.
 - **Panel de mejoras**: el ciclo de Naoko con sus compuertas, y lo que va
   haciendo mientras lo hace.
 
+Las pestañas **nunca se esconden**: si la ventana es estrecha pasan a la línea
+siguiente en vez de desplazarse fuera de la pantalla. Y ningún mensaje puede
+descuadrar la interfaz — un diccionario de error de 200 caracteres sin espacios
+es, para el navegador, una sola palabra, y llegó a empujar la barra de pestañas
+fuera del viewport. Un mensaje de error dejaba media interfaz inalcanzable,
+justo cuando más falta hace poder navegarla.
+
 ---
 
 ## Instalación
@@ -509,17 +566,18 @@ Va en `.zip` a propósito: Windows y muchos navegadores bloquean o marcan un
 `.exe` descargado suelto. Lo compila GitHub Actions desde el tag, tras pasar la
 suite completa; no hay ninguna subida manual de por medio.
 
-El binario se compila desde `requirements.lock`, que fija las 66 dependencias
-—directas y transitivas— con las que se probó. Recompilar el mismo tag dentro de
-seis meses produce el mismo `.exe`; sin el lock, produciría lo que hubiera ese
-día en PyPI, y una versión publicada que no se puede reproducir no se puede
-depurar.
+El binario **lleva su propio Python 3.10 dentro**. Antes no: dentro de un
+empaquetado onefile `sys.executable` es el propio `.exe`, así que sin un Python
+del sistema las herramientas que ejecutan (`run_tests`, `python_exec`), la
+verificación de propuestas y el bucle de observación se quedaban sin intérprete
+—y lo decían, pero no podían trabajar—. Ahora se busca en este orden: Python del
+sistema, lanzador `py`, y el embebido que viaja dentro. Si no hay ninguno, lo
+dice; no lo intenta a medias.
 
-El `.exe` funciona por sí solo, pero **para ejecutar código Python necesita un
-Python instalado en la máquina**. Es una consecuencia de cómo funciona un
-empaquetado onefile, y afecta a las herramientas que ejecutan (`run_tests`,
-`python_exec`), a la verificación de propuestas y al bucle de observación de
-programas y juegos. Si no lo encuentra, lo dice; no lo intenta a medias.
+Se compila desde `requirements.lock`, que fija las 66 dependencias —directas y
+transitivas— con las que se probó. Recompilar el mismo tag dentro de seis meses
+produce el mismo `.exe`; sin el lock, produciría lo que hubiera ese día en PyPI,
+y una versión publicada que no se puede reproducir no se puede depurar.
 
 ---
 
@@ -532,8 +590,8 @@ Siete reglas, cada una nacida de un fallo real de esta reconstrucción:
    nadie.
 2. **Un test sobre una pieza aislada no prueba que el sistema la use.** Por eso
    hay una auditoría del grafo de llamadas con AST (`scripts/huerfanos.py`) y un
-   trinquete que solo puede bajar: 108 definiciones públicas sin sitio de llamada
-   hoy, y el CI falla si mañana son 109. El techo también obliga a apretarse
+   trinquete que solo puede bajar: 107 definiciones públicas sin sitio de llamada
+   hoy, y el CI falla si mañana son 108. El techo también obliga a apretarse
    cuando el número baja — un trinquete que no se aprieta no es un trinquete.
 3. **Cada capacidad del backend tiene que poder invocarse desde la interfaz.**
    Auditarlo encontró tres capacidades completas e inalcanzables.
@@ -572,10 +630,12 @@ rechaza siempre con HTTP 400 llevaba meses en verde; los cinco tests que
 custodiaban la compuerta de publicación leían el código fuente buscando
 subcadenas, de modo que cuatro mutantes que rompían la compuerta de verdad
 —uno hacía que la autocorrección publicara sin permiso— dejaban la suite entera
-en verde; y el test que vigilaba que el README no mintiera exigía que la cifra
-declarada fuese mayor o igual que la real, con lo que **cada commit que añadía
-un test dejaba el CI en rojo**. Un guardián que castiga lo que debía fomentar
-acaba enseñando a no hacerlo.
+en verde; el guardián de las cifras del README buscaba el número en todo el
+fichero y se quedaba con el primero, así que bastaba reordenar dos párrafos para
+que empezara a comprobar otra cosa sin fallar nunca; y el que vigilaba que
+`python_executable()` no devolviera el `.exe` pasaba en el CI solo porque allí no
+había intérprete embebido que encontrar — describía la máquina, no el código, y
+se habría caído solo el día en que se cumpliera lo que vigila.
 
 Todos verdes. Ninguno comprobando nada.
 

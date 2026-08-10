@@ -139,6 +139,84 @@ claves.
 
 ---
 
+# v5.3.0 — el binario trae su propio Python, y ahora fabrica ejecutables
+
+La versión más grande desde la reconstrucción. Tres capacidades nuevas y el
+arreglo de lo que impedía usarlas.
+
+### El `.exe` ya no depende de que tengas Python instalado
+
+Dentro de un empaquetado onefile, `sys.executable` **es el propio `.exe`**. Eso
+significaba que en el binario descargado no había ningún intérprete con el que
+ejecutar nada: `run_tests`, `python_exec`, la verificación de propuestas y el
+bucle de observación se quedaban sin trabajar. Lo decían —no fingían— pero media
+capacidad del sistema estaba fuera de alcance si no tenías Python aparte.
+
+Ahora viaja un **Python 3.10 embebido** dentro del binario. El orden de búsqueda
+es: Python del sistema, lanzador `py`, y el embebido. Si no hay ninguno, se dice;
+nunca se intenta a medias.
+
+### Fabrica ejecutables portables de lo que genera
+
+`build_project_exe` empaqueta un proyecto Python en un **`.exe` onefile** que
+corre en una máquina sin Python. Es el último escalón de la fábrica: el sistema
+no solo genera el juego y lo mira funcionar, también te lo deja en un fichero
+que puedes pasarle a alguien.
+
+Es la misma receta con la que se compila MAGI, aplicada a lo que MAGI produce.
+
+### Un juego correcto ya no se declara colgado
+
+Verificar código que abre una ventana tiene una trampa: **un juego correcto no
+termina nunca**. Se queda en su bucle esperando a que juegues, y una
+verificación con temporizador lo mata y lo declara roto.
+
+Eso hacía que pedir un Tetris se quedara dando vueltas en la ronda 5: el juego
+estaba bien, la comprobación lo mataba a los 45 segundos y el enjambre volvía a
+proponer otro, indefinidamente.
+
+Ahora los bloques con `pygame`, `tkinter`, `turtle` o un `mainloop` se ejecutan
+**headless**, con un guardián que cuenta fotogramas y sale limpio en cuanto ve
+que la cosa se mueve. Un `while True: pass` pelado sigue dando fallo: la
+excepción es para las ventanas, no para los cuelgues.
+
+### Dentro de una familia, gana el que ha demostrado ser rápido
+
+En un turno real medido, Yqcloud tardó **74 segundos** en responder lo que otro
+candidato de la misma familia daba en cinco. El orden ya no es el de la lista:
+los candidatos se ordenan por **estado del cortacircuitos y latencia p95
+medida**, y la cobertura en paralelo sube a tres.
+
+### Y ningún turno se queda esperando para siempre
+
+Plazos controlados en el bucle del agente. Al vencer se entrega lo que haya, con
+la degradación dicha en voz alta. Media respuesta anunciada como media respuesta
+es utilizable; una pantalla quieta sin explicación no lo es.
+
+### Lo que se arregló para que todo lo anterior fuera usable
+
+- **Las tres IA respondían en inglés.** La comprobación de idioma daba por buena
+  cualquier respuesta de menos de doce palabras *en el idioma que fuera*. «Sure!
+  I will create a Tetris game for you.» pasaba por español válido. Ahora se
+  exige señal del idioma esperado por corta que sea la respuesta.
+- **Esa misma guarda tumbaba el enjambre.** Llamaba a un método renombrado,
+  fuera del `try`, y el `AttributeError` se llevaba por delante las tres
+  variantes: ninguna respuesta, tras haberlas generado. Ahora, si el reintento
+  falla, se entrega la original. Una mejora de calidad no puede tener autoridad
+  sobre lo que mejora.
+- **Naoko decía que la suite estaba rota, y la rompía ella.** Tres sitios
+  lanzaban pytest con el mismo directorio temporal; con dos corridas solapadas,
+  la segunda le borraba el temporal a la primera y caían 732 tests. Cada corrida
+  tiene ahora el suyo.
+- **La interfaz se descuadraba con un error largo.** Un diccionario de 200
+  caracteres sin espacios es, para el navegador, una sola palabra: empujaba la
+  barra de pestañas fuera de la pantalla. Y las pestañas ya no se esconden con
+  la ventana estrecha, pasan a la línea siguiente.
+
+**886 tests en Python · 80 en la interfaz · 49 herramientas.**
+
+---
+
 # v5.2.1 — la guarda que mataba lo que venía a proteger
 
 Si en v5.2.0 pediste algo al enjambre y recibiste esto, esta versión lo arregla:

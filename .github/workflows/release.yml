@@ -123,19 +123,34 @@ jobs:
     - name: Build Executable (PyInstaller, desde el .spec)
       run: pyinstaller --clean --noconfirm MAGI-IDE-v5.spec
 
-    - name: Verificar que el catálogo viajó dentro
-      # Un .exe sin el catálogo arranca igual, así que este fallo sería
-      # silencioso. Se comprueba antes de publicar, no después.
+    - name: Verificar que lo que hace falta viajó dentro
+      # Las tres cosas que un .exe puede perder SIN dar error al arrancar, que
+      # es lo que las hace peligrosas: se publicaría un binario que parece
+      # bueno y hace la mitad.
       run: |
         if (-not (Test-Path "magi/data/catalogo_proveedores.json")) {
           throw "falta magi/data/catalogo_proveedores.json en el repo"
         }
+
+        # El Python embebido. Sin él, `sys.executable` dentro del onefile es el
+        # propio .exe y el binario se queda sin intérprete: run_tests,
+        # python_exec, la verificación de propuestas y el bucle de observación
+        # dejan de poder trabajar. El sistema lo DICE en vez de fingir, así que
+        # el fallo no se ve al arrancar — solo cuando intentas usarlo.
+        if (-not (Test-Path "assets/python-embed/extracted/python.exe")) {
+          throw "falta el Python embebido (assets/python-embed/extracted): el .exe no podria ejecutar nada"
+        }
+
         if (-not (Test-Path "dist/MAGI-IDE-v5.exe")) {
           throw "PyInstaller no produjo el .exe"
         }
+
+        # Suelo de tamaño. Solo el Python embebido son ~43 MB, así que un
+        # binario por debajo de 120 MB ha perdido algo gordo por el camino
+        # aunque PyInstaller haya terminado sin quejarse.
         $mb = [math]::Round((Get-Item "dist/MAGI-IDE-v5.exe").Length / 1MB, 1)
         Write-Host "exe: $mb MB"
-        if ($mb -lt 80) { throw "el .exe pesa $mb MB: se quedó algo fuera" }
+        if ($mb -lt 120) { throw "el .exe pesa $mb MB: se quedo algo fuera (el Python embebido solo ya son ~43 MB)" }
 
     - name: Zip Release
       # El usuario descarga un .zip, no el .exe suelto: Windows y muchos

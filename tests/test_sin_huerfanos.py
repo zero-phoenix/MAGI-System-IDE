@@ -50,7 +50,7 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 
 #: techo actual. Solo puede bajar. Si bajas, baja también este número en el
 #: mismo commit: es la mitad del trinquete que hace que sirva de algo.
-TECHO = 108
+TECHO = 107
 
 
 def _cuenta() -> int:
