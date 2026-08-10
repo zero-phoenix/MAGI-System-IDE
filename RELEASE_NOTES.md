@@ -17,6 +17,16 @@ suscripciones**.
 
 ---
 
+# v5.3.2 — README reescrito, mismo binario
+
+Reescritura completa del README para reflejar el enjambre dialéctico
+(tesis/antítesis/síntesis), Naoko eligiendo el estilo, los dos motores y la
+columna izquierda con títulos IA + archivar/borrar. Misma funcionalidad que
+v5.3.1; este release corrige el README del release anterior, que se publicó
+antes de la reescritura.
+
+---
+
 # v5.3.1 — el enjambre dialéctico, Naoko elige el estilo, y la columna izquierda vive
 
 Una reconstrucción del enjambre y la interfaz a partir de cómo se usa el sistema
