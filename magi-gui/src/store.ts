@@ -67,6 +67,12 @@ interface MagiState {
   addAlert: (a: any) => void;
   dismissAlert: (id: string) => void;
   startNewConversation: (id?: string) => void;
+  // v5.3.0 — títulos de tareas (generados por IA en el backend) y gestión de
+  // la lista de conversaciones: archivar / borrar.
+  taskTitles: Record<string, string>;
+  setTaskTitle: (taskId: string, titulo: string) => void;
+  removeConversation: (taskId: string) => void;
+  setConversations: (convs: Record<string, AgentMessage[]>, titulos?: Record<string, string>) => void;
   
   terminalOutput: string;
   appendTerminal: (text: string) => void;
@@ -121,6 +127,30 @@ export const useMagiStore = create<MagiState>((set) => ({
       messages: []
     };
   }),
+
+  // v5.3.0 — títulos y gestión de la lista de conversaciones.
+  taskTitles: {},
+  setTaskTitle: (taskId, titulo) => set((state) => ({
+    taskTitles: { ...state.taskTitles, [taskId]: titulo },
+  })),
+  removeConversation: (taskId) => set((state) => {
+    const conversations = { ...state.conversations };
+    delete conversations[taskId];
+    const taskTitles = { ...state.taskTitles };
+    delete taskTitles[taskId];
+    const stillActive = taskId !== state.activeConversationId;
+    return {
+      conversations,
+      taskTitles,
+      // Si borramos la activa, volvemos a "default" para no quedar en blanco.
+      activeConversationId: stillActive ? state.activeConversationId : "default",
+      messages: stillActive ? state.messages : (conversations["default"] || []),
+    };
+  }),
+  setConversations: (convs, titulos) => set(() => ({
+    conversations: convs,
+    taskTitles: titulos || {},
+  })),
 
   addMessage: (msg) => set((state) => {
     const targetId = msg.task_id || state.activeConversationId;

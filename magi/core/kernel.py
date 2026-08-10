@@ -57,6 +57,9 @@ class Kernel:
         # §7.3 — parar UN turno sin matar la aplicación ni las demás tareas.
         self.rpc.register_handler("task.cancel", self._handle_cancel_task)
         self.rpc.register_handler("task.running", self._handle_running_tasks)
+        self.rpc.register_handler("task.list", self._handle_list_tasks)
+        self.rpc.register_handler("task.archive", self._handle_archive_task)
+        self.rpc.register_handler("task.delete", self._handle_delete_task)
         # Ciclo de mejora de Naoko: proponer, decidir en cada compuerta y
         # consultar lo que está pendiente de tu respuesta.
         self.rpc.register_handler("naoko.improve.propose", self._handle_improve_propose)
@@ -351,6 +354,66 @@ class Kernel:
         from magi.core.cancel import supervisor
         return {"running": supervisor().running_tasks()}
 
+    async def _handle_list_tasks(self, payload, websocket):
+        """
+        Tareas para la columna izquierda de la GUI.
+
+        Devuelve las visibles (no archivadas ni borradas) con su título: así la
+        columna muestra «Juego Tetris portable» en vez del task_id crudo. La
+        GUI lo llama al conectar para repoblar la lista tras un reinicio.
+        """
+        try:
+            store = self.swarm.store
+            tareas = store.visibles(limit=100)
+            return {"tasks": [
+                {"task_id": t.task_id, "titulo": t.nombre(),
+                 "status": t.status, "round": t.round}
+                for t in tareas]}
+        except Exception as e:
+            logger.warning("[kernel] no se pudo listar tareas: %s", e)
+            return {"tasks": []}
+
+    async def _handle_archive_task(self, payload, websocket):
+        """Archiva una conversación: sale de la vista sin borrarse."""
+        task_id = (payload or {}).get("task_id", "").strip()
+        if not task_id:
+            return {"status": "error", "message": "indica qué tarea archivar"}
+        try:
+            self.swarm.store.archivar(task_id, motivo="archivada por el usuario")
+            await self.bus.publish(BusEvent(
+                topic="task.archived",
+                payload={"task_id": task_id}))
+            return {"status": "ok", "task_id": task_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    async def _handle_delete_task(self, payload, websocket):
+        """
+        Borra una conversación de la vista.
+
+        Marca `borrada=True` (no destruye datos: reversible a nivel de store).
+        Si la columna de la migración 0003 no existe, cae a `delete` real.
+        """
+        task_id = (payload or {}).get("task_id", "").strip()
+        if not task_id:
+            return {"status": "error", "message": "indica qué tarea borrar"}
+        try:
+            with self.swarm.store._conn() as c:
+                k = c.execute("PRAGMA table_info(task_state)").fetchall()
+                if any(r[1] == "borrada" for r in k):
+                    c.execute(
+                        "UPDATE task_state SET borrada=1, updated_at=? "
+                        "WHERE task_id=?",
+                        (__import__("time").time(), task_id))
+                else:
+                    c.execute("DELETE FROM task_state WHERE task_id=?", (task_id,))
+            await self.bus.publish(BusEvent(
+                topic="task.deleted",
+                payload={"task_id": task_id}))
+            return {"status": "ok", "task_id": task_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     # ---------------------------------------------------- ciclo de mejora
 
     async def _handle_improve_propose(self, payload, websocket):
@@ -587,9 +650,26 @@ class Kernel:
             task_id = raw_id
             
         engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"
-        # MAGI 9.0 §2.7: el estilo narrativo llega de la GUI y se propaga al enjambre.
-        narrative_style = (payload.get("narrative_style", "tecnico")
-                           if isinstance(payload, dict) else "tecnico")
+        # MAGI 9.0 §2.7: el estilo narrativo llegaba de la GUI (un selector de 4
+        # opciones que el usuario tenía que elegir a mano). v5.3.0: Naoko lo
+        # decide sola a partir del comando, porque ella entiende qué tipo de
+        # petición es. La GUI ya no expone el selector; el valor que llegue aquí
+        # se ignora y se recalcula.
+        gui_style = (payload.get("narrative_style", "tecnico")
+                     if isinstance(payload, dict) else "tecnico")
+        try:
+            from magi.modules.infrastructure.naoko import estilo_para
+            from magi.core.providers.cloud import FreeCloudLLM
+            narrative_style = await estilo_para(command, llm=FreeCloudLLM())
+            logger.info("[kernel] estilo decidido por naoko: %s (gui: %s)",
+                        narrative_style, gui_style)
+            await self.bus.publish(BusEvent(
+                topic="swarm.style",
+                payload={"task_id": task_id, "style": narrative_style,
+                         "decidido_por": "naoko"}))
+        except Exception as e:
+            logger.debug("[kernel] estilo naoko falló (%s); uso %s", e, gui_style)
+            narrative_style = gui_style
             
         # Generar un proyecto automático si es una conversación nueva
         # Para simular "cada vez que inicie una conversacion", creamos la carpeta
@@ -639,6 +719,42 @@ class Kernel:
                                      route=decision.route.value,
                                      max_rounds=decision.max_rounds,
                                      use_tools=decision.use_tools)
+
+        # Título automático de la conversación. La columna izquierda mostraba
+        # el task_id crudo («task_a3f9c2b1»); ahora una IA lo resume a 5-8
+        # palabras a partir del comando, para que la lista diga «Juego Tetris
+        # portable». Va en background: no puede bloquear el arranque del
+        # enjambre. Si la red falla, cae a un recorte local del comando.
+        asyncio.create_task(self._titular_tarea(task_id, command))
+
+    async def _titular_tarea(self, task_id: str, command: str) -> None:
+        """Genera un título corto para la tarea y avisa a la GUI."""
+        titulo = command.strip().splitlines()[0][:60] if command else task_id
+        try:
+            from magi.core.providers.cloud import get_registry
+            from magi.core.providers.base import CompletionRequest, Message
+            reg = await get_registry()
+            resp = await reg.complete(CompletionRequest(
+                messages=[
+                    Message("system",
+                            "Resume la petición del usuario en un título de "
+                            "máximo 8 palabras, en español, sin puntuación "
+                            "final, sin comillas. Solo el título."),
+                    Message("user", command[:500])],
+                temperature=0.0, max_tokens=20, timeout_s=15.0), use_cache=True)
+            cand = (resp.content or "").strip().splitlines()[0].strip()
+            cand = cand.strip('"«»“”').strip()
+            if cand and len(cand) <= 100:
+                titulo = cand
+        except Exception as e:
+            logger.debug("[kernel] título IA falló (%s); uso recorte local", e)
+        try:
+            self.swarm.store.renombrar(task_id, titulo)
+        except Exception:
+            pass
+        await self.bus.publish(BusEvent(
+            topic="task.titled",
+            payload={"task_id": task_id, "titulo": titulo}))
 
     async def start(self):
         logger.info("Iniciando MAGI Kernel...")

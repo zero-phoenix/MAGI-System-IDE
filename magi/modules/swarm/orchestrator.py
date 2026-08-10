@@ -382,12 +382,25 @@ class SwarmOrchestrator:
                             )
                         )
                 else:
+                    # El usuario NO está de acuerdo con la síntesis de Casper.
+                    # La segunda ronda arranca en MELCHIOR (la tesis): se le
+                    # pasa la síntesis previa de Casper + las observaciones del
+                    # usuario, para que genere una tesis corregida. Después
+                    # Balthasar refuta y Casper sintetiza de nuevo.
                     state["status"] = "in_progress"
-                    state["command"] = f"Ajustar la propuesta según las nuevas instrucciones del usuario: {command}"
+                    veredicto_previo = self.blackboard.read(f"{task_id}.verdict")
+                    sintesis_casper = ""
+                    if isinstance(veredicto_previo, dict):
+                        sintesis_casper = veredicto_previo.get("feedback", "")
+                    state["command"] = (
+                        f"El usuario no está de acuerdo con la síntesis de Casper. "
+                        f"Estas son SUS OBSERVACIONES (respeta cada punto):\n{command}\n\n"
+                        f"Esta fue la SÍNTESIS PREVIA de Casper a refinar:\n{sintesis_casper}\n\n"
+                        f"Genera una TESIS corregida que integre las observaciones del usuario.")
                     state["round"] += 1
                     await self.bus.publish(BusEvent(
                         topic="TERMINAL_OUT",
-                        payload={"content": f"[SWARM] Feedback del usuario recibido. Reanudando debate (Ronda {state['round']})."}
+                        payload={"content": f"[SWARM] Feedback del usuario recibido. Reanudando debate (Ronda {state['round']}): Melchior parte de la síntesis previa + tus observaciones."}
                     ))
                     self._spawn_loop(task_id)
                 return task_id

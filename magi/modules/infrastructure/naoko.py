@@ -15,6 +15,87 @@ from magi.modules.infrastructure.naoko_memory import (
 
 logger = logging.getLogger(__name__)
 
+# Clasificación de estilo narrativo que Naoko asigna a cada petición.
+#
+# POR QUÉ NAOKO DECIDE EL ESTILO
+# ==============================
+# La versión anterior tenía un selector de ESTILO en la GUI (4 opciones) que el
+# usuario tenía que elegir a mano antes de cada pregunta. Es una decisión que él
+# no debería tener que tomar: el propio sistema entiende qué tipo de petición es
+# y elige la redacción que mejor le conviene. Naoko, que ya entiende el sistema
+# y la intención del usuario, es quien mejor sabe si tu «explícame X» pide un
+# estilo analítico o si tu «hazme un tetris» pide uno técnico.
+#
+# Heurístico primero (0 ms, 0 tokens): cubre los casos claros. Solo cae a la IA
+# cuando hay ambigüedad real, igual que hace el router de rutas.
+
+# PATRONES — cada estilo se asocia a verbos/sustantivos típicos del usuario.
+_ESTILO_PATRONES = {
+    # Analítico: el usuario quiere entender el porqué, desmenuzar.
+    "analitico": re.compile(
+        r"\b(por qué|por que|explica|explicación|como funciona|cómo funciona|"
+        r"cuál es la diferencia|analiza|compara|ventajas|desventajas|"
+        r"fundamento|justifica|razona)\b", re.I),
+    # Creativo: explorar alternativas, ideas, diseño.
+    "creativo": re.compile(
+        r"\b(ideas?|propón|propone|brainstorm|alternativas?|diseña|diseño|"
+        r"creativo|original|innovador|imagina|opciones?|enfoques?)\b", re.I),
+    # Sintético: respuesta rápida, al grano.
+    "sintetico": re.compile(
+        r"\b(resumen|resume|breve|corto|rápido|rapido|al grano|tl;dr|"
+        r"en una frase|lo mínimo)\b", re.I),
+    # Técnico: código, implementación, ingeniería (el por defecto del proyecto).
+    "tecnico": re.compile(
+        r"\b(código|code|función|funcion|clase|api|bug|error|compila|"
+        r"implementa|arregla|repara|ejecuta|script|comando|terminal|"
+        r"arquitectura|sistema|instala|configura)\b", re.I),
+}
+
+ESTILO_PROMPT = """Clasifica la petición del usuario en UN estilo de respuesta:
+- tecnico  — implementación, código, ingeniería, arreglar algo.
+- sintetico — resumen breve, respuesta rápida, al grano.
+- creativo  — ideas, alternativas, diseño, brainstorm.
+- analitico — explicar el porqué, comparar, analizar en detalle.
+Responde SOLO con la palabra del estilo, en minúsculas, sin nada más."""
+
+
+async def estilo_para(command: str, llm=None) -> str:
+    """
+    El estilo narrativo que Naoko elige para esta petición.
+
+    Devuelve uno de: tecnico, sintetico, creativo, analitico.
+    Heurístico primero; IA solo si hay duda real. Pensado para llamarse desde
+    el kernel antes de submit_task, sobreescribiendo el estilo de la GUI.
+    """
+    text = (command or "").strip()
+    if not text:
+        return "tecnico"
+
+    # Heurístico: cuenta cuántos patrones casa cada estilo y se queda con el
+    # que tenga más. Sin empate claro, cae a la IA.
+    votos = {estilo: len(p.findall(text))
+             for estilo, p in _ESTILO_PATRONES.items()}
+    max_v = max(votos.values()) if votos else 0
+    if max_v > 0:
+        ganadores = [e for e, v in votos.items() if v == max_v]
+        if len(ganadores) == 1:
+            return ganadores[0]
+
+    # Ambigüedad o sin señales: preguntar a la IA si hay LLM disponible.
+    if llm is not None:
+        try:
+            from magi.core.providers.base import CompletionRequest, Message
+            content, _ = await llm.generate(ESTILO_PROMPT, command[:500])
+            cand = (content or "").strip().lower().splitlines()[0].strip()
+            for est in _ESTILO_PATRONES:
+                if est in cand:
+                    return est
+        except Exception as e:
+            logger.debug("[naoko] estilo IA falló (%s); uso tecnico", e)
+
+    # Por defecto: técnico, que es el estilo natural de un IDE de ingeniería.
+    return "tecnico"
+
 class NaokoAgent:
     """
     IA de Infraestructura y Mantenimiento.
@@ -303,7 +384,16 @@ class NaokoAgent:
         lang = idioma.detectar(user_msg)
 
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
-No eres un agente de generación de código del Enjambre (Melchior, Balthasar, Casper), sino la supervisora autónoma global.
+No eres un agente de generación de código del Enjambre, sino la supervisora autónoma global.
+
+## EL ENJAMBRE (sobre el que vigilas)
+MAGI aplica el método dialéctico con tres IA que debaten cada petición del usuario:
+- **MELCHIOR** — la TESIS. Construye y defiende la solución. Tiene acceso total a la máquina (crea/edita/borra archivos, ejecuta scripts, construye .exe).
+- **BALTHASAR** — la ANTÍTESIS. Refuta la tesis de Melchior con evidencia: ejecuta su código, corre tests, observa artefactos. No construye, solo ataca.
+- **CASPER (Gaspar)** — la SÍNTESIS. Integra tesis y antítesis en la respuesta definitiva que lee el usuario. Es quien le habla y quien decide. Juego crítico agudo y perfeccionista.
+Por defecto una sola ronda (tesis → antítesis → síntesis); si el usuario discrepa, una segunda ronda parte de la síntesis previa + las observaciones del usuario.
+
+Tú, Naoko, eres EXTERNA a ese ciclo. No propones, no refutas, no sintetizas código: vigilas que el sistema funcione, lo diagnosticas y lo reparas. Cuando hables del enjambre, referencia los roles correctamente.
 
 IDIOMA: {idioma.instruccion(lang)}
 

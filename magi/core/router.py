@@ -109,14 +109,14 @@ def classify_heuristic(command: str) -> RoutingDecision | None:
     # Un sustantivo de artefacto implica alcance de proyecto por sí solo.
     if artifact and (build_verb or words > 5):
         return RoutingDecision(Route.BUILD, 0.85,
-                               "artefacto de proyecto solicitado", 4, True)
+                               "artefacto de proyecto solicitado", 1, True)
     if build_verb and (words > 8 or complex_hit):
         return RoutingDecision(Route.BUILD, 0.8,
-                               "verbo de construcción + alcance amplio", 4, True)
+                               "verbo de construcción + alcance amplio", 1, True)
     if build_verb:
-        return RoutingDecision(Route.TASK, 0.7, "verbo de construcción acotado", 2, True)
+        return RoutingDecision(Route.TASK, 0.7, "verbo de construcción acotado", 1, True)
     if task_hit:
-        return RoutingDecision(Route.TASK, 0.8, "acción concreta sobre el sistema", 2, True)
+        return RoutingDecision(Route.TASK, 0.8, "acción concreta sobre el sistema", 1, True)
     if lookup_hit and words <= 20:
         return RoutingDecision(Route.LOOKUP, 0.8, "pregunta factual", 1, True)
     if words <= 6:
@@ -145,7 +145,7 @@ async def classify(command: str, registry=None, *,
         return decision
 
     if not allow_model or registry is None:
-        return RoutingDecision(Route.TASK, 0.5, "por defecto (sin clasificador)", 2, True)
+        return RoutingDecision(Route.TASK, 0.5, "por defecto (sin clasificador)", 1, True)
 
     try:
         from .providers.base import CompletionRequest, Message
@@ -160,11 +160,11 @@ async def classify(command: str, registry=None, *,
             if route.value in label:
                 cfg = {
                     Route.CHAT: (1, False), Route.LOOKUP: (1, True),
-                    Route.TASK: (2, True), Route.BUILD: (4, True),
+                    Route.TASK: (1, True), Route.BUILD: (1, True),
                 }[route]
                 return RoutingDecision(route, 0.75, f"clasificador ({resp.family})",
                                        cfg[0], cfg[1])
     except Exception as e:
         logger.warning("[router] clasificador falló (%s); uso TASK", e)
 
-    return RoutingDecision(Route.TASK, 0.5, "por defecto tras fallo", 2, True)
+    return RoutingDecision(Route.TASK, 0.5, "por defecto tras fallo", 1, True)

@@ -68,9 +68,12 @@ def test_chat_does_not_trigger_full_debate():
     assert d.max_rounds == 1 and d.use_tools is False
 
 
-def test_build_gets_more_rounds_and_tools():
+def test_build_uses_tools_and_one_round():
+    """v5.3.0: una sola ronda por defecto (tesis → antítesis → síntesis).
+    El debate completo iterado sale de las rondas de revisión del usuario, no
+    de un max_rounds alto al entrar."""
     d = classify_heuristic("desarrolla un videojuego completo con sprites y niveles")
-    assert d.route is Route.BUILD and d.max_rounds >= 3 and d.use_tools
+    assert d.route is Route.BUILD and d.max_rounds == 1 and d.use_tools
 
 
 @pytest.mark.asyncio

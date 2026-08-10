@@ -17,6 +17,62 @@ suscripciones**.
 
 ---
 
+# v5.3.1 — el enjambre dialéctico, Naoko elige el estilo, y la columna izquierda vive
+
+Una reconstrucción del enjambre y la interfaz a partir de cómo se usa el sistema
+de verdad. Menos mandos, más sentido.
+
+### 1. Dos motores, sin selector de estilo
+
+La barra superior tenía dos selectores: MOTOR (2 opciones) y ESTILO (4 opciones).
+El ESTILO desaparece de la interfaz. El MOTOR se simplifica a dos:
+
+- **🔍 Análisis profundo** (por defecto): baja temperatura, más iteraciones.
+- **⚡ Súper rapidez**: temperatura normal, menos vueltas.
+
+### 2. Naoko decide el estilo
+
+¿Quién decide si tu pregunta merece una respuesta técnica, sintética, creativa o
+analítica? **Naoko**, no tú. Clasifica tu comando y propaga ese estilo a los tres
+agentes. Es la que mejor entiende qué tipo de respuesta conviene a lo que
+preguntaste. Ya no hay que elegir a mano antes de cada pregunta.
+
+### 3. El enjambre aplica el método dialéctico
+
+Los tres nodos tienen roles claros y lo saben:
+
+- **MELCHIOR** es la **TESIS**: construye y defiende la solución.
+- **BALTHASAR** es la **ANTÍTESIS**: refuta con evidencia (ejecuta el código).
+- **CASPER (Gaspar)** es la **SÍNTESIS**: integra ambas en la respuesta
+  definitiva que le habla al usuario. Es el nodo más activo.
+
+Por defecto **una sola ronda** (tesis → antítesis → síntesis). Si no estás de
+acuerdo, escribes tu feedback y una **segunda ronda arranca en Melchior** con la
+síntesis previa de Casper + tus observaciones.
+
+### 4. Conclusiones siempre en español
+
+El cuerpo de las respuestas puede ir en inglés (los proveedores gratuitos tienen
+sus sesgos), pero las **`### CONCLUSIÓN` van siempre en español**. Casper, que
+es quien le habla al usuario, responde entero en español.
+
+### 5. La columna izquierda vive
+
+- **Títulos generados por IA**: la columna ya no muestra `task_a3f9c2b1`; Naoko
+  resume tu pregunta en un título corto («Juego Tetris portable»).
+- **Archivar (📦)** y **borrar (🗑)** cada conversación, con confirmación inline.
+- **Persistencia**: al reconectar, la lista de tareas se repuebla desde el store
+  con sus títulos. Ya no se pierde tras reiniciar.
+
+### Detalles
+
+- Suite completa en verde (Linux y Windows).
+- Naoko conoce el enjambre y sus roles; te puede explicar qué hace cada nodo.
+- No se toca el reparto de familias, la verificación ejecutable ni el flujo de
+  aprobación.
+
+---
+
 # v5.3.0 — MAGI empaqueta proyectos Python a .exe portable
 
 ### 1. Nueva herramienta `build_project_exe`

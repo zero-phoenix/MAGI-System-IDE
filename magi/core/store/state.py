@@ -213,6 +213,42 @@ class TaskStore:
                              "LIMIT ?", (limit,)).fetchall()
         return [TaskState.from_row(r) for r in rows]
 
+    def visibles(self, limit: int = 100) -> list[TaskState]:
+        """
+        Tareas para la columna izquierda de la GUI: ni archivadas ni borradas.
+
+        `recent` devuelve todo (incluido lo archivado, útil para auditoría);
+        la lista de conversaciones que ve el usuario solo debe mostrar lo
+        activo. Si las columnas de la migración 0003 no existen, cae a
+        `recent` sin filtrar — la base sigue siendo legible.
+        """
+        try:
+            with self._conn() as c:
+                k = c.execute("PRAGMA table_info(task_state)").fetchall()
+                if not any(r[1] == "borrada" for r in k):
+                    return self.recent(limit)
+                rows = c.execute(
+                    "SELECT * FROM task_state WHERE borrada=0 "
+                    "ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
+            return [TaskState.from_row(r) for r in rows]
+        except Exception:
+            return self.recent(limit)
+
+    def renombrar(self, task_id: str, titulo: str) -> None:
+        """
+        Fija el título con el que la tarea se muestra en la lista.
+
+        El título lo genera una IA a partir del comando del usuario (5-8
+        palabras), para que la columna izquierda diga «Juego Tetris portable»
+        en vez de `task_a3f9c2b1`. `TaskState.nombre()` ya lo devuelve si está.
+        """
+        with self._conn() as c:
+            k = c.execute("PRAGMA table_info(task_state)").fetchall()
+            if any(r[1] == "titulo" for r in k):
+                c.execute(
+                    "UPDATE task_state SET titulo=?, updated_at=? WHERE task_id=?",
+                    (titulo[:80], time.time(), task_id))
+
     def reconciliar(self) -> list[str]:
         """
         FASE 0. Toda tarea `in_progress` al arrancar estaba corriendo cuando el

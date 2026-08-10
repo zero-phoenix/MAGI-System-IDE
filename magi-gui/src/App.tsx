@@ -36,21 +36,30 @@ export default function App() {
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
     sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert,
-    approval, setApproval, awaitingApproval, setAwaitingApproval
+    approval, setApproval, awaitingApproval, setAwaitingApproval,
+    taskTitles  // v5.3.0 — títulos IA de cada conversación
   } = useMagiStore();
 
   const [inputVal, setInputVal] = useState("");
   const [naokoImage, setNaokoImage] = useState<string | null>(null);
   const [gitUrl, setGitUrl] = useState("");
-  const [engine, setEngine] = useState("fast");
-  const [narrativeStyle, setNarrativeStyle] = useState(
-    () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.narrativeStyle")) || "tecnico");
+  // v5.3.0: dos motores, por defecto "Análisis profundo". El selector de
+  // ESTILO desaparece de la GUI: Naoko decide el estilo internamente a partir
+  // del comando (kernel llama a estilo_para). narrativeStyle se mantiene fijo
+  // aquí solo para no romper sendCommand, pero el backend lo recalcula.
+  const [engine, setEngine] = useState(
+    () => (typeof window !== "undefined" && window.localStorage?.getItem("magi.engine")) || "deep");
+  const [narrativeStyle] = useState("tecnico");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
+  // v5.3.0 — confirma el borrado inline (sin window.confirm, que rompe el flujo).
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
           fetchHealth, runBenchmark, runSelfImprovement,
           listImprovements, proposeImprovement, decideImprovement,
           requestFileContent, sendNaokoChat,
-          fetchConfig, listArtifacts, readArtifact } = useMagiSocket(20128);
+          fetchConfig, listArtifacts, readArtifact,
+          archiveTask, deleteTask  // v5.3.0 — archivar / borrar conversación
+        } = useMagiSocket(20128);
   const { playCalcBeep, playDecisionClack } = useMagiAudio();
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -272,36 +281,20 @@ export default function App() {
               enjambre, que se ve a la derecha. */}
           <select
             value={engine}
-            onChange={(e) => setEngine(e.target.value)}
+            onChange={(e) => { setEngine(e.target.value); try { window.localStorage?.setItem("magi.engine", e.target.value); } catch {} }}
             title={"MOTOR — cuánto se piensa cada respuesta.\n\n"
-                   + "· Optimizada: temperatura normal, menos vueltas. Rápida.\n"
-                   + "· Superior: temperatura más baja y más iteraciones de "
-                   + "herramientas. Más lenta y más literal.\n\n"
-                   + "No cambia el modelo: cambia cómo se le pregunta."}
+                   + "· Análisis profundo: baja temperatura, más iteraciones de "
+                   + "herramientas y verificación. Más lenta y precisa.\n"
+                   + "· Súper rapidez: temperatura normal, menos vueltas. Rápida.\n\n"
+                   + "El estilo de redacción lo decide Naoko automáticamente según tu pregunta."}
             style={{ background: "#000", color: "#cfe0e4", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
           >
-            <option value="fast" title="Rápida: temperatura normal, menos iteraciones">
-              MOTOR: Rápido
+            <option value="deep" title="Baja temperatura, más iteraciones y verificación. Más precisa.">
+              🔍 Análisis profundo
             </option>
-            <option value="deep" title="Cuidadosa: menos temperatura, más iteraciones y verificación">
-              MOTOR: Cuidadoso
+            <option value="fast" title="Temperatura normal, menos iteraciones. Rápida.">
+              ⚡ Súper rapidez
             </option>
-          </select>
-          <select
-            value={narrativeStyle}
-            onChange={(e) => { setNarrativeStyle(e.target.value); try { window.localStorage?.setItem("magi.narrativeStyle", e.target.value); } catch {} }}
-            title={"ESTILO — cómo te escriben la respuesta los tres nodos.\n\n"
-                   + "· Técnico: preciso, con detalle de ingeniería.\n"
-                   + "· Sintético: al grano, lo mínimo para decidir.\n"
-                   + "· Creativo: explora alternativas y analogías.\n"
-                   + "· Analítico: desmenuza el porqué paso a paso.\n\n"
-                   + "Solo afecta a la redacción, no a lo que se hace."}
-            style={{ background: "#000", color: "var(--acc)", border: "1px solid var(--gr)", fontSize: "11px", padding: "2px", marginRight: "10px", outline: "none" }}
-          >
-            <option value="tecnico" title="Preciso, con detalle de ingeniería">ESTILO: Técnico</option>
-            <option value="sintetico" title="Al grano, lo mínimo para decidir">ESTILO: Sintético</option>
-            <option value="creativo" title="Explora alternativas y analogías">ESTILO: Creativo</option>
-            <option value="analitico" title="Desmenuza el porqué paso a paso">ESTILO: Analítico</option>
           </select>
           {route && (
             <span title={route.reason} style={{ marginRight: 10 }}>
@@ -335,13 +328,40 @@ export default function App() {
           <div className="sc">
             <div className="sect">Conversaciones Activas</div>
             {conversationKeys.length > 0 ? conversationKeys.map((taskId, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`th ${activeConversationId === taskId ? 'on' : ''}`}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                 onClick={() => setActiveConversationId(taskId)}
+                title={taskId}
               >
-                {taskId}
-                <small>{conversations[taskId]?.length || 0} mensajes</small>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {/* v5.3.0 — título IA si lo hay; si no, el task_id */}
+                  {taskTitles[taskId] || taskId}
+                </span>
+                <small style={{ flexShrink: 0, marginLeft: '4px' }}>{conversations[taskId]?.length || 0}m</small>
+                {/* v5.3.0 — archivar y borrar. No son mutuamente excluyentes con
+                    abrir la conversación: el click del botón se frena aquí. */}
+                {confirmDelete === taskId ? (
+                  <span style={{ marginLeft: '4px', fontSize: '9px', whiteSpace: 'nowrap' }}
+                        onClick={(e) => e.stopPropagation()}>
+                    <span style={{ cursor: 'pointer', color: '#f44' }}
+                          title="Confirmar borrado"
+                          onClick={() => { deleteTask(taskId); setConfirmDelete(null); }}>¿borrar?</span>{' '}
+                    <span style={{ cursor: 'pointer', color: '#888' }}
+                          title="Cancelar"
+                          onClick={() => setConfirmDelete(null)}>no</span>
+                  </span>
+                ) : (
+                  <span style={{ marginLeft: '4px', fontSize: '12px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <span style={{ cursor: 'pointer', marginRight: '4px' }}
+                          title="Archivar conversación"
+                          onClick={() => archiveTask(taskId)}>📦</span>
+                    <span style={{ cursor: 'pointer', color: '#f66' }}
+                          title="Borrar conversación"
+                          onClick={() => setConfirmDelete(taskId)}>🗑</span>
+                  </span>
+                )}
               </div>
             )) : (
               <div style={{ padding: "10px", fontSize: "10px", color: "#5f7378" }}>

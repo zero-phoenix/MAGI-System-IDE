@@ -16,6 +16,9 @@ export function useMagiSocket(port: number = 20128) {
           // Solicitar estado real inicial
           ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
           ws.current?.send(JSON.stringify({ type: 'GET_FILE_TREE', id: 'file_tree_0' }));
+          // v5.3.0 — cargar la lista de tareas con sus títulos para repoblar
+          // la columna izquierda tras un reinicio.
+          fetchTaskList();
         };
 
         ws.current.onmessage = (event) => {
@@ -68,6 +71,15 @@ export function useMagiSocket(port: number = 20128) {
                 // procesos que no murieron. Un botón de parada no puede
                 // devolver algo con aspecto de éxito sin haber parado nada.
                 appendTerminal(payload.detail || 'Cancelación completada');
+              } else if (topic === 'task.titled') {
+                // v5.3.0 — Naoko tituló la conversación con un resumen IA.
+                useMagiStore.getState().setTaskTitle(payload.task_id, payload.titulo);
+              } else if (topic === 'task.archived' || topic === 'task.deleted') {
+                // v5.3.0 — quita la conversación de la columna izquierda.
+                useMagiStore.getState().removeConversation(payload.task_id);
+              } else if (topic === 'swarm.style') {
+                // Naoko decidió el estilo; informativo, se muestra en la ruta.
+                appendTerminal(`[NAOKO] estilo: ${payload.style}`);
               } else if (topic === 'naoko.improvement') {
                 // Naoko es EXPRESA: cada paso del ciclo llega aquí para verse.
                 useMagiStore.getState().setImprovement(payload);
@@ -233,6 +245,34 @@ export function useMagiSocket(port: number = 20128) {
   const listArtifacts = (limite = 200) => rpc("artifacts.list", { limite }, 15_000);
   const readArtifact = (path: string) => rpc("artifacts.read", { path }, 20_000);
 
+  // v5.3.0 — gestión de la lista de conversaciones: títulos, archivar, borrar.
+  const fetchTaskList = () => rpc("task.list", {}, 10_000).then((res) => {
+    if (res?.tasks) {
+      const store = useMagiStore.getState();
+      const titulos: Record<string, string> = {};
+      const convs: Record<string, any[]> = {};
+      for (const t of res.tasks) {
+        titulos[t.task_id] = t.titulo || t.task_id;
+        // Solo registrar la conversación si ya existe en el store; si no, se
+        // crea vacía para que aparezca en la columna y pueda abrirse.
+        if (!store.conversations[t.task_id]) convs[t.task_id] = [];
+      }
+      if (Object.keys(convs).length) {
+        useMagiStore.setState((s) => ({
+          conversations: { ...s.conversations, ...convs },
+        }));
+      }
+      // Volcar los títulos de golpe.
+      for (const [tid, tit] of Object.entries(titulos)) store.setTaskTitle(tid, tit);
+    }
+    return res;
+  }).catch(() => null);
+
+  const archiveTask = (taskId: string) =>
+    rpc("task.archive", { task_id: taskId }, 10_000).catch(() => null);
+  const deleteTask = (taskId: string) =>
+    rpc("task.delete", { task_id: taskId }, 10_000).catch(() => null);
+
   // Ciclo de mejora de Naoko. `decide` puede arrancar una fase larga (redactar
   // el plan, dos circuitos del enjambre, aplicar) pero devuelve en cuanto la
   // lanza: el progreso llega por el evento `naoko.improvement`.
@@ -301,5 +341,6 @@ export function useMagiSocket(port: number = 20128) {
            fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
            listImprovements, proposeImprovement, decideImprovement,
            fetchTelemetry, requestFileContent, sendNaokoChat,
-           fetchConfig, listArtifacts, readArtifact };
+           fetchConfig, listArtifacts, readArtifact,
+           fetchTaskList, archiveTask, deleteTask };
 }

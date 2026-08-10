@@ -198,11 +198,20 @@ Y un agente que solo emite texto no es un colaborador. Los tres nodos pueden
 
 ## El enjambre
 
-| Nodo | Rol popperiano | Familia | Puede |
+Tres IA que aplican el **método dialéctico** (tesis → antítesis → síntesis) a cada
+petición. Por defecto una sola ronda; si no estás de acuerdo, una segunda ronda
+arranca en Melchior con la síntesis previa + tus observaciones.
+
+| Nodo | Rol dialéctico | Familia | Puede |
 |---|---|---|---|
-| **MELCHIOR** | Creador / sintetizador | `gpt` | leer, escribir, ejecutar |
-| **BALTHASAR** | Crítico hostil / falsacionista | `gemini` | leer y **ejecutar**, no escribir |
-| **CASPER** | Juez / árbitro | `command` | leer y verificar tests |
+| **MELCHIOR** | la **TESIS**: construye y defiende | `gpt` | leer, escribir, ejecutar |
+| **BALTHASAR** | la **ANTÍTESIS**: refuta con evidencia | `gemini` | leer y **ejecutar**, no escribir |
+| **CASPER** | la **SÍNTESIS**: respuesta definitiva que le habla al usuario | `command` | leer y verificar tests |
+
+Cada IA es consciente de su rol y de que forma parte del enjambre. Casper es el
+nodo más activo: integra tesis y antítesis con su propio juicio crítico
+perfeccionista y te entrega la respuesta consolidada. Las conclusiones (`###
+CONCLUSIÓN`) van siempre en español.
 
 Las familias no salen de esta tabla: salen de
 `magi/data/catalogo_proveedores.json`, y la interfaz muestra la que **de verdad**
@@ -265,6 +274,11 @@ porque las tres se vieron en uso real:
 
 Naoko supervisa el sistema, y tiene **dos vías separadas a propósito**, porque
 reparar y mejorar no son lo mismo:
+
+Naoko también **decide el estilo de redacción** del enjambre. Ya no hay selector
+de estilo en la interfaz: ella clasifica tu petición (técnica, sintética,
+creativa, analítica) y propaga ese estilo a los tres agentes. Es la que mejor
+entiende qué tipo de respuesta conviene a lo que preguntaste.
 
 - **Reparar** devuelve el sistema a donde ya debía estar. Hay un fallo, hay
   tests que lo demuestran, y la corrección es verificable. Va **sin consultar**:
