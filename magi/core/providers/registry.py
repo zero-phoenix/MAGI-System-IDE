@@ -35,6 +35,28 @@ logger = logging.getLogger(__name__)
 
 SWARM_ROLES = ("MELCHIOR", "BALTHASAR", "CASPER")
 
+#: ORDEN DE MÉRITO: quién se lleva la mejor familia.
+#:
+#: No es el orden en que hablan (Melchior → Balthasar → Casper). Es el orden en
+#: que se reparte lo bueno, y son cosas distintas:
+#:
+#:   1.º BALTHASAR — es el único que EJECUTA para refutar. Su turno es el más
+#:       caro en herramientas y el que más se repite cuando algo falla, así que
+#:       es donde una familia lenta más daño hace. Y si la refutación llega
+#:       tarde o a medias, el debate pierde su parte más valiosa: la que caza
+#:       los fallos de verdad.
+#:
+#:   2.º CASPER — es QUIEN TE HABLA. Su síntesis es la respuesta que lees, y
+#:       además propone y ejecuta para demostrarla. Si tarda, esperas tú.
+#:
+#:   3.º MELCHIOR — su tesis se lanza en 2-3 variantes EN PARALELO, así que el
+#:       tiempo de pared es el de una sola llamada. Es el nodo que mejor
+#:       absorbe una familia algo más lenta.
+#:
+#: Antes se repartía en el orden de `SWARM_ROLES`, es decir: la mejor familia
+#: para el que menos la necesita.
+ORDEN_DE_MERITO = ("BALTHASAR", "CASPER", "MELCHIOR")
+
 
 @dataclass
 class Registration:
@@ -173,7 +195,17 @@ class ProviderRegistry:
         families: dict[str, str] = {}
 
         if len(fams) >= len(roles):
-            for role, fam in zip(roles, fams):
+            # Se reparte por MÉRITO, no por orden de intervención: la mejor
+            # familia va a quien más la necesita. Ver ORDEN_DE_MERITO.
+            #
+            # `roles` puede venir con otro contenido (tests, futuras variantes),
+            # así que se respeta: del orden de mérito solo se usan los roles
+            # que de verdad están en juego, y los que no figuren en él van
+            # detrás en su orden original. Sin esto, pasar una lista de roles
+            # distinta dejaría a alguno sin familia.
+            preferentes = [r for r in ORDEN_DE_MERITO if r in roles]
+            resto = [r for r in roles if r not in preferentes]
+            for role, fam in zip(preferentes + resto, fams):
                 by_role[role] = by_family[fam][0].id
                 families[role] = fam
             return SwarmAssignment(by_role, families, "full")

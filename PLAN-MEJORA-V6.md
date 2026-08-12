@@ -122,21 +122,106 @@ Concretamente:
   en el panel antes de que inicies sesión, no después; (c) una sesión caducada
   puede colgar una petición: plazo corto y fallo limpio.
 
+### 1.3.bis Los 13 proveedores rotos, uno por uno
+
+«Roto» es hoy una etiqueta escrita a mano que agrupa cosas muy distintas: un
+bug de versión de una librería, una cuota que se repone sola y una decisión de
+diseño están todas en el mismo cajón. Separadas, **11 de los 13 son
+recuperables** y solo 2 lo están por voluntad propia.
+
+| Vía | Proveedores | Qué hace falta |
+|---|---|---|
+| **A · Adaptador de compatibilidad** | PhindAi, Qwen | Nada de red: es un bug de firma |
+| **B · Sesión web headless** | Claude, LMArena, OpenaiChat, Copilot, Cloudflare, DeepInfra | La puerta de 1.3 |
+| **C · Reclasificación por sonda** | GeminiPro, MetaAI, Pollinations | Dejar de tratar lo transitorio como permanente |
+| **D · Fuera por diseño** | Ollama, GLM | Se quedan fuera, y se dice por qué |
+
+#### A · Adaptador de compatibilidad (2 proveedores, coste bajo)
+
+```
+PhindAi : BaseSession.__init__() no acepta 'proxy'
+Qwen    : AsyncSession.request() no acepta 'proxy'
+```
+
+Esto no es un proveedor caído: es que g4f pasa `proxy=None` a una versión de
+`curl_cffi` que ya no lo acepta. Dos proveedores marcados como muertos por un
+argumento de más.
+
+Un envoltorio fino que **filtre los argumentos que la firma instalada no
+admite** —leyendo la firma con `inspect.signature`, no con una lista escrita a
+mano que se quedaría atrás— los revive sin tocar g4f ni fijar versiones.
+
+- **Se comprueba con:** un test que llama al envoltorio con `proxy=` sobre una
+  firma que no lo acepta y verifica que pasa igualmente, y otro que confirma
+  que un argumento que **sí** existe no se descarta.
+- **Puede salir mal:** tragarse un argumento que sí importaba. Por eso se filtra
+  por firma real y se registra en debug cada descarte.
+
+#### B · Sesión web headless (6 proveedores)
+
+La puerta de 1.3. Aquí es donde se concentra el rescate: seis proveedores,
+entre ellos `Claude` y `OpenaiChat`, que son justo los que pediste priorizar.
+
+Los seis piden lo mismo con nombres distintos: una sesión autenticada.
+`Claude` quiere cookies, `OpenaiChat` y `Copilot` un `.har`, `Cloudflare` y
+`DeepInfra` una conexión CDP, `LMArena` un fichero de auth. Una única sesión
+headless los cubre todos si además **exporta en los tres formatos**: cookies,
+`.har` y punto CDP.
+
+#### C · Reclasificación por sonda (3 proveedores)
+
+```
+GeminiPro   : responde 429 (cuota agotada)   ← se repone sola
+MetaAI      : responde 403 desde esta red    ← depende de dónde estés
+Pollinations: responde 402 (pago requerido)  ← puede volver a abrirse
+```
+
+Ninguno está roto: los tres están **temporalmente indisponibles**, y el
+catálogo los congela como muertos para siempre. Una cuota de 429 se repone en
+horas; un 403 depende de la red desde la que se conecta.
+
+La sonda (1.2) los reintenta con espaciado creciente y **el estado lo escribe
+ella**, no una etiqueta a mano. El catálogo pasa a decir *cuándo se comprobó por
+última vez y con qué resultado*, no *si está roto*.
+
+- **Se comprueba con:** un test que verifica que un candidato con error de cuota
+  vuelve a la rotación cuando una medición posterior tiene éxito.
+- **Puede salir mal:** martillear un proveedor que devuelve 429 empeora el
+  bloqueo. Espaciado exponencial y tope diario por candidato.
+
+#### D · Fuera por diseño (2 proveedores)
+
+- **Ollama** es un motor **local**. Lo prohíbe §I.3 y ahí se queda: meterlo
+  cambiaría lo que el proyecto dice ser.
+- **GLM** responde con captcha. Resolver captchas automáticamente es saltarse
+  una medida de acceso puesta a propósito; no se hace. Queda fuera, con el
+  motivo escrito.
+
+Que estos dos sigan fuera **es el resultado correcto**, no una carencia. La
+diferencia con hoy es que estarán separados de los once que sí se pueden
+recuperar, en vez de mezclados en la misma lista.
+
 ### 1.4 Reparto del enjambre por mérito medido
 
 Hoy el reparto (`gpt` / `gemini` / `command`) está escrito en el catálogo. Con
-1.2 y 1.3 funcionando, pasa a calcularse: **las tres familias vivas más rápidas,
-una por nodo**, con la restricción de que sean distintas.
+1.2 y 1.3 funcionando, pasa a calcularse desde la latencia media histórica.
 
-Pediste priorizar claude y gpt. Con las cookies de 1.3, claude deja de estar
-bloqueado y puede competir por un puesto **por latencia real**. Si gana, entra;
-si no responde, no entra — asignarlo a ciegas dejaría a un nodo mudo, que es
-peor que tenerlo en una familia más lenta.
+**El orden de reparto no es arbitrario, y conviene que quede el porqué:**
 
-- **Se comprueba con:** el test que ya existe (`diversidad completa`) más uno
-  nuevo: cada nodo tiene familia distinta y todas están vivas.
+| Puesto | Nodo | Motivo |
+|---|---|---|
+| **1.ª mejor** | **BALTHASAR** | Es el único que **ejecuta para refutar**. Su turno es el más caro en herramientas y el que más veces se repite si falla, así que es donde una familia lenta más daño hace. Y si la refutación llega tarde o incompleta, el debate pierde su parte más valiosa: la que caza los fallos reales. |
+| **2.ª mejor** | **CASPER** | Es **quien te habla**. Su síntesis es la respuesta que lees, y además ahora propone y ejecuta para demostrarla. Si tarda, tú esperas mirando la pantalla. |
+| **3.ª** | **MELCHIOR** | Su tesis se lanza en 2-3 variantes **en paralelo**, así que el tiempo de pared es el de una sola llamada. Es el nodo que mejor absorbe una familia algo más lenta. |
+
+La restricción de familias distintas se mantiene: es lo que hace que el crítico
+tenga sesgos diferentes al proponente, y sin eso el debate es un modelo
+hablando solo.
+
+- **Se comprueba con:** el test de diversidad que ya existe, más uno nuevo que
+  verifica el orden de asignación por latencia y que las tres están vivas.
 - **Puede salir mal:** que el reparto baile en cada arranque y los resultados
-  dejen de ser comparables. Fijarlo por sesión y anunciar el cambio.
+  dejen de ser comparables. Se fija por sesión y el cambio se anuncia.
 
 ---
 

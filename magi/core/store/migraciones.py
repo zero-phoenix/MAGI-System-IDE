@@ -315,6 +315,45 @@ CREATE INDEX IF NOT EXISTS idx_llamada_logica
 """
 
 
+_SONDA = """
+-- Mediciones de la sonda de latencia.
+--
+-- POR QUÉ UNA TABLA APARTE Y NO REUSAR `llamada_modelo`
+-- ====================================================
+-- `llamada_modelo` registra el trabajo REAL del usuario: peticiones con su
+-- tamaño, su contexto y su suerte. Mezclar ahí las mediciones de la sonda
+-- —prompts diminutos y controlados— envenenaría las dos lecturas: el p95 del
+-- trabajo real bajaría por culpa de los canarios, y la latencia de la sonda
+-- subiría por culpa de las peticiones largas. Dos preguntas distintas, dos
+-- tablas.
+--
+-- `dia` se guarda ya calculado (YYYY-MM-DD, hora local) porque la media
+-- histórica es «la media de las medias diarias»: agrupar por día en cada
+-- consulta obligaría a repetir la conversión de zona horaria, y basta con que
+-- una lectura la haga distinta para que dos números que deberían coincidir no
+-- coincidan.
+CREATE TABLE IF NOT EXISTS sonda_latencia (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          REAL NOT NULL,
+    dia         TEXT NOT NULL,
+    familia     TEXT NOT NULL,
+    proveedor   TEXT NOT NULL,
+    modelo      TEXT NOT NULL DEFAULT '',
+    ok          INTEGER NOT NULL,
+    ms          REAL,
+    tipo_error  TEXT,
+    detalle     TEXT,
+    -- Si la respuesta llegó en el idioma pedido. Un candidato rapidísimo que
+    -- contesta en otro idioma no sirve para este sistema, y la latencia sola
+    -- no lo distingue de uno bueno.
+    idioma_ok   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_sonda_candidato
+    ON sonda_latencia(familia, proveedor, modelo, dia);
+CREATE INDEX IF NOT EXISTS idx_sonda_dia ON sonda_latencia(dia);
+"""
+
+
 MIGRACIONES: tuple[Migracion, ...] = (
     Migracion("0001_esquema_base",
               "Tablas originales: task_state, task_event, token_ledger",
@@ -337,6 +376,9 @@ MIGRACIONES: tuple[Migracion, ...] = (
     Migracion("0007_llamada_modelo",
               "llamada_modelo: intentos de una misma peticion logica",
               sql=_LLAMADAS),
+    Migracion("0008_sonda_latencia",
+              "sonda_latencia: medicion periodica por candidato, con dia",
+              sql=_SONDA),
 )
 
 

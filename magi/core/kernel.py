@@ -169,7 +169,25 @@ class Kernel:
             "telemetria": self._info_telemetria(),
             # Qué ha tocado NAOKO en tu repositorio, y si la traza está intacta.
             "auditoria": self._info_auditoria(),
+            # Latencia MEDIDA por candidato, con media histórica de las medias
+            # diarias. La columna del panel se llamaba «latencia medida» y casi
+            # todo decía «sin medir»; esto es lo que la llena.
+            "sonda": self._info_sonda(),
         }
+
+    def _info_sonda(self) -> dict:
+        """
+        Lo que la sonda ha medido, listo para el panel.
+
+        Si falla, se devuelve el motivo en vez de una tabla vacía: una tabla
+        vacía se lee como «no hay proveedores», que es una afirmación distinta
+        de «no he podido leerlo».
+        """
+        try:
+            from magi.core.providers import sonda
+            return sonda.resumen_para_panel(self.swarm.store)
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e), "familias": []}
 
     def _info_telemetria(self) -> dict:
         try:
