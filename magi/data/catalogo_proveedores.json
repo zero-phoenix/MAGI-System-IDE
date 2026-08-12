@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generado": "2026-08-09",
-  "nota": "Catalogo de proveedores. Antes vivia como constantes de Python en g4f_backend.py, asi que arreglar un proveedor caido exigia recompilar 158 MB de ejecutable. Se puede sobreescribir con un fichero del mismo nombre en %LOCALAPPDATA%\\MagiSystem\\.",
+  "nota": "Catalogo de proveedores. Antes vivia como constantes de Python en g4f_backend.py, asi que arreglar un proveedor caido exigia recompilar 158 MB de ejecutable. Se puede sobreescribir con un fichero del mismo nombre en %LOCALAPPDATA%\\MagiSystem\\. · PhindAi y Qwen dejan de estar rotos: su fallo era que g4f pasaba 'proxy' al constructor de curl_cffi, que ya no lo acepta. Lo arregla providers/compat_curl.py leyendo la firma real. Siguen SIN verificar hasta que la sonda los mida: «ya no revienta» no es «responde».",
   "limites": {
     "ventana_contexto_caracteres": 120000,
     "nota": "Ninguno de estos proveedores gratuitos publica su ventana real, asi que poner un numero por modelo seria inventarselo. Este limite conservador global es lo que hoy NO existe: MAGI monta prompts largos sin comprobar nada, y cuando no caben lee el fallo como 'proveedor roto' y rota a otro que fallara igual. Subelo por familia cuando tengas la medida."
@@ -17,8 +17,6 @@
     "CASPER": "command"
   },
   "rotos": {
-    "PhindAi": "incompatible con la versión instalada de curl_cffi (BaseSession.__init__() no acepta 'proxy')",
-    "Qwen": "AsyncSession.request() no acepta 'proxy' en esta versión",
     "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
     "LMArena": "exige fichero de autenticación y nodriver",
     "GLM": "responde con captcha",

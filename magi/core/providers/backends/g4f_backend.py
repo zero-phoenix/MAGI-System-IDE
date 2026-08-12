@@ -159,12 +159,16 @@ _VERIFICADAS_BASE = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
 #: nada —ninguno podía contestar— y `complete()` sigue reportando la familia
 #: como agotada, que es la información verdadera.
 #:
-#: Cada entrada lleva su motivo para que se pueda revisar: si g4f arregla la
-#: incompatibilidad de `proxy`, se quita la línea y PhindAi vuelve.
+#: Cada entrada lleva su motivo para que se pueda revisar. Y se revisa: PhindAi
+#: y Qwen estuvieron aquí por «incompatible con la versión instalada de
+#: curl_cffi (no acepta 'proxy')», y resultó que no estaban caídos — g4f pasaba
+#: el argumento al constructor cuando esa versión ya solo lo admite en
+#: `request`. Dos familias enterradas por un argumento de más. Las revive
+#: `providers/compat_curl.py` leyendo la firma real de lo que hay instalado.
+#:
+#: Salir de esta lista NO es lo mismo que estar verificado: significa «ya no
+#: revienta antes de intentarlo». Si responde o no lo dirá la sonda.
 _ROTOS_BASE: dict[str, str] = {
-    "PhindAi": "incompatible con la versión instalada de curl_cffi "
-               "(BaseSession.__init__() no acepta 'proxy')",
-    "Qwen": "AsyncSession.request() no acepta 'proxy' en esta versión",
     "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
     "LMArena": "exige fichero de autenticación y nodriver",
     "GLM": "responde con captcha",
@@ -379,6 +383,22 @@ def _disable_g4f_browser() -> None:
     importó antes o después de que g4f estuviera cargado.
     """
     install_browser_guard()
+
+    # Adaptador de firma de curl_cffi, aquí y no al importar el módulo.
+    #
+    # `proxy` se movió del constructor al método `request`, g4f lo sigue
+    # pasando al constructor, y eso enterró a PhindAi y Qwen entre los
+    # proveedores «rotos»: dos familias por un argumento de más. Lo revive
+    # `providers/compat_curl.py` leyendo la firma real.
+    #
+    # POR QUÉ AQUÍ. Aplicarlo al importar obligaba a importar curl_cffi en el
+    # arranque, y `test_arranque_ligero` lo cazó al instante: es exactamente la
+    # regresión que ese test existe para impedir —el sistema hace lo mismo,
+    # solo que más tarde—. Aquí se está a punto de usar g4f de verdad, así que
+    # el coste lo paga quien lo usa. `aplicar()` es idempotente, igual que el
+    # cortafuegos de la línea de arriba.
+    from ..compat_curl import aplicar as aplicar_compat_curl
+    aplicar_compat_curl()
 
 
 class G4FProvider(BaseProvider):
