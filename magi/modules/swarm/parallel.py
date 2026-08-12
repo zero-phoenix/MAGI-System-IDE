@@ -126,9 +126,13 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
         mio.rama_rol = f"enfoque {chr(65 + variant)}"
         mio.rama_profundidad = 1
         try:
+            # publicar=False: una variante es andamiaje para explorar, no una
+            # intervención. Si cada una publicase, el usuario vería «MELCHIOR
+            # propone» tres veces por ronda con tres análisis a medias. El
+            # orquestador funde las variantes y publica UNA sola.
             result = await mio.generate_proposal(
                 task_id, command, round_num, last_proposal, last_critique,
-                engine, narrative_style, use_tools)
+                engine, narrative_style, use_tools, publicar=False)
             return Proposal(content=result["content"], variant=variant,
                             provider=result.get("provider", ""),
                             family=result.get("family", mio.family))

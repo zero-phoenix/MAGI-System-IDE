@@ -89,6 +89,11 @@ _ENCARGO = (
     "construye", "disena", "analiza", "busca", "investiga", "compara",
     "traduce", "resume", "calcula", "muestrame", "ensename", "por que",
     "porque", "que es", "quien es", "como se", "cuando", "donde",
+    # Escribir «naoko» es hablarle a la supervisora, no responder a una
+    # propuesta del enjambre. Sin esto, «hola naoko» (2 palabras) caía en la
+    # regla de «mensaje corto = reacción» y se absorbía como feedback de la
+    # tarea que estuviera esperando aprobación.
+    "naoko", "hola naoko",
 )
 
 _INTERROGACION = re.compile(r"[?¿]")
@@ -142,6 +147,12 @@ def es_respuesta_a_aprobacion(texto: str) -> bool:
     #    empieza por «dime» y no es una respuesta a nada.
     cabeza = " ".join(palabras[:3])
     if any(cabeza.startswith(v) or t.startswith(v) for v in _ENCARGO):
+        return False
+
+    # 2b. Mencionar a Naoko es hablarle a la supervisora, no responder al
+    # enjambre. Cualquier mensaje que la cite abre su propio camino, por corto
+    # que sea («oye naoko», «naoko ayuda»).
+    if "naoko" in palabras:
         return False
 
     # 3. Pedir un cambio SOBRE lo propuesto sí es responder.

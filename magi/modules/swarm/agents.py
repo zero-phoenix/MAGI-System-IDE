@@ -29,6 +29,30 @@ class SwarmAgentBase:
     #: perfil de herramientas (MELCHIOR escribe, BALTHASAR ejecuta sin escribir,
     #: CASPER solo lee y verifica). Ver core/tools/builtin.py.
     tool_role: str = "CASPER"
+    #: Idioma del USUARIO, fijado una vez por tarea desde su mensaje original.
+    #:
+    #: EL FALLO QUE ESTO CIERRA, Y QUE SE REFORZABA SOLO
+    #: =================================================
+    #: El idioma esperado se deducía del prompt que recibe el agente. Ese
+    #: prompt NO es lo que escribió el usuario: a partir de la ronda 2 lleva
+    #: pegada la memoria del debate —lo que dijeron Melchior, Balthasar y
+    #: Casper en las rondas anteriores—.
+    #:
+    #: Así que en cuanto UNA respuesta se colaba en chino, el prompt de la
+    #: ronda siguiente contenía chino, `detectar()` respondía «zh»… y la guarda
+    #: de idioma pasaba a EXIGIR chino. De protección se convertía en la causa:
+    #: rotaba de familia hasta encontrar una que contestara en chino y anotaba
+    #: en el log «reintento en gemini acertó el idioma». Acertaba, sí: el
+    #: idioma equivocado.
+    #:
+    #: Es un bucle que se realimenta y del que no se sale escribiendo más
+    #: veces en español, porque cada ronda hereda la contaminación de la
+    #: anterior. Explica exactamente lo que se ve en la captura del usuario.
+    #:
+    #: La regla ahora es simple: **el idioma lo decide lo que TÚ escribiste, y
+    #: nada más**. Se fija una vez, al abrir la tarea, y no se vuelve a
+    #: deducir.
+    lang_usuario: str | None = None
     #: cuántas familias distintas se prueban si la respuesta llega en otro
     #: idioma. Acotado a propósito: ver _reintentar_idioma().
     MAX_REINTENTOS_IDIOMA: int = 2
@@ -69,6 +93,25 @@ class SwarmAgentBase:
         except Exception:                                # pragma: no cover
             return None
 
+    def _idioma(self, user_prompt: str) -> str:
+        """
+        Idioma en el que hay que responder.
+
+        Manda `lang_usuario` —fijado desde el mensaje ORIGINAL del usuario— y
+        solo si no está se cae a deducirlo del prompt. Ese respaldo existe para
+        no romper llamadas sueltas (tests, herramientas), no como camino
+        normal: deducirlo del prompt es justo lo que creaba el bucle descrito
+        en `lang_usuario`.
+        """
+        # Import local: en este módulo `idioma` se importa dentro de cada
+        # método, no arriba. Escribirlo aquí sin el import daría NameError la
+        # primera vez que alguien hablara — y solo entonces.
+        from magi.core import idioma
+
+        if self.lang_usuario:
+            return self.lang_usuario
+        return idioma.detectar(user_prompt)
+
     def _rama(self) -> dict:
         """
         Identidad de la rama, para pegarla a cada evento.
@@ -105,7 +148,7 @@ class SwarmAgentBase:
         # proveedor gratuito puede contestar en otro: se vio a Naoko responder
         # en chino a un «hola», y los tres nodos comparten el mismo catálogo
         # de proveedores, así que están igual de expuestos.
-        lang = idioma.detectar(user_prompt)
+        lang = self._idioma(user_prompt)
         full_sys = "\n\n".join([
             sys_prompt,
             f"IDIOMA: {idioma.instruccion(lang)}",
@@ -223,7 +266,7 @@ class SwarmAgentBase:
 
         full_sys = "\n\n".join([
             sys_prompt,
-            f"IDIOMA: {idioma.instruccion(idioma.detectar(user_prompt))}",
+            f"IDIOMA: {idioma.instruccion(self._idioma(user_prompt))}",
             style_fragment(narrative_style), get_context().render()])
 
         ctx = ToolContext(task_id=task_id,
@@ -298,7 +341,7 @@ class SwarmAgentBase:
         # entre 50 y 74 segundos. Sin tope, un falso negativo del detector
         # convertía un turno de un minuto en uno de diez.
         try:
-            lang = idioma.detectar(user_prompt)
+            lang = self._idioma(user_prompt)
             if turn.text and not idioma.coincide(turn.text, lang):
                 logger.debug("[%s] turno con herramientas en otro idioma "
                              "(esperado %s); reintentando con otra familia",
@@ -398,7 +441,7 @@ class SwarmAgentBase:
         # La instrucción de idioma faltaba aquí (estaba en _ask pero no en
         # _ask_stream). Como _ask_stream es el camino principal del enjambre,
         # las tres IA respondían sin que se les dijera en qué idioma hablar.
-        lang = idioma.detectar(user_prompt)
+        lang = self._idioma(user_prompt)
         full_sys = "\n\n".join([
             sys_prompt,
             f"IDIOMA: {idioma.instruccion(lang)}",
@@ -562,7 +605,8 @@ class MelchiorAgent(SwarmAgentBase):
                                 last_critique: dict | None = None,
                                 engine: str = "fast",
                                 narrative_style: str = "tecnico",
-                                use_tools: bool = False) -> dict:
+                                use_tools: bool = False,
+                                publicar: bool = True) -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
         
         sys_prompt = """Eres MELCHIOR, el nodo de la TESIS del sistema MAGI.
@@ -604,23 +648,38 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
         
-        await self.bus.publish(BusEvent(
-            topic="AGENT_POST",
-            payload={
-                "type": "AGENT_POST",
-                "task_id": task_id,
-                "agent": "MELCHIOR",
-                "role": "propone",
-                "provider": actual_provider,
-                "family": actual_family,
-                "family_expected": self.family,
-                "degraded": (None if actual_family == self.family
-                             else f"{self.family} no disponible; respondió {actual_family}"),
-                "content": content,
-                "changes": 1 if round_num > 1 else 0,
-                "stats": "N/A"
-            }
-        ))
+        # UN SOLO MENSAJE POR IA Y POR RONDA.
+        #
+        # Este método se llama N veces en paralelo (2-3 variantes de Melchior,
+        # 4 ejes de Balthasar). Cada llamada publicaba su propio AGENT_POST, así
+        # que el usuario veía «MELCHIOR propone» tres veces seguidas, con tres
+        # análisis parciales que no se leen como una intervención sino como un
+        # agente repitiéndose.
+        #
+        # Las variantes y los ejes son ANDAMIAJE INTERNO: sirven para explorar
+        # y para criticar desde varios ángulos, no para hablarle al usuario. El
+        # orquestador funde el resultado y publica UNA intervención completa por
+        # agente y ronda, que es como se lee un debate.
+        #
+        # `publicar=False` es lo que usan las llamadas paralelas.
+        if publicar:
+            await self.bus.publish(BusEvent(
+                topic="AGENT_POST",
+                payload={
+                    "type": "AGENT_POST",
+                    "task_id": task_id,
+                    "agent": "MELCHIOR",
+                    "role": "propone",
+                    "provider": actual_provider,
+                    "family": actual_family,
+                    "family_expected": self.family,
+                    "degraded": (None if actual_family == self.family
+                                 else f"{self.family} no disponible; respondió {actual_family}"),
+                    "content": content,
+                    "changes": 1 if round_num > 1 else 0,
+                    "stats": "N/A"
+                }
+            ))
         
         return {"content": content, "changes": 1 if round_num > 1 else 0}
 
@@ -638,7 +697,8 @@ class BalthasarAgent(SwarmAgentBase):
     async def generate_critique(self, task_id: str, proposal: dict, round_num: int,
                                 engine: str = "fast",
                                 narrative_style: str = "tecnico",
-                                use_tools: bool = False) -> dict:
+                                use_tools: bool = False,
+                                publicar: bool = True) -> dict:
         logger.info(f"[BALTHASAR] Criticando propuesta con {self.provider}...")
         
         sys_prompt = """Eres BALTHASAR, el nodo de la ANTÍTESIS del sistema MAGI.
@@ -671,23 +731,24 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
             
-        await self.bus.publish(BusEvent(
-            topic="AGENT_POST",
-            payload={
-                "type": "AGENT_POST",
-                "task_id": task_id,
-                "agent": "BALTHASAR",
-                "role": "critica",
-                "provider": actual_provider,
-                "family": actual_family,
-                "family_expected": self.family,
-                "degraded": (None if actual_family == self.family
-                             else f"{self.family} no disponible; respondió {actual_family}"),
-                "content": content,
-                "changes": 0,
-                "stats": "N/A"
-            }
-        ))
+        if publicar:
+            await self.bus.publish(BusEvent(
+                topic="AGENT_POST",
+                payload={
+                    "type": "AGENT_POST",
+                    "task_id": task_id,
+                    "agent": "BALTHASAR",
+                    "role": "critica",
+                    "provider": actual_provider,
+                    "family": actual_family,
+                    "family_expected": self.family,
+                    "degraded": (None if actual_family == self.family
+                                 else f"{self.family} no disponible; respondió {actual_family}"),
+                    "content": content,
+                    "changes": 0,
+                    "stats": "N/A"
+                }
+            ))
         
         return {"content": content, "status": "CRITIQUE_GENERATED"}
 

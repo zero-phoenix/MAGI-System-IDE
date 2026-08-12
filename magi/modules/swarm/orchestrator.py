@@ -435,8 +435,26 @@ class SwarmOrchestrator:
 
         logger.info(f"[SWARM] Iniciando tarea {task_id}: {command}")
         self.latest_task_id = task_id
+        # EL IDIOMA SE DECIDE AQUÍ, UNA VEZ, Y NO SE VUELVE A TOCAR.
+        #
+        # `command` es lo que escribió el usuario, limpio. En cuanto arranca el
+        # debate, el prompt de cada agente lleva pegada la memoria de las
+        # rondas anteriores, y deducir el idioma de ahí es lo que producía el
+        # bucle: una sola respuesta colada en chino contaminaba el prompt de la
+        # ronda siguiente, `detectar()` respondía «zh», y la guarda pasaba a
+        # EXIGIR chino a los tres nodos. De protección a causa.
+        #
+        # Fijándolo en el origen, ninguna ronda posterior puede cambiarlo.
+        from magi.core import idioma as _idioma_mod
+        lang_usuario = _idioma_mod.detectar(command)
+        for agente in (self.melchior, self.balthasar, self.casper):
+            agente.lang_usuario = lang_usuario
+        logger.info("[SWARM] idioma de la tarea fijado a '%s' desde tu mensaje",
+                    lang_usuario)
+
         self.active_tasks[task_id] = {
             "command": command,
+            "lang_usuario": lang_usuario,
             "round": 1,
             "status": "in_progress",
             "engine": engine,
@@ -555,6 +573,12 @@ class SwarmOrchestrator:
                 
                 engine = state.get("engine", "fast")
                 style = state.get("narrative_style", "tecnico")
+                # Se reafirma en cada ronda: una tarea rehidratada tras un
+                # reinicio vuelve del disco con su idioma, y los agentes son
+                # objetos compartidos que otra tarea pudo haber cambiado.
+                if state.get("lang_usuario"):
+                    for _a in (self.melchior, self.balthasar, self.casper):
+                        _a.lang_usuario = state["lang_usuario"]
                 # Explorar cuesta cuota: solo la ruta build genera 3 enfoques.
                 n_variants = {"build": 3, "task": 2}.get(
                     state.get("route", "task"), 1)
@@ -624,6 +648,48 @@ class SwarmOrchestrator:
 
                 evidence = "\n\n".join(
                     f"[{v.label}] {v.verification}" for v in chosen if v.verification)
+
+                # ---- LA ÚNICA INTERVENCIÓN DE MELCHIOR EN ESTA RONDA -------
+                #
+                # Un agente, un turno, un mensaje. Antes cada variante publicaba
+                # el suyo: el usuario leía «MELCHIOR propone» tres veces
+                # seguidas, con tres análisis parciales, y eso no se lee como
+                # una intervención sino como un agente repitiéndose. Las
+                # variantes son andamiaje para explorar; lo que se debate es el
+                # resultado.
+                #
+                # Y va con la EVIDENCIA DE EJECUCIÓN pegada, porque Melchior no
+                # solo propone: ejecuta en el mismo turno. Separar «lo que digo»
+                # de «lo que comprobé» obligaba a leer dos mensajes para saber
+                # si la propuesta arranca.
+                melchior_msg = proposal["content"]
+                if evidence:
+                    melchior_msg += ("\n\n---\n**Ejecutado y verificado en este "
+                                     "mismo turno:**\n\n" + evidence)
+                # El proveedor y la familia son los REALES, los de quien
+                # respondió, no los que el nodo tenía asignados. Es el contrato
+                # del panel desde que se descubrió que la interfaz enseñaba la
+                # familia esperada mientras contestaba otra: si el registro
+                # conmuta, se dice. `provider` lleva el id (g4f-…) y `family`
+                # la familia; confundirlos deja el panel mintiendo otra vez.
+                prov_real = [v.provider for v in chosen if v.provider]
+                fam_real = [v.family for v in chosen if v.family]
+                await self.bus.publish(BusEvent(topic="AGENT_POST", payload={
+                    "type": "AGENT_POST", "task_id": task_id, "agent": "MELCHIOR",
+                    "role": "propone",
+                    "provider": (", ".join(dict.fromkeys(prov_real))
+                                 or f"g4f-{self.melchior.family}"),
+                    "family": (fam_real[0] if fam_real else self.melchior.family),
+                    "family_expected": self.melchior.family,
+                    "degraded": (None if (not fam_real
+                                          or fam_real[0] == self.melchior.family)
+                                 else f"{self.melchior.family} no disponible; "
+                                      f"respondió {fam_real[0]}"),
+                    "content": melchior_msg,
+                    "changes": 1 if current_round > 1 else 0,
+                    "stats": (f"{len(chosen)} enfoque(s) · "
+                              f"{sum(1 for v in chosen if v.verified)} verificado(s)"),
+                }))
 
                 # ---- 3. BALTHASAR: crítica multi-eje EN PARALELO (§2.4) -----
                 multi = await critique_multi_axis(
