@@ -201,6 +201,36 @@ class NaokoAgent:
             summary.append(
                 f"\nINTERRUMPIDAS (reanudables, no rotas): {ids}. Se retoman "
                 f"con lo próximo que escriba.")
+
+        # CÓMO CONTÁRSELO AL USUARIO.
+        #
+        # Todo lo de arriba es para que Naoko RAZONE: identificadores, estados
+        # internos, quién tiene bucle vivo. Es exacto y no se toca — sin eso no
+        # puede diagnosticar.
+        #
+        # Pero eso mismo acababa saliendo tal cual en pantalla:
+        #
+        #     Hay 2 tareas bloqueadas esperando por ti (WAITING_USER_APPROVAL):
+        #     task_29ceb5d6 (ronda 2), task_c95b7d00 (ronda 2)
+        #
+        # `task_29ceb5d6` no le dice nada a nadie, `WAITING_USER_APPROVAL` es un
+        # nombre de la máquina de estados, y la lista no decía qué hacer. El
+        # dato estaba y la decisión seguía siendo un acertijo.
+        #
+        # Esto le da la versión redactada, con los títulos que ya existen y
+        # separando lo que le toca al usuario de lo que va solo. El detalle no
+        # se pierde: se pliega.
+        try:
+            from magi.modules.infrastructure.naoko_lenguaje import resumen_humano
+            summary.append(
+                "\n--- ASÍ SE LO CUENTAS AL USUARIO ---\n"
+                "Usa ESTE texto (adaptado, no copiado) cuando te pregunte cómo "
+                "va todo. Nunca le enseñes identificadores como `task_29ceb5d6` "
+                "ni nombres de estado como WAITING_USER_APPROVAL: son de la "
+                "base de datos, no suyos.\n\n"
+                + resumen_humano(tasks, vivo))
+        except Exception as e:                            # pragma: no cover
+            logger.debug("[naoko] no se pudo redactar el resumen humano: %s", e)
         return "\n".join(summary)
 
     def _situacion(self):
