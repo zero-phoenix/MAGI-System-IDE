@@ -232,9 +232,21 @@ def test_role_profiles_differ_in_capability():
     b = set(registry_for_role("BALTHASAR").names())
     c = set(registry_for_role("CASPER").names())
 
-    assert "write_file" in m and "write_file" not in b and "write_file" not in c
+    # Quien construye puede escribir; quien critica, no. Esa es la asimetría
+    # que da autoridad a la crítica: Balthasar no puede acomodar el código a su
+    # refutación, solo ejecutarlo y contar lo que pasó.
+    #
+    # Casper SÍ escribe desde que entrega la síntesis en vez de recomendarla.
+    # No rompe la asimetría: el que decide es también el que responde por lo
+    # que entrega. El que no puede escribir sigue siendo el crítico.
+    assert "write_file" in m, "Melchior construye"
+    assert "write_file" not in b, "el crítico no toca el código que critica"
+    assert "write_file" in c, "Casper entrega la síntesis, no la recomienda"
     assert "run_command" in b, "Balthasar debe poder ejecutar para aportar evidencia"
-    assert m != b != c
+
+    # Y los tres perfiles siguen siendo distintos: si dos coincidieran, el
+    # reparto por rol sería decorativo.
+    assert m != b and b != c and m != c
 
 
 def test_no_dead_parameters_in_the_swarm_path():
@@ -341,9 +353,18 @@ def test_final_resolution_declares_every_parameter_it_uses():
                     if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
         used = {n.id for n in ast.walk(func)
                 if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        # Los globales del módulo se resuelven MIRÁNDOLOS, no con una lista
+        # escrita a mano.
+        #
+        # La versión anterior llevaba un conjunto fijo —{"self", "logger",
+        # "BusEvent", "json", "asyncio", "re"}— y esa lista es la misma clase
+        # de trampa que este fichero existe para cazar: se queda atrás sola. Al
+        # extraer `_leer_decision` a nivel de módulo, el test lo denunció como
+        # nombre no declarado. El código estaba bien; el instrumento, desfasado.
         import builtins
-        unknown = used - declared - assigned - set(dir(builtins)) - {
-            "self", "logger", "BusEvent", "json", "asyncio", "re"}
+        import magi.modules.swarm.agents as _mod
+        conocidos = set(vars(_mod)) | set(dir(builtins)) | {"self"}
+        unknown = used - declared - assigned - conocidos
         assert not unknown, f"{fn.__name__} usa nombres no declarados: {unknown}"
 
 

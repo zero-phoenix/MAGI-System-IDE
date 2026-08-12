@@ -192,9 +192,25 @@ def test_melchior_has_full_access():
     assert {"write_file", "edit_file", "run_command"} <= set(m.names())
 
 
-def test_casper_is_read_and_verify_only():
-    c = registry_for_role("CASPER")
-    assert "write_file" not in c.names() and "run_tests" in c.names()
+def test_casper_verifica_y_ademas_entrega():
+    """
+    Casper pasó de solo leer a poder construir, y es un cambio deliberado.
+
+    La síntesis dialéctica no es ELEGIR entre la tesis y la antítesis: es
+    construir la superación de ambas. Con un perfil de solo lectura, lo máximo
+    que Casper podía producir era una recomendación —«implementa el enfoque
+    B»— y el usuario se quedaba con un veredicto sobre algo que nadie le había
+    entregado.
+
+    Lo que NO cambia: Balthasar sigue sin poder escribir. Esa es la separación
+    que importa —quien critica no puede acomodar el código a su crítica—, y
+    está fijada en `test_balthasar_sigue_sin_poder_escribir`.
+    """
+    c = registry_for_role("CASPER").names()
+    assert "run_tests" in c, "sin ejecutar tests no puede arbitrar nada"
+    assert "write_file" in c, "sin escribir solo puede recomendar, no entregar"
+    assert "undo" in c, ("escribir sin poder deshacer añade permisos sin añadir "
+                         "reversibilidad")
 
 
 def test_catalog_lines_stay_cheap():

@@ -532,7 +532,24 @@ CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
                 "binary_identify", "console_profile", "analyze_port",
                 "compare_consoles",
                 # el árbitro debe poder mirar el artefacto, no fiarse del acta
-                "observe_artifact", "inspect_image"}
+                "observe_artifact", "inspect_image",
+                # Y DEBE PODER ENTREGAR, no solo dictaminar.
+                #
+                # Casper es quien le habla al usuario: su síntesis ES la
+                # respuesta. Con un perfil de solo lectura, lo máximo que podía
+                # producir era una recomendación —«implementa el enfoque B»— y
+                # el usuario se quedaba con un veredicto sobre algo que nadie
+                # le había entregado.
+                #
+                # La síntesis dialéctica no es elegir entre la tesis y la
+                # antítesis: es CONSTRUIR la superación de ambas. Para eso hace
+                # falta escribir el fichero y ejecutarlo, evaluando lo que
+                # propuso Melchior y lo que refutó Balthasar.
+                #
+                # No rompe la separación de roles: Balthasar sigue sin poder
+                # escribir, que es lo que le da autoridad como crítico. El que
+                # decide es también el que responde por lo que entrega.
+                "write_file", "build_project_exe", "undo"}
 
 # ---------------------------------------------------------------------------
 # Dominios de herramientas (§2.2).

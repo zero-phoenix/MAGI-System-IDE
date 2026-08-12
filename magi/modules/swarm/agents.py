@@ -753,6 +753,82 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
         return {"content": content, "status": "CRITIQUE_GENERATED"}
 
 
+
+def _leer_decision(content: str, round_num: int) -> tuple[str, str]:
+    """
+    Saca el veredicto de Casper y devuelve `(decision, texto_para_el_usuario)`.
+
+    POR QUÉ YA NO SE LE PIDE JSON
+    =============================
+    Casper tenía que responder `{"decision": ..., "feedback": ...}`. Parece
+    ordenado y tiene dos costes que se pagaban en cada respuesta:
+
+    1. **Un modelo al que pides JSON escribe menos.** Meter un juego de Tetris
+       dentro de una cadena JSON obliga a escapar comillas y saltos de línea, y
+       los modelos —con razón— evitan el problema resumiendo. Por eso lo que
+       llegaba eran recomendaciones de dos líneas («implementa el enfoque B»)
+       en lugar de la solución. Casper es QUIEN TE HABLA y era el más
+       maniatado de los tres.
+
+    2. **Cuando el JSON salía mal, la decisión se adivinaba.** El respaldo
+       buscaba las palabras «APPROVED» o «REJECTED» en cualquier parte del
+       texto: una crítica que dijera «este enfoque sería rejected por
+       cualquier revisor» volteaba el veredicto.
+
+    Ahora escribe libre y termina con una línea marcada. Extraer un marcador es
+    robusto; parsear JSON con código dentro, no.
+
+    Se sigue aceptando el JSON antiguo: una versión anterior del prompt puede
+    seguir viva en una tarea rehidratada del disco, y romperla no aportaría
+    nada.
+    """
+    import json
+    import re
+
+    texto = (content or "").strip()
+
+    # 1) Formato antiguo, por si viene de una tarea vieja.
+    limpio = texto
+    if limpio.startswith("```json"):
+        limpio = limpio[7:]
+    if limpio.endswith("```"):
+        limpio = limpio[:-3]
+    limpio = limpio.strip()
+    if limpio.startswith("{"):
+        try:
+            data = json.loads(limpio)
+            if isinstance(data, dict) and "decision" in data:
+                return (str(data.get("decision") or "APPROVED"),
+                        str(data.get("feedback") or texto))
+        except Exception:
+            pass
+
+    # 2) Formato actual: la línea de decisión, buscada SOLO al final.
+    #
+    # Al final y no en cualquier sitio: si Casper cita la decisión de una ronda
+    # anterior a mitad del texto, la primera coincidencia sería la equivocada.
+    # Se mira la cola del mensaje, que es donde el prompt la pide.
+    cola = texto[-400:]
+    m = None
+    for m in re.finditer(r"DECISI[ÓO]N\s*:\s*(.+)", cola, re.IGNORECASE):
+        pass                                  # nos quedamos con la ÚLTIMA
+    if m:
+        valor = m.group(1).strip().upper()
+        if "REVIS" in valor or "RECHAZ" in valor or "REJECT" in valor:
+            # A partir de la última ronda ya no se devuelve a Melchior: se
+            # entrega lo que haya. Alargar el debate sin fin es peor que
+            # entregar algo imperfecto y decir en qué lo es.
+            return (("REJECTED_NEEDS_WORK" if round_num < 3 else "APPROVED"),
+                    texto)
+        return "APPROVED", texto
+
+    # 3) Sin marcador: se aprueba. Un veredicto ausente no puede bloquear la
+    # entrega, y adivinarlo buscando palabras sueltas por el texto ya volteó
+    # decisiones antes.
+    logger.debug("[CASPER] sin línea de DECISIÓN; se aprueba por defecto")
+    return "APPROVED", texto
+
+
 class CasperAgent(SwarmAgentBase):
     """Casper - El Árbitro (Toma la decisión final o fuerza otra ronda)"""
     role_name = "CASPER"
@@ -786,11 +862,26 @@ Tu rol como SÍNTESIS (el más activo del enjambre):
 - Si vas a aprobar la ejecución, finaliza preguntándole explícitamente al usuario si la aprueba para auto-ejecución.
 - Tono técnico y directo, sin preámbulos. Didáctico, con referencias científicas u oficiales reales (nunca blogs).
 
+ENTREGA, NO SOLO DICTAMINES. La síntesis dialéctica no es elegir entre la tesis y la antítesis: es CONSTRUIR la superación de ambas. Tienes herramientas para escribir ficheros, ejecutarlos y empaquetar. Si el usuario pidió algo concreto (un juego, un script, un .exe), tu respuesta debe CONTENER ese algo —construido por ti, evaluando qué acertó Melchior y qué refutó Balthasar—, no una recomendación de que alguien lo construya.
+
 IDIOMA: como tú eres quien le habla al usuario, RESPONDE SIEMPRE EN ESPAÑOL, en todo tu mensaje.
 
-OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSIÓN', en español, con tu veredicto y consulta al usuario.
-Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o "REJECTED_NEEDS_WORK", "feedback": "Tu síntesis, análisis, conclusión y consulta al usuario (en español)"}"""
-        user_prompt = f"Ronda {round_num}.\nPropuesta:\n{proposal['content']}\n\nCrítica:\n{critique['content']}\n\nGenera el JSON final de arbitraje."
+FORMATO DE LA RESPUESTA
+Escribe con normalidad: prosa, listas y bloques de código markdown, todo lo extenso que haga falta. NO uses JSON.
+Termina con estas dos líneas, exactamente así y en este orden:
+
+### CONCLUSIÓN
+(tu veredicto en español y tu consulta al usuario)
+
+DECISIÓN: APROBADA
+(o bien `DECISIÓN: NECESITA REVISIÓN` si la propuesta aún no está lista)"""
+        user_prompt = (
+            f"Ronda {round_num}.\n\n"
+            f"TESIS de Melchior:\n{proposal['content']}\n\n"
+            f"ANTÍTESIS de Balthasar:\n{critique['content']}\n\n"
+            f"Redacta tu SÍNTESIS: evalúa qué acertó cada uno, construye y "
+            f"ejecuta la solución consolidada, y entrégala. Termina con la "
+            f"línea de DECISIÓN.")
         
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
@@ -801,27 +892,7 @@ Debes responder estrictamente en formato JSON válido: {"decision": "APPROVED" o
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
         
-        decision = "APPROVED"
-        feedback = content
-        
-        try:
-            import json
-            # Limpiar posible markdown rodeando el JSON
-            clean_content = content.strip()
-            if clean_content.startswith("```json"):
-                clean_content = clean_content[7:]
-            if clean_content.endswith("```"):
-                clean_content = clean_content[:-3]
-            clean_content = clean_content.strip()
-            
-            data = json.loads(clean_content)
-            decision = data.get("decision", decision)
-            feedback = data.get("feedback", feedback)
-        except Exception:
-            if "REJECTED" in content.upper() and round_num < 3:
-                decision = "REJECTED_NEEDS_WORK"
-            elif "APPROVED" in content.upper() or round_num >= 3:
-                decision = "APPROVED"
+        decision, feedback = _leer_decision(content, round_num)
         
         # Formatear bonito para la GUI en lugar del raw JSON
         formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"

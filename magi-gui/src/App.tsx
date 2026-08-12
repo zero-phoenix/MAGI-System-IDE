@@ -13,6 +13,7 @@ import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
 import NaokoPanel from './components/NaokoPanel';
 import { crearRenderCode } from './components/CodigoMarkdown';
+import GraficoRondas from './components/GraficoRondas';
 import ImprovementPanel from './components/ImprovementPanel';
 import ConfigPanel from './components/ConfigPanel';
 import PreviewPanel from './components/PreviewPanel';
@@ -20,7 +21,6 @@ import ProveedoresEnCabecera from './components/ProveedoresEnCabecera';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
-import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 
@@ -759,55 +759,7 @@ export default function App() {
                );
             })()}
 
-            {activeTab === "Gráfico HDC" && (() => {
-               const nodes: Node[] = [];
-               const edges: Edge[] = [];
-               
-               nodes.push({
-                 id: 'user',
-                 position: { x: 250, y: 20 },
-                 data: { label: '👤 Usuario (Input)' },
-                 style: { background: '#2c3e50', color: 'white', border: '1px solid #34495e', borderRadius: '8px' }
-               });
-               
-               let prevId = 'user';
-               let yPos = 100;
-               
-               messages.forEach((msg, idx) => {
-                 const id = `msg_${idx}`;
-                 let color = '#2980b9';
-                 if (msg.agent === 'MELCHIOR') color = 'var(--var)';
-                 if (msg.agent === 'BALTHASAR') color = 'var(--acc)';
-                 if (msg.agent === 'CASPER') color = 'var(--fn)';
-                 
-                 nodes.push({
-                   id,
-                   position: { x: 250, y: yPos },
-                   data: { label: `${msg.agent} [${msg.role}]` },
-                   style: { background: 'rgba(10,20,25,0.9)', color, border: `1px solid ${color}`, borderRadius: '8px' }
-                 });
-                 
-                 edges.push({
-                   id: `e_${prevId}_${id}`,
-                   source: prevId,
-                   target: id,
-                   animated: true,
-                   style: { stroke: 'var(--dim)' }
-                 });
-                 
-                 prevId = id;
-                 yPos += 80;
-               });
-
-               return (
-                 <div style={{ flex: 1, height: '100%', background: '#050a0b' }}>
-                   <ReactFlow nodes={nodes} edges={edges} fitView>
-                     <Background color="#222" gap={16} />
-                     <Controls />
-                   </ReactFlow>
-                 </div>
-               );
-            })()}
+            {activeTab === "Gráfico HDC" && <GraficoRondas messages={messages} />}
 
             {activeTab === "Mejoras" && (
                /* Ciclo de mejora: compuertas del usuario y rondas del enjambre. */
