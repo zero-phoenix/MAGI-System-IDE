@@ -53,15 +53,77 @@ def test_no_toca_nada_si_la_firma_acepta_cualquier_cosa():
     assert compat_curl.filtrar_kwargs(f, kwargs) == kwargs
 
 
-def test_ante_la_duda_no_toca():
+def test_ante_la_duda_no_toca(monkeypatch):
     """
     Si no se puede leer la firma se pasa todo tal cual.
 
     Filtrar por si acaso cambiaría un fallo ruidoso —un TypeError que se ve—
     por uno silencioso, que es justo el intercambio que este proyecto no hace.
+
+    La primera versión usaba `print` como ejemplo de «firma ilegible». Falló en
+    el CI: en el Python del runner `inspect.signature(print)` SÍ devuelve algo,
+    así que el test comprobaba otra rama. Se fuerza el error directamente, que
+    no depende de la versión.
     """
+    import inspect as _inspect
+
+    def revienta(_f):
+        raise ValueError("sin firma")
+
+    monkeypatch.setattr(_inspect, "signature", revienta)
     kwargs = {"proxy": None, "a": 1}
-    assert compat_curl.filtrar_kwargs(print, kwargs) == kwargs
+    assert compat_curl.filtrar_kwargs(lambda a: a, kwargs) == kwargs
+
+
+def test_mira_toda_la_herencia_y_no_solo_la_clase():
+    """
+    EL FALLO QUE EL CI CAZÓ Y LA MÁQUINA DE DESARROLLO NO PODÍA VER.
+
+    Los kwargs recorren la cadena de herencia. Si la hoja acepta `**kwargs`, la
+    primera versión concluía «esta firma admite cualquier cosa» y no filtraba
+    nada… y el argumento seguía bajando hasta la clase base, que es quien
+    lanzaba el TypeError:
+
+        AsyncSession.__init__   **kwargs=True    (no filtraba)
+        BaseSession.__init__    proxy=?          (aquí reventaba)
+
+    En local pasaba porque esa versión de `BaseSession` sí aceptaba `proxy`. El
+    adaptador dependía de la versión instalada, que es justo lo que venía a
+    evitar.
+    """
+    class Base:
+        def __init__(self, a=None, b=None):
+            self.a, self.b = a, b
+
+    class Hoja(Base):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+
+    admitidos = compat_curl.nombres_aceptados(Hoja, "__init__")
+    assert admitidos is not None
+    assert {"a", "b"} <= admitidos
+    assert "proxy" not in admitidos, (
+        "si `proxy` cuela aquí, vuelve a bajar hasta la base y revienta")
+
+
+def test_object_no_cuenta_como_que_todo_vale():
+    """
+    `object.__init__(self, /, *args, **kwargs)` declara `**kwargs` y no acepta
+    ninguno. Contarlo diría que cualquier clase admite cualquier cosa, y el
+    filtro dejaría de filtrar.
+    """
+    class Simple:
+        def __init__(self, a=None):
+            self.a = a
+
+    assert compat_curl.nombres_aceptados(Simple, "__init__") == {"self", "a"}
+
+
+def test_una_clase_ilegible_entera_devuelve_None():
+    class Rara:
+        pass
+
+    assert compat_curl.nombres_aceptados(Rara, "metodo_que_no_existe") is None
 
 
 def test_un_argumento_que_si_existe_nunca_se_descarta():

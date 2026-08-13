@@ -58,7 +58,51 @@ __all__ = ["aplicar", "filtrar_kwargs", "esta_aplicado"]
 _MARCA = "_magi_compat_curl"
 
 
-def filtrar_kwargs(func, kwargs: dict, *, donde: str = "") -> dict:
+def nombres_aceptados(cls, metodo: str) -> set[str] | None:
+    """
+    Argumentos con nombre que `cls.<metodo>` admite, MIRANDO TODA LA HERENCIA.
+
+    POR QUÉ LA HERENCIA ENTERA Y NO SOLO LA CLASE
+    =============================================
+    Mirar solo la clase hoja fue un fallo real de la primera versión, y lo cazó
+    el CI en un runner con otra versión de curl_cffi:
+
+        AsyncSession.__init__   **kwargs=True    proxy=False
+        BaseSession.__init__    **kwargs=False   proxy=?
+
+    `AsyncSession` acepta `**kwargs`, así que el filtro concluía «esta firma
+    admite cualquier cosa» y no tocaba nada… y el argumento seguía bajando
+    hasta `BaseSession`, que es quien lanza el TypeError. En la máquina de
+    desarrollo `BaseSession` sí aceptaba `proxy` y por eso pasaba en local:
+    el adaptador dependía de la versión instalada, que es justo lo que venía a
+    evitar.
+
+    Los kwargs recorren la cadena de herencia, así que la pregunta correcta no
+    es «¿los acepta esta clase?» sino «¿los acepta ALGUIEN de la cadena?».
+
+    Devuelve None si no se puede leer ninguna firma: ante la duda, no tocar.
+    """
+    nombres: set[str] = set()
+    leido = False
+    for base in getattr(cls, "__mro__", [cls]):
+        if base is object:
+            # `object.__init__(self, /, *args, **kwargs)` declara **kwargs y no
+            # acepta ninguno: contarlo diría que todo vale.
+            continue
+        fn = base.__dict__.get(metodo)
+        if fn is None:
+            continue
+        fn = getattr(fn, "__wrapped__", fn)
+        try:
+            nombres |= set(inspect.signature(fn).parameters)
+            leido = True
+        except (TypeError, ValueError):                   # pragma: no cover
+            continue
+    return nombres if leido else None
+
+
+def filtrar_kwargs(func, kwargs: dict, *, donde: str = "",
+                   admitidos: set[str] | None = None) -> dict:
     """
     Deja solo los argumentos que `func` admite de verdad.
 
@@ -66,16 +110,19 @@ def filtrar_kwargs(func, kwargs: dict, *, donde: str = "") -> dict:
     puede leer: ante la duda, no tocar. Filtrar por si acaso podría quitar un
     argumento que sí importaba, y eso sería cambiar un fallo ruidoso —un
     TypeError— por uno silencioso.
+
+    `admitidos` permite pasar el conjunto ya calculado sobre toda la herencia
+    (ver `nombres_aceptados`), que es lo que usa el envoltorio.
     """
-    try:
-        params = inspect.signature(func).parameters
-    except (TypeError, ValueError):                       # pragma: no cover
-        return kwargs
+    if admitidos is None:
+        try:
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            return kwargs
+        if any(p.kind is p.VAR_KEYWORD for p in params.values()):
+            return kwargs
+        admitidos = set(params)
 
-    if any(p.kind is p.VAR_KEYWORD for p in params.values()):
-        return kwargs
-
-    admitidos = set(params)
     sobran = [k for k in kwargs if k not in admitidos]
     if not sobran:
         return kwargs
@@ -91,9 +138,15 @@ def _envolver(cls, nombre: str) -> bool:
     if original is None or getattr(original, _MARCA, False):
         return False
 
+    # Se calcula UNA vez, al envolver, y no en cada llamada: esto está en el
+    # camino de cada petición y recorrer el MRO con `inspect` por sesión creada
+    # sería pagar el diagnóstico una y otra vez.
+    admitidos = nombres_aceptados(cls, nombre)
+
     def envuelto(self, *args, **kwargs):
         limpios = filtrar_kwargs(original, kwargs,
-                                 donde=f"{cls.__name__}.{nombre}")
+                                 donde=f"{cls.__name__}.{nombre}",
+                                 admitidos=admitidos)
         return original(self, *args, **limpios)
 
     envuelto.__name__ = getattr(original, "__name__", nombre)
