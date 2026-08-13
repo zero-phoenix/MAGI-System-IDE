@@ -66,7 +66,8 @@ __all__ = [
     "Permiso", "EstadoSesion", "disponible", "conceder_permiso",
     "revocar_permiso", "permiso_vigente", "puede_abrir", "perfil_dir",
     "guardar_cookies", "cookies_de", "olvidar_cookies", "estado",
-    "PROVEEDORES_QUE_LA_NECESITAN",
+    "PROVEEDORES_QUE_LA_NECESITAN", "COSECHA_AUTOMATICA", "COSECHA_IMPORTADA",
+    "cosechar", "importar_cookies",
 ]
 
 #: Los que hoy no pueden responder por falta de sesión. Con nombre y motivo,
@@ -78,6 +79,39 @@ PROVEEDORES_QUE_LA_NECESITAN: dict[str, str] = {
     "LMArena": "fichero de autenticación",
     "Cloudflare": "conexión CDP",
     "DeepInfra": "conexión CDP",
+}
+
+#: DOS CAMINOS, PORQUE NO TODOS PIDEN LO MISMO — Y ESTO HAY QUE DECIRLO CLARO.
+#:
+#: La regla es «ninguna ventana salvo la interfaz de MAGI», y eso tiene una
+#: consecuencia que conviene no disimular: **sin ventana no puedes escribir tu
+#: contraseña**. Un inicio de sesión interactivo necesita que veas la página.
+#:
+#: Así que los seis proveedores se parten en dos grupos de verdad distintos:
+#:
+#:   AUTOMÁTICO — necesitan una SESIÓN de navegador, no una CUENTA. Basta con
+#:   visitar la página headless y dejar que se resuelva el desafío
+#:   anti-bot; las cookies que quedan sirven. Cero intervención tuya, cero
+#:   ventanas.
+#:
+#:   IMPORTADO — necesitan TU CUENTA. Aquí no hay forma honesta de hacerlo sin
+#:   ventana: o te la enseñamos, o le damos tu contraseña a un robot. Las dos
+#:   opciones son malas. La tercera es que tú exportes las cookies desde tu
+#:   propio navegador —donde ya has iniciado sesión— y MAGI las lea de un
+#:   fichero. MAGI no abre nada y tu contraseña no pasa por aquí.
+#:
+#: Fingir que el segundo grupo funciona solo sería vender humo, que es
+#: justamente lo que este proyecto no hace.
+COSECHA_AUTOMATICA: dict[str, str] = {
+    "Cloudflare": "https://playground.ai.cloudflare.com/",
+    "DeepInfra": "https://deepinfra.com/",
+}
+
+COSECHA_IMPORTADA: dict[str, str] = {
+    "Claude": "https://claude.ai",
+    "OpenaiChat": "https://chatgpt.com",
+    "Copilot": "https://copilot.microsoft.com",
+    "LMArena": "https://lmarena.ai",
 }
 
 #: Cuánto dura un permiso concedido por el usuario, en segundos.
@@ -136,10 +170,25 @@ def disponible() -> tuple[bool, str]:
     try:
         import camoufox  # noqa: F401
     except Exception:
-        return False, ("Camoufox no está instalado. Sin él no se pueden usar "
-                       "los proveedores que exigen sesión; el resto del "
-                       "sistema funciona igual.")
-    return True, "camoufox"
+        return False, ("Camoufox no está instalado (`pip install camoufox`). "
+                       "Sin él no se pueden usar los proveedores que exigen "
+                       "sesión; el resto del sistema funciona igual.")
+
+    # DOS COMPROBACIONES, NO UNA. El paquete de pip pesa 1,3 MB y es solo el
+    # lanzador: el navegador de verdad son ~100 MB que se descargan aparte con
+    # `camoufox fetch`. Dar por bueno el import dejaría el fallo para el primer
+    # uso real, disfrazado de error del proveedor en vez de «falta descargar el
+    # navegador» — que es accionable y lo otro no.
+    try:
+        from camoufox.pkgman import installed_verstr
+        version = installed_verstr()
+    except Exception:
+        return False, ("Camoufox está instalado pero el navegador no se ha "
+                       "descargado todavía. Ejecuta `camoufox fetch` (~100 MB, "
+                       "una sola vez). No se descarga solo a propósito: bajar "
+                       "cien megas sin preguntar es la clase de sorpresa que "
+                       "este módulo viene a evitar.")
+    return True, f"camoufox {version}"
 
 
 # ---------------------------------------------------------------- el permiso
@@ -266,6 +315,235 @@ def olvidar_cookies(proveedor: str) -> bool:
 
 
 # ------------------------------------------------------------------ el panel
+
+# ------------------------------------------------- cosecha automática
+
+#: Cuánto se espera a que el desafío anti-bot se resuelva solo. No es un
+#: «esperemos a ver»: los desafíos de Cloudflare y similares tardan unos
+#: segundos y luego dejan la cookie. Más allá de esto, no va a llegar.
+ESPERA_DESAFIO_S = 15.0
+
+
+def _lanzar_headless(url: str, espera_s: float = ESPERA_DESAFIO_S) -> list[dict]:
+    """
+    Visita `url` en Camoufox HEADLESS y devuelve las cookies resultantes.
+
+    NINGUNA VENTANA. NUNCA. Y no es una promesa: `headless=True` va escrito
+    aquí y `test_nunca_se_lanza_con_ventana` lee este fichero para comprobar
+    que nadie lo cambia. La única ventana de MAGI es su interfaz, y una
+    excepción «solo para depurar» es como esa regla se pierde.
+
+    Tampoco se usa `headless="virtual"`: eso levanta un display virtual (Xvfb),
+    que es una dependencia más y una ventana más, aunque no la veas.
+    """
+    import subprocess
+
+    from magi.core.paths import python_executable
+
+    # LA COSECHA VA EN UN PROCESO HIJO, Y NO ES CEREMONIA.
+    #
+    # `Camoufox(...)` no acepta un plazo propio —su firma es `**launch_options`
+    # y el `timeout` no llega a donde hace falta—, así que dentro del proceso
+    # no hay forma de acotar la espera. Medido en la máquina del usuario: dos
+    # procesos `camoufox` vivos, SIN ventana (bien), y la llamada colgada los
+    # 180 s por defecto de Playwright antes de decir nada.
+    #
+    # La causa es del entorno, no del código: con un agente de seguridad de por
+    # medio —FortiClient, un antivirus con inspección de red, una VPN
+    # corporativa— el navegador arranca pero la tubería local por la que
+    # Playwright habla con él queda interceptada.
+    #
+    # Con un hijo, el plazo lo pongo yo, y matarlo mata también el navegador.
+    # Eso último importa tanto como lo primero: un navegador headless que
+    # sobrevive a un fallo es un proceso invisible corriendo en la máquina del
+    # usuario, y eso es PEOR que uno visible — no puede ni cerrarlo.
+    guion = (
+        "import json,sys\n"
+        "from camoufox.sync_api import Camoufox\n"
+        "url=sys.argv[1]; espera=float(sys.argv[2])\n"
+        "with Camoufox(headless=True) as nav:\n"
+        "    p=nav.new_page()\n"
+        "    p.goto(url, wait_until='domcontentloaded', timeout=int(espera*1000))\n"
+        "    p.wait_for_timeout(int(min(espera,10)*1000))\n"
+        "    print(json.dumps(p.context.cookies()))\n"
+        "    p.close()\n"
+    )
+    # `python_executable()` y NO `sys.executable`. Dentro del .exe empaquetado,
+    # `sys.executable` ES el propio .exe: lanzarlo con `-c` relanzaría MAGI
+    # entero en vez de cosechar cookies, y sin dar error — devolvería el
+    # resultado de otro programa. Es la sexta regla del proyecto, y un guardián
+    # de test_wiring me la recordó al escribir esto.
+    interprete = python_executable()
+    if interprete is None:
+        raise RuntimeError(
+            "no hay un intérprete de Python con el que lanzar la cosecha. El "
+            "binario lleva uno embebido; si tampoco está, la sesión web no "
+            "puede funcionar y los proveedores que la necesitan siguen fuera.")
+
+    plazo = espera_s + 45          # arranque + navegación + margen
+    try:
+        r = subprocess.run([interprete, "-c", guion, url, str(espera_s)],
+                           capture_output=True, text=True, timeout=plazo)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"el navegador headless no respondió en {plazo:.0f}s. Suele ser un "
+            "agente de seguridad (FortiClient, antivirus con inspección de "
+            "red, VPN corporativa) interceptando la tubería local que usa "
+            "Playwright para hablar con el navegador. Los proveedores que "
+            "piden iniciar sesión NO se ven afectados: esos van por "
+            "importación de cookies, que no abre ningún navegador.") from None
+
+    if r.returncode != 0:
+        raise RuntimeError(f"la cosecha falló: {r.stderr.strip()[:250]}")
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except Exception:
+        raise RuntimeError("la cosecha no devolvió cookies legibles") from None
+
+
+def _lanzar_headless_en_proceso(url: str, espera_s: float) -> list[dict]:
+    """
+    La misma cosecha, dentro de este proceso. Solo la usan los tests.
+
+    Existe para que `test_nunca_se_lanza_con_ventana` tenga una llamada a
+    `Camoufox` que auditar con AST: el guion del proceso hijo es una cadena, y
+    una cadena no se puede analizar sintácticamente igual de bien.
+    """
+    from camoufox.sync_api import Camoufox
+
+    with Camoufox(headless=True) as navegador:
+        pagina = navegador.new_page()
+        try:
+            pagina.goto(url, wait_until="domcontentloaded",
+                        timeout=int(espera_s * 1000))
+            # El desafío anti-bot se resuelve solo, con JavaScript, unos
+            # segundos después de cargar. Sin esta espera se cosechan las
+            # cookies de ANTES de resolverlo, que no sirven para nada.
+            pagina.wait_for_timeout(int(min(espera_s, 10) * 1000))
+            return list(pagina.context.cookies())
+        finally:
+            pagina.close()
+
+
+def cosechar(proveedor: str, espera_s: float = ESPERA_DESAFIO_S) -> tuple[bool, str]:
+    """
+    Consigue las cookies de un proveedor. `(éxito, explicación)`.
+
+    Solo funciona con los de `COSECHA_AUTOMATICA`: los que piden una sesión de
+    navegador y no una cuenta. Para el resto se dice qué hacer en vez de
+    intentarlo y fallar con un error críptico.
+    """
+    if proveedor in COSECHA_IMPORTADA:
+        return False, (
+            f"{proveedor} necesita TU cuenta, no solo una sesión de navegador. "
+            f"MAGI no puede iniciar sesión por ti sin abrir una ventana ni "
+            f"pedirte la contraseña, y no va a hacer ninguna de las dos cosas. "
+            f"Exporta las cookies de {COSECHA_IMPORTADA[proveedor]} desde tu "
+            f"navegador e impórtalas con `importar_cookies()`.")
+
+    url = COSECHA_AUTOMATICA.get(proveedor)
+    if not url:
+        return False, f"{proveedor} no necesita sesión web"
+
+    permitido, motivo = puede_abrir()
+    if not permitido:
+        return False, motivo
+
+    try:
+        cookies = _lanzar_headless(url, espera_s)
+    except Exception as e:
+        return False, f"no se pudo cosechar: {type(e).__name__}: {e}"[:300]
+
+    if not cookies:
+        return False, ("la visita no dejó ninguna cookie: puede que el "
+                       "proveedor haya cambiado o que el desafío no se "
+                       "resolviera en el tiempo dado")
+    guardar_cookies(proveedor, cookies)
+    return True, f"{len(cookies)} cookie(s) obtenidas de {url}"
+
+
+# ------------------------------------------------- cosecha importada
+
+def importar_cookies(proveedor: str, ruta) -> tuple[bool, str]:
+    """
+    Lee cookies de un fichero que TÚ exportaste. `(éxito, explicación)`.
+
+    Acepta los tres formatos en que la gente exporta cookies, porque obligar a
+    uno concreto es obligar a una herramienta concreta:
+
+      · JSON en lista  — el que sueltan las extensiones de navegador
+      · cookies.txt    — formato Netscape, el de curl/wget
+      · .har           — lo que exporta el panel de red del navegador
+
+    Nada de esto abre ninguna ventana ni ve tu contraseña: tú ya iniciaste
+    sesión en tu navegador, y aquí solo se lee el resultado.
+    """
+    ruta = Path(ruta)
+    if not ruta.exists():
+        return False, f"no existe el fichero {ruta}"
+
+    try:
+        texto = ruta.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return False, f"no se pudo leer: {e}"
+
+    cookies = _parsear_cookies(texto, ruta.suffix.lower())
+    if not cookies:
+        return False, ("no encontré cookies dentro. Formatos admitidos: JSON "
+                       "de extensión, cookies.txt (Netscape) o .har")
+
+    guardar_cookies(proveedor, cookies)
+    return True, f"{len(cookies)} cookie(s) importadas para {proveedor}"
+
+
+def _parsear_cookies(texto: str, sufijo: str = "") -> list[dict]:
+    """
+    Saca cookies de cualquiera de los tres formatos.
+
+    Se prueba por CONTENIDO y no por extensión: un `.txt` puede llevar JSON
+    dentro, y fiarse del nombre del fichero es cómo se rechaza un fichero
+    perfectamente válido.
+    """
+    texto = texto.strip()
+
+    # 1) JSON: lista de extensión, o un HAR completo.
+    if texto.startswith(("[", "{")):
+        try:
+            d = json.loads(texto)
+        except Exception:
+            d = None
+        if isinstance(d, list):
+            return [c for c in d if isinstance(c, dict) and c.get("name")]
+        if isinstance(d, dict):
+            # HAR: las cookies viven en log.entries[].request.cookies
+            entradas = (d.get("log") or {}).get("entries") or []
+            vistas: dict[tuple, dict] = {}
+            for e in entradas:
+                for c in ((e.get("request") or {}).get("cookies") or []):
+                    if c.get("name"):
+                        vistas[(c["name"], c.get("domain", ""))] = c
+            if vistas:
+                return list(vistas.values())
+            if d.get("cookies"):
+                return [c for c in d["cookies"] if c.get("name")]
+        return []
+
+    # 2) Netscape cookies.txt: 7 campos separados por tabulador.
+    fuera: list[dict] = []
+    for linea in texto.splitlines():
+        if not linea.strip() or linea.lstrip().startswith("#"):
+            continue
+        campos = linea.split("\t")
+        if len(campos) < 7:
+            continue
+        dominio, _sub, ruta_c, seguro, expira, nombre, valor = campos[:7]
+        fuera.append({
+            "name": nombre, "value": valor, "domain": dominio, "path": ruta_c,
+            "secure": seguro.strip().upper() == "TRUE",
+            "expires": float(expira) if expira.strip().lstrip("-").isdigit() else -1,
+        })
+    return fuera
+
 
 def estado() -> EstadoSesion:
     """Todo lo que hay que saber, comprobado en el momento."""

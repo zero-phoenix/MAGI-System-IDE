@@ -23,6 +23,20 @@ pillow
 pypdf
 python-docx
 
+# Sesión web headless (magi/core/sesion_web.py). Firefox endurecido contra
+# fingerprinting, SIEMPRE sin ventana, para los proveedores que exigen una
+# sesión de navegador.
+#
+# SIN el extra `[gui]` A PROPÓSITO: ese arrastra PySide6, un toolkit de
+# ventanas entero. Meterlo sería instalar justo lo que la regla prohíbe —la
+# única ventana de MAGI es su interfaz— y de paso decenas de megas.
+#
+# El paquete son 1,3 MB: es solo el lanzador. El navegador (~100 MB) se baja
+# aparte con `camoufox fetch`, y no se baja solo: descargar cien megas sin
+# preguntar es la clase de sorpresa que ese módulo viene a evitar. Sin él,
+# `disponible()` lo dice y el resto del sistema funciona igual.
+camoufox
+
 # Tests (CI)
 #
 # `websockets` y `pyyaml` los usan los tests, no el sistema: test_rpc_transport
