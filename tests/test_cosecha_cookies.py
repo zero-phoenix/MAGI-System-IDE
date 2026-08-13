@@ -130,6 +130,9 @@ def test_sin_permiso_no_se_abre_el_navegador(monkeypatch):
                         lambda *a, **k: [])
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
+    # Sin permiso O sin motor, la puerta dice que no y lo explica. Las dos
+    # razones son válidas aquí: lo que se comprueba es que NO se abre nada y
+    # que se dice por qué, no cuál de los dos motivos fue.
     assert "con navegador:" in motivo, "hay que decir qué pasó en cada intento"
 
 
@@ -180,7 +183,12 @@ def test_si_lo_barato_no_basta_se_escala_al_navegador(monkeypatch):
     # navegador de verdad y tardaría diez segundos en cada corrida.
     monkeypatch.setattr(sesion_web, "_prueba_arranque",
                         lambda *a, **k: (True, "simulado"))
-    sesion_web.conceder_permiso("prueba")
+    # `puede_abrir` también se simula, y no es pereza: en el runner del CI no
+    # hay navegador descargado, así que la puerta dice que no y la prueba nunca
+    # llegaba al punto que quería comprobar. Fallaba describiendo la MÁQUINA en
+    # vez del código — el mismo defecto que ya apareció con `python_executable`
+    # y con `print` como ejemplo de firma ilegible.
+    monkeypatch.setattr(sesion_web, "puede_abrir", lambda: (True, "simulado"))
 
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is True and orden == ["barato", "caro"]
@@ -199,7 +207,7 @@ def test_el_fallo_cuenta_lo_que_paso_en_CADA_intento(monkeypatch):
         lambda url, espera_s: (_ for _ in ()).throw(RuntimeError("no arrancó")))
     monkeypatch.setattr(sesion_web, "_prueba_arranque",
                         lambda *a, **k: (True, "simulado"))
-    sesion_web.conceder_permiso("prueba")
+    monkeypatch.setattr(sesion_web, "puede_abrir", lambda: (True, "simulado"))
 
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
