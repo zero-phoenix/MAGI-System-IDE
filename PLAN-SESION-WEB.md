@@ -199,6 +199,97 @@ la conjetura de nadie.
 
 ---
 
+## 3.bis Los dos fallos que son el mismo fallo
+
+Durante esta tanda aparecieron dos defectos que parecen no tener nada que ver:
+
+- El diagnóstico **reventaba al imprimirlo**: usaba `✓` y en la consola cp1252
+  de Windows eso es `UnicodeEncodeError`.
+- Tres tests míos **fallaban en el CI y pasaban en local**: comprobaban el
+  orden de dos llamadas simuladas, pero exigían tener descargado un navegador
+  de 100 MB para llegar hasta ahí.
+
+Son **el mismo defecto**: una pieza que se comporta distinto según dónde corra,
+por una suposición sobre el entorno que nadie escribió. Una supone una consola
+UTF-8; la otra, un paquete instalado. Ninguna lo dice, y las dos fallan justo
+donde no estabas mirando.
+
+Y no es la primera vez. Van cuatro en esta misma tanda:
+
+| # | Suposición no escrita | Dónde se cayó |
+|---|---|---|
+| 1 | «hay intérprete embebido» | los guardas de `python_executable` pasaban en el CI **solo porque allí no lo había** |
+| 2 | «`print` no tiene firma legible» | en el Python del runner **sí la tiene** |
+| 3 | «ffmpeg está instalado» | dos tests de vídeo afirmaban un orden entre dos avisos válidos |
+| 4 | «Camoufox está descargado» | tres tests de cosecha, en el runner |
+
+Cuatro veces el mismo error con cuatro disfraces. Eso ya no es mala suerte: es
+que falta un mecanismo.
+
+### 3.bis.1 Todo lo que el sistema imprime tiene que poder imprimirse
+
+El proyecto ya pagó esto caro: una respuesta entera del enjambre se perdió por
+escribir un acento en una consola cp1252, y de ahí salió
+`magi/core/consola.py`. Que vuelva a ocurrir en la herramienta de diagnóstico
+—la que se llama **justo cuando algo va mal**— es el peor sitio posible:
+añade un error propio encima del que estabas investigando y te deja con dos
+problemas y ninguna pista.
+
+**El arreglo puntual** ya está: marcas `[ok]` / `[NO]` en ASCII, con un test que
+codifica la salida en `cp1252` y en `ascii`.
+
+**El arreglo de fondo** es un trinquete: un test que recorra las funciones que
+producen texto para el usuario o para el terminal y compruebe que **todas** sus
+salidas sobreviven a `cp1252`. No los mensajes en general —el markdown de la
+interfaz va en UTF-8 y ahí las tildes están bien—, sino específicamente lo que
+puede acabar en `print()` o en el log.
+
+- **Se comprueba con:** un test que llama a cada función de diagnóstico y
+  resumen registrada y codifica su salida en `cp1252`. La lista de funciones se
+  declara, y hay una segunda comprobación de que no falta ninguna.
+- **Puede salir mal:** empobrecer todos los textos de la interfaz por miedo. La
+  regla es estrecha a propósito: **lo que se imprime**, no lo que se muestra.
+
+### 3.bis.2 Un CI que corra sin lo opcional
+
+Los cuatro casos de la tabla tienen la misma cura: **ejecutar la suite en un
+entorno donde lo opcional NO está**, y exigir que cada test o pase, o se salte
+explícitamente con `skipif`. Lo que no puede es fallar — ni pasar por
+casualidad.
+
+```
+job: test-desnudo   (ubuntu, sin extras)
+  · sin ffmpeg
+  · sin camoufox ni su navegador
+  · sin capstone / unicorn / pygame / pillow
+  · sin intérprete de Python «del sistema» distinto del propio
+```
+
+Un test que se cae en ese job está describiendo la máquina. Un test que pasa en
+los dos y comprueba lo mismo, prueba el código.
+
+Es exactamente el mismo razonamiento que ya justifica `test_arranque_ligero`:
+una regresión que no rompe nada —el sistema hace lo mismo, solo que más tarde—
+es invisible salvo que alguien la mire a propósito. Aquí igual, pero con
+«funciona en mi máquina» en lugar de «tarda más».
+
+- **Se comprueba con:** el propio job. Y con un contador de tests saltados: si
+  el desnudo salta de golpe cincuenta tests, la cobertura real bajó y hay que
+  verlo.
+- **Puede salir mal:** que la respuesta fácil sea llenar todo de `skipif` hasta
+  que el job no compruebe nada. Por eso se vigila el número de saltos, no solo
+  el verde.
+
+### 3.bis.3 Y la regla, dicha para que se pueda citar
+
+> **Un test cuyo resultado depende de lo que haya instalado alrededor no prueba
+> el código: describe la máquina.**
+
+Vale igual para una herramienta: **un diagnóstico que depende de la consola en
+la que se imprime no diagnostica, adivina.**
+
+---
+
 ## 4. Lo que ya está resuelto y no se toca
 
 - **Cero navegadores huérfanos.** El proceso hijo con plazo propio funciona: al
@@ -212,13 +303,22 @@ la conjetura de nadie.
 
 ## 5. Orden
 
-| # | Qué | Por qué | Riesgo |
-|---|---|---|---|
-| 1 | Vía sin navegador primero (§1) | Convierte 93 s de fallo en 0,2 s de éxito | bajo |
-| 2 | Comprobación previa de 10 s (§2) | Que el fallo, cuando toque, sea rápido | bajo |
-| 3 | Diagnóstico ejecutable (§3) | Que no vuelva a haber conjeturas | bajo |
+| # | Qué | Por qué | Riesgo | Estado |
+|---|---|---|---|---|
+| 1 | Vía sin navegador primero (§1) | Convierte 93 s de fallo en 0,2 s de éxito | bajo | **hecho** |
+| 2 | Comprobación previa de 10 s (§2) | Que el fallo, cuando toque, sea rápido | bajo | **hecho** |
+| 3 | Diagnóstico ejecutable (§3) | Que no vuelva a haber conjeturas | bajo | **hecho** |
+| 4 | Trinquete de texto imprimible (§3.bis.1) | Que la herramienta no falle al usarla | bajo | pendiente |
+| 5 | CI sin lo opcional (§3.bis.2) | Que ningún test describa la máquina | medio | pendiente |
+| 6 | Token de DeepInfra (§1.bis) | Es el artefacto real, no las cookies | medio | pendiente |
+| 7 | WebSocket de Cloudflare (§1.bis) | Podría no hacer falta navegador nunca | alto | pendiente |
 
 Ninguno toca la puerta ni el permiso: eso está probado y funciona.
+
+El 5 va antes que el 6 y el 7 a propósito. Los dos últimos añaden código nuevo
+que va a tener sus propios tests, y sería absurdo escribirlos sin tener antes
+el mecanismo que detecta si describen la máquina — que es el error que llevo
+cometiendo cuatro veces seguidas.
 
 ---
 
