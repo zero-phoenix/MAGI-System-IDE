@@ -173,7 +173,32 @@ class Kernel:
             # diarias. La columna del panel se llamaba «latencia medida» y casi
             # todo decía «sin medir»; esto es lo que la llena.
             "sonda": self._info_sonda(),
+            # La puerta del navegador: qué falta para desbloquear los seis
+            # proveedores que exigen sesión, y si hay permiso vigente.
+            "sesion_web": self._info_sesion_web(),
         }
+
+    def _info_sesion_web(self) -> dict:
+        """
+        Estado de la puerta de sesión web.
+
+        Se enseña SIEMPRE, también —y sobre todo— cuando no está disponible: la
+        pregunta que el usuario tiene delante es «¿por qué Claude sale sin
+        verificar?», y la respuesta es esta. Un panel que solo muestra lo que
+        funciona deja las carencias sin explicar.
+        """
+        try:
+            from dataclasses import asdict
+            from magi.core import no_browser, sesion_web
+            d = asdict(sesion_web.estado())
+            d["necesitan_sesion"] = dict(sesion_web.PROVEEDORES_QUE_LA_NECESITAN)
+            # Aperturas AUTORIZADAS, separadas de las violaciones: una es algo
+            # que tú pediste y la otra algo que el sistema intentó a tus
+            # espaldas. Mezclarlas dejaría el registro sin distinguirlas.
+            d["aperturas_autorizadas"] = no_browser.autorizadas()[:5]
+            return d
+        except Exception as e:                            # pragma: no cover
+            return {"error": str(e)}
 
     def _info_sonda(self) -> dict:
         """

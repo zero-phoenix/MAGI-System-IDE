@@ -157,7 +157,18 @@ mano que se quedaría atrás— los revive sin tocar g4f ni fijar versiones.
 - **Puede salir mal:** tragarse un argumento que sí importaba. Por eso se filtra
   por firma real y se registra en debug cada descarte.
 
-#### B · Sesión web headless (6 proveedores)
+#### B · Sesión web headless (6 proveedores) — **puerta construida**
+
+> **Estado:** la puerta está hecha y probada (`magi/core/sesion_web.py`). Lo que
+> falta es el motor: instalar Camoufox y escribir la cosecha de cookies por
+> proveedor. La arquitectura, el permiso caducable, el almacén de credenciales
+> y la integración con `no_browser` están en su sitio y con tests.
+>
+> Se dejó a propósito sin la dependencia: Camoufox pasa de cien megas y solo
+> hace falta para estos seis proveedores. Sin él, `disponible()` dice que no y
+> **por qué**, y el resto del sistema funciona igual. Añadirlo al binario es
+> una decisión aparte, con su coste en tamaño de descarga.
+
 
 La puerta de 1.3. Aquí es donde se concentra el rescate: seis proveedores,
 entre ellos `Claude` y `OpenaiChat`, que son justo los que pediste priorizar.

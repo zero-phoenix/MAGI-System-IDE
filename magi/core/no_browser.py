@@ -95,6 +95,58 @@ def _record(source: str, detail: str) -> None:
     logger.warning("[no_browser] BLOQUEADO %s: %s", source, detail[:200])
 
 
+#: Aperturas AUTORIZADAS. Se guardan aparte de las violaciones porque son otra
+#: cosa: una violación es algo que el sistema intentó a tus espaldas, y esto es
+#: algo que tú pediste. Mezclarlas dejaría el registro sin poder distinguir un
+#: intento de secuestro de un permiso concedido.
+_autorizadas: list[dict] = []
+
+
+def autorizadas() -> list[dict]:
+    """Aperturas permitidas, de la más reciente a la más antigua."""
+    return list(reversed(_autorizadas))
+
+
+def _permitida(source: str, motivo: str) -> None:
+    _autorizadas.append({"source": source, "motivo": motivo[:400],
+                         "ts": time.time()})
+    logger.info("[no_browser] PERMITIDO %s: %s", source, motivo[:200])
+
+
+def _hay_permiso() -> tuple[bool, str]:
+    """
+    ¿Hay permiso explícito y vigente del usuario para abrir un navegador?
+
+    LA ÚNICA GRIETA DEL CORTAFUEGOS, Y POR QUÉ EXISTE
+    =================================================
+    Este módulo no existe porque los navegadores sean malos: existe porque g4f
+    abría el Chrome DEL USUARIO, sin avisar, en mitad de una petición. El
+    problema era la apertura invisible y no consentida.
+
+    Seis proveedores —Claude, OpenaiChat, Copilot, LMArena, Cloudflare,
+    DeepInfra— no pueden responder sin una sesión autenticada. Cerrarles la
+    puerta para siempre es renunciar a ellos; abrirla del todo es volver al
+    fallo. La grieta es del tamaño exacto del problema:
+
+      · headless, sin ninguna ventana además de la interfaz de MAGI;
+      · con perfil PROPIO, nunca el del usuario;
+      · solo con permiso explícito y CADUCABLE que concede una acción suya;
+      · y cada apertura queda registrada.
+
+    Sin permiso vigente, todo se bloquea exactamente igual que antes. La
+    invariante pasa de «no se abre ningún navegador» a «ninguno se abre sin que
+    tú lo pidas, y todos quedan registrados», que es más fuerte: la primera se
+    cumplía por no poder, y esta se cumple pudiendo.
+    """
+    try:
+        from magi.core import sesion_web
+        return sesion_web.puede_abrir()
+    except Exception:
+        # Sin el módulo de sesión no hay permiso posible. Ante la duda, se
+        # bloquea: es la dirección segura del error.
+        return False, "el módulo de sesión web no está disponible"
+
+
 def _is_browser(argv) -> bool:
     """True si este comando lanzaría un navegador visible."""
     if not argv:
@@ -123,10 +175,16 @@ def _install_popen_killswitch() -> None:
         def __init__(self, args, *a, **kw):
             if _is_browser(args):
                 argv = args if isinstance(args, (list, tuple)) else [args]
-                _record("subprocess.Popen", " ".join(str(x) for x in argv[:3]))
-                raise BrowserBlocked(
-                    "MAGI no abre navegadores (§I.3). Comando bloqueado: "
-                    + os.path.basename(str(argv[0])))
+                orden = " ".join(str(x) for x in argv[:3])
+                permitido, motivo = _hay_permiso()
+                if permitido:
+                    _permitida("subprocess.Popen", f"{orden} — {motivo}")
+                else:
+                    _record("subprocess.Popen", orden)
+                    raise BrowserBlocked(
+                        "MAGI no abre navegadores sin permiso tuyo (§I.3). "
+                        f"Comando bloqueado: {os.path.basename(str(argv[0]))}. "
+                        f"Motivo: {motivo}")
             super().__init__(args, *a, **kw)
 
     subprocess.Popen = GuardedPopen
