@@ -759,7 +759,39 @@ def diagnostico_legible(incluir_lentas: bool = True) -> str:
         marca = "[ok]" if c["ok"] else "[NO]"
         lineas.append(f"  {marca} {c['comprobacion']:<32} "
                       f"{c['detalle']}  ({c['ms']:.0f} ms)")
-    return "\n".join(lineas)
+    return _imprimible("\n".join(lineas))
+
+
+def _imprimible(texto: str) -> str:
+    """
+    Deja el texto imprimible en cualquier consola, pase lo que pase.
+
+    LA PROMESA ESTABA A MEDIAS
+    ==========================
+    Arriba se explica con detalle por qué las marcas son `[ok]` y no `✓`. Y
+    era verdad… para las partes que escribí yo. Pero `detalle` NO lo escribo
+    yo: sale de `str(e)` de cualquier excepción que ocurra dentro de una
+    comprobación, y ahí cabe cualquier cosa — un mensaje con acentos, una
+    ruta con eñes, o el `✓` de una librería de terceros.
+
+    O sea: la función documentaba con esmero una garantía que no daba en el
+    único sitio por donde podía romperse. El fallo estaba a un `raise` de
+    distancia y era exactamente el que el docstring dice haber arreglado.
+
+    Lo destapó el guardián de `tests/conftest.py` a los cinco minutos de
+    existir: su mensaje de negativa lleva la palabra «MÁQUINA», entró por
+    `detalle`, y el test de imprimibilidad —que llevaba días en verde— se
+    puso rojo. No lo encontré yo leyendo el código.
+
+    Se pliegan los acentos en vez de sustituirlos por `?`: «conexión» se lee
+    igual como «conexion», y un diagnóstico ilegible no diagnostica.
+    """
+    import unicodedata
+    plegado = unicodedata.normalize("NFKD", texto)
+    sin_tildes = "".join(c for c in plegado if not unicodedata.combining(c))
+    # Lo que no se pueda plegar (·, ✓, emoji) se marca en vez de desaparecer:
+    # un carácter que se esfuma cambia el mensaje sin avisar.
+    return sin_tildes.encode("ascii", "replace").decode("ascii")
 
 
 def estado() -> EstadoSesion:

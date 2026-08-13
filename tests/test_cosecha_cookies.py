@@ -128,12 +128,20 @@ def test_sin_permiso_no_se_abre_el_navegador(monkeypatch):
     """
     monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador",
                         lambda *a, **k: [])
+    # El motor, PRESENTE y simulado. Antes esto no estaba y la aserción de
+    # abajo aceptaba «sin permiso» O «sin motor», las dos. Con eso, en el CI
+    # —donde no hay navegador— el test pasaba sin llegar nunca a comprobar el
+    # permiso, que es lo único que dice comprobar. Verde sin mirar nada.
+    #
+    # Lo cazó el guardián de conftest.py el día que se puso, no yo.
+    monkeypatch.setattr(sesion_web, "disponible",
+                        lambda: (True, "motor simulado"))
+
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
-    # Sin permiso O sin motor, la puerta dice que no y lo explica. Las dos
-    # razones son válidas aquí: lo que se comprueba es que NO se abre nada y
-    # que se dice por qué, no cuál de los dos motivos fue.
     assert "con navegador:" in motivo, "hay que decir qué pasó en cada intento"
+    # Y AHORA sí se puede exigir el motivo exacto, porque solo queda uno.
+    assert "no hay permiso vigente" in motivo
 
 
 # =============================== primero lo barato, luego lo caro
@@ -252,7 +260,7 @@ def test_las_comprobaciones_caras_se_pueden_saltar():
     assert "arranque headless" in [c["comprobacion"] for c in completo]
 
 
-def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola():
+def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola(monkeypatch):
     """
     La primera versión usaba `✓` y `✗`, y al imprimirla en la consola de
     Windows saltaba:
@@ -264,6 +272,21 @@ def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola():
     del que se investigaba. Es el mismo fallo que ya costó una respuesta entera
     del enjambre por escribir un acento en una consola cp1252.
     """
+    # El diagnóstico consulta el motor y arranca el navegador. Aquí no se
+    # comprueba lo que responden: se comprueba que el TEXTO se pueda imprimir
+    # pase lo que pase. Simulando las dos, el test tarda milisegundos y dice
+    # lo mismo en cualquier máquina.
+    monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
+    monkeypatch.setattr(sesion_web, "_prueba_arranque",
+                        lambda *a, **k: (False, "no arranca (simulado)"))
+    # Y aquí va lo importante: una comprobación que devuelve texto CON acentos
+    # y con un símbolo que no existe en cp1252. Es el caso realista —`detalle`
+    # sale de `str(e)` de cualquier excepción, y ahí cabe cualquier cosa— y es
+    # justo el que la primera versión no cubría.
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            RuntimeError("conexión rehusada ✓ ñandú")))
+
     texto = sesion_web.diagnostico_legible(incluir_lentas=False)
     texto.encode("cp1252")          # la consola de Windows por defecto
     texto.encode("ascii")           # y el caso más restrictivo
@@ -271,6 +294,9 @@ def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola():
     assert "diagnostico" in texto
     assert "[ok]" in texto or "[NO]" in texto
     assert "ms)" in texto, "sin tiempos no se ve dónde está el cuello"
+    assert "conexion rehusada" in texto, (
+        "plegar el acento, no borrar la palabra: un diagnostico ilegible no "
+        "diagnostica")
 
 
 def test_hay_una_prueba_de_arranque_corta_y_ajustable():
@@ -312,8 +338,13 @@ def test_la_cosecha_no_intenta_navegar_si_el_arranque_falla(monkeypatch):
     assert "no arranca" in motivo and "10s" in motivo
 
 
+@pytest.mark.frontera
 def test_una_respuesta_de_error_no_cuenta_como_cookies(monkeypatch):
     """
+    Marcado `frontera` porque prueba la función de frontera EN SÍ. No lee la
+    máquina: simula un escalón más abajo, en `curl_cffi.requests.get`, así que
+    sigue siendo determinista en cualquier runner.
+
     Un HTTP 500 no trae cookies válidas. Guardar lo que venga de una respuesta
     de error dejaría una sesión inservible con aspecto de buena.
     """
@@ -397,8 +428,9 @@ def test_un_json_roto_se_trata_como_fichero_sin_cookies(tmp_path):
     assert ok is False and "Formatos admitidos" in motivo
 
 
-def test_importar_deja_al_proveedor_listo_en_el_panel(tmp_path):
+def test_importar_deja_al_proveedor_listo_en_el_panel(tmp_path, monkeypatch):
     """De nada sirve importar si el panel sigue diciendo que falta."""
+    monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
     assert "Claude" in sesion_web.estado().proveedores_pendientes
     _importa(tmp_path, "c.json", json.dumps([{"name": "s", "value": "1"}]))
     e = sesion_web.estado()
@@ -408,8 +440,14 @@ def test_importar_deja_al_proveedor_listo_en_el_panel(tmp_path):
 
 # ============================================ el motor, honesto
 
+@pytest.mark.frontera
 def test_disponible_distingue_paquete_de_navegador():
     """
+    El único test del fichero que mira la máquina de verdad, y por eso está
+    marcado. Nota lo que NO afirma: no dice si hay motor o no —eso cambia
+    entre tu equipo y el runner—, solo que la respuesta esté bien formada y
+    que un «no» venga acompañado de qué falta.
+
     El paquete de pip son 1,3 MB y es solo el lanzador; el navegador son ~100
     MB aparte. Dar por bueno el import dejaría el fallo para el primer uso
     real, disfrazado de error del proveedor en vez de «falta descargar el

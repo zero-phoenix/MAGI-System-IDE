@@ -129,9 +129,23 @@ _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
         ("Qwen", "qwen3.6-plus"),
         ("Qwen", "qwen3.7-max"),
     ],
+    # `claude` YA NO ESTÁ ROTA, y la historia de por qué lo parecía vale más
+    # que la lista. Sus dos candidatos de siempre —Claude y LMArena— exigen TU
+    # CUENTA, y aquí no se inicia sesión en ningún sitio: eso no es «pendiente»,
+    # es imposible por diseño. De ahí salió medio `sesion_web.py`.
+    #
+    # Lo que nadie había mirado: `Perplexity` —ya en este mismo fichero, dos
+    # familias más arriba, `needs_auth=False`— sirve claude45sonnet y
+    # claude40opus. Medido el 2026-08-13: 3,7 s y 2,8 s, en castellano y con
+    # respuestas técnicas correctas. Cero cookies.
+    #
+    # Lo único que lo impedía era un fallo de g4f de dos líneas, que arregla
+    # `providers/compat_g4f.py`. Antes de construir infraestructura para saltar
+    # un muro conviene comprobar que el muro existe.
     "claude": [
-        ("Claude", None),
-        ("LMArena", "claude-sonnet-4"),
+        ("Perplexity", "claude45sonnet"),
+        ("Perplexity", "claude40opus"),
+        ("Perplexity", "claude37sonnetthinking"),
     ],
     "glm": [("GLM", None)],
 
@@ -142,7 +156,11 @@ _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
 
 # Familias con al menos un candidato que respondió en la verificación. El
 # registro las prefiere al repartir el enjambre.
-_VERIFICADAS_BASE = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
+# `llama` sale (Groq responde 402 «No cake credits», medido 2026-08-13) y
+# `claude` entra. Una verificación del 6 de agosto no dice nada del 13: estos
+# servicios son gratuitos y se caen sin avisar, y por eso cada medida lleva
+# fecha en el catálogo.
+_VERIFICADAS_BASE = ("gpt", "gemini", "command", "claude", "perplexity", "hf")
 
 #: Proveedores que NO pueden responder en este entorno, con el motivo medido.
 #:
@@ -169,7 +187,17 @@ _VERIFICADAS_BASE = ("gpt", "gemini", "command", "llama", "perplexity", "hf")
 #: Salir de esta lista NO es lo mismo que estar verificado: significa «ya no
 #: revienta antes de intentarlo». Si responde o no lo dirá la sonda.
 _ROTOS_BASE: dict[str, str] = {
-    "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
+    "Claude": ("exige TU CUENTA (browser_cookie3 + cookies). La regla del "
+               "proyecto prohíbe iniciar sesión en ningún sitio, así que esto "
+               "no está «pendiente»: es imposible por diseño. La familia "
+               "`claude` la sirve Perplexity, sin cuenta."),
+    "CopilotApp": "WSServerHandshakeError 460 al abrir el websocket (medido 2026-08-13)",
+    "WeWordle": "HTTP 429 Too Many Requests (medido 2026-08-13)",
+    "Groq": "HTTP 402 «No cake credits» (medido 2026-08-13)",
+    "PhindAi": ("HTTP 403 Security (medido 2026-08-13). compat_curl arregló la "
+                "firma de curl_cffi, no el acceso: «ya no revienta» nunca fue "
+                "«responde», y así estaba escrito."),
+    "Qwen": "success=false (medido 2026-08-13). Mismo caso que PhindAi.",
     "LMArena": "exige fichero de autenticación y nodriver",
     "GLM": "responde con captcha",
     "MetaAI": "responde 403 desde esta red",
@@ -215,10 +243,21 @@ _HEDGE_MAX_BASE = 3
 # Ahora apunta a tres familias verificadas y de linajes realmente distintos
 # —OpenAI, Google y Cohere—, que es lo que §1.1 pide de verdad: que el crítico
 # tenga sesgos distintos al proponente.
+# MEDIDO el 2026-08-13, no elegido. Reglas del usuario: la mejor para
+# BALTHASAR, la segunda para CASPER, una familia distinta cada uno.
+#   claude45sonnet   3,7 s   Claude Sonnet 4.5, la mejor disponible -> BALTHASAR
+#   gemini-3.5-flash 4,9 s   castellano impecable                   -> CASPER
+#   command-a        3,6 s   el más fiable de los rápidos           -> MELCHIOR
+#
+# `gpt` sale del enjambre pese a ser prioritaria para el usuario, y el motivo
+# hay que decirlo entero: de sus cinco candidatos solo responde Yqcloud, y
+# responde EN CHINO. Esa es la causa raíz de que el enjambre contestara en otro
+# idioma; los reintentos de `agents.py` trataban el síntoma. Vuelve en cuanto
+# CopilotApp (WS 460) o WeWordle (429) revivan.
 _REPARTO_BASE = {
-    "MELCHIOR": "gpt",
-    "BALTHASAR": "gemini",
-    "CASPER": "command",
+    "MELCHIOR": "command",
+    "BALTHASAR": "claude",
+    "CASPER": "gemini",
 }
 
 
@@ -399,6 +438,16 @@ def _disable_g4f_browser() -> None:
     # cortafuegos de la línea de arriba.
     from ..compat_curl import aplicar as aplicar_compat_curl
     aplicar_compat_curl()
+
+    # Y el segundo parche aguas arriba, por la misma puerta y por el mismo
+    # motivo: `Perplexity.py` lee `conversation.thread_title` sin haberlo
+    # asignado y pierde la respuesta ENTERA al final, después de recibirla.
+    #
+    # Eso mantenía fuera la familia `claude` —Perplexity sirve claude45sonnet
+    # y claude40opus, sin cuenta ni cookies—, que es justo la que más se
+    # quería. Ver `providers/compat_g4f.py`: el muro no era un muro.
+    from ..compat_g4f import aplicar as aplicar_compat_g4f
+    aplicar_compat_g4f()
 
 
 class G4FProvider(BaseProvider):

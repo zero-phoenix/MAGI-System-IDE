@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generado": "2026-08-09",
-  "nota": "Catalogo de proveedores. Antes vivia como constantes de Python en g4f_backend.py, asi que arreglar un proveedor caido exigia recompilar 158 MB de ejecutable. Se puede sobreescribir con un fichero del mismo nombre en %LOCALAPPDATA%\\MagiSystem\\. · PhindAi y Qwen dejan de estar rotos: su fallo era que g4f pasaba 'proxy' al constructor de curl_cffi, que ya no lo acepta. Lo arregla providers/compat_curl.py leyendo la firma real. Siguen SIN verificar hasta que la sonda los mida: «ya no revienta» no es «responde».",
+  "generado": "2026-08-13",
+  "nota": "Catalogo de proveedores. Antes vivia como constantes de Python en g4f_backend.py, asi que arreglar un proveedor caido exigia recompilar 158 MB de ejecutable. Se puede sobreescribir con un fichero del mismo nombre en %LOCALAPPDATA%\\MagiSystem\\. · REVISION DEL 2026-08-13: se midieron los 10 candidatos principales uno a uno. Cinco de los que figuraban como verificados estaban rotos, y la familia `claude` -que figuraba como imposible- resulto estar disponible via Perplexity sin cuenta ni cookies. Una verificacion del 6 de agosto no dice nada sobre el 13: estos servicios son gratuitos y se caen sin avisar. Por eso existe la sonda, y por eso cada candidato lleva la FECHA de su medida.",
   "limites": {
     "ventana_contexto_caracteres": 120000,
     "nota": "Ninguno de estos proveedores gratuitos publica su ventana real, asi que poner un numero por modelo seria inventarselo. Este limite conservador global es lo que hoy NO existe: MAGI monta prompts largos sin comprobar nada, y cuando no caben lee el fallo como 'proveedor roto' y rota a otro que fallara igual. Subelo por familia cuando tengas la medida."
@@ -12,12 +12,18 @@
     "nota": "3 en vez de 2: en el registro real del usuario, Yqcloud (familia gpt) tardaba entre 53 y 75 s por respuesta mientras el hedge solo lanzaba UN segundo candidato en paralelo. Con 3, un candidato rapido verificado (CopilotApp ~1,1 s, WeWordle ~2,4 s) puede cubrir la peticion mientras el lento sigue su curso. Sigue siendo gratuito y sin claves (§I.3); el coste es una llamada mas solo cuando el primero no responde en 'tras_segundos'."
   },
   "reparto_enjambre": {
-    "MELCHIOR": "gpt",
-    "BALTHASAR": "gemini",
-    "CASPER": "command"
+    "MELCHIOR": "command",
+    "BALTHASAR": "claude",
+    "CASPER": "gemini"
   },
+  "reparto_enjambre_nota": "Cambiado el 2026-08-13 con medidas, no con opiniones. Reglas que manda el usuario: la mejor IA para BALTHASAR, la segunda para CASPER, y cada una en una familia distinta. Medido hoy con el mismo prompt: claude45sonnet 3,7 s (Claude Sonnet 4.5, la mejor disponible) -> BALTHASAR; gemini-3.5-flash 4,9 s, castellano impecable -> CASPER; command-a 3,6 s, el mas fiable de los rapidos -> MELCHIOR, que propone Y ejecuta en el mismo turno y es quien menos puede permitirse esperar. `gpt` sale del enjambre pese a ser prioritaria para el usuario, y el motivo hay que decirlo entero: su unico candidato vivo responde en chino. Vuelve en cuanto CopilotApp o WeWordle revivan.",
   "rotos": {
-    "Claude": "exige el paquete browser_cookie3 y cookies de un navegador",
+    "Claude": "exige TU CUENTA (browser_cookie3 + cookies). La regla del proyecto prohíbe iniciar sesión en ningún sitio, así que esto no está «pendiente»: es imposible por diseño. La familia `claude` la sirve Perplexity, sin cuenta.",
+    "CopilotApp": "WSServerHandshakeError 460 al abrir el websocket (medido 2026-08-13)",
+    "WeWordle": "HTTP 429 Too Many Requests (medido 2026-08-13)",
+    "Groq": "HTTP 402 «No cake credits» (medido 2026-08-13)",
+    "PhindAi": "HTTP 403 Security (medido 2026-08-13). compat_curl arregló la firma de curl_cffi, no el acceso: «ya no revienta» nunca fue «responde», y así estaba escrito.",
+    "Qwen": "success=false (medido 2026-08-13). Mismo caso que PhindAi.",
     "LMArena": "exige fichero de autenticación y nodriver",
     "GLM": "responde con captcha",
     "MetaAI": "responde 403 desde esta red",
@@ -32,27 +38,28 @@
   "familias": {
     "gpt": {
       "verificada": true,
-      "nota_orden": "Reordenado 2026-08-09. Yqcloud DECLARA 2000 ms pero en el registro real del usuario (Turno Tetris) respondio en 53-75 s una y otra vez, arrastrando cada etapa de Melchior. Se le baja al final de los verificados y se sube el hedge a 3: asi CopilotApp (~1,1 s) o WeWordle (~2,4 s) pueden cubrir la peticion mientras Yqcloud sigue su curso. El orden de la lista solo aplica en frio; en caliente `_ordered()` sigue usando la latencia medida por candidato.",
       "candidatos": [
         {
           "proveedor": "CopilotApp",
           "modelo": null,
           "latencia_medida_ms": 1156,
-          "verificado": "2026-08-06"
+          "verificado": "2026-08-06",
+          "roto_desde": "2026-08-13"
         },
         {
           "proveedor": "WeWordle",
           "modelo": "gpt-4o",
           "latencia_medida_ms": 2389,
-          "verificado": "2026-08-06"
+          "verificado": "2026-08-06",
+          "roto_desde": "2026-08-13"
         },
         {
           "proveedor": "Yqcloud",
           "modelo": "gpt-4",
-          "latencia_medida_ms": 2000,
+          "latencia_medida_ms": 9661,
           "latencia_real_max_ms": 75000,
-          "verificado": "2026-08-06",
-          "aviso": "latencia medida en la verificacion puntual (2 s), pero en uso sostenido llego a 75 s en el registro del usuario"
+          "verificado": "2026-08-13",
+          "aviso": "responde en chino; ademas 24 s y hasta 75 s en uso sostenido segun el registro del usuario"
         },
         {
           "proveedor": "OpenaiChat",
@@ -60,9 +67,11 @@
         },
         {
           "proveedor": "Pollinations",
-          "modelo": null
+          "modelo": null,
+          "roto_desde": "2026-08-13"
         }
-      ]
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13 y el resultado obliga a decir algo incomodo: de sus cinco candidatos solo responde Yqcloud, y responde EN CHINO (medido: 'di: funciona' -> '<caracteres chinos>...') en 9,7 s. CopilotApp da WSServerHandshakeError 460, WeWordle HTTP 429, Pollinations HTTP 402 y OpenaiChat exige un .har de sesion (prohibido por la regla de no iniciar sesion). Esto es la CAUSA RAIZ de que las respuestas del enjambre salieran en otro idioma: MELCHIOR usaba la familia gpt y su unico proveedor vivo es un servicio chino. Los reintentos por idioma de agents.py tratan el sintoma; esto es la enfermedad. Por eso MELCHIOR se mueve a `command` y gpt queda de reserva."
     },
     "gemini": {
       "verificada": true,
@@ -70,8 +79,8 @@
         {
           "proveedor": "Gemini",
           "modelo": "gemini-3.5-flash",
-          "latencia_medida_ms": 3421,
-          "verificado": "2026-08-06"
+          "latencia_medida_ms": 4879,
+          "verificado": "2026-08-13"
         },
         {
           "proveedor": "Gemini",
@@ -89,8 +98,8 @@
         {
           "proveedor": "CohereForAI_C4AI_Command",
           "modelo": "command-a-03-2025",
-          "latencia_medida_ms": 1078,
-          "verificado": "2026-08-06"
+          "latencia_medida_ms": 3576,
+          "verificado": "2026-08-13"
         },
         {
           "proveedor": "CohereForAI_C4AI_Command",
@@ -99,7 +108,7 @@
       ]
     },
     "llama": {
-      "verificada": true,
+      "verificada": false,
       "candidatos": [
         {
           "proveedor": "Groq",
@@ -115,7 +124,8 @@
           "proveedor": "DeepInfra",
           "modelo": null
         }
-      ]
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: Groq responde 402 ('No cake credits'). Estaba como verificada con 922 ms desde el 6 de agosto. Un proveedor gratuito verificado hace una semana no es un proveedor verificado."
     },
     "perplexity": {
       "verificada": true,
@@ -123,8 +133,8 @@
         {
           "proveedor": "Perplexity",
           "modelo": "auto",
-          "latencia_medida_ms": 7921,
-          "verificado": "2026-08-06"
+          "latencia_medida_ms": 5860,
+          "verificado": "2026-08-13"
         }
       ]
     },
@@ -134,8 +144,8 @@
         {
           "proveedor": "HuggingSpace",
           "modelo": null,
-          "latencia_medida_ms": 890,
-          "verificado": "2026-08-06"
+          "latencia_medida_ms": 4656,
+          "verificado": "2026-08-13"
         }
       ]
     },
@@ -158,7 +168,8 @@
           "proveedor": "Cloudflare",
           "modelo": "deepseek-distill-qwen-32b"
         }
-      ]
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: PhindAi responde 403 (Security). El catalogo decia que compat_curl la habia revivido; 'ya no revienta por la firma de curl_cffi' no era 'responde', y asi estaba escrito. Ahora esta medido."
     },
     "qwen": {
       "verificada": false,
@@ -175,20 +186,30 @@
           "proveedor": "Qwen",
           "modelo": "qwen3.7-max"
         }
-      ]
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: Qwen devuelve RuntimeError con success=false. Misma correccion que deepseek: dejo de reventar, pero no responde."
     },
     "claude": {
-      "verificada": false,
+      "verificada": true,
       "candidatos": [
         {
-          "proveedor": "Claude",
-          "modelo": null
+          "proveedor": "Perplexity",
+          "modelo": "claude45sonnet",
+          "latencia_medida_ms": 3723,
+          "verificado": "2026-08-13"
         },
         {
-          "proveedor": "LMArena",
-          "modelo": "claude-sonnet-4"
+          "proveedor": "Perplexity",
+          "modelo": "claude40opus",
+          "latencia_medida_ms": 2832,
+          "verificado": "2026-08-13"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "claude37sonnetthinking"
         }
-      ]
+      ],
+      "nota_orden": "Reescrita el 2026-08-13 tras MEDIRLA. Estaba marcada como rota porque sus dos candidatos (Claude, LMArena) exigen TU CUENTA, y la regla del proyecto es que aqui no se inicia sesion en ningun sitio. Lo que nadie habia mirado es que Perplexity -ya en el catalogo, working=True, needs_auth=False- sirve claude45sonnet y claude40opus. No hacia falta ninguna cookie: hacia falta leer la lista de modelos de los proveedores que YA funcionaban. Lo unico que lo impedia era un fallo de g4f de dos lineas (Perplexity.py lee conversation.thread_title sin asignarlo y pierde la respuesta ENTERA al final), que arregla providers/compat_g4f.py."
     },
     "glm": {
       "verificada": false,
@@ -214,7 +235,8 @@
           "latencia_medida_ms": 8014,
           "verificado": "2026-08-06"
         }
-      ]
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: AnyProvider encadena a CopilotApp y OpenaiChat y falla con RetryProviderError. Solo vale cuando sus rutas viven."
     }
   }
 }

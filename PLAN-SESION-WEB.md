@@ -1,5 +1,28 @@
 # Plan: la sesión web que se colgaba 93 segundos
 
+> ## ⚠ AVISO DEL 2026-08-13 — ESTE PLAN APUNTABA AL SITIO EQUIVOCADO
+>
+> Todo lo que sigue es técnicamente correcto y sigue estando probado. Pero el
+> objetivo por el que se construyó —desbloquear proveedores cosechando
+> cookies— **no se sostiene**, por dos motivos medidos:
+>
+> 1. **Claude nunca necesitó cookies.** `Perplexity` —ya en el catálogo,
+>    `needs_auth=False`— sirve `claude45sonnet` en 3,7 s. Lo bloqueaba un fallo
+>    de g4f de dos líneas, arreglado en `providers/compat_g4f.py`.
+> 2. **Cuatro de los seis proveedores exigen TU CUENTA**, y la regla del
+>    proyecto es no iniciar sesión en ningún sitio. No están «pendientes»: son
+>    imposibles por diseño. De los otros dos, DeepInfra pide un captcha
+>    (Turnstile) —el mismo motivo por el que GLM está fuera— y Cloudflare
+>    necesita un WebSocket, que tampoco es una cookie.
+>
+> **Rendimiento real de este módulo: 0 de 6 proveedores.**
+>
+> Lo que SÍ vale y se queda: el permiso con caducidad (la única grieta auditada
+> de §I.3), `diagnostico()` (mide en vez de opinar) e `importar_cookies()` para
+> el día que tú decidas pegar un fichero.
+>
+> Análisis completo y plan sustituto: **`MEGA-PLAN.md`, §1–§4**.
+
 ## 0. Primero, una corrección
 
 Escribí que la causa era **FortiClient interceptando la tubería local de

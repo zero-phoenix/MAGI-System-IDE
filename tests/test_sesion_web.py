@@ -55,10 +55,15 @@ def datos_propios():
 
 # ------------------------------------------------- 1. cerrado por defecto
 
-def test_sin_permiso_no_se_abre_nada():
+def test_sin_permiso_no_se_abre_nada(monkeypatch):
+    # Motor presente y simulado: así el ÚNICO motivo posible para negarse es
+    # el permiso, que es lo que este test dice comprobar. Sin esto, en el CI
+    # —sin navegador— pasaba por la otra rama y no comprobaba el permiso.
+    monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
+
     puede, motivo = sesion_web.puede_abrir()
     assert puede is False
-    assert motivo, "negarse sin decir por qué no informa de nada"
+    assert "no hay permiso vigente" in motivo
 
 
 def test_el_cortafuegos_sigue_bloqueando_sin_permiso():
@@ -113,18 +118,24 @@ def test_el_permiso_lleva_su_motivo():
     assert p.motivo == "iniciar sesión en Claude"
 
 
-def test_con_permiso_pero_sin_motor_sigue_sin_poder_abrirse():
+def test_con_permiso_pero_sin_motor_sigue_sin_poder_abrirse(monkeypatch):
     """
     Las dos condiciones se comprueban por separado. Fiarse de una sola dejaría
     pasar una apertura que no puede funcionar, y el fallo aparecería como un
     cuelgue en vez de como un mensaje.
     """
     sesion_web.conceder_permiso("prueba")
-    hay_motor, _ = sesion_web.disponible()
+    # ANTES: `if not hay_motor:` alrededor de las dos aserciones. En una
+    # máquina con Camoufox descargado —la de desarrollo— la rama no entraba y
+    # este test no comprobaba NADA, en silencio, pareciendo verde. Una
+    # aserción condicionada al entorno es media aserción en cada mitad de las
+    # máquinas donde corre.
+    monkeypatch.setattr(sesion_web, "disponible",
+                        lambda: (False, "Camoufox no está instalado"))
+
     puede, motivo = sesion_web.puede_abrir()
-    if not hay_motor:
-        assert puede is False
-        assert "Camoufox" in motivo
+    assert puede is False
+    assert "Camoufox" in motivo
 
 
 # ------------------------------------------------- 3. nunca tu perfil
@@ -177,24 +188,31 @@ def test_un_nombre_de_proveedor_raro_no_escapa_del_directorio(datos_propios):
 
 # ------------------------------------------------- lo que ve el panel
 
-def test_el_estado_dice_que_falta_y_por_que(datos_propios):
+def test_el_estado_dice_que_falta_y_por_que(datos_propios, monkeypatch):
     """
     `EstadoSesion` es el registro que consume el panel, campo a campo: cada uno
     es una afirmación que se le va a enseñar al usuario.
     """
+    # Mismo caso que arriba: el `if e.motor is None:` que había aquí no se
+    # cumplía en la máquina de desarrollo, así que la afirmación importante
+    # —que un «no disponible» venga siempre con su motivo— no se comprobaba.
+    monkeypatch.setattr(sesion_web, "disponible",
+                        lambda: (False, "el navegador no se ha descargado"))
+
     e = sesion_web.estado()
     assert isinstance(e, sesion_web.EstadoSesion)
     assert isinstance(e.proveedores_pendientes, list)
     assert "Claude" in e.proveedores_pendientes
     assert e.permiso_vigente is False and e.caduca_en_s == 0.0
     assert e.perfil, "el panel tiene que poder decir dónde vive el perfil"
-    if e.motor is None:
-        assert e.motivo_no_disponible, (
-            "decir «no disponible» sin el motivo no permite arreglarlo")
+    assert e.motor is None
+    assert e.motivo_no_disponible, (
+        "decir «no disponible» sin el motivo no permite arreglarlo")
 
 
-def test_el_estado_refleja_el_permiso_y_las_cookies(datos_propios):
+def test_el_estado_refleja_el_permiso_y_las_cookies(datos_propios, monkeypatch):
     """Que el panel no muestre un estado congelado del arranque."""
+    monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
     sesion_web.guardar_cookies("Claude", [{"name": "s", "value": "x"}])
     sesion_web.conceder_permiso("iniciar sesión en Claude")
 

@@ -176,12 +176,27 @@ def test_los_candidatos_rotos_no_se_intentan():
                 f"{familia}: {nombre} está roto y aun así se intenta")
 
 
-def test_una_familia_agotada_lo_dice_en_vez_de_fingir():
-    pytest.importorskip("g4f.Provider")
-    from magi.core.providers.backends.g4f_backend import G4FProvider
+def test_una_familia_agotada_lo_dice_en_vez_de_fingir(monkeypatch):
+    """
+    LA FAMILIA SE FABRICA AQUÍ, Y ESA ES LA PARTE IMPORTANTE.
 
-    p = G4FProvider(family="claude")
-    assert p._ordered() == [], "claude no tiene ningún candidato vivo hoy"
+    La primera versión usaba `claude` como ejemplo de familia agotada, porque
+    ese día lo estaba. El 2026-08-13 dejó de estarlo —Perplexity sirve
+    claude45sonnet sin cuenta— y el test se puso rojo sin que el código hubiera
+    cambiado: describía el catálogo, no el comportamiento.
+
+    Un test que se rompe cuando algo MEJORA está mal escrito. Aquí la familia
+    agotada se construye a mano, así que sigue diciendo lo mismo aunque
+    revivan todos los proveedores del mundo.
+    """
+    pytest.importorskip("g4f.Provider")
+    from magi.core.providers.backends import g4f_backend as g
+
+    monkeypatch.setitem(g.FAMILY_SPECS, "_agotada_de_prueba",
+                        [("Claude", None), ("LMArena", "claude-sonnet-4")])
+
+    p = g.G4FProvider(family="_agotada_de_prueba")
+    assert p._ordered() == [], "todos sus candidatos están en ROTOS"
     motivos = p.motivos_descartados()
     assert "Claude" in motivos and "LMArena" in motivos
     assert all(m for m in motivos.values()), "cada descarte debe llevar motivo"
