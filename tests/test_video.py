@@ -312,6 +312,16 @@ async def test_grabar_algo_que_no_dibuja_lo_dice(tmp_path):
     assert any("fotograma" in p for p in obs.problems)
 
 
+# Estos dos comprueban que se avisa de la ENTRADA que falta («no existe»). Sin
+# ffmpeg el sistema avisa antes de otra cosa —«ffmpeg no está instalado»—, que
+# también es correcto: son dos carencias reales y se informa de la primera que
+# se encuentra.
+#
+# Sin el guardián, el test afirmaba implícitamente un ORDEN entre dos mensajes
+# igual de válidos, y se caía en cualquier máquina sin ffmpeg. Pasó en el runner
+# de Windows cuando `choco install ffmpeg` no dejó el binario en el PATH: dos
+# fallos rojos que no eran del código.
+@sin_ffmpeg
 @pytest.mark.asyncio
 async def test_grabar_sin_punto_de_entrada_lo_dice(tmp_path):
     obs = await capture_program(tmp_path, tmp_path / "v.mp4")
@@ -351,6 +361,7 @@ async def test_render_animatic_extremo_a_extremo(tmp_path, imagenes):
     assert "movimiento" in r.content
 
 
+@sin_ffmpeg
 @pytest.mark.asyncio
 async def test_render_animatic_valida_antes_de_gastar_dos_minutos(tmp_path):
     ctx = ToolContext(task_id="t", cwd=tmp_path,
