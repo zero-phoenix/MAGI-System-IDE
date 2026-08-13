@@ -176,6 +176,10 @@ def test_si_lo_barato_no_basta_se_escala_al_navegador(monkeypatch):
         sesion_web, "_lanzar_headless",
         lambda url, espera_s: (orden.append("caro")
                                or [{"name": "a", "value": "1"}]))
+    # La comprobación previa también se simula: si no, este test arrancaría un
+    # navegador de verdad y tardaría diez segundos en cada corrida.
+    monkeypatch.setattr(sesion_web, "_prueba_arranque",
+                        lambda *a, **k: (True, "simulado"))
     sesion_web.conceder_permiso("prueba")
 
     ok, motivo = sesion_web.cosechar("Cloudflare")
@@ -193,12 +197,102 @@ def test_el_fallo_cuenta_lo_que_paso_en_CADA_intento(monkeypatch):
     monkeypatch.setattr(
         sesion_web, "_lanzar_headless",
         lambda url, espera_s: (_ for _ in ()).throw(RuntimeError("no arrancó")))
+    monkeypatch.setattr(sesion_web, "_prueba_arranque",
+                        lambda *a, **k: (True, "simulado"))
     sesion_web.conceder_permiso("prueba")
 
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
     assert "sin navegador:" in motivo and "con navegador:" in motivo
     assert "red caída" in motivo and "no arrancó" in motivo
+
+
+# =============================== el diagnóstico, en vez de la conjetura
+
+def test_el_diagnostico_mide_cada_cosa_por_separado():
+    """
+    ESTO ES UNA LECCIÓN CONVERTIDA EN HERRAMIENTA.
+
+    Al ver que la cosecha se colgaba, afirmé que la causa era FortiClient
+    interceptando la tubería local de Playwright. Lo dije con seguridad y sin
+    comprobarlo: lo deduje de verlo en la lista de procesos. Al medirlo, los
+    sockets locales conectaban en 0,0 s — mi explicación era una conjetura con
+    aspecto de diagnóstico.
+
+    Cada línea de aquí es una comprobación real y separada, con su tiempo. El
+    motivo se lee en vez de deducirse, y nadie tiene que creerse la conjetura
+    de nadie.
+    """
+    r = sesion_web.diagnostico(incluir_lentas=False)
+    assert r, "un diagnóstico vacío no diagnostica nada"
+
+    nombres = [c["comprobacion"] for c in r]
+    assert "socket local 127.0.0.1" in nombres, (
+        "es la comprobación que desmintió mi conjetura; no puede faltar")
+
+    for c in r:
+        assert isinstance(c["ok"], bool)
+        assert c["detalle"], f"{c['comprobacion']} sin detalle no informa"
+        assert c["ms"] >= 0, "cada línea trae lo que tardó, medido"
+
+
+def test_las_comprobaciones_caras_se_pueden_saltar():
+    """Un diagnóstico que tarda tanto como el fallo no ayuda a nadie."""
+    rapido = sesion_web.diagnostico(incluir_lentas=False)
+    completo = sesion_web.diagnostico(incluir_lentas=True)
+    assert len(completo) > len(rapido)
+    assert "arranque headless" in [c["comprobacion"] for c in completo]
+
+
+def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola():
+    """
+    La primera versión usaba `✓` y `✗`, y al imprimirla en la consola de
+    Windows saltaba:
+
+        UnicodeEncodeError: 'charmap' codec can't encode character '\\u2713'
+
+    Una herramienta de diagnóstico que revienta al imprimirla es peor que no
+    tenerla: se llama justo cuando algo va mal, y añade un error propio encima
+    del que se investigaba. Es el mismo fallo que ya costó una respuesta entera
+    del enjambre por escribir un acento en una consola cp1252.
+    """
+    texto = sesion_web.diagnostico_legible(incluir_lentas=False)
+    texto.encode("cp1252")          # la consola de Windows por defecto
+    texto.encode("ascii")           # y el caso más restrictivo
+
+    assert "diagnostico" in texto
+    assert "[ok]" in texto or "[NO]" in texto
+    assert "ms)" in texto, "sin tiempos no se ve dónde está el cuello"
+
+
+def test_hay_una_prueba_de_arranque_corta_y_ajustable():
+    """
+    El arranque se sabe en diez segundos: lo que tarda es negociar la conexión
+    local, y eso o va rápido o no va. La cosecha completa tardaba noventa en
+    admitir lo mismo porque su plazo cubría además navegación y desafío.
+
+    El plazo va declarado como constante, no escondido: una máquina muy lenta
+    podría necesitar más, y eso debe poder ajustarse sin tocar la lógica.
+    """
+    assert sesion_web.PLAZO_PRUEBA_S <= 15, (
+        "más de quince segundos y vuelve a parecer colgado")
+    assert callable(sesion_web._prueba_arranque)
+
+
+def test_la_cosecha_no_intenta_navegar_si_el_arranque_falla(monkeypatch):
+    """Sin esto, el plazo largo de la cosecha se pagaba igual."""
+    llamado = []
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador", lambda *a, **k: [])
+    monkeypatch.setattr(sesion_web, "_prueba_arranque",
+                        lambda *a, **k: (False, "no respondió en 10s"))
+    monkeypatch.setattr(sesion_web, "_lanzar_headless",
+                        lambda *a, **k: llamado.append(1) or [])
+    sesion_web.conceder_permiso("prueba")
+
+    ok, motivo = sesion_web.cosechar("Cloudflare")
+    assert ok is False
+    assert not llamado, "si no arranca, no se intenta la pasada completa"
+    assert "no arranca" in motivo and "10s" in motivo
 
 
 def test_una_respuesta_de_error_no_cuenta_como_cookies(monkeypatch):

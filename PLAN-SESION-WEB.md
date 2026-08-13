@@ -20,8 +20,32 @@ explicación:
 la tubería de Playwright, lo más probable es que esta prueba también fallara.
 Mi atribución era una conjetura con aspecto de diagnóstico.
 
-La causa real del cuelgue de Camoufox sigue **sin determinar**, y eso es lo que
-hay que decir hasta saberlo.
+### Y el diagnóstico me desmintió una segunda vez
+
+Nada más existir la herramienta de §3, la ejecuté. Esto es lo que salió:
+
+```
+  [ok] paquete camoufox                 instalado              (2287 ms)
+  [ok] navegador descargado             152.0.4-beta.28          (87 ms)
+  [ok] socket local 127.0.0.1           conecta                   (1 ms)
+  [ok] via sin navegador (curl_cffi)    responde                (428 ms)
+  [ok] arranque headless                arranca en 9581 ms     (9583 ms)
+```
+
+**El navegador arranca. En 9,6 segundos, sin problema.**
+
+Así que no solo era falso que FortiClient cortara la tubería: era falso que el
+arranque fallara. Lo que se agota es **cargar la página o resolver su
+desafío**, que es otra cosa y está en otro sitio.
+
+El mensaje de error seguía diciendo «suele ser un agente de seguridad» — es
+decir, repetía la conjetura ya desmentida, dentro del propio arreglo que la
+corregía. Ya no: ahora describe lo que se sabe (arrancó, la página no cargó) y
+apunta al diagnóstico para el resto.
+
+La lección no es que me equivocara. Es que **una conjetura escrita en un
+mensaje de error sobrevive a la corrección del código**, porque nadie vuelve a
+leer los mensajes. Por eso la herramienta tenía que existir.
 
 ---
 
@@ -59,6 +83,77 @@ fallo de 93 segundos en un éxito de 0,2 en el caso normal.
 - **Puede salir mal:** que `curl_cffi` devuelva 200 con una página de desafío
   en vez de la real. Un 200 no es un éxito: hay que mirar si la respuesta trae
   lo que se buscaba, igual que se hace con los proveedores.
+
+---
+
+## 1.bis «Responden 200 pero no dan cookies» — porque las cookies nunca fueron el artefacto
+
+Dije que Cloudflare y DeepInfra respondían 200 sin entregar cookies y lo dejé
+ahí, como un hecho raro. No lo es. Fui a leer **qué necesita g4f de verdad** de
+cada uno, en vez de seguir suponiendo que eran cookies:
+
+```python
+# g4f/Provider/Cloudflare.py
+session = CDPSession(headless=False)
+#   ...y dentro de la página, en JavaScript:
+#   const wsUrl = `wss://playground.ai.cloudflare.com/agents/playground/
+#                  ${agentId}?_pk=${pk}&model=${modelStr}`;
+
+# g4f/Provider/DeepInfra.py
+session = SyncCDPSession(headless=False)      # "Turnstile token retrieval"
+headers["X-DeepInfra-Turnstile"] = token
+base_url = "https://api.deepinfra.com/v1/openai"
+```
+
+**Ninguno de los dos lee una sola cookie.** Lo que necesitan es otra cosa:
+
+| Proveedor | Artefacto real | Qué es |
+|---|---|---|
+| **DeepInfra** | un **token Turnstile** | se manda en la cabecera `X-DeepInfra-Turnstile` y luego la inferencia va por una API normal |
+| **Cloudflare** | un **contexto JS con WebSocket** | la conversación viaja por `wss://…/agents/playground/…`, abierto desde dentro de la página |
+
+Es decir: **por muy bien que cosechara cookies, esos dos nunca iban a
+funcionar**. Estaba puliendo la llave equivocada. Que respondan 200 y no den
+cookies no es una anomalía: es lo esperable cuando lo que hace falta no son
+cookies.
+
+### Cómo se resuelve de verdad cada uno
+
+**DeepInfra — cosechar el TOKEN, no cookies.** El token es lo único que hace
+falta del navegador; después la inferencia es una llamada HTTPS corriente a una
+API compatible con OpenAI. Así que:
+
+1. Se obtiene el token una vez, headless.
+2. Se guarda **con su caducidad** (los Turnstile duran minutos, no días — muy
+   distinto de una cookie de sesión, y guardarlo con la caducidad de una cookie
+   sería guardarlo mal).
+3. Todas las peticiones siguientes van por HTTPS, sin navegador.
+
+El almacén ya existe; lo que cambia es **qué** se guarda y **cuánto** vale.
+
+**Cloudflare — hablar el WebSocket directamente, sin navegador.** La URL está
+a la vista en el propio código de g4f. Si `agentId` y `pk` se pueden sacar de la
+página con una petición HTTP normal, MAGI puede abrir ese WebSocket por su
+cuenta con `websockets`, que **ya es dependencia** del sistema. Sería el mejor
+resultado posible: cero navegador, cero Turnstile, cero descarga de 100 MB.
+
+Y si no se pueden sacar sin ejecutar JavaScript, entonces hace falta el
+navegador — y se dice, en vez de dejar al proveedor en una lista de rotos con
+un motivo equivocado.
+
+- **Se comprueba con:** para DeepInfra, que una petición con el token cacheado
+  no abra ningún navegador; para Cloudflare, un test que intente extraer
+  `agentId`/`pk` por HTTP y declare el resultado.
+- **Puede salir mal:** un token Turnstile caducado da un error de autorización
+  que parece «el proveedor está caído». Hay que distinguirlo por su código y
+  renovar en vez de marcar el proveedor como roto — el mismo error de
+  clasificación que ya congeló trece proveedores.
+
+### Y el nombre, que estaba mal
+
+Se llama «cosecha de cookies» y lo que se cosecha son **credenciales de
+sesión**: unas veces cookies, otras un token, otras un fichero `.har`. El
+nombre estrecho es parte de por qué apunté a la llave equivocada.
 
 ---
 

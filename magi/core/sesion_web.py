@@ -67,7 +67,8 @@ __all__ = [
     "revocar_permiso", "permiso_vigente", "puede_abrir", "perfil_dir",
     "guardar_cookies", "cookies_de", "olvidar_cookies", "estado",
     "PROVEEDORES_QUE_LA_NECESITAN", "COSECHA_AUTOMATICA", "COSECHA_IMPORTADA",
-    "cosechar", "importar_cookies",
+    "cosechar", "importar_cookies", "diagnostico",
+    "diagnostico_legible", "PLAZO_PRUEBA_S",
 ]
 
 #: Los que hoy no pueden responder por falta de sesión. Con nombre y motivo,
@@ -385,13 +386,23 @@ def _lanzar_headless(url: str, espera_s: float = ESPERA_DESAFIO_S) -> list[dict]
         r = subprocess.run([interprete, "-c", guion, url, str(espera_s)],
                            capture_output=True, text=True, timeout=plazo)
     except subprocess.TimeoutExpired:
+        # NO SE CULPA AL ANTIVIRUS. Lo hice una vez y era falso.
+        #
+        # Este camino solo se recorre DESPUÉS de que `_prueba_arranque()` haya
+        # confirmado que el navegador arranca —medido: 9,6 s en la máquina del
+        # usuario—. Así que lo que se agota aquí no es el arranque ni la
+        # tubería local: es cargar la página o resolver su desafío.
+        #
+        # Decir «un agente de seguridad intercepta la tubería» sería repetir
+        # exactamente la conjetura que el diagnóstico ya desmintió. Se describe
+        # lo que se sabe y se apunta a la herramienta que puede decir el resto.
         raise RuntimeError(
-            f"el navegador headless no respondió en {plazo:.0f}s. Suele ser un "
-            "agente de seguridad (FortiClient, antivirus con inspección de "
-            "red, VPN corporativa) interceptando la tubería local que usa "
-            "Playwright para hablar con el navegador. Los proveedores que "
-            "piden iniciar sesión NO se ven afectados: esos van por "
-            "importación de cookies, que no abre ningún navegador.") from None
+            f"el navegador arrancó pero la página no terminó de cargar en "
+            f"{plazo:.0f}s. Puede ser el desafío anti-bot del sitio, la red, o "
+            f"que el proveedor haya cambiado. Ejecuta el diagnóstico de sesión "
+            f"web para ver qué comprobación falla exactamente. Los proveedores "
+            f"que piden iniciar sesión NO se ven afectados: esos van por "
+            f"importación de cookies, que no abre ningún navegador.") from None
 
     if r.returncode != 0:
         raise RuntimeError(f"la cosecha falló: {r.stderr.strip()[:250]}")
@@ -500,6 +511,15 @@ def cosechar(proveedor: str, espera_s: float = ESPERA_DESAFIO_S) -> tuple[bool, 
     if not permitido:
         return False, "; ".join(intentos + [f"con navegador: {motivo}"])
 
+    # COMPROBACIÓN PREVIA. El arranque se sabe en diez segundos; la cosecha
+    # completa tardaba noventa en admitir lo mismo, porque su plazo tenía que
+    # cubrir además la navegación y el desafío. Noventa segundos de espera para
+    # un fallo que se conoce en diez es el sistema pareciendo colgado.
+    arranca, detalle = _prueba_arranque()
+    if not arranca:
+        intentos.append(f"con navegador: no arranca ({detalle})")
+        return False, "; ".join(intentos)
+
     try:
         cookies = _lanzar_headless(url, espera_s)
     except Exception as e:
@@ -594,6 +614,152 @@ def _parsear_cookies(texto: str, sufijo: str = "") -> list[dict]:
             "expires": float(expira) if expira.strip().lstrip("-").isdigit() else -1,
         })
     return fuera
+
+
+# ------------------------------------------------- diagnóstico ejecutable
+
+#: Plazo del arranque de prueba. Si el navegador no contesta en este margen, no
+#: va a contestar después: lo que tarda es negociar la conexión local, no
+#: cargar nada. Declarado como constante y no escondido, porque una máquina
+#: muy lenta podría necesitar más.
+PLAZO_PRUEBA_S = 10.0
+
+
+def _prueba_arranque(plazo_s: float = PLAZO_PRUEBA_S) -> tuple[bool, str]:
+    """
+    Arranca el navegador y lo cierra, sin navegar a ninguna parte.
+
+    POR QUÉ UNA PRUEBA APARTE
+    ========================
+    La cosecha completa tardaba 93 segundos en admitir que el navegador no
+    arranca, porque el plazo tenía que cubrir además la navegación y el
+    desafío. Pero el arranque se sabe en diez: lo que tarda es negociar la
+    conexión local, y eso o va rápido o no va.
+
+    Noventa segundos de espera para un fallo que se conoce en diez es el
+    sistema pareciendo colgado.
+    """
+    import subprocess
+    import time
+
+    from magi.core.paths import python_executable
+
+    interprete = python_executable()
+    if interprete is None:
+        return False, "no hay intérprete de Python con el que lanzarlo"
+
+    guion = ("from camoufox.sync_api import Camoufox\n"
+             "with Camoufox(headless=True) as n:\n"
+             "    pass\n"
+             "print('ok')\n")
+    t0 = time.perf_counter()
+    try:
+        r = subprocess.run([interprete, "-c", guion], capture_output=True,
+                           text=True, timeout=plazo_s)
+    except subprocess.TimeoutExpired:
+        return False, f"no respondió en {plazo_s:.0f}s"
+    ms = (time.perf_counter() - t0) * 1000
+    if r.returncode != 0:
+        return False, (r.stderr.strip().splitlines() or ["falló sin decir nada"])[-1][:120]
+    return True, f"arranca en {ms:.0f} ms"
+
+
+def diagnostico(incluir_lentas: bool = True) -> list[dict]:
+    """
+    Qué falla, comprobado. No qué me parece a mí.
+
+    ESTA FUNCIÓN ES UNA LECCIÓN CONVERTIDA EN HERRAMIENTA
+    ====================================================
+    Al ver que la cosecha se colgaba, afirmé que la causa era FortiClient
+    interceptando la tubería local de Playwright. Lo dije con seguridad y sin
+    comprobarlo: lo deduje de ver FortiClient en la lista de procesos.
+
+    Al medirlo, los sockets locales conectaban en 0,0 s — o sea, mi explicación
+    era una conjetura con aspecto de diagnóstico. La causa real sigue sin
+    determinar, y eso es lo que hay que decir hasta saberlo.
+
+    Cada línea de aquí es una comprobación REAL y separada, con su tiempo. Así
+    la próxima vez el motivo se lee en vez de deducirse, y nadie tiene que
+    creerse la conjetura de nadie.
+
+    Las comprobaciones caras van al final y se pueden saltar: un diagnóstico
+    que tarda tanto como el fallo no ayuda.
+    """
+    import socket
+    import time
+
+    fuera: list[dict] = []
+
+    def anota(nombre, fn):
+        t0 = time.perf_counter()
+        try:
+            ok, detalle = fn()
+        except Exception as e:
+            ok, detalle = False, f"{type(e).__name__}: {str(e)[:120]}"
+        fuera.append({"comprobacion": nombre, "ok": bool(ok),
+                      "detalle": detalle,
+                      "ms": round((time.perf_counter() - t0) * 1000, 1)})
+
+    def paquete():
+        import camoufox  # noqa: F401
+        return True, "instalado"
+
+    def navegador():
+        from camoufox.pkgman import installed_verstr
+        return True, installed_verstr()
+
+    def socket_local():
+        s = socket.socket()
+        try:
+            s.bind(("127.0.0.1", 0))
+            s.listen(1)
+            c = socket.create_connection(("127.0.0.1", s.getsockname()[1]),
+                                         timeout=5)
+            conn, _ = s.accept()
+            conn.close()
+            c.close()
+        finally:
+            s.close()
+        return True, "conecta"
+
+    def sin_navegador():
+        cookies = _cosechar_sin_navegador("https://playground.ai.cloudflare.com/")
+        return True, f"responde ({len(cookies)} cookie(s))"
+
+    anota("paquete camoufox", paquete)
+    anota("navegador descargado", navegador)
+    anota("socket local 127.0.0.1", socket_local)
+    anota("via sin navegador (curl_cffi)", sin_navegador)
+    if incluir_lentas:
+        anota("arranque headless", lambda: _prueba_arranque())
+    return fuera
+
+
+def diagnostico_legible(incluir_lentas: bool = True) -> str:
+    """
+    El diagnóstico en texto, para el panel y para Naoko.
+
+    MARCAS EN ASCII, Y NO ES REMILGO
+    ================================
+    La primera versión usaba `✓` y `✗`. Al imprimirlo en la consola de Windows:
+
+        UnicodeEncodeError: 'charmap' codec can't encode character '\\u2713'
+
+    Una herramienta de diagnóstico que revienta al imprimirla es peor que no
+    tenerla: se llama justo cuando algo va mal, y añadir un error propio encima
+    del que se investigaba deja al usuario con dos problemas y ninguna pista.
+
+    Es el mismo fallo que ya se pagó en el enjambre —una respuesta entera
+    perdida por escribir un acento en una consola cp1252— y por el que existe
+    `magi/core/consola.py`. Aquí se evita en origen: el texto sale imprimible
+    en cualquier parte, y quien quiera símbolos bonitos los pone al pintarlo.
+    """
+    lineas = ["Sesion web - diagnostico"]
+    for c in diagnostico(incluir_lentas):
+        marca = "[ok]" if c["ok"] else "[NO]"
+        lineas.append(f"  {marca} {c['comprobacion']:<32} "
+                      f"{c['detalle']}  ({c['ms']:.0f} ms)")
+    return "\n".join(lineas)
 
 
 def estado() -> EstadoSesion:
