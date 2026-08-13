@@ -27,6 +27,88 @@ Cuatro frases, y las cuatro incómodas:
 
 ---
 
+## Parte 0.bis · Segunda tanda del 13-ago: idiomas, barrido y Camoufox
+
+### Cuatro idiomas de entrada, uno de salida
+
+Los proveedores pueden contestar en **español, inglés, portugués o italiano**;
+**el chino, nunca**. Y todo lo que llega a la interfaz va **en español**,
+incluida Naoko sin excepción.
+
+El cambio no es una concesión, es más barato: antes una respuesta perfecta en
+inglés se trataba como fallo y disparaba una **regeneración completa** en otra
+familia — la latencia entera otra vez, con riesgo de fallar igual y de devolver
+un análisis distinto. Ahora se **traduce**: una llamada corta, mismas
+conclusiones, y el usuario lee español igualmente.
+
+Naoko además deja de deducir el idioma: informa del estado del sistema, y eso
+lo lee siempre la misma persona. Su lista de rotación estaba encabezada por
+`gpt-4o` —la familia cuyo único candidato vivo responde en chino— y terminaba
+en `llama-3.1-70b`, muerta desde que Groq pide créditos.
+
+### El barrido: 50 candidatos medidos, 7 vivos
+
+| proveedor | modelo | medido | idioma |
+|---|---|---|---|
+| CohereForAI | `command-a-03-2025` | **1 809 ms** | es |
+| Perplexity | `claude40opus` | **2 832 ms** | es |
+| Perplexity | `claude45sonnet` | **3 723 ms** | es |
+| Perplexity | `grok` | 4 279 ms | es |
+| Gemini | `gemini-3.5-flash` | 4 877 ms | es |
+| Perplexity | `auto` | 5 964 ms | es |
+| Yqcloud | `gpt-4` | 11 795 ms | es/**zh** |
+| HuggingSpace | `command-a` | 16 535 ms | es |
+
+**Perplexity expone 46 modelos** —`gpt5`, `o3`, `o4mini`, `grok4`, `mistral`,
+`llama_x_large`, `r1`, toda la línea Claude— así que un solo proveedor que
+funciona cubre casi todas las familias. El catálogo pasa de 11 familias a 12,
+con una nueva (`razonamiento`) que no existía.
+
+**Descartados del sistema, con motivo medido** (ya no son deuda, son historia):
+Claude, OpenaiChat, Copilot y LMArena (exigen tu cuenta); Cloudflare, DeepInfra
+y Pi (`BrowserBlocked` en 2-5 ms); GLM (captcha); Groq y Pollinations (402);
+GeminiPro (429); MetaAI (403); PhindAi (403); Qwen (`success=false`);
+CopilotApp (WS 460); Ollama (local). WeWordle se queda sin descartar: su 429 es
+un límite de ritmo y puede volver.
+
+### Dos fallos nuevos, uno mío y uno de MAGI
+
+**1. Abrí una ventana.** El script del barrido llamaba a los parches de
+compatibilidad pero **no instalaba `no_browser`**. Al llegar a Cloudflare, g4f
+hizo `CDPSession(headless=False)` y apareció una ventana de Chrome «AI
+Playground» en tu máquina. La cerré, y el arreglo no es acordarse: hay un
+guardián (`test_scripts_no_esquivan_el_cortafuegos`) que lee con AST todos los
+`scripts/` y exige que el cortafuegos se instale **antes** de importar g4f. El
+sistema tenía la puerta bien cerrada; se coló por la de al lado.
+
+**2. `'tud.'` habría llegado a la interfaz.** Tras unas veinte peticiones,
+Perplexity empezó a devolver cuatro caracteres —el final de una frase— para
+cualquier modelo y cualquier pregunta. El fallo de g4f es de g4f; lo nuestro es
+que **MAGI lo daba por bueno**: eso habría aparecido como la antítesis de
+BALTHASAR, con su latencia y su nombre de proveedor. Ahora `complete()` rechaza
+lo inservible y el failover que ya existía prueba al siguiente candidato. *Un
+fallo que se disfraza de éxito no se detecta nunca.*
+
+### Camoufox: verificado, sin ventanas
+
+| comprobación | resultado |
+|---|---|
+| paquete | `camoufox 152.0.4-beta.28` |
+| navegador descargado | sí |
+| socket local | conecta (1 ms) |
+| arranque headless | **arranca en 9 958 ms** |
+| ventanas antes / después | **idénticas** |
+| procesos residuales | **0** |
+
+Y un defecto que solo aparece midiendo: `_prueba_arranque()` devolvió
+`ok=False, "no respondió en 10s"` **en la misma ejecución** en la que el
+diagnóstico midió 9 958 ms. El umbral estaba en 10,0 s y el arranque tarda
+9,96: el veredicto dependía de 40 milisegundos. Subido a 25 s —sigue avisando
+casi cuatro veces antes que los 93 s del fallo original—. *Un umbral puesto a
+ojo que cae justo encima del valor real no es un umbral, es una moneda al aire.*
+
+---
+
 # PARTE I · Reexamen del plan: los errores que tenía
 
 ## §1. El error de fondo: comprobar que el muro existe antes de escalarlo

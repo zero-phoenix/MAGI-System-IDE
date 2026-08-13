@@ -52,3 +52,17 @@ pytest_results*.txt
 # Cobertura de tests (generado por pytest-cov)
 .coverage
 htmlcov/
+
+# Medidas de proveedores: se regeneran con `python scripts/barrer_proveedores.py`
+# y dependen de la red y del día. Versionarlas sería congelar una foto que
+# caduca en horas — el catálogo ya guarda la conclusión con su fecha.
+barrido-proveedores.json
+suite.log
+suite.err
+barrido.log
+barrido.err
+
+# Artefactos que generan los proveedores al medirlos: PollinationsAudio
+# devuelve un .mp3 y PollinationsImage una imagen. Son basura de la sonda,
+# no del sistema.
+generated_media/

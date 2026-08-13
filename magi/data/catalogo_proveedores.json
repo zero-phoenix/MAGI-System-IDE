@@ -18,80 +18,25 @@
   },
   "reparto_enjambre_nota": "Cambiado el 2026-08-13 con medidas, no con opiniones. Reglas que manda el usuario: la mejor IA para BALTHASAR, la segunda para CASPER, y cada una en una familia distinta. Medido hoy con el mismo prompt: claude45sonnet 3,7 s (Claude Sonnet 4.5, la mejor disponible) -> BALTHASAR; gemini-3.5-flash 4,9 s, castellano impecable -> CASPER; command-a 3,6 s, el mas fiable de los rapidos -> MELCHIOR, que propone Y ejecuta en el mismo turno y es quien menos puede permitirse esperar. `gpt` sale del enjambre pese a ser prioritaria para el usuario, y el motivo hay que decirlo entero: su unico candidato vivo responde en chino. Vuelve en cuanto CopilotApp o WeWordle revivan.",
   "rotos": {
-    "Claude": "exige TU CUENTA (browser_cookie3 + cookies). La regla del proyecto prohíbe iniciar sesión en ningún sitio, así que esto no está «pendiente»: es imposible por diseño. La familia `claude` la sirve Perplexity, sin cuenta.",
-    "CopilotApp": "WSServerHandshakeError 460 al abrir el websocket (medido 2026-08-13)",
-    "WeWordle": "HTTP 429 Too Many Requests (medido 2026-08-13)",
-    "Groq": "HTTP 402 «No cake credits» (medido 2026-08-13)",
-    "PhindAi": "HTTP 403 Security (medido 2026-08-13). compat_curl arregló la firma de curl_cffi, no el acceso: «ya no revienta» nunca fue «responde», y así estaba escrito.",
-    "Qwen": "success=false (medido 2026-08-13). Mismo caso que PhindAi.",
-    "LMArena": "exige fichero de autenticación y nodriver",
-    "GLM": "responde con captcha",
-    "MetaAI": "responde 403 desde esta red",
-    "OpenaiChat": "exige un fichero .har de sesión",
-    "Copilot": "exige un fichero .har de sesión",
-    "Pollinations": "responde 402 (pago requerido)",
-    "GeminiPro": "responde 429 (cuota agotada)",
-    "Ollama": "es un motor LOCAL: lo prohíbe §I.3",
-    "Cloudflare": "su única vía es CDPSession (abrir Chrome), bloqueada por §I.3",
-    "DeepInfra": "su única vía es SyncCDPSession (abrir Chrome), bloqueada por §I.3"
+    "Claude": "DESCARTADO: exige tu cuenta (browser_cookie3 + cookies). Los modelos Claude los sirve Perplexity sin cuenta.",
+    "OpenaiChat": "DESCARTADO: exige tu cuenta (.har de sesión). Los modelos GPT los sirve Perplexity.",
+    "Copilot": "DESCARTADO: exige tu cuenta (.har de sesión).",
+    "LMArena": "DESCARTADO: exige tu cuenta (fichero de autenticación) y nodriver.",
+    "Cloudflare": "DESCARTADO: su única vía es CDPSession (abrir Chrome). BrowserBlocked en 2 ms (13-ago).",
+    "DeepInfra": "DESCARTADO: SyncCDPSession + token Turnstile (captcha). BrowserBlocked en 3 ms (13-ago).",
+    "Pi": "DESCARTADO: abre navegador. BrowserBlocked en 5 ms (13-ago).",
+    "GLM": "DESCARTADO: responde captcha (_CaptchaRequired, medido 13-ago).",
+    "Groq": "DESCARTADO: HTTP 402 «No cake credits» (medido 13-ago).",
+    "Pollinations": "DESCARTADO: HTTP 402 Payment Required (medido 13-ago).",
+    "GeminiPro": "DESCARTADO: HTTP 429, cuota agotada. Los modelos Gemini los sirve `Gemini`.",
+    "MetaAI": "DESCARTADO: HTTP 403 «Fetch home failed» desde esta red (medido 13-ago).",
+    "PhindAi": "DESCARTADO: HTTP 403 Security (medido 13-ago). compat_curl arregló la firma de curl_cffi, no el acceso.",
+    "Qwen": "DESCARTADO: success=false del servidor (medido 13-ago). Mismo caso que PhindAi.",
+    "CopilotApp": "DESCARTADO: WSServerHandshakeError 460 al abrir el websocket (medido 13-ago).",
+    "Ollama": "DESCARTADO: es un motor LOCAL y §I.3 solo admite nube.",
+    "WeWordle": "HTTP 429 Too Many Requests (medido 13-ago): límite de ritmo, puede recuperarse."
   },
   "familias": {
-    "gpt": {
-      "verificada": true,
-      "candidatos": [
-        {
-          "proveedor": "CopilotApp",
-          "modelo": null,
-          "latencia_medida_ms": 1156,
-          "verificado": "2026-08-06",
-          "roto_desde": "2026-08-13"
-        },
-        {
-          "proveedor": "WeWordle",
-          "modelo": "gpt-4o",
-          "latencia_medida_ms": 2389,
-          "verificado": "2026-08-06",
-          "roto_desde": "2026-08-13"
-        },
-        {
-          "proveedor": "Yqcloud",
-          "modelo": "gpt-4",
-          "latencia_medida_ms": 9661,
-          "latencia_real_max_ms": 75000,
-          "verificado": "2026-08-13",
-          "aviso": "responde en chino; ademas 24 s y hasta 75 s en uso sostenido segun el registro del usuario"
-        },
-        {
-          "proveedor": "OpenaiChat",
-          "modelo": "gpt-5"
-        },
-        {
-          "proveedor": "Pollinations",
-          "modelo": null,
-          "roto_desde": "2026-08-13"
-        }
-      ],
-      "nota_orden": "MEDIDA el 2026-08-13 y el resultado obliga a decir algo incomodo: de sus cinco candidatos solo responde Yqcloud, y responde EN CHINO (medido: 'di: funciona' -> '<caracteres chinos>...') en 9,7 s. CopilotApp da WSServerHandshakeError 460, WeWordle HTTP 429, Pollinations HTTP 402 y OpenaiChat exige un .har de sesion (prohibido por la regla de no iniciar sesion). Esto es la CAUSA RAIZ de que las respuestas del enjambre salieran en otro idioma: MELCHIOR usaba la familia gpt y su unico proveedor vivo es un servicio chino. Los reintentos por idioma de agents.py tratan el sintoma; esto es la enfermedad. Por eso MELCHIOR se mueve a `command` y gpt queda de reserva."
-    },
-    "gemini": {
-      "verificada": true,
-      "candidatos": [
-        {
-          "proveedor": "Gemini",
-          "modelo": "gemini-3.5-flash",
-          "latencia_medida_ms": 4879,
-          "verificado": "2026-08-13"
-        },
-        {
-          "proveedor": "Gemini",
-          "modelo": "gemini-3.1-pro"
-        },
-        {
-          "proveedor": "GeminiPro",
-          "modelo": null
-        }
-      ]
-    },
     "command": {
       "verificada": true,
       "candidatos": [
@@ -103,91 +48,17 @@
         },
         {
           "proveedor": "CohereForAI_C4AI_Command",
+          "modelo": "command-r-plus-08-2024"
+        },
+        {
+          "proveedor": "CohereForAI_C4AI_Command",
           "modelo": "command-r-plus"
-        }
-      ]
-    },
-    "llama": {
-      "verificada": false,
-      "candidatos": [
-        {
-          "proveedor": "Groq",
-          "modelo": null,
-          "latencia_medida_ms": 922,
-          "verificado": "2026-08-06"
         },
-        {
-          "proveedor": "MetaAI",
-          "modelo": null
-        },
-        {
-          "proveedor": "DeepInfra",
-          "modelo": null
-        }
-      ],
-      "nota_orden": "MEDIDA el 2026-08-13: Groq responde 402 ('No cake credits'). Estaba como verificada con 922 ms desde el 6 de agosto. Un proveedor gratuito verificado hace una semana no es un proveedor verificado."
-    },
-    "perplexity": {
-      "verificada": true,
-      "candidatos": [
-        {
-          "proveedor": "Perplexity",
-          "modelo": "auto",
-          "latencia_medida_ms": 5860,
-          "verificado": "2026-08-13"
-        }
-      ]
-    },
-    "hf": {
-      "verificada": true,
-      "candidatos": [
         {
           "proveedor": "HuggingSpace",
-          "modelo": null,
-          "latencia_medida_ms": 4656,
-          "verificado": "2026-08-13"
+          "modelo": null
         }
       ]
-    },
-    "deepseek": {
-      "verificada": false,
-      "candidatos": [
-        {
-          "proveedor": "PhindAi",
-          "modelo": "deepseek-v3"
-        },
-        {
-          "proveedor": "PhindAi",
-          "modelo": "deepseek"
-        },
-        {
-          "proveedor": "Cloudflare",
-          "modelo": "deepseek-coder-6.7b"
-        },
-        {
-          "proveedor": "Cloudflare",
-          "modelo": "deepseek-distill-qwen-32b"
-        }
-      ],
-      "nota_orden": "MEDIDA el 2026-08-13: PhindAi responde 403 (Security). El catalogo decia que compat_curl la habia revivido; 'ya no revienta por la firma de curl_cffi' no era 'responde', y asi estaba escrito. Ahora esta medido."
-    },
-    "qwen": {
-      "verificada": false,
-      "candidatos": [
-        {
-          "proveedor": "Qwen",
-          "modelo": "qwen3.7-plus"
-        },
-        {
-          "proveedor": "Qwen",
-          "modelo": "qwen3.6-plus"
-        },
-        {
-          "proveedor": "Qwen",
-          "modelo": "qwen3.7-max"
-        }
-      ],
-      "nota_orden": "MEDIDA el 2026-08-13: Qwen devuelve RuntimeError con success=false. Misma correccion que deepseek: dejo de reventar, pero no responde."
     },
     "claude": {
       "verificada": true,
@@ -206,17 +77,154 @@
         },
         {
           "proveedor": "Perplexity",
+          "modelo": "claude2"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "claude45sonnetthinking"
+        },
+        {
+          "proveedor": "Perplexity",
           "modelo": "claude37sonnetthinking"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "claude35haiku"
         }
       ],
       "nota_orden": "Reescrita el 2026-08-13 tras MEDIRLA. Estaba marcada como rota porque sus dos candidatos (Claude, LMArena) exigen TU CUENTA, y la regla del proyecto es que aqui no se inicia sesion en ningun sitio. Lo que nadie habia mirado es que Perplexity -ya en el catalogo, working=True, needs_auth=False- sirve claude45sonnet y claude40opus. No hacia falta ninguna cookie: hacia falta leer la lista de modelos de los proveedores que YA funcionaban. Lo unico que lo impedia era un fallo de g4f de dos lineas (Perplexity.py lee conversation.thread_title sin asignarlo y pierde la respuesta ENTERA al final), que arregla providers/compat_g4f.py."
     },
-    "glm": {
+    "gemini": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Gemini",
+          "modelo": "gemini-3.5-flash",
+          "latencia_medida_ms": 4879,
+          "verificado": "2026-08-13"
+        },
+        {
+          "proveedor": "Gemini",
+          "modelo": "gemini-3.1-pro"
+        },
+        {
+          "proveedor": "Gemini",
+          "modelo": "gemini-2.5-flash"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "gemini2flash"
+        }
+      ]
+    },
+    "gpt": {
       "verificada": false,
       "candidatos": [
         {
-          "proveedor": "GLM",
-          "modelo": null
+          "proveedor": "Perplexity",
+          "modelo": "gpt5"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "gpt41"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "gpt4o"
+        },
+        {
+          "proveedor": "Yqcloud",
+          "modelo": "gpt-4",
+          "latencia_medida_ms": 9661,
+          "latencia_real_max_ms": 75000,
+          "verificado": "2026-08-13",
+          "aviso": "responde en chino; ademas 24 s y hasta 75 s en uso sostenido segun el registro del usuario"
+        }
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13 y el resultado obliga a decir algo incomodo: de sus cinco candidatos solo responde Yqcloud, y responde EN CHINO (medido: 'di: funciona' -> '<caracteres chinos>...') en 9,7 s. CopilotApp da WSServerHandshakeError 460, WeWordle HTTP 429, Pollinations HTTP 402 y OpenaiChat exige un .har de sesion (prohibido por la regla de no iniciar sesion). Esto es la CAUSA RAIZ de que las respuestas del enjambre salieran en otro idioma: MELCHIOR usaba la familia gpt y su unico proveedor vivo es un servicio chino. Los reintentos por idioma de agents.py tratan el sintoma; esto es la enfermedad. Por eso MELCHIOR se mueve a `command` y gpt queda de reserva."
+    },
+    "razonamiento": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "o3"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "o4mini"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "pplx_reasoning"
+        }
+      ]
+    },
+    "grok": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "grok4"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "grok"
+        }
+      ]
+    },
+    "perplexity": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "auto",
+          "latencia_medida_ms": 5860,
+          "verificado": "2026-08-13"
+        },
+        {
+          "proveedor": "Perplexity",
+          "modelo": "turbo"
+        }
+      ]
+    },
+    "llama": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "llama_x_large"
+        }
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: Groq responde 402 ('No cake credits'). Estaba como verificada con 922 ms desde el 6 de agosto. Un proveedor gratuito verificado hace una semana no es un proveedor verificado."
+    },
+    "mistral": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "mistral"
+        }
+      ]
+    },
+    "deepseek": {
+      "verificada": false,
+      "candidatos": [
+        {
+          "proveedor": "Perplexity",
+          "modelo": "r1"
+        }
+      ],
+      "nota_orden": "MEDIDA el 2026-08-13: PhindAi responde 403 (Security). El catalogo decia que compat_curl la habia revivido; 'ya no revienta por la firma de curl_cffi' no era 'responde', y asi estaba escrito. Ahora esta medido."
+    },
+    "hf": {
+      "verificada": true,
+      "candidatos": [
+        {
+          "proveedor": "HuggingSpace",
+          "modelo": null,
+          "latencia_medida_ms": 4656,
+          "verificado": "2026-08-13"
         }
       ]
     },

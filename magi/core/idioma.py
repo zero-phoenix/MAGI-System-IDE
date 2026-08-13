@@ -35,7 +35,42 @@ from __future__ import annotations
 import re
 import unicodedata
 
-__all__ = ["detectar", "nombre_de", "instruccion", "coincide", "NOMBRES"]
+__all__ = ["detectar", "nombre_de", "instruccion", "coincide", "NOMBRES",
+           "ADMITIDOS", "PROHIBIDOS", "IDIOMA_FINAL", "admisible",
+           "necesita_traduccion", "instruccion_de_traduccion"]
+
+#: EN QUÉ IDIOMAS SE ACEPTA QUE CONTESTE UN PROVEEDOR.
+#:
+#: No es lo mismo que en qué idioma lo lee el usuario (ver `IDIOMA_FINAL`).
+#: Estos cuatro se aceptan porque son legibles, porque se traducen bien y —lo
+#: que de verdad importa— porque **rechazarlos sale caro**: hasta hoy, una
+#: respuesta en inglés disparaba una regeneración completa en otra familia, con
+#: su latencia y su riesgo de fallar otra vez. Traducirla cuesta una llamada
+#: corta a un proveedor rápido y no puede devolver algo peor.
+ADMITIDOS: tuple[str, ...] = ("es", "en", "pt", "it")
+
+#: LO QUE NO SE ACEPTA NUNCA, PASE LO QUE PASE.
+#:
+#: El chino va nombrado y no por manía: es el caso MEDIDO. `Yqcloud` —durante
+#: un tiempo el único candidato vivo de la familia `gpt`, la de MELCHIOR—
+#: responde en chino a un prompt en español:
+#:
+#:     'di: funciona'  ->  '看起来你输入的内容里「funciona」是西班牙语…'
+#:
+#: Esa fue la causa raíz de que el enjambre entregara conclusiones ilegibles.
+#: Aquí no hay traducción que valga: se descarta la respuesta y se reintenta.
+#: Lo demás (japonés, coreano, ruso, árabe, francés, alemán…) tampoco está en
+#: ADMITIDOS, así que también se reintenta; el chino además se registra por su
+#: nombre para que el motivo salga en el log y no haya que deducirlo.
+PROHIBIDOS: tuple[str, ...] = ("zh", "ja", "ko", "ru", "ar")
+
+#: EL IDIOMA EN EL QUE EL USUARIO LEE. SIEMPRE. SIN EXCEPCIÓN.
+#:
+#: Los tres agentes pueden contestar en cualquiera de ADMITIDOS, pero lo que
+#: llega a la interfaz —conclusiones del enjambre y TODO lo de Naoko— va en
+#: español. Un sistema que a veces habla en otro idioma obliga al usuario a
+#: traducir; y si tiene que traducir, la respuesta no está terminada.
+IDIOMA_FINAL = "es"
 
 NOMBRES = {
     "es": "español", "en": "English", "pt": "português", "fr": "français",
@@ -142,6 +177,62 @@ def instruccion(codigo: str) -> str:
     }
     return plantillas.get(codigo,
                           f"Always answer in {nombre}, for the entire message.")
+
+
+def admisible(respuesta: str) -> tuple[bool, str]:
+    """
+    ¿Vale esta respuesta tal cual, o hay que volver a pedirla?
+
+    Devuelve `(vale, código detectado)`. Vale si está en uno de `ADMITIDOS`.
+
+    POR QUÉ ESTO SUSTITUYE A `coincide()` EN LA GUARDA
+    ==================================================
+    `coincide(respuesta, esperado)` preguntaba «¿está en EL idioma del
+    usuario?». Con esa pregunta, una respuesta perfecta en inglés era un fallo
+    y costaba una regeneración entera en otra familia — que además podía volver
+    a fallar, o tardar 24 s, o no existir porque la familia estaba caída.
+
+    La pregunta correcta es otra: «¿puedo *usar* esto?». Si está en español,
+    inglés, portugués o italiano, sí: se traduce y listo. Si está en chino, no
+    hay nada que hacer con ello y hay que volver a pedirlo.
+
+    Un texto sin señal de idioma —un bloque de código, una URL, un número—
+    devuelve el por defecto (`es`) y se acepta. Rechazarlo sería reintentar por
+    no haber encontrado palabras vacías en un `for i in range(10)`.
+    """
+    if not respuesta or not respuesta.strip():
+        return True, IDIOMA_FINAL
+    codigo = detectar(respuesta, por_defecto=IDIOMA_FINAL)
+    return codigo in ADMITIDOS, codigo
+
+
+def necesita_traduccion(codigo: str) -> bool:
+    """¿Hay que traducir esto antes de enseñárselo al usuario?"""
+    return codigo != IDIOMA_FINAL
+
+
+def instruccion_de_traduccion() -> str:
+    """
+    Prompt de sistema para traducir al español conservando el contenido.
+
+    Las tres prohibiciones no son adorno: sin ellas, un modelo pequeño
+    «mejora» el texto, resume las conclusiones y reformatea el código. Lo que
+    se pide es un traductor, no un editor — si el enjambre concluyó algo, el
+    usuario tiene que leer ESO, no una versión abreviada.
+    """
+    return (
+        "Eres un traductor técnico. Traduce al español el mensaje del usuario.\n"
+        "\n"
+        "REGLAS:\n"
+        "- Traduce TODO el texto, sin resumir, sin añadir y sin comentar.\n"
+        "- NO traduzcas el contenido de los bloques de código, ni los nombres "
+        "de variables, funciones, ficheros ni rutas.\n"
+        "- Conserva exactamente el formato: saltos de línea, listas, tablas, "
+        "marcadores y bloques ```.\n"
+        "- Si ya está en español, devuélvelo tal cual, sin cambiar nada.\n"
+        "- Responde ÚNICAMENTE con la traducción. Sin prefacio, sin "
+        "«Aquí tienes la traducción», sin comillas alrededor."
+    )
 
 
 def coincide(respuesta: str, esperado: str) -> bool:

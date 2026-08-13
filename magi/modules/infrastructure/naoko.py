@@ -408,10 +408,18 @@ class NaokoAgent:
                            "\n".join(f"- [{p.get('fecha','?')}] {p.get('resumen','')[:200]}"
                                      for p in previos))
 
-        # Idioma del usuario. Sin esta línea, algunos proveedores gratuitos
-        # contestan en chino o en inglés a un saludo corto: pasó con un
-        # «hola naoko» y la respuesta llegó en chino.
-        lang = idioma.detectar(user_msg)
+        # NAOKO HABLA ESPAÑOL. SIEMPRE. Y no se deduce de nada.
+        #
+        # Antes esto era `idioma.detectar(user_msg)`, y parecía razonable:
+        # contestar en el idioma en que te hablan. Pero Naoko no conversa, sino
+        # que informa del estado del sistema —invariantes, sondas, diagnósticos,
+        # reparaciones—, y eso lo lee siempre la misma persona en el mismo
+        # idioma. Deducirlo solo abría la puerta a equivocarse: un `user_msg`
+        # con un pantallazo de log en inglés bastaba para que Naoko empezara a
+        # informar en inglés.
+        #
+        # Fijarlo no es una restricción, es quitar una fuente de fallo.
+        lang = idioma.IDIOMA_FINAL
 
         system_prompt = f"""Eres Naoko, la IA de Infraestructura, Supervisión y DevOps de MAGI System.
 No eres un agente de generación de código del Enjambre, sino la supervisora autónoma global.
@@ -499,8 +507,18 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         # Antes rotaba entre claude-3.5-sonnet, qwen-2.5-coder y deepseek: las
         # tres familias están hoy sin ningún candidato vivo, así que Naoko
         # gastaba tres rondas de fallos antes de llegar a la única que servía.
-        models = ["gpt-4o", "gemini-1.5-flash", "command-a", "llama-3.1-70b"]
-        lang = lang or idioma.detectar(user_prompt)
+        # REORDENADA EL 2026-08-13 CON MEDIDAS, y el orden viejo era el peor
+        # posible: empezaba por `gpt-4o`, cuya familia tiene hoy UN candidato
+        # vivo —Yqcloud— que responde en chino. Naoko arrancaba cada respuesta
+        # por el proveedor que garantiza tener que rotar. Y terminaba en
+        # `llama-3.1-70b`, cuya familia da 402 desde que Groq pide créditos.
+        models = ["claude45sonnet", "gemini-3.5-flash", "command-a", "gpt-4o"]
+
+        # El idioma NO se negocia y NO se deduce: Naoko informa en español.
+        # El parámetro se conserva por compatibilidad de firma, pero cualquier
+        # valor que no sea español sería un error de quien llama, no una
+        # preferencia legítima.
+        lang = idioma.IDIOMA_FINAL
         for model in models:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
             try:
@@ -518,14 +536,21 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                 # modelo X respondió en chino, repitiendo». Ese mensaje es
                 # ruido que no ayuda al problema que planteó. Solo se loguea a
                 # debug; el usuario recibe la respuesta correcta, o nada.
-                if not idioma.coincide(response, lang):
-                    logger.debug("[naoko] %s respondió en otro idioma "
-                                 "(esperado %s); rotando en silencio",
-                                 model, lang)
+                vale, detectado = idioma.admisible(response)
+                if not vale:
+                    logger.debug("[naoko] %s respondió en %s (no admitido); "
+                                 "rotando en silencio", model, detectado)
                     continue
 
-                if not response.startswith("SYS_EMERGENCY_STOP"):
-                    return response
+                if response.startswith("SYS_EMERGENCY_STOP"):
+                    continue
+
+                # Admitido pero no español (inglés, portugués, italiano): se
+                # traduce en vez de rotar. Rotar costaba una respuesta ENTERA
+                # de otro proveedor —con su latencia y su riesgo de fallar—
+                # por algo que arregla una llamada corta. Y el usuario lee
+                # español pase lo que pase, que es la regla.
+                return await self._naoko_en_espanol(response, detectado)
             except Exception as e:
                 logger.debug("[naoko] fallo en %s: %s; rotando", model, e)
                 
@@ -535,6 +560,37 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                                         payload={"status": "Agotada - Pausa 60s"}))
         await asyncio.sleep(60)
         raise Exception("Todos los modelos gratuitos fallaron.")
+
+    async def _naoko_en_espanol(self, texto: str, detectado: str) -> str:
+        """
+        Lo que Naoko entrega va en español. Sin excepción.
+
+        Es la misma pieza que `SwarmAgent._al_espanol`, con una diferencia que
+        importa: aquí NO hay tolerancia de destino. Los tres agentes pueden
+        razonar en inglés y traducirse; Naoko informa del estado del sistema y
+        eso lo lee siempre la misma persona.
+
+        Si la traducción falla se devuelve el original: un diagnóstico correcto
+        en inglés es peor que en español, pero infinitamente mejor que ninguno
+        —y Naoko habla justo cuando algo va mal—.
+        """
+        if not idioma.necesita_traduccion(detectado):
+            return texto
+        if not texto or not texto.strip():
+            return texto
+
+        for model in ("command-a", "gemini-3.5-flash"):
+            try:
+                traducido, _ = await self.llm.generate(
+                    idioma.instruccion_de_traduccion(), texto, model=model)
+            except Exception as e:
+                logger.debug("[naoko] traducción en %s falló: %s", model, e)
+                continue
+            if traducido and traducido.strip():
+                return traducido
+        logger.warning("[naoko] no se pudo traducir del %s; se entrega el "
+                       "original", detectado)
+        return texto
 
     async def stop(self):
         """Cancela la vigilancia periódica. Sin esto la tarea vivía para siempre."""

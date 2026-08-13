@@ -169,7 +169,18 @@ def test_los_candidatos_rotos_no_se_intentan():
     pytest.importorskip("g4f.Provider")
     from magi.core.providers.backends.g4f_backend import G4FProvider, ROTOS
 
-    for familia in ("deepseek", "claude", "qwen"):
+    # Se recorren TODAS las familias del catálogo, no tres elegidas a mano.
+    #
+    # Antes eran ("deepseek", "claude", "qwen") y el test reventó con
+    # `ValueError: familia desconocida: qwen` el día que se descartó esa
+    # familia — porque su único proveedor devolvía `success=false` y no había
+    # forma de acceder. Un test que se rompe cuando el catálogo se LIMPIA está
+    # nombrando datos en vez de comprobar una propiedad.
+    #
+    # La propiedad es: ninguna familia, ninguna, ofrece un candidato roto.
+    from magi.core.providers.backends.g4f_backend import FAMILY_SPECS
+
+    for familia in FAMILY_SPECS:
         p = G4FProvider(family=familia)
         for nombre, _ in p._ordered():
             assert nombre not in ROTOS, (

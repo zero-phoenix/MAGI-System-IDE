@@ -79,88 +79,78 @@ Candidate = tuple[str, str | None]
 # `complete()` las reporta como agotadas en vez de fingir. El reparto del
 # enjambre apunta ahora a las tres familias verificadas.
 _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
-    # --- familias con candidato verificado -------------------------------
-    "gpt": [
-        # Reordenado 2026-08-09: Yqcloud declaraba 2000 ms pero en uso sostenido
-        # respondió en 53-75 s (registro real del usuario, turno del Tetris),
-        # arrastrando cada etapa de Melchior aunque hubiera alternativas de 1-2 s
-        # en la misma familia. Se le baja al final de los verificados. El orden
-        # de la lista solo aplica en frío; en caliente `_ordered()` ordena por
-        # latencia medida por candidato.
-        ("CopilotApp", None),                    # verificado 1156ms
-        ("WeWordle", "gpt-4o"),                  # verificado 2389ms
-        ("Yqcloud", "gpt-4"),                    # verificado, pero pico de 75s
-        ("OpenaiChat", "gpt-5"),                 # pide .har; se deja al final
-        ("Pollinations", None),
+    # --- verificadas con medida FECHADA ------------------------------------
+    "command": [
+        ("CohereForAI_C4AI_Command", "command-a-03-2025"),   # 1809 ms 13-ago
+        ("CohereForAI_C4AI_Command", "command-r-plus-08-2024"),
+        ("CohereForAI_C4AI_Command", "command-r-plus"),
+        ("HuggingSpace", None),                              # 16535 ms 13-ago
+    ],
+    "claude": [
+        # Perplexity sirve Claude sin cuenta ni cookies. Ver compat_g4f.py.
+        ("Perplexity", "claude45sonnet"),                    # 3723 ms 13-ago
+        ("Perplexity", "claude40opus"),                      # 2832 ms 13-ago
+        ("Perplexity", "claude2"),                           # 5072 ms 13-ago
+        ("Perplexity", "claude45sonnetthinking"),
+        ("Perplexity", "claude37sonnetthinking"),
+        ("Perplexity", "claude35haiku"),
     ],
     "gemini": [
-        ("Gemini", "gemini-3.5-flash"),          # verificado 3421ms
+        ("Gemini", "gemini-3.5-flash"),                      # 4877 ms 13-ago
         ("Gemini", "gemini-3.1-pro"),
-        ("GeminiPro", None),
+        ("Gemini", "gemini-2.5-flash"),
+        ("Perplexity", "gemini2flash"),                      # ruta alternativa
     ],
-    "command": [
-        ("CohereForAI_C4AI_Command", "command-a-03-2025"),   # verificado 1078ms
-        ("CohereForAI_C4AI_Command", "command-r-plus"),
+    "gpt": [
+        # MELCHIOR ya NO usa esta familia: su único candidato propio vivo
+        # (Yqcloud) responde a veces en chino, y el chino está prohibido.
+        # Perplexity la revive por otra puerta, con modelos mejores.
+        ("Perplexity", "gpt5"),
+        ("Perplexity", "gpt41"),
+        ("Perplexity", "gpt4o"),
+        ("Yqcloud", "gpt-4"),                                # 11795 ms, ojo chino
     ],
-    "llama": [
-        ("Groq", None),                          # verificado 922ms
-        ("MetaAI", None),
-        ("DeepInfra", None),                     # abre navegador: va el último
+    "razonamiento": [
+        # Familia NUEVA. Los modelos de razonamiento explícito no estaban en el
+        # catálogo y son justo lo que BALTHASAR necesita para refutar.
+        ("Perplexity", "o3"),
+        ("Perplexity", "o4mini"),
+        ("Perplexity", "pplx_reasoning"),
     ],
-    "perplexity": [("Perplexity", "auto")],      # verificado 7921ms
-    "hf": [("HuggingSpace", None)],              # verificado 890ms
-
-    # --- familias sin candidato vivo hoy -----------------------------------
-    #
-    # Se conservan como mapa de lo que existe, pero sus candidatos ROTOS se
-    # marcan y NO se intentan (ver `_ROTOS`). Dejarlos vivos costaba caro: el
-    # registro del usuario muestra seis intentos fallidos por ronda antes de
-    # llegar a un proveedor que pudiera responder, dos de ellos intentando
-    # abrir Chrome. `complete()` reporta la familia como agotada, que es lo
-    # honesto, pero sin gastar el turno en llamadas imposibles.
-    "deepseek": [
-        ("PhindAi", "deepseek-v3"),
-        ("PhindAi", "deepseek"),
-        ("Cloudflare", "deepseek-coder-6.7b"),          # abre navegador
-        ("Cloudflare", "deepseek-distill-qwen-32b"),    # abre navegador
+    "grok": [
+        ("Perplexity", "grok4"),
+        ("Perplexity", "grok"),                              # 4279 ms 13-ago
     ],
-    "qwen": [
-        ("Qwen", "qwen3.7-plus"),
-        ("Qwen", "qwen3.6-plus"),
-        ("Qwen", "qwen3.7-max"),
+    "perplexity": [
+        ("Perplexity", "auto"),                              # 5964 ms 13-ago
+        ("Perplexity", "turbo"),
     ],
-    # `claude` YA NO ESTÁ ROTA, y la historia de por qué lo parecía vale más
-    # que la lista. Sus dos candidatos de siempre —Claude y LMArena— exigen TU
-    # CUENTA, y aquí no se inicia sesión en ningún sitio: eso no es «pendiente»,
-    # es imposible por diseño. De ahí salió medio `sesion_web.py`.
-    #
-    # Lo que nadie había mirado: `Perplexity` —ya en este mismo fichero, dos
-    # familias más arriba, `needs_auth=False`— sirve claude45sonnet y
-    # claude40opus. Medido el 2026-08-13: 3,7 s y 2,8 s, en castellano y con
-    # respuestas técnicas correctas. Cero cookies.
-    #
-    # Lo único que lo impedía era un fallo de g4f de dos líneas, que arregla
-    # `providers/compat_g4f.py`. Antes de construir infraestructura para saltar
-    # un muro conviene comprobar que el muro existe.
-    "claude": [
-        ("Perplexity", "claude45sonnet"),
-        ("Perplexity", "claude40opus"),
-        ("Perplexity", "claude37sonnetthinking"),
-    ],
-    "glm": [("GLM", None)],
+    "llama": [("Perplexity", "llama_x_large")],
+    "mistral": [("Perplexity", "mistral")],
+    "deepseek": [("Perplexity", "r1")],
+    "hf": [("HuggingSpace", None)],                          # 16535 ms 13-ago
 
     # Último recurso: auto-router de g4f. Familia "auto" para que el registro
     # sepa que NO garantiza diversidad y lo declare en la GUI.
     "auto": [("AnyProvider", "gpt-4o"), ("AnyProvider", "default")],
 }
 
-# Familias con al menos un candidato que respondió en la verificación. El
-# registro las prefiere al repartir el enjambre.
-# `llama` sale (Groq responde 402 «No cake credits», medido 2026-08-13) y
-# `claude` entra. Una verificación del 6 de agosto no dice nada del 13: estos
-# servicios son gratuitos y se caen sin avisar, y por eso cada medida lleva
-# fecha en el catálogo.
-_VERIFICADAS_BASE = ("gpt", "gemini", "command", "claude", "perplexity", "hf")
+# Familias con al menos un candidato que RESPONDIÓ HOY, medido una a una.
+#
+# `gpt` NO está, y merece explicación porque el usuario la puso entre sus
+# prioridades: su único candidato propio vivo, Yqcloud, contesta a veces en
+# chino, y el chino está prohibido sin excepción. Sus modelos siguen
+# alcanzables por Perplexity (gpt5, gpt41, gpt4o), pero esa ruta aún no tiene
+# medida limpia, y «verificada» aquí significa medida y fechada, no probable.
+#
+# `llama`, `mistral`, `deepseek` y `razonamiento` tampoco: existen y apuntan a
+# Perplexity, pero nadie las ha medido todavía. Están en el mapa, no en la
+# lista de confianza.
+#
+# Una verificación del 6 de agosto no dice nada del 13: cinco familias que
+# figuraban como verificadas resultaron rotas al medirlas. Por eso cada
+# candidato lleva la FECHA de su medida y no solo un número.
+_VERIFICADAS_BASE = ("command", "claude", "gemini", "perplexity", "grok", "hf")
 
 #: Proveedores que NO pueden responder en este entorno, con el motivo medido.
 #:
@@ -187,32 +177,47 @@ _VERIFICADAS_BASE = ("gpt", "gemini", "command", "claude", "perplexity", "hf")
 #: Salir de esta lista NO es lo mismo que estar verificado: significa «ya no
 #: revienta antes de intentarlo». Si responde o no lo dirá la sonda.
 _ROTOS_BASE: dict[str, str] = {
-    "Claude": ("exige TU CUENTA (browser_cookie3 + cookies). La regla del "
-               "proyecto prohíbe iniciar sesión en ningún sitio, así que esto "
-               "no está «pendiente»: es imposible por diseño. La familia "
-               "`claude` la sirve Perplexity, sin cuenta."),
-    "CopilotApp": "WSServerHandshakeError 460 al abrir el websocket (medido 2026-08-13)",
-    "WeWordle": "HTTP 429 Too Many Requests (medido 2026-08-13)",
-    "Groq": "HTTP 402 «No cake credits» (medido 2026-08-13)",
-    "PhindAi": ("HTTP 403 Security (medido 2026-08-13). compat_curl arregló la "
-                "firma de curl_cffi, no el acceso: «ya no revienta» nunca fue "
-                "«responde», y así estaba escrito."),
-    "Qwen": "success=false (medido 2026-08-13). Mismo caso que PhindAi.",
-    "LMArena": "exige fichero de autenticación y nodriver",
-    "GLM": "responde con captcha",
-    "MetaAI": "responde 403 desde esta red",
-    "OpenaiChat": "exige un fichero .har de sesión",
-    "Copilot": "exige un fichero .har de sesión",
-    "Pollinations": "responde 402 (pago requerido)",
-    "GeminiPro": "responde 429 (cuota agotada)",
-    "Ollama": "es un motor LOCAL: lo prohíbe §I.3",
-    # Estos dos no tienen NINGUNA vía que no sea abrir Chrome: su único camino
-    # es CDPSession, que el cortafuegos corta siempre. Aquí no es una
-    # preferencia, es que no pueden contestar. Distinto de `Gemini`, que
-    # declara usar navegador y sin embargo responde por HTTP: ese se queda,
-    # solo que el último de su familia.
-    "Cloudflare": "su única vía es CDPSession (abrir Chrome), bloqueada por §I.3",
-    "DeepInfra": "su única vía es SyncCDPSession (abrir Chrome), bloqueada por §I.3",
+    # ---- DESCARTADOS: exigen TU CUENTA. Imposibles por diseño, no pendientes.
+    #
+    # La regla del proyecto es que aquí no se inicia sesión en ningún sitio.
+    # Estos cuatro no son «difíciles»: no hay forma honesta de usarlos sin una
+    # cuenta tuya, así que salen del catálogo en vez de quedarse como deuda que
+    # alguien reintentará cada seis meses.
+    "Claude": "DESCARTADO: exige tu cuenta (browser_cookie3 + cookies). Los modelos Claude los sirve Perplexity sin cuenta.",
+    "OpenaiChat": "DESCARTADO: exige tu cuenta (.har de sesión). Los modelos GPT los sirve Perplexity.",
+    "Copilot": "DESCARTADO: exige tu cuenta (.har de sesión).",
+    "LMArena": "DESCARTADO: exige tu cuenta (fichero de autenticación) y nodriver.",
+
+    # ---- DESCARTADOS: solo pueden funcionar abriendo un navegador.
+    #
+    # Medido el 2026-08-13 con el cortafuegos puesto: los tres devuelven
+    # `BrowserBlocked: MAGI no abre navegadores (§I.3)` en 2-5 ms. No es que
+    # vayan lentos: es que su única vía está cerrada por la invariante que
+    # define este proyecto.
+    "Cloudflare": "DESCARTADO: su única vía es CDPSession (abrir Chrome). BrowserBlocked en 2 ms (13-ago).",
+    "DeepInfra": "DESCARTADO: SyncCDPSession + token Turnstile (captcha). BrowserBlocked en 3 ms (13-ago).",
+    "Pi": "DESCARTADO: abre navegador. BrowserBlocked en 5 ms (13-ago).",
+
+    # ---- DESCARTADOS: captcha. Mismo criterio para todos, sin excepciones.
+    "GLM": "DESCARTADO: responde captcha (_CaptchaRequired, medido 13-ago).",
+
+    # ---- DESCARTADOS: piden dinero o están sin cuota.
+    "Groq": "DESCARTADO: HTTP 402 «No cake credits» (medido 13-ago).",
+    "Pollinations": "DESCARTADO: HTTP 402 Payment Required (medido 13-ago).",
+    "GeminiPro": "DESCARTADO: HTTP 429, cuota agotada. Los modelos Gemini los sirve `Gemini`.",
+
+    # ---- DESCARTADOS: bloqueo del servicio, sin vía conocida.
+    "MetaAI": "DESCARTADO: HTTP 403 «Fetch home failed» desde esta red (medido 13-ago).",
+    "PhindAi": "DESCARTADO: HTTP 403 Security (medido 13-ago). compat_curl arregló la firma de curl_cffi, no el acceso.",
+    "Qwen": "DESCARTADO: success=false del servidor (medido 13-ago). Mismo caso que PhindAi.",
+    "CopilotApp": "DESCARTADO: WSServerHandshakeError 460 al abrir el websocket (medido 13-ago).",
+
+    # ---- FUERA POR REGLA, no por fallo.
+    "Ollama": "DESCARTADO: es un motor LOCAL y §I.3 solo admite nube.",
+
+    # ---- NO descartado: fallo transitorio. Se queda fuera de las familias
+    # pero puede volver, así que no lleva la palabra DESCARTADO.
+    "WeWordle": "HTTP 429 Too Many Requests (medido 13-ago): límite de ritmo, puede recuperarse.",
 }
 
 #: Margen antes de cubrir una petición lenta con el siguiente candidato.
@@ -450,6 +455,41 @@ def _disable_g4f_browser() -> None:
     aplicar_compat_g4f()
 
 
+#: Umbral por debajo del cual una respuesta no puede ser una respuesta.
+#:
+#: 12 caracteres, y el número sale de la medida, no del gusto. El caso real
+#: fueron 4 (`'tud.'`). Se deja margen para las respuestas legítimamente
+#: cortas que este sistema sí produce —«Sí.», «Correcto.», «APROBADO»— sin
+#: llegar a admitir un fragmento de palabra.
+#:
+#: Se queda deliberadamente BAJO: la comprobación tiene que cazar el fallo
+#: evidente sin convertirse en un juez de calidad. Rechazar una respuesta
+#: corta pero válida cuesta una llamada de red y confunde el log.
+MINIMO_UTIL = 12
+
+
+def _por_que_es_inservible(content: str) -> str | None:
+    """
+    ¿Por qué esta respuesta no sirve? `None` si sirve.
+
+    Devuelve el motivo en texto y no un booleano a propósito: acaba en el log
+    y en el mensaje de error de la familia agotada, y «Perplexity: 4 caracteres
+    ('tud.')» se entiende sin abrir el código, mientras que «False» no.
+    """
+    if content is None:
+        return "None en vez de texto"
+    limpio = content.strip()
+    if not limpio:
+        return "vacía"
+    if len(limpio) < MINIMO_UTIL:
+        # Un fragmento como 'tud.' empieza en minúscula y termina en punto: es
+        # el final de una frase cuyo principio se perdió. Pero no se exige eso
+        # para rechazar —sería adivinar—: por debajo del mínimo no sirve, y el
+        # motivo dice exactamente qué llegó.
+        return f"{len(limpio)} caracteres ({limpio!r})"
+    return None
+
+
 class G4FProvider(BaseProvider):
     """Un backend = UNA familia, con cadena de candidatos dentro de ella."""
 
@@ -648,6 +688,36 @@ class G4FProvider(BaseProvider):
                         errors.append(f"{cand[0]}: {type(e).__name__}: {e}")
                         logger.debug("[%s] candidato %s falló: %s",
                                      self.id, cand[0], e)
+                        continue
+
+                    # ¿ES UNA RESPUESTA O SOLO PARECE UNA?
+                    #
+                    # Medido el 2026-08-13: tras unas veinte peticiones seguidas,
+                    # `Perplexity` empezó a devolver esto, para CUALQUIER modelo
+                    # y cualquier pregunta:
+                    #
+                    #     len=4   'tud.'
+                    #
+                    # Es el final de una frase. Ese proveedor manda la respuesta
+                    # por parches JSON y g4f solo acumula los que vienen en un
+                    # campo concreto; cuando el formato cambia —o cuando les
+                    # limitan a uno— llega el último trozo y nada más.
+                    #
+                    # Lo grave no es el fallo de g4f: es que MAGI lo daba por
+                    # bueno. `'tud.'` habría llegado a la interfaz como la
+                    # antítesis de BALTHASAR, con su latencia, su proveedor y su
+                    # aspecto de respuesta legítima. Un fallo que se disfraza de
+                    # éxito no se detecta nunca.
+                    #
+                    # Tratarlo como error hace que la maquinaria de failover que
+                    # ya existe pruebe al siguiente candidato, que es justo lo
+                    # que hay que hacer.
+                    inservible = _por_que_es_inservible(content)
+                    if inservible:
+                        errors.append(f"{cand[0]}: {inservible}")
+                        logger.warning("[%s] %s devolvió una respuesta "
+                                       "inservible (%s); probando otro",
+                                       self.id, cand[0], inservible)
                         continue
 
                     self._live = ganador

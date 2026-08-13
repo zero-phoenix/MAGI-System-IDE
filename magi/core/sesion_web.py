@@ -622,7 +622,28 @@ def _parsear_cookies(texto: str, sufijo: str = "") -> list[dict]:
 #: va a contestar después: lo que tarda es negociar la conexión local, no
 #: cargar nada. Declarado como constante y no escondido, porque una máquina
 #: muy lenta podría necesitar más.
-PLAZO_PRUEBA_S = 10.0
+#: PLAZO DE LA COMPROBACIÓN PREVIA. 25 s, y el número tiene una historia.
+#:
+#: Estaba en 10,0 «porque el arranque se sabe en diez». Medido en la máquina
+#: del usuario, la misma ejecución dio las dos cosas a la vez:
+#:
+#:     _prueba_arranque()   -> ok=False, "no respondió en 10s"   (10 160 ms)
+#:     diagnostico_legible()-> [ok] arranque headless: 9 958 ms
+#:
+#: El navegador arranca en 9,96 s y el plazo cortaba a los 10,00. O sea: la
+#: comprobación previa declaraba «no arranca» en una máquina donde arranca, y
+#: el veredicto dependía de 40 milisegundos. Un guardián a cara o cruz es peor
+#: que ninguno, porque además convence.
+#:
+#: 25 s no renuncia a nada de lo que motivó esta pieza: el fallo que venía a
+#: evitar tardaba 93 s en manifestarse, así que sigue avisando casi cuatro
+#: veces antes. Y deja 15 s de margen sobre lo medido, que cubre una máquina
+#: cargada o un antivirus inspeccionando el ejecutable la primera vez.
+#:
+#: La lección general: un umbral puesto «a ojo» que resulta caer justo encima
+#: del valor real no es un umbral, es una moneda al aire. Cuando se mide, se
+#: pone margen.
+PLAZO_PRUEBA_S = 25.0
 
 
 def _prueba_arranque(plazo_s: float = PLAZO_PRUEBA_S) -> tuple[bool, str]:

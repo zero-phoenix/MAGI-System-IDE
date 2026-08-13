@@ -166,16 +166,69 @@ class SwarmAgentBase:
         content, provider_id = await self.llm.generate(
             full_sys, user_prompt,
             family=self.family, temperature=temp, seed=self.seed)
-        if idioma.coincide(content, lang):
-            return content, provider_id, self._family_of(provider_id)
 
-        # La familia propia respondió en otro idioma: reintento acotado.
-        logger.debug("[%s] familia %s respondió en otro idioma (esperado %s); "
-                     "reintentando", self.role_name, self.family, lang)
-        content, provider_id = await self._reintentar_idioma(
-            full_sys, user_prompt, temp=temp, lang=lang,
-            previo=(content, provider_id))
+        vale, detectado = idioma.admisible(content)
+        if not vale:
+            # Chino, japonés, ruso… nada que se pueda usar. Se vuelve a pedir.
+            logger.debug("[%s] familia %s respondió en %s (no admitido); "
+                         "reintentando", self.role_name, self.family, detectado)
+            content, provider_id = await self._reintentar_idioma(
+                full_sys, user_prompt, temp=temp, lang=lang,
+                previo=(content, provider_id))
+            _, detectado = idioma.admisible(content)
+
+        # Y AQUÍ LO QUE EL USUARIO PIDIÓ SIN MEDIAS TINTAS: lo que se entrega
+        # va en español. Siempre. Aunque el modelo haya contestado un inglés
+        # impecable.
+        content = await self._al_espanol(content, detectado)
         return content, provider_id, self._family_of(provider_id)
+
+    async def _al_espanol(self, content: str, detectado: str) -> str:
+        """
+        Traduce al español lo que no venga ya en español.
+
+        POR QUÉ TRADUCIR Y NO VOLVER A GENERAR
+        ======================================
+        Hasta hoy, una respuesta en inglés se trataba como un fallo y disparaba
+        una generación completa en otra familia. Eso es caro (la latencia
+        entera otra vez), frágil (la otra familia puede estar caída o tardar
+        24 s) y además puede devolver un análisis DISTINTO: se descartaba un
+        razonamiento correcto por el idioma en que estaba escrito.
+
+        Traducir cuesta una llamada corta, no puede cambiar las conclusiones
+        —el prompt de traducción lo prohíbe explícitamente— y siempre mejora
+        el resultado o lo deja igual.
+
+        SI LA TRADUCCIÓN FALLA
+        ======================
+        Se devuelve el original en el idioma admitido en que vino. Entregar un
+        análisis correcto en inglés es peor que en español, pero es mucho mejor
+        que no entregar nada, y el usuario puede leerlo. Inventarse una
+        traducción no es una opción, y fingir que no ha pasado nada tampoco:
+        queda en el log.
+        """
+        from magi.core import idioma
+
+        if not idioma.necesita_traduccion(detectado):
+            return content
+        if not content or not content.strip():
+            return content
+
+        for familia in ([None] + self._otras_familias_del_registry()[:1]):
+            try:
+                traducido, _ = await self.llm.generate(
+                    idioma.instruccion_de_traduccion(), content,
+                    family=familia or self.family,
+                    temperature=0.0, seed=self.seed)
+            except Exception as e:
+                logger.debug("[%s] traducción en %s falló: %s",
+                             self.role_name, familia or self.family, e)
+                continue
+            if traducido and traducido.strip():
+                return traducido
+        logger.warning("[%s] no se pudo traducir del %s; se entrega el "
+                       "original", self.role_name, detectado)
+        return content
 
     async def _reintentar_idioma(self, full_sys: str, user_prompt: str, *,
                                  temp: float, lang: str,

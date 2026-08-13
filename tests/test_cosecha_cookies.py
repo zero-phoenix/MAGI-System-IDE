@@ -301,15 +301,33 @@ def test_el_diagnostico_se_puede_IMPRIMIR_en_cualquier_consola(monkeypatch):
 
 def test_hay_una_prueba_de_arranque_corta_y_ajustable():
     """
-    El arranque se sabe en diez segundos: lo que tarda es negociar la conexión
-    local, y eso o va rápido o no va. La cosecha completa tardaba noventa en
-    admitir lo mismo porque su plazo cubría además navegación y desafío.
+    ESTE TEST EXIGÍA UN NÚMERO INVENTADO, Y CASI GANA.
 
-    El plazo va declarado como constante, no escondido: una máquina muy lenta
-    podría necesitar más, y eso debe poder ajustarse sin tocar la lógica.
+    Decía `PLAZO_PRUEBA_S <= 15` porque «el arranque se sabe en diez segundos».
+    Nadie lo había medido. Al medirlo en la máquina del usuario, la misma
+    ejecución dio las dos cosas:
+
+        _prueba_arranque()    -> ok=False, "no respondió en 10s"  (10 160 ms)
+        diagnostico_legible() -> [ok] arranque headless: 9 958 ms
+
+    El navegador arranca en 9,96 s y el plazo cortaba a los 10,00. La
+    comprobación previa declaraba «no arranca» en una máquina donde arranca,
+    por cuarenta milisegundos.
+
+    Y cuando subí el plazo con la medida delante, ESTE TEST se puso rojo
+    defendiendo la suposición contra el dato. Por eso ahora las dos cotas
+    citan de dónde salen:
+
+      - por abajo, el máximo MEDIDO (9,96 s) con margen suficiente para una
+        máquina cargada o un antivirus inspeccionando el binario;
+      - por arriba, muy lejos de los 93 s del fallo que esta pieza vino a
+        evitar, que es lo único que de verdad importaba.
     """
-    assert sesion_web.PLAZO_PRUEBA_S <= 15, (
-        "más de quince segundos y vuelve a parecer colgado")
+    assert sesion_web.PLAZO_PRUEBA_S >= 15, (
+        "menos de quince segundos y se corta un arranque legítimo: medido "
+        "9 958 ms en la máquina del usuario")
+    assert sesion_web.PLAZO_PRUEBA_S <= 30, (
+        "más de treinta y vuelve a parecer colgado; el fallo original eran 93 s")
     assert callable(sesion_web._prueba_arranque)
 
 
