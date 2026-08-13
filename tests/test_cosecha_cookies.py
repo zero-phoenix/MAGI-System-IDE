@@ -295,7 +295,16 @@ def test_la_cosecha_no_intenta_navegar_si_el_arranque_falla(monkeypatch):
                         lambda *a, **k: (False, "no respondió en 10s"))
     monkeypatch.setattr(sesion_web, "_lanzar_headless",
                         lambda *a, **k: llamado.append(1) or [])
-    sesion_web.conceder_permiso("prueba")
+    # Y la puerta, simulada. Esta es la QUINTA vez en esta tanda que un test
+    # mío depende de lo que haya instalado alrededor: en el runner no hay
+    # navegador descargado, `puede_abrir()` dice que no, y la comprobación
+    # previa que quiero probar nunca llega a ejecutarse.
+    #
+    # Escribí este test en el mismo commit en el que documentaba que este
+    # defecto se repite. Es la mejor prueba posible de que el mecanismo del
+    # plan (§3.bis.2, un CI sin lo opcional) hace falta: la disciplina sola no
+    # basta ni cuando la tienes delante escrita.
+    monkeypatch.setattr(sesion_web, "puede_abrir", lambda: (True, "simulado"))
 
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
