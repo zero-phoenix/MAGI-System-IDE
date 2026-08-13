@@ -19,6 +19,15 @@ from magi.core.bus import MagiBus
 from magi.modules.swarm.agents import MelchiorAgent
 
 
+def _generador(respuestas_por_familia: dict):
+    """`llm.generate` falso que contesta distinto según la familia pedida."""
+    async def fake_generate(sys_prompt, user_prompt, family=None, **kw):
+        texto = respuestas_por_familia.get(
+            family, respuestas_por_familia.get("command", ""))
+        return texto, f"g4f-{family}"
+    return fake_generate
+
+
 def _agente_con_llm_mock(respuestas_por_familia: dict):
     """
     Construye un MelchiorAgent cuyo llm.generate devuelve respuestas distintas
@@ -32,23 +41,37 @@ def _agente_con_llm_mock(respuestas_por_familia: dict):
     agente.rama = False
     agente.bus = MagicMock()
 
-    async def fake_generate(sys_prompt, user_prompt, family=None, **kw):
-        texto = respuestas_por_familia.get(family,
-                    respuestas_por_familia.get("command", ""))
-        # devuelve (contenido, provider_id)
-        return texto, f"g4f-{family}"
-
     agente.llm = MagicMock()
-    agente.llm.generate = fake_generate
+    agente.llm.generate = _generador(respuestas_por_familia)
     return agente
 
 
 @pytest.mark.asyncio
 async def test_ask_rota_cuando_la_familia_propia_responde_en_otro_idioma():
-    """La familia propia (command) responde en chino; la guarda debe rotar a gpt."""
+    """
+    La familia propia (command) responde en chino; la guarda debe rotar.
+
+    LA FAMILIA DE DESTINO SE PREGUNTA, NO SE ESCRIBE.
+    ================================================
+    Este test decía `assert familia == "gpt"`, y se puso rojo el 2026-08-13
+    cuando `gpt` salió de las familias verificadas — su único candidato propio
+    vivo es Yqcloud, que responde en chino, que es justo lo que este test
+    persigue. La ironía es exacta: el test de la guarda de idioma se rompió
+    porque el sistema dejó de usar al proveedor que contesta en chino.
+
+    Lo que hay que comprobar es que ROTA y que lo que devuelve está en
+    español, no a qué familia concreta rota — eso es un dato del catálogo y
+    cambia cada semana.
+    """
     agente = _agente_con_llm_mock({
         "command": "三个方案（A、B、C）再次提交的内容完全相同，未包含任何技术实现。",  # chino
-        "gpt": "Las tres propuestas son idénticas y no contienen código.",  # español
+    })
+    # La alternativa se le pregunta al propio agente y se le pone la respuesta
+    # buena ahí. Así el test sigue diciendo lo mismo con cualquier catálogo.
+    destino = agente._otras_familias_del_registry()[0]
+    agente.llm.generate = _generador({
+        "command": "三个方案（A、B、C）再次提交的内容完全相同，未包含任何技术实现。",
+        destino: "Las tres propuestas son idénticas y no contienen código.",
     })
 
     contenido, provider_id, familia = await agente._ask(
@@ -56,10 +79,11 @@ async def test_ask_rota_cuando_la_familia_propia_responde_en_otro_idioma():
         user_prompt="Resume las tres propuestas.",
     )
 
-    # La guarda debe haber rotado a gpt y devuelto la respuesta en español.
     assert "tres propuestas" in contenido.lower(), (
         f"Se esperaba la respuesta en español, se obtuvo: {contenido!r}")
-    assert familia == "gpt", f"Se esperaba rotación a gpt, se obtuvo {familia!r}"
+    assert familia == destino, (
+        f"Se esperaba rotación a {destino}, se obtuvo {familia!r}")
+    assert familia != "command", "no ha rotado: sigue en la familia del chino"
 
 
 @pytest.mark.asyncio
