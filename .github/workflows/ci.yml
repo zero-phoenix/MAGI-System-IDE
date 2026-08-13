@@ -66,7 +66,18 @@ jobs:
     - name: Coverage report (magi/core)
       if: runner.os == 'Linux'
       continue-on-error: true
-      run: python -m pytest tests/ -q --cov=magi/core --cov-report=term --cov-config=/dev/null
+      # `-m "not slow"` NO es un atajo para ir más rápido: es que este paso
+      # volvía a correr la suite ENTERA por segunda vez, incluidos los tests
+      # que compilan un .exe con PyInstaller de verdad (test_e2e_tetris_exe).
+      # Medido el 2026-08-13: el paso «Run tests» terminó en verde y el job
+      # siguió 35 minutos más aquí, con `continue-on-error: true` — o sea,
+      # media hora de runner por un número que ni siquiera puede tumbar la
+      # compilación.
+      #
+      # Y esos tests no aportan cobertura de `magi/core`: lo que ejercitan es
+      # PyInstaller. Se miden las 1000 pruebas rápidas, que es de donde sale
+      # el número que interesa.
+      run: python -m pytest tests/ -q -m "not slow" --cov=magi/core --cov-report=term --cov-config=/dev/null
 
     - name: Check imports resolve
       run: |
