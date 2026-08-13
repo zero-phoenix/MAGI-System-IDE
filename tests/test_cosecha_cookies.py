@@ -121,11 +121,97 @@ def test_un_proveedor_que_no_necesita_sesion_lo_dice():
     assert ok is False and "no necesita sesión web" in motivo
 
 
-def test_sin_permiso_no_se_cosecha_ni_lo_automatico():
-    """La puerta sigue cerrada por defecto también para esto."""
+def test_sin_permiso_no_se_abre_el_navegador(monkeypatch):
+    """
+    La puerta sigue cerrada por defecto. Se fuerza a que la vía barata no
+    consiga nada para llegar al punto donde se pediría el navegador.
+    """
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador",
+                        lambda *a, **k: [])
     ok, motivo = sesion_web.cosechar("Cloudflare")
     assert ok is False
-    assert "permiso" in motivo or "Camoufox" in motivo
+    assert "con navegador:" in motivo, "hay que decir qué pasó en cada intento"
+
+
+# =============================== primero lo barato, luego lo caro
+
+def test_se_intenta_sin_navegador_ANTES_que_con_navegador(monkeypatch):
+    """
+    EL ARREGLO QUE CONVIERTE 93 s DE FALLO EN 0,2 s DE ÉXITO.
+
+    La primera versión empezaba por el navegador. En la máquina del usuario eso
+    eran 93 segundos para acabar fallando… mientras `curl_cffi` con huella de
+    navegador —ya instalado— devolvía HTTP 200 en 0,2 s contra esos mismos
+    sitios.
+
+    Empezar por el caro convertía un éxito de dos décimas en un fallo de minuto
+    y medio. El orden no es un detalle: es la diferencia entre que funcione y
+    que no.
+    """
+    orden: list[str] = []
+
+    def barato(url, timeout_s=30.0):
+        orden.append("sin navegador")
+        return [{"name": "cf_clearance", "value": "x"}]
+
+    def caro(url, espera_s):
+        orden.append("con navegador")
+        return []
+
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador", barato)
+    monkeypatch.setattr(sesion_web, "_lanzar_headless", caro)
+
+    ok, motivo = sesion_web.cosechar("Cloudflare")
+    assert ok is True
+    assert orden == ["sin navegador"], (
+        "si el barato basta, el navegador NO debe llegar a abrirse")
+    assert "sin abrir ningún navegador" in motivo
+
+
+def test_si_lo_barato_no_basta_se_escala_al_navegador(monkeypatch):
+    orden: list[str] = []
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador",
+                        lambda *a, **k: orden.append("barato") or [])
+    monkeypatch.setattr(
+        sesion_web, "_lanzar_headless",
+        lambda url, espera_s: (orden.append("caro")
+                               or [{"name": "a", "value": "1"}]))
+    sesion_web.conceder_permiso("prueba")
+
+    ok, motivo = sesion_web.cosechar("Cloudflare")
+    assert ok is True and orden == ["barato", "caro"]
+    assert "con navegador" in motivo
+
+
+def test_el_fallo_cuenta_lo_que_paso_en_CADA_intento(monkeypatch):
+    """
+    «No se pudo» sin más no permite arreglar nada. Con los dos intentos
+    detallados, se ve si falló la red, el navegador, o el permiso.
+    """
+    monkeypatch.setattr(sesion_web, "_cosechar_sin_navegador",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("red caída")))
+    monkeypatch.setattr(
+        sesion_web, "_lanzar_headless",
+        lambda url, espera_s: (_ for _ in ()).throw(RuntimeError("no arrancó")))
+    sesion_web.conceder_permiso("prueba")
+
+    ok, motivo = sesion_web.cosechar("Cloudflare")
+    assert ok is False
+    assert "sin navegador:" in motivo and "con navegador:" in motivo
+    assert "red caída" in motivo and "no arrancó" in motivo
+
+
+def test_una_respuesta_de_error_no_cuenta_como_cookies(monkeypatch):
+    """
+    Un HTTP 500 no trae cookies válidas. Guardar lo que venga de una respuesta
+    de error dejaría una sesión inservible con aspecto de buena.
+    """
+    class Falsa:
+        status_code = 503
+        cookies = {"a": "1"}
+
+    monkeypatch.setattr("curl_cffi.requests.get", lambda *a, **k: Falsa())
+    assert sesion_web._cosechar_sin_navegador("https://x") == []
 
 
 # ============================================ importar lo que tú exportaste

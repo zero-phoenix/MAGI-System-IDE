@@ -425,6 +425,36 @@ def _lanzar_headless_en_proceso(url: str, espera_s: float) -> list[dict]:
             pagina.close()
 
 
+def _cosechar_sin_navegador(url: str, timeout_s: float = 30.0) -> list[dict]:
+    """
+    Cookies con `curl_cffi` imitando la huella de un navegador. Sin abrir nada.
+
+    POR QUÉ SE INTENTA ESTO PRIMERO
+    ===============================
+    Medido contra los dos sitios que supuestamente exigen navegador:
+
+        https://playground.ai.cloudflare.com/   HTTP 200 en 0,2 s
+        https://deepinfra.com/                  HTTP 200 en 0,7 s
+
+    Sin navegador, sin los ~100 MB, sin proceso hijo y sin plazo de 93
+    segundos. `curl_cffi` imita el apretón de manos TLS y HTTP/2 de un Chrome
+    real, y eso es lo primero que miran la mayoría de las protecciones
+    anti-bot: el handshake, no si hay una persona detrás.
+
+    Que g4f diga «su única vía es CDPSession» describe **cómo lo implementó
+    g4f**, no lo que el servidor exige.
+
+    Devuelve lista vacía si no consigue nada; quien llama decide si escalar.
+    """
+    from curl_cffi import requests as cr
+
+    r = cr.get(url, impersonate="chrome", timeout=timeout_s)
+    if r.status_code >= 400:
+        return []
+    return [{"name": k, "value": v, "domain": "", "path": "/"}
+            for k, v in dict(r.cookies).items()]
+
+
 def cosechar(proveedor: str, espera_s: float = ESPERA_DESAFIO_S) -> tuple[bool, str]:
     """
     Consigue las cookies de un proveedor. `(éxito, explicación)`.
@@ -445,21 +475,42 @@ def cosechar(proveedor: str, espera_s: float = ESPERA_DESAFIO_S) -> tuple[bool, 
     if not url:
         return False, f"{proveedor} no necesita sesión web"
 
+    # DEL MÁS BARATO AL MÁS CARO, Y NO AL REVÉS.
+    #
+    # La primera versión empezaba por el navegador: en la máquina del usuario
+    # eso eran 93 segundos para acabar fallando. Y resulta que el camino
+    # barato —curl_cffi con huella de navegador, ya instalado— devuelve HTTP
+    # 200 en 0,2 s contra esos mismos sitios.
+    #
+    # Empezar por el caro convertía un éxito de dos décimas en un fallo de
+    # minuto y medio.
+    intentos: list[str] = []
+    try:
+        cookies = _cosechar_sin_navegador(url)
+        if cookies:
+            guardar_cookies(proveedor, cookies)
+            return True, (f"{len(cookies)} cookie(s) de {url} sin abrir "
+                          f"ningún navegador")
+        intentos.append("sin navegador: respondió, pero sin cookies")
+    except Exception as e:
+        intentos.append(f"sin navegador: {type(e).__name__}: {str(e)[:80]}")
+
+    # Solo ahora, el navegador. Y solo con permiso.
     permitido, motivo = puede_abrir()
     if not permitido:
-        return False, motivo
+        return False, "; ".join(intentos + [f"con navegador: {motivo}"])
 
     try:
         cookies = _lanzar_headless(url, espera_s)
     except Exception as e:
-        return False, f"no se pudo cosechar: {type(e).__name__}: {e}"[:300]
+        intentos.append(f"con navegador: {type(e).__name__}: {str(e)[:150]}")
+        return False, "; ".join(intentos)
 
     if not cookies:
-        return False, ("la visita no dejó ninguna cookie: puede que el "
-                       "proveedor haya cambiado o que el desafío no se "
-                       "resolviera en el tiempo dado")
+        intentos.append("con navegador: la visita no dejó ninguna cookie")
+        return False, "; ".join(intentos)
     guardar_cookies(proveedor, cookies)
-    return True, f"{len(cookies)} cookie(s) obtenidas de {url}"
+    return True, f"{len(cookies)} cookie(s) obtenidas de {url} con navegador"
 
 
 # ------------------------------------------------- cosecha importada
