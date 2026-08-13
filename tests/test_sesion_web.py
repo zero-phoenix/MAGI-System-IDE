@@ -202,7 +202,13 @@ def test_el_estado_dice_que_falta_y_por_que(datos_propios, monkeypatch):
     e = sesion_web.estado()
     assert isinstance(e, sesion_web.EstadoSesion)
     assert isinstance(e.proveedores_pendientes, list)
-    assert "Claude" in e.proveedores_pendientes
+    # Claude ya NO es «pendiente»: exige tu cuenta, y aquí no se inicia sesión
+    # en ningún sitio. «Pendiente» prometía que algún día se resolvería, y esa
+    # promesa costó medio módulo construido para desbloquear un proveedor que
+    # estaba disponible por otra puerta. Ahora el panel dice «cerrado» y por qué.
+    assert "Claude" not in e.proveedores_pendientes
+    assert "Claude" in e.proveedores_imposibles
+    assert "cuenta" in e.proveedores_imposibles["Claude"]
     assert e.permiso_vigente is False and e.caduca_en_s == 0.0
     assert e.perfil, "el panel tiene que poder decir dónde vive el perfil"
     assert e.motor is None
@@ -241,3 +247,50 @@ def test_las_autorizaciones_se_registran_aparte_de_las_violaciones():
     """
     assert hasattr(no_browser, "autorizadas")
     assert isinstance(no_browser.autorizadas(), list)
+
+
+# ------------------------------------------- lo que el panel NO debe prometer
+
+def test_el_panel_no_dice_pendiente_de_lo_que_es_imposible(monkeypatch):
+    """
+    «Pendiente» es una promesa. Estos seis no la pueden cumplir.
+
+    LO QUE ESTO EVITA, Y YA PASÓ UNA VEZ
+    ====================================
+    El panel mostraba `Claude` como pendiente junto a los que solo necesitan
+    una sesión anónima. De ahí salió la conclusión de que faltaba cosechar
+    cookies, y de ahí medio este módulo —812 líneas— para desbloquear un
+    proveedor que estaba disponible por otra puerta (Perplexity) sin ninguna
+    cookie y sin ninguna cuenta.
+
+    Un rótulo optimista no es amable: es caro.
+    """
+    monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
+    e = sesion_web.estado()
+
+    for prov, motivo in sesion_web.IMPOSIBLES_POR_DISENO.items():
+        assert prov not in e.proveedores_pendientes, (
+            f"{prov} sale como «pendiente» y no lo está: {motivo}")
+        assert prov in e.proveedores_imposibles
+        assert e.proveedores_imposibles[prov], "cerrado sin motivo no ayuda"
+
+
+def test_cada_imposible_dice_CUAL_de_los_dos_motivos_es():
+    """
+    No es lo mismo «necesita tu cuenta» que «abre un navegador». El primero
+    depende de una regla tuya que podrías cambiar; el segundo, de §I.3, que
+    define el proyecto. Mezclarlos impide decidir.
+    """
+    for prov, motivo in sesion_web.IMPOSIBLES_POR_DISENO.items():
+        assert ("cuenta" in motivo) or ("navegador" in motivo), (
+            f"{prov}: el motivo no dice de cuál de los dos casos se trata")
+
+
+def test_no_se_promete_como_pendiente_nada_sin_via():
+    """
+    Los seis que necesitan sesión están hoy todos en la lista de imposibles.
+    Si algún día uno deja de estarlo, este test lo dice — y entonces sí habrá
+    algo pendiente de verdad, con su motivo.
+    """
+    assert set(sesion_web.IMPOSIBLES_POR_DISENO) == set(
+        sesion_web.PROVEEDORES_QUE_LA_NECESITAN)

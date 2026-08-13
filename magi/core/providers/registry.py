@@ -110,6 +110,41 @@ class ProviderRegistry:
         self.metrics = metrics
         self.cache: TTLCache[CompletionResponse] = TTLCache(cache_maxsize, cache_ttl_s)
         self._probe_lock = asyncio.Lock()
+        #: Media histórica en ms por familia, según la sonda. Vacío = aún no se
+        #: ha medido nada y manda `priority`, que es un número escrito a mano.
+        self._medias_ms: dict[str, float] = {}
+
+    def aplicar_medidas(self, medias_ms: dict[str, float]) -> None:
+        """
+        Le dice al registro lo que la sonda ha MEDIDO, por familia.
+
+        POR QUÉ HACE FALTA
+        ==================
+        `priority` es un entero escrito a mano cuando se registró el proveedor.
+        Ordenar por él significa repartir el enjambre según lo que alguien creyó
+        hace semanas, y estos servicios gratuitos cambian solos: el 2026-08-13,
+        cinco de las seis familias marcadas «verificadas» el día 6 estaban
+        rotas, y una marcada «imposible» funcionaba.
+
+        Con esto, `select_for_swarm` reparte por la media histórica real —la
+        media de las medias diarias, que es lo que `sonda.media_historica`
+        calcula— y BALTHASAR recibe la mejor familia MEDIDA, no la mejor
+        recordada.
+
+        Las familias sin medida NO se ponen las primeras por defecto: «no lo
+        sé» no es «es rápida». Van detrás de todas las medidas, y entre ellas
+        manda `priority`.
+        """
+        self._medias_ms = {f: ms for f, ms in (medias_ms or {}).items()
+                           if isinstance(ms, (int, float)) and ms > 0}
+
+    def _merito(self, familia: str, regs: list["Registration"]) -> tuple:
+        """Clave de orden: primero lo medido y más rápido; luego lo no medido."""
+        medida = self._medias_ms.get(familia)
+        # (0, ms) ordena antes que (1, ...) para cualquier ms: lo medido manda.
+        if medida is not None:
+            return (0, medida, regs[0].priority)
+        return (1, 0.0, regs[0].priority)
 
     # ---------------------------------------------------------------- registro
 
@@ -189,7 +224,9 @@ class ProviderRegistry:
         by_family: dict[str, list[Registration]] = {}
         for reg in pool:
             by_family.setdefault(reg.family, []).append(reg)
-        fams = sorted(by_family, key=lambda f: by_family[f][0].priority)
+        # Orden por MÉRITO MEDIDO si la sonda ha dicho algo; si no, por la
+        # prioridad escrita a mano. Ver `aplicar_medidas`.
+        fams = sorted(by_family, key=lambda f: self._merito(f, by_family[f]))
 
         by_role: dict[str, str] = {}
         families: dict[str, str] = {}

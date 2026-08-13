@@ -12,7 +12,7 @@
 # cambiado en este repositorio — el peor tipo de fallo, porque el commit
 # culpable no es tuyo.
 #
-# Este fichero fija las 93 dependencias —directas y transitivas— con las que se
+# Este fichero fija las 94 dependencias —directas y transitivas— con las que se
 # compiló el binario. Recompilar el tag da el mismo .exe.
 #
 # POR QUÉ SOLO PARA WINDOWS
@@ -34,6 +34,14 @@
 #       Compila el binario que se publica. Aquí no se quiere la última versión:
 #       se quiere EXACTAMENTE la que se probó.
 #
+# NOTA SOBRE pytest-timeout
+# =========================
+# Entra el 2026-08-13 y merece su línea: la marca `@pytest.mark.timeout(300)`
+# llevaba tiempo puesta en los tests que compilan un .exe y NO HACÍA NADA, porque
+# el plugin no estaba instalado. Medido: la suite pasó de 533 s a colgarse
+# indefinidamente sin que nada la matara. Una marca que documenta una garantía
+# inexistente es peor que no tenerla, porque se confía en ella.
+
 # NOTA SOBRE camoufox / playwright
 # ================================
 # Entran por la sesión web headless. `playwright` es el más pesado de los dos y
@@ -231,9 +239,12 @@ pytest==9.1.1
     #   -r requirements.txt
     #   pytest-asyncio
     #   pytest-cov
+    #   pytest-timeout
 pytest-asyncio==1.4.0
     # via -r requirements.txt
 pytest-cov==7.1.0
+    # via -r requirements.txt
+pytest-timeout==2.4.0
     # via -r requirements.txt
 python-docx==1.2.0
     # via -r requirements.txt

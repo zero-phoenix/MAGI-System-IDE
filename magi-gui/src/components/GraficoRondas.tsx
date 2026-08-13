@@ -24,6 +24,7 @@
  */
 import { Background, Controls, Edge, Node, ReactFlow } from "@xyflow/react";
 import { agruparEnRondas, tituloDelDebate } from "../lib/rondas";
+import { avisoDelDebate } from "../lib/calidadDebate";
 
 export default function GraficoRondas({ messages }: { messages: any[] }) {
 
@@ -98,6 +99,19 @@ export default function GraficoRondas({ messages }: { messages: any[] }) {
                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--dim)', color: 'var(--acc)', fontSize: 12 }}>
                      {tituloDelDebate(rondas)}
                    </div>
+                   {/* El aviso solo aparece cuando hay algo que decir: si la
+                       antítesis es un eco de la tesis, o si una ronda concluye
+                       lo mismo que la anterior. Un cartel permanente de «todo
+                       va bien» se deja de leer a la tercera vez, y entonces
+                       tampoco se lee este. */}
+                   {(() => {
+                     const aviso = avisoDelDebate(rondas);
+                     return aviso ? (
+                       <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--dim)', color: '#e0a030', fontSize: 11, lineHeight: 1.4 }}>
+                         {aviso}
+                       </div>
+                     ) : null;
+                   })()}
                    <div style={{ flex: 1, minHeight: 0 }}>
                      <ReactFlow nodes={nodes} edges={edges} fitView>
                        <Background color="#222" gap={16} />

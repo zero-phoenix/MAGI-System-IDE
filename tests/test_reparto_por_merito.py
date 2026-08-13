@@ -36,9 +36,15 @@ class _Reg:
 class _Registro:
     """Registry de mentira con las familias que se le digan."""
 
-    def __init__(self, familias_por_prioridad):
+    def __init__(self, familias_por_prioridad, medias_ms=None):
         self._pool = [_Reg(f"g4f-{f}", f, i * 10)
                       for i, f in enumerate(familias_por_prioridad)]
+        #: Sin esto, el doble se rompió al añadir el reparto por medida: toma
+        #: prestado `select_for_swarm` de la clase real, y esa llama a
+        #: `self._merito`, que lee `self._medias_ms`. Un doble que toma
+        #: prestado un método tiene que implementar lo que ese método usa;
+        #: si no, no está probando la implementación real sino una a medias.
+        self._medias_ms = dict(medias_ms or {})
 
     def healthy(self, **_):
         return list(self._pool)
@@ -46,6 +52,7 @@ class _Registro:
     # se reutiliza la implementación real
     from magi.core.providers.registry import ProviderRegistry as _P
     select_for_swarm = _P.select_for_swarm
+    _merito = _P._merito
 
 
 def test_la_mejor_familia_es_para_balthasar():

@@ -13,14 +13,26 @@ requires-python = ">=3.10"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-q --no-header"
+# `--timeout` global: ningún test puede colgar la suite. 120 s es holgado para
+# todo lo que no compila (el 99%); los que compilan un .exe llevan su propia
+# marca con 300. Sin esto, un cuelgue no falla: bloquea, que es peor porque no
+# deja diagnóstico.
+addopts = "-q --no-header --timeout=120"
 markers = [
     "slow: tests that compile or run heavy artifacts (e.g. PyInstaller builds)",
-    "timeout: custom timeout marker used by some long-running integration tests",
+    # `timeout` ya NO se declara aquí: la registra `pytest-timeout`, que ahora
+    # sí está instalado. Declararla a mano era justo lo que ocultaba el
+    # problema — pytest no avisaba de marca desconocida y todo el mundo daba
+    # por hecho que el plazo se aplicaba. No se aplicaba.
     # Ver tests/conftest.py: el test que la lleva toca la frontera con el
     # exterior a propósito (red, disco, navegador). A cambio no puede afirmar
     # nada que dependa de lo que haya instalado, porque en el CI hay otra cosa.
     "frontera: el test cruza la frontera con el exterior a propósito",
+    # Ver tests/conftest.py: por defecto los tests ven un catálogo de
+    # proveedores CONGELADO. Esta marca pide el de verdad, y solo la necesitan
+    # los tests que comprueban el catálogo en sí (que el JSON coincida con las
+    # constantes, que toda familia verificada tenga candidatos).
+    "catalogo_real: el test lee el catálogo de proveedores de verdad",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

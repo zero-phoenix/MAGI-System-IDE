@@ -39,6 +39,15 @@ export interface NodoRonda {
   estado: EstadoNodo;
   familia?: string;
   resumen?: string;
+  /**
+   * El mensaje ENTERO, no solo su primera frase.
+   *
+   * La caja del gráfico pinta `resumen`, pero medir si BALTHASAR aporta algo
+   * distinto de MELCHIOR (ver `calidadDebate.ts`) necesita el texto completo:
+   * comparar dos primeras frases diría más sobre cómo empiezan a escribir que
+   * sobre si están de acuerdo.
+   */
+  texto?: string;
 }
 
 export interface Ronda {
@@ -159,6 +168,7 @@ function construir(numero: number, mensajes: MensajeAgente[]): Ronda {
       estado,
       familia: msg?.family,
       resumen: primeraFrase(msg?.content),
+      texto: msg?.content,
     };
   });
 

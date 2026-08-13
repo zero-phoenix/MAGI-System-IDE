@@ -221,6 +221,6 @@ Siete reglas, cada una nacida de un fallo real:
    hecho hasta que se comprueba **en el camino por el que pasa el sistema de
    verdad**.
 
-**886 tests en Python · 80 en la interfaz · sin tests verdes no hay release.**
+**1250 tests en Python · 112 en la interfaz · sin tests verdes no hay release.**
 
 <!-- naoko:mejoras -->

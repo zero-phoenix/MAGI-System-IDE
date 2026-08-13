@@ -59,20 +59,42 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Medicion", "EstadoCandidato", "PROMPT_CANARIO", "RESPUESTA_ESPERADA",
+    "SEÑALES_ESPERADAS",
     "registrar", "medias_por_dia", "media_historica", "estado_de_candidatos",
     "resumen_para_panel", "medir_candidato", "medir_todo",
+    "medias_por_familia", "toca_sondear", "refrescar_si_toca",
+    "INTERVALO_REFRESCO_S",
 ]
 
-#: Prompt de la sonda. Corto a propósito: mide el tiempo de ida y vuelta del
-#: proveedor, no su capacidad de redactar. Cinco tokens de respuesta cuestan
-#: prácticamente nada de cuota, y esto se ejecuta muchas veces.
+#: EL CANARIO, Y POR QUÉ DEJÓ DE SER «di: funciona»
+#: ================================================
+#: La primera versión pedía literalmente `Responde únicamente con la palabra:
+#: funciona`. Parecía ideal —barato, verificable— y tenía un defecto que solo
+#: se ve midiendo: **suspendía al mejor proveedor del sistema**.
 #:
-#: Se pide una palabra concreta EN ESPAÑOL para poder comprobar dos cosas de
-#: una sola llamada: que responde, y que respeta el idioma. Un candidato veloz
-#: que contesta en otro idioma no sirve para este sistema, y la latencia sola
-#: no los distingue.
-PROMPT_CANARIO = "Responde únicamente con la palabra: funciona"
-RESPUESTA_ESPERADA = "funciona"
+#: Medido el 2026-08-13, `Perplexity` (el que sirve los modelos Claude) es un
+#: motor de búsqueda por dentro, y ante esa orden contesta:
+#:
+#:     'No entiendo la consulta "di: funciona". ¿Podrías...'
+#:
+#: Con el mismo proveedor y una pregunta técnica de verdad, en cambio, responde
+#: correctamente en 4,2 s. O sea: el examen medía la capacidad de obedecer una
+#: orden artificial, no la de servir para lo que este sistema hace.
+#:
+#: El canario nuevo es una pregunta real, breve y con respuesta verificable.
+#: Cuesta unos pocos tokens más y mide lo que importa.
+PROMPT_CANARIO = ("En una sola frase: ¿qué diferencia hay entre un mutex y "
+                  "un semáforo?")
+
+#: Señales de que ENTENDIÓ la pregunta, en cualquiera de los idiomas admitidos.
+#: No se puntúa la calidad de la respuesta —eso sería evaluar el modelo, no su
+#: disponibilidad—: se comprueba que habla del tema y no de otra cosa.
+SEÑALES_ESPERADAS = ("mutex", "semáforo", "semaforo", "semaphore",
+                     "exclusión", "exclusion", "hilo", "thread",
+                     "contador", "counter", "bloqueo", "lock")
+
+#: Se conserva el nombre antiguo por compatibilidad con quien lo importe.
+RESPUESTA_ESPERADA = "mutex"
 
 #: Tope de mediciones por candidato y día. Sondear cuesta cuota, y la cuota es
 #: la del usuario: si la sonda se la gasta, ha empeorado el sistema.
@@ -387,9 +409,19 @@ async def medir_candidato(llm, familia: str, proveedor: str, modelo: str = "",
         return Medicion(familia, proveedor, modelo, ok=False, ms=ms,
                         tipo_error="respuesta_vacia")
 
+    # EL EJE DE IDIOMA, AHORA CON LA REGLA REAL DEL SISTEMA.
+    #
+    # Era `idioma.coincide(texto, "es")`, o sea «¿está en español?». Con eso,
+    # un candidato que contesta un inglés impecable puntuaba igual que uno que
+    # contesta en chino, y no son lo mismo: el primero se traduce en una
+    # llamada corta y el segundo hay que descartarlo.
+    #
+    # `admisible()` aplica la regla que de verdad usa el enjambre: es/en/pt/it
+    # sí, chino nunca.
+    vale, codigo = idioma.admisible(texto)
     return Medicion(familia, proveedor, modelo, ok=True, ms=ms,
-                    idioma_ok=idioma.coincide(texto, "es"),
-                    detalle=texto[:200])
+                    idioma_ok=vale,
+                    detalle=f"[{codigo}] {texto[:180]}")
 
 
 async def medir_todo(llm, candidatos, *, store=None,
@@ -432,3 +464,84 @@ async def medir_todo(llm, candidatos, *, store=None,
     logger.info("[sonda] %d candidatos medidos, %d saltados por tope diario",
                 len(hechas), saltados)
     return hechas
+
+
+# ---------------------------------------------------- el disparo automático
+
+#: Cada cuánto se vuelve a sondear si nadie lo pide. Un día.
+#:
+#: No es un valor cómodo elegido al azar: la unidad de la media histórica es el
+#: DÍA (la media de las medias diarias). Sondear varias veces al día mejora la
+#: media de hoy; sondear cada varios días deja huecos en la serie. Una vez al
+#: día es la cadencia que la propia métrica pide.
+INTERVALO_REFRESCO_S = 24 * 3600
+
+
+def medias_por_familia(store, dias: int = 30) -> dict[str, float]:
+    """
+    Media histórica de cada familia = la de su MEJOR candidato.
+
+    Es el número con el que `ProviderRegistry.aplicar_medidas` reparte el
+    enjambre. Se usa el mejor y no el promedio de la familia porque es el
+    primero que se intenta: define la experiencia real.
+
+    Las familias sin ninguna medición NO aparecen. Devolver 0.0 para ellas las
+    pondría las primeras, que es exactamente al revés de lo correcto: «no lo
+    sé» no puede ganarle a «medido y rápido».
+    """
+    fuera: dict[str, float] = {}
+    for e in estado_de_candidatos(store, dias):
+        if e.media_historica_ms is None:
+            continue
+        actual = fuera.get(e.familia)
+        if actual is None or e.media_historica_ms < actual:
+            fuera[e.familia] = e.media_historica_ms
+    return fuera
+
+
+def toca_sondear(store, ahora: float | None = None,
+                 intervalo_s: float = INTERVALO_REFRESCO_S) -> tuple[bool, str]:
+    """
+    ¿Hace falta sondear ya? `(sí/no, motivo)`.
+
+    Devuelve el motivo en texto porque acaba en el log y en el panel, y
+    «False» no le dice a nadie cuándo volverá a pasar algo.
+    """
+    ahora = time.time() if ahora is None else ahora
+    ultimos = [e.ultimo_intento for e in estado_de_candidatos(store, dias=2)
+               if e.ultimo_intento]
+    if not ultimos:
+        return True, "no hay ninguna medición todavía"
+    transcurrido = ahora - max(ultimos)
+    if transcurrido >= intervalo_s:
+        return True, f"la última medición fue hace {transcurrido / 3600:.1f} h"
+    faltan = (intervalo_s - transcurrido) / 3600
+    return False, f"medido hace poco; toca dentro de {faltan:.1f} h"
+
+
+async def refrescar_si_toca(llm, candidatos, store, *,
+                            intervalo_s: float = INTERVALO_REFRESCO_S,
+                            **kw) -> tuple[int, str]:
+    """
+    Sondea SOLO si toca. Devuelve `(mediciones hechas, motivo)`.
+
+    POR QUÉ EL FRENO VA AQUÍ Y NO EN QUIEN LLAMA
+    ============================================
+    Porque quien llama es el arranque del kernel, y el arranque ocurre cada vez
+    que abres MAGI. Si el freno estuviera fuera, abrir y cerrar el programa
+    cinco veces seguidas dispararía cinco sondeos completos contra proveedores
+    gratuitos — con la cuota del usuario. Una sonda que se gasta tu cuota ha
+    empeorado el sistema, por muy buenos que sean sus datos.
+
+    Nunca lanza: si la sonda falla, el sistema tiene que arrancar igual. El
+    motivo del fallo se devuelve, no se esconde.
+    """
+    try:
+        toca, motivo = toca_sondear(store, intervalo_s=intervalo_s)
+        if not toca:
+            return 0, motivo
+        medidas = await medir_todo(llm, candidatos, store=store, **kw)
+        return len(medidas), f"{len(medidas)} mediciones ({motivo})"
+    except Exception as e:                                  # pragma: no cover
+        logger.warning("[sonda] el refresco falló: %s", e)
+        return 0, f"falló: {type(e).__name__}: {e}"

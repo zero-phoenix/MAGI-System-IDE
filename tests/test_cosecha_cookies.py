@@ -449,8 +449,15 @@ def test_un_json_roto_se_trata_como_fichero_sin_cookies(tmp_path):
 def test_importar_deja_al_proveedor_listo_en_el_panel(tmp_path, monkeypatch):
     """De nada sirve importar si el panel sigue diciendo que falta."""
     monkeypatch.setattr(sesion_web, "disponible", lambda: (True, "simulado"))
-    assert "Claude" in sesion_web.estado().proveedores_pendientes
+    # De entrada NO aparece como pendiente sino como imposible: exige tu
+    # cuenta. Pero si TÚ le das las cookies, deja de estar cerrado — que es
+    # justo lo que `importar_cookies` existe para permitir.
+    antes = sesion_web.estado()
+    assert "Claude" in antes.proveedores_imposibles
+    assert "Claude" not in antes.proveedores_con_cookies
+
     _importa(tmp_path, "c.json", json.dumps([{"name": "s", "value": "1"}]))
+
     e = sesion_web.estado()
     assert "Claude" in e.proveedores_con_cookies
     assert "Claude" not in e.proveedores_pendientes

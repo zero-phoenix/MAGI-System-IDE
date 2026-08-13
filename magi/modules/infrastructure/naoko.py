@@ -399,6 +399,16 @@ class NaokoAgent:
             f"- [{'OK ' if i['ok'] else 'ROTA'}] {i['id']}: {i['detalle']}"
             for i in invariants) or "- (sin sondas ejecutadas)"
 
+        # EL SUSTRATO: de qué proveedores vive el enjambre AHORA MISMO.
+        #
+        # Naoko supervisaba el enjambre sin ver el suelo que pisa. Podía decir
+        # «MELCHIOR va lento» pero no «MELCHIOR va lento porque su familia
+        # perdió al candidato rápido hace dos días» — y la segunda frase es la
+        # única accionable. El 2026-08-13, la familia de MELCHIOR tenía UN
+        # candidato vivo que además respondía en chino, y Naoko no tenía forma
+        # de saberlo ni de contarlo.
+        sustrato = self._resumen_del_sustrato()
+
         # ¿Esto ya pasó antes? Un fallo que reaparece es una regresión, y eso
         # cambia el diagnóstico. Naoko no tenía forma de saberlo.
         previos = self.memory.seen_before(user_msg)
@@ -441,6 +451,9 @@ IDIOMA: {idioma.instruccion(lang)}
 
 ## Estado de las invariantes ahora mismo (sondas ejecutadas, no supuestas)
 {inv_text}
+
+## De qué proveedores vive el enjambre ahora mismo (medido por la sonda)
+{sustrato}
 
 ## Estado operativo
 [{swarm_summary}]
@@ -499,6 +512,72 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         except Exception as e:
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"Error interno en Naoko: {e}"}))
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Error"}))
+
+    def _resumen_del_sustrato(self) -> str:
+        """
+        Qué proveedores sostienen al enjambre, medido y en texto plano.
+
+        POR QUÉ NAOKO NECESITA ESTO
+        ===========================
+        Supervisaba el enjambre sin ver el suelo que pisa. Podía decir
+        «MELCHIOR va lento»; no podía decir «MELCHIOR va lento porque su
+        familia se quedó con un solo candidato y ese responde en chino». La
+        primera frase es una observación, la segunda es un diagnóstico, y solo
+        la segunda se puede accionar.
+
+        Es literalmente lo que pasó el 2026-08-13 y nadie —ni Naoko— lo vio
+        hasta que se midió a mano.
+
+        NUNCA LANZA
+        ===========
+        Si esto falla, Naoko tiene que seguir respondiendo: perder al
+        supervisor porque no pudo leer una tabla es cambiar un problema
+        pequeño por uno grande. El fallo se cuenta, no se esconde.
+        """
+        try:
+            from magi.core.providers import sonda
+
+            store = getattr(self.swarm, "store", None)
+            if store is None:
+                return "- (sin acceso al almacén: no puedo leer la sonda)"
+
+            resumen = sonda.resumen_para_panel(store)
+            familias = resumen.get("familias") or []
+            if not familias:
+                return ("- (la sonda aún no ha medido nada; el reparto usa el "
+                        "catálogo escrito a mano)")
+
+            reparto = {}
+            try:
+                from magi.core.providers.backends.g4f_backend import (
+                    DEFAULT_SWARM_FAMILIES,
+                )
+                reparto = {f: r for r, f in DEFAULT_SWARM_FAMILIES.items()}
+            except Exception:
+                pass
+
+            lineas = []
+            for f in familias[:8]:
+                quien = reparto.get(f["familia"])
+                etiqueta = f" <- {quien}" if quien else ""
+                mejor = f.get("mejor_ms")
+                ms = f"{mejor:.0f} ms" if mejor else "sin medir"
+                # `vivos/total` es la parte que de verdad avisa: una familia
+                # con 1 de 4 vivos funciona hoy y se cae mañana, y eso no se
+                # ve en la latencia.
+                lineas.append(
+                    f"- {f['familia']}{etiqueta}: {ms}, "
+                    f"{f['vivos']}/{f['total']} candidatos vivos")
+
+            sospechosas = [f["familia"] for f in familias
+                           if f["total"] and f["vivos"] <= 1]
+            if sospechosas:
+                lineas.append(
+                    f"- AVISO: {', '.join(sospechosas)} viven de un solo "
+                    f"candidato. Si cae, esa familia se queda sin nadie.")
+            return "\n".join(lineas)
+        except Exception as e:
+            return f"- (no he podido leer la sonda: {type(e).__name__}: {e})"
 
     async def _generate_with_rotation(self, system_prompt: str, user_prompt: str,
                                       image: str | None = None,

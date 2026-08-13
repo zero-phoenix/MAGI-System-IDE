@@ -117,6 +117,124 @@ def _se_niega(nombre: str):
     return _negativa
 
 
+# ---------------------------------------------------------------------------
+# EL CATÁLOGO DE PROVEEDORES NO ES UN HECHO: ES EL PARTE DEL DÍA
+# ---------------------------------------------------------------------------
+#
+# CINCO VECES, Y TODAS DISTINTAS EN APARIENCIA
+# ============================================
+# 1. `test_una_familia_agotada_lo_dice_en_vez_de_fingir` usaba `claude` como
+#    ejemplo de familia muerta. Se puso rojo **porque `claude` revivió**.
+# 2. `test_el_orden_pone_delante_al_candidato_mas_rapido` usaba los dos
+#    primeros candidatos de `gpt`. Se rompió cuando resultaron estar rotos:
+#    `_ordered()` los filtró y el test del ORDEN falló sin que el orden
+#    hubiera cambiado.
+# 3. `test_la_latencia_es_una_media_movil`, igual.
+# 4. `test_los_candidatos_rotos_no_se_intentan` recorría tres familias
+#    escritas a mano y reventó con `ValueError: familia desconocida: qwen` el
+#    día que esa familia se descartó por no haber forma de acceder a ella.
+# 5. `test_ask_rota_cuando_la_familia_propia_responde_en_otro_idioma` fijaba
+#    `assert familia == "gpt"`. Se rompió porque `gpt` salió de las
+#    verificadas… precisamente porque su único candidato responde en chino,
+#    que es lo que ese test persigue.
+#
+# Las cinco tienen la misma forma: **el test nombra un dato del catálogo**. Y
+# el catálogo es una foto de qué servicios gratuitos están vivos hoy, que
+# cambia cada semana. Un test que se rompe cuando el sistema MEJORA no está
+# comprobando el sistema.
+#
+# QUÉ HACE ESTA PIEZA
+# ===================
+# Durante los tests, `FAMILY_SPECS`, `ROTOS`, `VERIFICADAS` y el reparto valen
+# un **catálogo de laboratorio fijo**, escrito aquí abajo y que no cambia
+# nunca. Los tests que necesitan el de verdad —«toda familia verificada tiene
+# candidatos», «el JSON coincide con las constantes»— lo piden con la marca
+# `catalogo_real`.
+#
+# Nota sobre el alcance: se parchea el módulo `g4f_backend`, que es de donde
+# leen todos. Si alguien copia el valor a una variable en tiempo de import, se
+# le escapa — por eso el catálogo de laboratorio se parece al real en FORMA
+# (mismos nombres de familia usados por el enjambre, mismos proveedores
+# reales), y solo difiere en que no se mueve.
+# QUÉ SE CONGELA Y QUÉ NO — la distinción que costó un intento
+# ============================================================
+# La primera versión inventaba también los NOMBRES de familia, y saltó al
+# instante: `ValueError: familia desconocida: razonamiento`. Otros consumidores
+# —el panel de Configuración, el registro— enumeran las familias reales y
+# construyen un `G4FProvider` por cada una; si el catálogo de laboratorio no
+# las tiene todas, el sistema se contradice a sí mismo dentro del test.
+#
+# Y la lección es más general que el error: **los nombres de familia no son
+# datos volátiles**. Son una decisión de diseño, cambian cuando alguien decide
+# cambiarlos, y el enjambre los referencia por nombre. Lo que cambia solo, sin
+# que nadie lo decida, es la SALUD de los proveedores: quién responde hoy,
+# quién da 402, a quién se le ha caído el servidor.
+#
+# Así que se congela exactamente eso: cada familia real recibe dos candidatos
+# fijos que siempre responden, más una familia agotada de laboratorio para los
+# tests que la necesitan.
+_CANDIDATOS_FIJOS = [("CohereForAI_C4AI_Command", "command-a-03-2025"),
+                     ("Perplexity", "auto")]
+
+#: Familia con un candidato que abre navegador y otro limpio, en ese orden.
+#: Para los tests de ordenación, que antes usaban `deepseek` porque ese día
+#: contenía Cloudflare. Aquí lo contiene siempre.
+_FAMILIA_CON_NAVEGADOR = "_con_navegador"
+
+#: Familia cuyos candidatos están todos en ROTOS. Para los tests de «lo dice
+#: en vez de fingir», que antes usaban `claude` y se rompieron cuando `claude`
+#: revivió.
+_FAMILIA_AGOTADA = "_agotada"
+
+_ROTOS_LABORATORIO = {
+    "Claude": "DESCARTADO: exige tu cuenta",
+    "LMArena": "DESCARTADO: exige tu cuenta",
+}
+
+_REPARTO_LABORATORIO = {
+    "BALTHASAR": "claude", "CASPER": "gemini", "MELCHIOR": "command",
+}
+
+
+def _catalogo_de_laboratorio(reales: dict) -> dict:
+    """Mismos nombres de familia que el real; candidatos fijos."""
+    lab = {nombre: list(_CANDIDATOS_FIJOS) for nombre in reales}
+    lab[_FAMILIA_AGOTADA] = [("Claude", None), ("LMArena", "claude-sonnet-4")]
+    lab[_FAMILIA_CON_NAVEGADOR] = [("Cloudflare", "llama-3.3-70b"),
+                                   ("CohereForAI_C4AI_Command", "command-a-03-2025")]
+    return lab
+
+
+@pytest.fixture(autouse=True)
+def catalogo_congelado(request, monkeypatch):
+    """
+    Congela el catálogo salvo que el test pida el real con `catalogo_real`.
+
+    Como el guardián de la frontera, no se importa el módulo si nadie lo ha
+    cargado: `g4f_backend` arrastra g4f y `test_arranque_ligero` lo prohíbe.
+    """
+    if request.node.get_closest_marker("catalogo_real"):
+        yield
+        return
+
+    modulo = sys.modules.get("magi.core.providers.backends.g4f_backend")
+    if modulo is not None:
+        lab = _catalogo_de_laboratorio(modulo.FAMILY_SPECS)
+        monkeypatch.setattr(modulo, "FAMILY_SPECS", lab, raising=False)
+        monkeypatch.setattr(modulo, "ROTOS", dict(_ROTOS_LABORATORIO),
+                            raising=False)
+        # Verificadas: todas las reales menos las dos de laboratorio, que no
+        # son familias del sistema sino andamios para los tests.
+        monkeypatch.setattr(
+            modulo, "VERIFIED_FAMILIES",
+            tuple(f for f in lab
+                  if f not in (_FAMILIA_AGOTADA, _FAMILIA_CON_NAVEGADOR)),
+            raising=False)
+        monkeypatch.setattr(modulo, "DEFAULT_SWARM_FAMILIES",
+                            dict(_REPARTO_LABORATORIO), raising=False)
+    yield
+
+
 @pytest.fixture(autouse=True)
 def entorno_explicito(request, monkeypatch):
     """

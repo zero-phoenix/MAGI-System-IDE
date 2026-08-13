@@ -47,3 +47,14 @@ pytest>=8.0
 pytest-asyncio>=0.23
 pytest-cov
 pyyaml
+
+# pytest-timeout: la marca `@pytest.mark.timeout(300)` llevaba tiempo puesta en
+# los tests que compilan un .exe... y NO HACÍA NADA. Sin este paquete, pytest
+# registra la marca como desconocida y sigue. Medido: la suite completa pasó de
+# 533 s a quedarse colgada indefinidamente en `test_build_tetris_executable`,
+# sin que nada la matara, ni en local ni en el CI.
+#
+# Una marca que documenta una garantía que no existe es peor que no tenerla:
+# se confía en ella. Ahora el plazo se aplica de verdad y un test colgado
+# FALLA en vez de bloquear la suite entera.
+pytest-timeout

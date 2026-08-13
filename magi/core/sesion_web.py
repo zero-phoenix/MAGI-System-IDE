@@ -67,6 +67,7 @@ __all__ = [
     "revocar_permiso", "permiso_vigente", "puede_abrir", "perfil_dir",
     "guardar_cookies", "cookies_de", "olvidar_cookies", "estado",
     "PROVEEDORES_QUE_LA_NECESITAN", "COSECHA_AUTOMATICA", "COSECHA_IMPORTADA",
+    "IMPOSIBLES_POR_DISENO",
     "cosechar", "importar_cookies", "diagnostico",
     "diagnostico_legible", "PLAZO_PRUEBA_S",
 ]
@@ -80,6 +81,30 @@ PROVEEDORES_QUE_LA_NECESITAN: dict[str, str] = {
     "LMArena": "fichero de autenticación",
     "Cloudflare": "conexión CDP",
     "DeepInfra": "conexión CDP",
+}
+
+#: LOS QUE NUNCA VAN A FUNCIONAR, Y POR QUÉ HAY QUE DECIRLO
+#: =======================================================
+#: El panel los mostraba como «pendientes», junto a los que solo necesitan una
+#: sesión anónima. Y no son lo mismo: estos cuatro exigen **tu cuenta**, y la
+#: regla del proyecto es que aquí no se inicia sesión en ningún sitio.
+#:
+#: «Pendiente» promete que algún día se resolverá. Estos no: son imposibles por
+#: diseño, y decirlo ahorra que alguien —tú, o yo dentro de tres meses— vuelva
+#: a intentarlo. De hecho ya pasó: medio este módulo se construyó para
+#: desbloquear `Claude`, que resultó estar disponible por otra puerta
+#: (Perplexity) sin ninguna cookie.
+#:
+#: Cloudflare y DeepInfra tampoco son «pendientes», pero por otro motivo: su
+#: única vía abre un navegador, y eso choca con §I.3. Medido el 2026-08-13 con
+#: el cortafuegos puesto: `BrowserBlocked` en 2 y 3 milisegundos.
+IMPOSIBLES_POR_DISENO: dict[str, str] = {
+    "Claude": "requiere iniciar sesión con tu cuenta — excluido por diseño",
+    "OpenaiChat": "requiere iniciar sesión con tu cuenta — excluido por diseño",
+    "Copilot": "requiere iniciar sesión con tu cuenta — excluido por diseño",
+    "LMArena": "requiere iniciar sesión con tu cuenta — excluido por diseño",
+    "Cloudflare": "solo funciona abriendo un navegador — lo prohíbe §I.3",
+    "DeepInfra": "navegador + captcha Turnstile — lo prohíbe §I.3",
 }
 
 #: DOS CAMINOS, PORQUE NO TODOS PIDEN LO MISMO — Y ESTO HAY QUE DECIRLO CLARO.
@@ -154,6 +179,10 @@ class EstadoSesion:
     perfil: str
     proveedores_con_cookies: list[str]
     proveedores_pendientes: list[str]
+    #: Los que el panel debe mostrar como CERRADOS, con su motivo. Separarlos
+    #: de `proveedores_pendientes` es la diferencia entre «aún no» y «nunca», y
+    #: el panel no puede decir lo primero cuando la verdad es lo segundo.
+    proveedores_imposibles: dict[str, str]
 
 
 _permiso: Permiso | None = None
@@ -821,6 +850,8 @@ def estado() -> EstadoSesion:
     p = permiso_vigente()
     con, sin = [], []
     for prov in PROVEEDORES_QUE_LA_NECESITAN:
+        if prov in IMPOSIBLES_POR_DISENO and not cookies_de(prov):
+            continue          # ni con cookies ni pendiente: cerrado, y abajo
         (con if cookies_de(prov) else sin).append(prov)
     return EstadoSesion(
         motor=motivo if hay_motor else None,
@@ -830,4 +861,5 @@ def estado() -> EstadoSesion:
         perfil=str(perfil_dir()),
         proveedores_con_cookies=con,
         proveedores_pendientes=sin,
+        proveedores_imposibles=dict(IMPOSIBLES_POR_DISENO),
     )

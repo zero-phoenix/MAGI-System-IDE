@@ -819,3 +819,74 @@ def build_swarm_providers(
     fam = families or DEFAULT_SWARM_FAMILIES
     return {role: G4FProvider(family=f, provider_id=f"g4f-{f}")
             for role, f in fam.items()}
+
+
+# ------------------------------------------------- el adaptador de la sonda
+
+def candidatos_para_sondear() -> list[tuple[str, str, str]]:
+    """
+    `(familia, proveedor, modelo)` de todo lo que tiene sentido medir.
+
+    Se saltan los que están en `ROTOS`: medir a quien ya sabemos que no puede
+    contestar gasta cuota para confirmar lo que el catálogo ya dice, y encima
+    ensucia la media con ceros.
+    """
+    fuera: list[tuple[str, str, str]] = []
+    for familia, candidatos in FAMILY_SPECS.items():
+        for nombre, modelo in candidatos:
+            if nombre in ROTOS:
+                continue
+            fuera.append((familia, nombre, modelo or ""))
+    return fuera
+
+
+class LlmDeSonda:
+    """
+    Adaptador mínimo para `sonda.medir_candidato`.
+
+    POR QUÉ HACÍA FALTA, Y POR QUÉ LA SONDA NO SE USABA
+    ===================================================
+    `sonda.medir_candidato` llama a `llm.generate(..., family=, proveedor=,
+    modelo=)`. `FreeCloudLLM.generate` no acepta `proveedor` ni `modelo`: elige
+    él dentro de la familia. O sea, la sonda estaba escrita contra un interfaz
+    que **no existía**, y por eso nunca la llamó nadie: no era que faltara el
+    disparador, es que no había con qué disparar.
+
+    Medir un candidato CONCRETO es todo el sentido de la sonda. Si midiera «lo
+    que la familia elija», la media saldría del que respondió, nunca del que
+    falla, y el panel diría que todo va bien.
+
+    Va aquí y no en `sonda.py` a propósito: `sonda.py` no debe importar g4f —
+    `test_arranque_ligero` lo prohíbe y con razón, porque arrastra medio mundo
+    al arranque—.
+    """
+
+    async def generate(self, system_prompt: str, user_prompt: str, *,
+                       family: str = "", proveedor: str = "", modelo: str = "",
+                       temperature: float = 0.0, **_kw) -> tuple[str, str]:
+        _disable_g4f_browser()          # el cortafuegos, siempre antes
+        cls = _resolve(proveedor)
+        if cls is None:
+            raise ProviderUnavailable(f"proveedor desconocido: {proveedor}")
+
+        try:
+            from g4f.client import AsyncClient
+        except ImportError as e:                              # pragma: no cover
+            raise ProviderUnavailable("g4f no instalado") from e
+
+        mensajes = [{"role": "user", "content": user_prompt}]
+        if system_prompt:
+            mensajes.insert(0, {"role": "system", "content": system_prompt})
+
+        respuesta = await AsyncClient().chat.completions.create(
+            model=modelo or "", provider=cls, messages=mensajes)
+        texto = (respuesta.choices[0].message.content or "")
+
+        # La misma criba que en `complete()`: una respuesta de cuatro
+        # caracteres no es una respuesta. Sin esto, la sonda registraría
+        # `'tud.'` como éxito y le daría al candidato una latencia estupenda
+        # por no haber contestado.
+        motivo = _por_que_es_inservible(texto)
+        if motivo:
+            raise ProviderError(f"respuesta inservible: {motivo}")
+        return texto, f"{proveedor}/{modelo or 'default'}"

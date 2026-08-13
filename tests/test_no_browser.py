@@ -142,8 +142,21 @@ def test_los_candidatos_con_navegador_van_al_final_de_la_cola():
         G4FProvider, _resolve, _uses_browser,
     )
 
-    p = G4FProvider(family="deepseek")     # PhindAi..., Cloudflare, Cloudflare
+    # La familia viene del catálogo de laboratorio (tests/conftest.py) y
+    # contiene SIEMPRE un candidato con navegador y otro limpio, en ese orden.
+    #
+    # Antes era `family="deepseek"`, porque ese día contenía Cloudflare. Cuando
+    # `deepseek` se reescribió, el test dejó de probar lo que dice probar sin
+    # que nada avisara: una familia sin candidatos de navegador cumple
+    # `marcas == sorted(marcas)` trivialmente.
+    from tests.conftest import _FAMILIA_CON_NAVEGADOR
+
+    p = G4FProvider(family=_FAMILIA_CON_NAVEGADOR)
     orden = p._ordered()
+    marcas_previas = [_uses_browser(_resolve(n)) for n, _ in orden if _resolve(n)]
+    assert any(marcas_previas), (
+        "esta familia debe tener al menos un candidato con navegador; si no, "
+        "el test pasa sin comprobar nada")
     marcas = [_uses_browser(_resolve(n)) if _resolve(n) else False for n, _ in orden]
     # Ningún candidato limpio puede quedar detrás de uno con navegador.
     assert marcas == sorted(marcas), f"orden incorrecto: {orden}"

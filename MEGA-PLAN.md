@@ -468,7 +468,7 @@ comprobable — si no se puede comprobar, no es un criterio.
 | 0.6 | `_imprimible()` — la promesa del diagnóstico, cumplida | ✅ |
 | 0.7 | Quinta ocurrencia del defecto de entorno | ✅ CI en verde |
 
-## Fase 1 · Decir la verdad sobre `sesion_web` — 1 h, riesgo nulo
+## Fase 1 · Decir la verdad sobre `sesion_web` — ✅ HECHO
 
 1. Reescribir cabecera del módulo y `PLAN-SESION-WEB.md` con §2–§4.
 2. El panel deja de decir «pendiente» para los cuatro imposibles: dice
@@ -477,7 +477,7 @@ comprobable — si no se puede comprobar, no es un criterio.
 
 **Aceptación:** un test comprueba que el panel no promete nada de los cuatro.
 
-## Fase 2 · Que la sonda mande — 4 h, el mayor valor pendiente
+## Fase 2 · Que la sonda mande — ✅ HECHO
 
 2.1 **Disparo automático.** Al arrancar (si la última medida > 24 h) y bajo
     demanda. Presupuesto duro: `MAX_POR_DIA = 24`, `CONCURRENCIA = 4`.
@@ -513,7 +513,7 @@ y medirlos todos**, no solo los 13 del catálogo. Así se encontró Claude.
 **Aceptación:** `gpt` con ≥1 candidato que responde en castellano en <5 s, o
 una línea en el catálogo diciendo por qué no lo hay.
 
-## Fase 4 · Medir la calidad del debate — 6 h, lo que hoy no existe
+## Fase 4 · Medir la calidad del debate — ✅ HECHO
 
 - **Divergencia entre agentes**: distancia léxica entre las conclusiones de
   MELCHIOR y BALTHASAR por ronda. Si tiende a 0, el debate es teatro.
@@ -523,7 +523,7 @@ una línea en el catálogo diciendo por qué no lo hay.
 
 **Aceptación:** un debate real produce las dos métricas y se ven en la GUI.
 
-## Fase 5 · Naoko ve el sustrato — 3 h
+## Fase 5 · Naoko ve el sustrato — ✅ HECHO
 
 `_info_sonda()` y `_info_sesion_web()` ya existen en el kernel. Falta que Naoko
 los **use**: que sepa decir *«MELCHIOR va lento porque su familia perdió al
@@ -557,6 +557,48 @@ candidato rápido hace dos días»* en vez de *«MELCHIOR va lento»*.
 3. `ruff` completo a bloqueante **por carpeta**, empezando por
    `magi/core/providers/`.
 4. `VENTANA_CONTEXTO` por familia en cuanto la sonda mida el truncado real.
+
+---
+
+## Parte IV · Lo que la ejecución del plan encontró
+
+Ejecutar un plan es la mejor forma de auditarlo. Cinco cosas que solo
+aparecieron al hacerlo:
+
+**1. `@pytest.mark.timeout(300)` no hacía nada.** El plugin `pytest-timeout`
+no estaba instalado, así que pytest registraba la marca como desconocida y
+seguía. Medido: la suite pasó de 533 s a **quedarse colgada indefinidamente**
+en `test_build_tetris_executable`, sin que nada la matara, ni en local ni en el
+CI. *Una marca que documenta una garantía inexistente es peor que no tenerla,
+porque se confía en ella.* Ahora hay plazo global de 120 s y la marca funciona.
+
+**2. La sonda estaba escrita contra un interfaz que no existía.** No era que
+faltara el disparador: `medir_candidato` llamaba a
+`llm.generate(..., proveedor=, modelo=)` y `FreeCloudLLM.generate` no acepta
+esos argumentos — elige él dentro de la familia. **No había con qué
+dispararla.** Y el detalle importa: medir «lo que la familia elija» habría dado
+siempre la latencia del que respondió, nunca la del que falla. El panel diría
+que todo va bien mientras medio catálogo está muerto, que es exactamente lo que
+pasó. Ahora existe `LlmDeSonda`, que mide un candidato CONCRETO.
+
+**3. El canario suspendía al mejor proveedor.** `Responde únicamente con la
+palabra: funciona` hacía que Perplexity —un buscador por dentro— contestara «No
+entiendo la consulta». Con una pregunta técnica real responde bien en 4,2 s. El
+examen medía la capacidad de obedecer una orden artificial, no la de servir
+para lo que este sistema hace.
+
+**4. Mi umbral de divergencia estaba puesto a ojo, y mal.** Lo fijé en 0,25
+«porque suena a poco». Al escribir los tests con ejemplos concretos: una
+paráfrasis casi literal da **0,44** y un desacuerdo real **1,00**. Con 0,25 no
+se detectaba ni el eco más descarado. Recalibrado a 0,55 con los dos valores
+medidos escritos al lado — y con la advertencia de que dos ejemplos a mano son
+poca evidencia y habrá que recalibrarlo con debates reales.
+
+**5. `naoko.py` tiene 1 520 líneas.** La interfaz lleva tope de 900 desde hace
+tiempo y me cazó dos veces, con razón. El núcleo no tenía ninguno: el fichero
+más grande es **un 69 % mayor que el límite que se le exige a la GUI**, y nadie
+lo había notado porque nada lo miraba. Ahora hay trinquete por fichero: no baja
+solo, pero no sube.
 
 ---
 

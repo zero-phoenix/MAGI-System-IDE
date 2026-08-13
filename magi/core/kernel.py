@@ -824,8 +824,61 @@ class Kernel:
             payload={"status": "online"},
             critical=True
         ))
-        
+
+        # La sonda, en segundo plano y con freno propio. Ver `_refrescar_sonda`.
+        self._tarea_sonda = asyncio.create_task(self._refrescar_sonda())
+
         logger.info("Kernel listo.")
+
+    async def _refrescar_sonda(self) -> None:
+        """
+        Mide los proveedores si toca, y hace que el reparto obedezca al dato.
+
+        POR QUÉ EN SEGUNDO PLANO
+        ========================
+        Sondear una docena de candidatos tarda entre veinte segundos y un
+        minuto. Hacerlo en el arranque dejaría la interfaz esperando a algo que
+        no necesita para funcionar: MAGI arranca con la última medida conocida
+        y se corrige sola cuando la nueva llega.
+
+        POR QUÉ NO LLEVA SU PROPIO «CADA CUÁNTO»
+        =======================================
+        El freno vive en `sonda.refrescar_si_toca`, no aquí. Si estuviera aquí,
+        abrir y cerrar MAGI cinco veces dispararía cinco sondeos completos
+        contra proveedores gratuitos, con la cuota del usuario. Una sonda que
+        gasta tu cuota ha empeorado el sistema por muy buenos que sean sus
+        datos.
+
+        Y NO PUEDE TUMBAR EL ARRANQUE
+        =============================
+        Todo va dentro de un `try`. Si la sonda falla, MAGI sigue con el
+        catálogo escrito a mano, que es exactamente lo que hacía antes de que
+        la sonda existiera. Un sistema de observación que impide arrancar al
+        sistema observado no es una mejora.
+        """
+        try:
+            from magi.core.providers import sonda
+            from magi.core.providers.backends.g4f_backend import (
+                LlmDeSonda, candidatos_para_sondear,
+            )
+            from magi.core.providers.registry import get_registry
+
+            store = self.swarm.store
+            hechas, motivo = await sonda.refrescar_si_toca(
+                LlmDeSonda(), candidatos_para_sondear(), store)
+            logger.info("[sonda] %s", motivo)
+
+            medias = sonda.medias_por_familia(store)
+            if medias:
+                (await get_registry()).aplicar_medidas(medias)
+                logger.info("[sonda] el reparto ahora obedece a %d familias "
+                            "medidas", len(medias))
+            await self.bus.publish(BusEvent(
+                topic="sonda.actualizada",
+                payload={"mediciones": hechas, "motivo": motivo,
+                         "familias_medidas": len(medias)}))
+        except Exception as e:
+            logger.warning("[sonda] no se pudo refrescar: %s", e)
 
     async def _persist_critical_event(self, event):
         """
