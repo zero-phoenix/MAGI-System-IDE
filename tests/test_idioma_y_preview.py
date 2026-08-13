@@ -185,27 +185,47 @@ def test_el_self_test_no_cuenta_como_intento_de_abrir_navegador():
 
 # =========================================================== proveedores
 
-def test_el_orden_pone_delante_al_candidato_mas_rapido():
+#: Familia de laboratorio: dos candidatos VIVOS de proveedores distintos.
+#:
+#: Los dos tests de abajo usaban `gpt` y sus dos primeros candidatos. El
+#: 2026-08-13 se midieron y resultaron estar rotos (CopilotApp da
+#: WSServerHandshakeError 460, WeWordle HTTP 429), asi que `_ordered()` empezo
+#: a filtrarlos y los tests se pusieron rojos sin que el codigo del orden
+#: hubiera cambiado: describian el catalogo, no el algoritmo.
+#:
+#: Es la misma leccion que `tests/conftest.py`: lo que se prueba es la logica,
+#: y la logica no debe depender de a quien se le haya caido el servidor hoy.
+_FAMILIA_DE_LABORATORIO = [
+    ("Perplexity", "claude45sonnet"),
+    ("CohereForAI_C4AI_Command", "command-a-03-2025"),
+]
+
+
+def test_el_orden_pone_delante_al_candidato_mas_rapido(monkeypatch):
     """
     Antes mandaba la afinidad a secas y `Yqcloud` se quedaba en cabeza aunque
     tardara 13,9 s habiendo alternativas de 2 s en la misma familia.
     """
     pytest.importorskip("g4f.Provider")
+    from magi.core.providers.backends import g4f_backend as g
     from magi.core.providers.backends.g4f_backend import G4FProvider
 
-    p = G4FProvider(family="gpt")
+    monkeypatch.setitem(g.FAMILY_SPECS, "_lab", list(_FAMILIA_DE_LABORATORIO))
+    p = G4FProvider(family="_lab")
     lento, rapido = p.candidates[0], p.candidates[1]
     p._anota_latencia(lento, 13953)
     p._anota_latencia(rapido, 2000)
     assert p._ordered()[0] == rapido
 
 
-def test_la_latencia_es_una_media_movil():
+def test_la_latencia_es_una_media_movil(monkeypatch):
     """Un pico suelto no puede desterrar a un candidato que suele ir bien."""
     pytest.importorskip("g4f.Provider")
+    from magi.core.providers.backends import g4f_backend as g
     from magi.core.providers.backends.g4f_backend import G4FProvider
 
-    p = G4FProvider(family="gpt")
+    monkeypatch.setitem(g.FAMILY_SPECS, "_lab", list(_FAMILIA_DE_LABORATORIO))
+    p = G4FProvider(family="_lab")
     c = p.candidates[0]
     p._anota_latencia(c, 1000)
     p._anota_latencia(c, 11000)

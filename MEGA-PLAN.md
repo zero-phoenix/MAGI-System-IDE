@@ -451,6 +451,24 @@ candidato rápido hace dos días»* en vez de *«MELCHIOR va lento»*.
 
 ## Fase 6 · Frenar la deuda, sin drama — continuo
 
+0. **Congelar el catálogo dentro de los tests** — el hermano del guardián de
+   §8, y ya tiene tres instancias medidas hoy:
+   `test_una_familia_agotada_lo_dice_en_vez_de_fingir` usaba `claude` como
+   ejemplo de familia muerta y se puso rojo **porque `claude` revivió**;
+   `test_el_orden_pone_delante_al_candidato_mas_rapido` y
+   `test_la_latencia_es_una_media_movil` usaban los dos primeros candidatos de
+   `gpt`, que hoy están rotos, así que `_ordered()` los filtraba y el test del
+   *orden* fallaba sin que el orden hubiera cambiado.
+
+   Los tres están arreglados con familias sintéticas, pero eso es disciplina
+   otra vez. El mecanismo: durante los tests, `FAMILY_SPECS` y `ROTOS` valen
+   un catálogo de laboratorio **fijo**, salvo con una marca `catalogo_real`
+   para los pocos tests que sí deben leer el de verdad (p. ej.
+   «toda familia verificada tiene candidatos»).
+
+   *Un test que se rompe cuando un proveedor mejora está mal escrito.*
+   Coste estimado: 2 h y unos 10 tests que tocar.
+
 1. Tope de líneas para `magi/core/**` como el de la GUI, con techo actual y
    trinquete (igual que huérfanos: no baja solo, pero no sube).
 2. Cobertura bloqueante a partir del 79 % medido, subiendo 1 punto por release.
