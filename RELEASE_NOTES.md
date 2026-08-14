@@ -1,5 +1,6 @@
-Reconstrucción completa sobre v5.0.28. **Suite completa en verde en Linux y
-Windows**: sin tests verdes no hay release.
+Suite completa en verde: **1269 pruebas en Python y 112 en la interfaz**. Sin
+tests verdes no hay release, y esa regla ya no depende de GitHub Actions —
+`python scripts/verificar.py` ejecuta lo mismo en tu máquina.
 
 ## Cómo instalarlo
 
@@ -14,6 +15,83 @@ manual de por medio.
 
 No hace falta configurar nada: **sin claves de API, sin modelos locales, sin
 suscripciones**.
+
+---
+
+# v5.4.0 — los proveedores, medidos en vez de supuestos
+
+Esta versión sale de auditar el sistema con mediciones en lugar de con
+suposiciones. Lo que apareció fue incómodo y está corregido.
+
+## La familia `claude` nunca necesitó cookies
+
+Figuraba como imposible («exige cookies de un navegador») y de ahí salió medio
+módulo de sesión web. Resultó que `Perplexity` —ya en el catálogo, sin cuenta y
+sin claves— sirve `claude45sonnet` y `claude40opus`. Lo bloqueaba un fallo de
+g4f de dos líneas, ahora parcheado en `providers/compat_g4f.py`.
+
+*Antes de construir infraestructura para saltar un muro, conviene comprobar que
+el muro existe.*
+
+## Cuatro idiomas de entrada, uno de salida
+
+Los proveedores pueden responder en **español, inglés, portugués o italiano**;
+**el chino, nunca**. Todo lo que llega a la interfaz va traducido al español,
+**incluida Naoko sin excepción**.
+
+No es una concesión, es más barato: antes una respuesta en inglés se trataba
+como fallo y disparaba una regeneración completa en otra familia. Ahora se
+traduce con una llamada corta y las conclusiones no cambian.
+
+Y la causa raíz del problema del idioma no era el prompt: la familia de
+MELCHIOR tenía un único candidato vivo, y respondía en chino.
+
+## Un fallo que se disfrazaba de éxito
+
+Un proveedor empezó a devolver cuatro caracteres —`'tud.'`— para cualquier
+pregunta. MAGI lo daba por bueno: habría aparecido en la interfaz como la
+antítesis de BALTHASAR, con su latencia y su nombre de proveedor. Ahora se
+rechaza y se prueba el siguiente candidato.
+
+## El catálogo ya no se cree a sí mismo
+
+Cinco familias marcadas «verificadas» estaban rotas al medirlas, y dos de ellas
+se cayeron **en las ocho horas** que separaron dos mediciones del mismo día. Esa
+es la vida útil real de una lista escrita a mano.
+
+Por eso la sonda de latencia —que llevaba semanas construida y **sin que nadie
+la llamara**— ahora dispara sola una vez al día, con freno para no gastar
+cuota, y el reparto del enjambre obedece a la media histórica medida en lugar
+de a una prioridad escrita a mano.
+
+## Naoko ve el suelo que pisa
+
+Antes podía decir «MELCHIOR va lento». Ahora sabe cuántos candidatos vivos tiene
+cada familia y avisa cuando alguna se queda con uno solo — que es la diferencia
+entre arreglarlo el martes y descubrirlo el viernes con el enjambre parado.
+
+## El gráfico dice si el debate es un debate
+
+Mide si BALTHASAR aporta algo distinto de MELCHIOR y si cada ronda cambia algo
+respecto de la anterior. Solo avisa cuando hay un problema: un cartel permanente
+de «todo va bien» se deja de leer a la tercera vez.
+
+## Camoufox, verificado sin ventanas
+
+Arranca headless en 9,9 s, la lista de ventanas del sistema es **idéntica antes
+y después**, y no deja procesos. La regla se mantiene: la única ventana es la
+interfaz de MAGI.
+
+## Y un fallo que habría llegado hasta aquí
+
+`requirements.txt` clavaba `curl_cffi==0.5.10`. Al construir un entorno limpio
+desde el fichero de versiones bloqueadas —lo mismo que hace la compilación—
+Perplexity ni siquiera conectaba: *impersonate chrome is not supported*. **El
+binario habría llevado la familia `claude` muerta** y en la máquina de
+desarrollo nadie lo habría notado, porque allí hay una versión más nueva
+instalada.
+
+*Un pin que nadie usa no protege: engaña.*
 
 ---
 
