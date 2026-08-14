@@ -74,6 +74,35 @@ NOTAS = RAIZ / "RELEASE_NOTES.md"
 MINIMO_MB = 100
 
 
+def _entorno() -> dict:
+    """
+    El entorno de los subprocesos se DECIDE, no se hereda.
+
+    ESTO NO ES PARANOIA: PASÓ.
+    ==========================
+    La máquina de desarrollo tiene `NODE_ENV=production` y `npm config
+    omit=dev`. Con eso, `npm ci` instala 140 paquetes y **se salta todas las
+    devDependencies** — TypeScript, Vite y Vitest incluidos. El build muere con
+
+        "tsc" no se reconoce como un comando interno o externo
+
+    …y parece un problema del proyecto. No lo es: el CI no lleva esa variable
+    y allí funciona. Es una diferencia invisible entre dos máquinas, que es la
+    peor clase de diferencia porque nadie la busca.
+
+    Se limpia aquí, para todos los subprocesos, en vez de confiar en que quien
+    compile tenga su shell configurado de una forma concreta.
+    """
+    import os
+
+    e = dict(os.environ)
+    e.pop("NODE_ENV", None)          # que npm no crea que es un despliegue
+    e["NPM_CONFIG_OMIT"] = ""        # ni que sobran las dependencias de desarrollo
+    e["NPM_CONFIG_PRODUCTION"] = ""
+    e["PYTHONUTF8"] = "1"            # y que nada reviente por un acento
+    return e
+
+
 def plegar(t: str) -> str:
     """ASCII imprimible en cualquier consola. Quinta vez que cp1252 muerde."""
     d = unicodedata.normalize("NFKD", t)
@@ -88,7 +117,7 @@ def di(t: str = "") -> None:
 def correr(orden: list[str], *, cwd: Path = RAIZ, titulo: str = "") -> bool:
     di(f"\n=== {titulo or ' '.join(orden[:3])} ===")
     r = subprocess.run(orden, cwd=cwd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+                       encoding="utf-8", errors="replace", env=_entorno())
     salida = (r.stdout or "") + (r.stderr or "")
     for l in [x for x in salida.splitlines() if x.strip()][-10:]:
         di("    " + l[:150])
@@ -220,7 +249,11 @@ def main() -> int:
     # ---- 3. frontend, con `npm ci` (del lock, como el CI)
     npm = shutil.which("npm") or shutil.which("npm.cmd") or "npm"
     gui = RAIZ / "magi-gui"
-    if not correr([npm, "ci"], cwd=gui, titulo="frontend: npm ci"):
+    # `--include=dev` explícito, además de limpiar el entorno: dos capas para
+    # lo mismo, porque `npm ci` sin las dependencias de desarrollo produce un
+    # árbol que parece completo y no compila.
+    if not correr([npm, "ci", "--include=dev"], cwd=gui,
+                  titulo="frontend: npm ci (con dependencias de desarrollo)"):
         return 1
     if not correr([npm, "run", "build"], cwd=gui, titulo="frontend: build"):
         return 1

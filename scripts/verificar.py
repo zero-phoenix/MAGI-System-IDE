@@ -65,6 +65,36 @@ def plegar(texto: str) -> str:
         "ascii", "replace").decode("ascii")
 
 
+def _entorno() -> dict:
+    """
+    El entorno de los subprocesos se DECIDE, no se hereda. Ver `publicar.py`.
+
+    En corto: esta máquina tiene `NODE_ENV=production`, y con eso `npm ci` se
+    salta TypeScript, Vite y Vitest. El CI no la lleva, así que el fallo solo
+    aparece en local — la peor clase de diferencia, porque nadie la busca.
+    """
+    import os
+
+    e = dict(os.environ)
+    e.pop("NODE_ENV", None)
+    e["NPM_CONFIG_OMIT"] = ""
+    e["NPM_CONFIG_PRODUCTION"] = ""
+    e["PYTHONUTF8"] = "1"
+    return e
+
+
+def _que_falta(salida: str) -> str | None:
+    """Nombre del paquete o programa ausente, si el fallo es ese. `None` si no."""
+    import re
+
+    m = re.search(r"No module named ['\"]?([A-Za-z0-9_.-]+)", salida or "")
+    if m:
+        return m.group(1)
+    if "no se pudo ejecutar" in (salida or ""):
+        return "el programa"
+    return None
+
+
 class Paso:
     def __init__(self, nombre: str, orden: list[str], *,
                  cwd: Path = RAIZ, opcional: bool = False):
@@ -75,6 +105,8 @@ class Paso:
         self.ok: bool | None = None
         self.segundos = 0.0
         self.salida = ""
+        #: Nombre de lo que falta, si el paso no se pudo ejecutar.
+        self.falta: str | None = None
 
     def correr(self) -> bool:
         print(plegar(f"\n=== {self.nombre} ==="), flush=True)
@@ -82,7 +114,8 @@ class Paso:
         t0 = time.perf_counter()
         try:
             r = subprocess.run(self.orden, cwd=self.cwd, capture_output=True,
-                               text=True, encoding="utf-8", errors="replace")
+                               text=True, encoding="utf-8", errors="replace",
+                               env=_entorno())
             self.salida = (r.stdout or "") + (r.stderr or "")
             self.ok = r.returncode == 0
         except FileNotFoundError as e:
@@ -90,6 +123,17 @@ class Paso:
             # no se disimula: un paso que no se ejecutó no es un paso que pasó.
             self.salida = f"no se pudo ejecutar: {e}"
             self.ok = None if self.opcional else False
+
+        # «No module named X» no es un fallo de la comprobación: es que falta
+        # la herramienta. Distinguirlo importa —y me costó un intento—: al
+        # compilar desde el entorno del release, `ruff` no estaba (es una
+        # herramienta de desarrollo, no una dependencia de ejecución) y el
+        # script dijo «FALLA» a secas. Parecía que el código tenía errores de
+        # sintaxis. Un diagnóstico que confunde «está mal» con «no lo he
+        # mirado» es peor que no diagnosticar.
+        self.falta = _que_falta(self.salida)
+        if self.falta:
+            self.ok = None
         self.segundos = time.perf_counter() - t0
 
         self._informar()
@@ -108,6 +152,13 @@ class Paso:
         está diagnosticando.
         """
         lineas = [l for l in self.salida.splitlines() if l.strip()]
+        if self.falta:
+            print(plegar(f"    NO INSTALADO: {self.falta}"), flush=True)
+            print(plegar(f"    Instalalo y vuelve a pasar:  pip install "
+                         f"{self.falta}"), flush=True)
+            print(plegar("    (no es un fallo del codigo: es que no se ha "
+                         "comprobado)"), flush=True)
+            return
         if self.ok:
             for l in lineas[-8:]:
                 print(plegar("    " + l[:160]), flush=True)
@@ -184,7 +235,7 @@ def main() -> int:
     fallos = 0
     for p in pasos:
         if p.ok is None:
-            estado = "SALTADO"
+            estado = "NO HECHO" if p.falta else "SALTADO"
         elif p.ok:
             estado = "  OK   "
         else:
@@ -196,6 +247,17 @@ def main() -> int:
     if fallos:
         print(plegar(f"\n{fallos} paso(s) en rojo. NO subas esto."))
         return 1
+
+    sin_hacer = [p.nombre for p in pasos if p.falta]
+    if sin_hacer:
+        # Ni verde ni rojo: hay comprobaciones que NO se han hecho. Decir
+        # «todo verde» aquí seria mentir por omision, que es la clase de
+        # mentira mas cara porque nadie la ve.
+        print(plegar(f"\nNada en rojo, pero {len(sin_hacer)} comprobacion(es) "
+                     f"no se han hecho por falta de herramientas:"))
+        for n in sin_hacer:
+            print(plegar(f"  - {n}"))
+        return 2
     if not args.todo:
         print(plegar("\nTodo verde. Antes de publicar una version, pasa "
                      "tambien:\n    python scripts/verificar.py --todo"))
