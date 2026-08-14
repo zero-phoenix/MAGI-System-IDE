@@ -1,0 +1,183 @@
+"""
+Lo mismo que hace el CI, aquí y gratis.
+
+POR QUÉ EXISTE
+==============
+El 2026-08-13 el CI dejó de arrancar: repositorio privado, minutos de Actions
+agotados, seis jobs fallando en dos segundos sin llegar a asignar runner. Y con
+el CI caído se cae también la regla que sostiene el proyecto —«sin tests verdes
+no hay release»—, porque la única forma de saber si están verdes era el CI.
+
+Una regla que depende de un servicio de pago no es una regla, es una
+suscripción. Esto la devuelve a la máquina.
+
+QUÉ COMPRUEBA, Y POR QUÉ ESTAS COSAS
+====================================
+Exactamente los mismos pasos del `ci.yml`, en el mismo orden y con los mismos
+comandos. No una aproximación: si aquí sale verde y allí rojo, o al revés, este
+script no sirve para nada.
+
+    1. ruff (bloqueante)  -> sintaxis y nombres indefinidos
+    2. pytest (rápidos)   -> las ~1250 pruebas de cada push
+    3. imports del núcleo -> que los módulos centrales carguen
+    4. npm test           -> los 112 tests de la interfaz
+    5. npm run build      -> que la interfaz compile
+
+Los tests marcados `slow` NO entran por defecto: compilan un .exe con
+PyInstaller y son dos tercios del tiempo. `--todo` los incluye, que es lo que
+hay que pasar antes de publicar una versión.
+
+USO
+===
+    python scripts/verificar.py            # lo de cada push (~4 min)
+    python scripts/verificar.py --todo     # + los que compilan (~10 min)
+    python scripts/verificar.py --rapido   # solo Python, sin interfaz
+
+SALIDA
+======
+Un resumen al final con lo que pasó y lo que no, y código de salida distinto de
+cero si algo falla — para poder encadenarlo con `&&` antes de un `git push`.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+import time
+import unicodedata
+from pathlib import Path
+
+RAIZ = Path(__file__).resolve().parents[1]
+
+
+def plegar(texto: str) -> str:
+    """
+    ASCII imprimible en cualquier consola.
+
+    No es remilgo: la consola de Windows por defecto es cp1252 y un acento en
+    un `print` ha tumbado ya cuatro cosas en este proyecto, incluida una
+    medición que dio por roto a un proveedor que funcionaba. Una herramienta
+    que revienta al informar es peor que no tenerla.
+    """
+    d = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in d if not unicodedata.combining(c)).encode(
+        "ascii", "replace").decode("ascii")
+
+
+class Paso:
+    def __init__(self, nombre: str, orden: list[str], *,
+                 cwd: Path = RAIZ, opcional: bool = False):
+        self.nombre = nombre
+        self.orden = orden
+        self.cwd = cwd
+        self.opcional = opcional
+        self.ok: bool | None = None
+        self.segundos = 0.0
+        self.salida = ""
+
+    def correr(self) -> bool:
+        print(plegar(f"\n=== {self.nombre} ==="), flush=True)
+        print(plegar(f"    {' '.join(self.orden)}"), flush=True)
+        t0 = time.perf_counter()
+        try:
+            r = subprocess.run(self.orden, cwd=self.cwd, capture_output=True,
+                               text=True, encoding="utf-8", errors="replace")
+            self.salida = (r.stdout or "") + (r.stderr or "")
+            self.ok = r.returncode == 0
+        except FileNotFoundError as e:
+            # Falta la herramienta (npm sin instalar, por ejemplo). Se dice,
+            # no se disimula: un paso que no se ejecutó no es un paso que pasó.
+            self.salida = f"no se pudo ejecutar: {e}"
+            self.ok = None if self.opcional else False
+        self.segundos = time.perf_counter() - t0
+
+        # Se enseñan las ultimas lineas, que es donde pytest pone el resumen.
+        cola = [l for l in self.salida.splitlines() if l.strip()][-12:]
+        for l in cola:
+            print(plegar("    " + l[:160]), flush=True)
+        return bool(self.ok)
+
+
+def _npm() -> list[str]:
+    """
+    `npm` en Windows es `npm.cmd`, y `subprocess` no lo encuentra sin ayuda.
+
+    Sin esto el paso de la interfaz falla con `FileNotFoundError` en la única
+    plataforma donde se compila el .exe — o sea, siempre que importa.
+    """
+    exe = shutil.which("npm") or shutil.which("npm.cmd")
+    return [exe] if exe else ["npm"]
+
+
+def construir_pasos(todo: bool, rapido: bool) -> list[Paso]:
+    py = [sys.executable, "-m"]
+    marca = [] if todo else ["-m", "not slow"]
+
+    pasos = [
+        # Igual que en ci.yml: solo E9/F63/F7/F82 son bloqueantes. El lint
+        # completo es informativo allí, así que aquí tampoco puede tumbar nada.
+        Paso("ruff (sintaxis y nombres indefinidos)",
+             [*py, "ruff", "check", "magi/", "tests/",
+              "--select", "E9,F63,F7,F82"]),
+        Paso("pytest" + ("" if todo else " (sin los que compilan)"),
+             [*py, "pytest", "tests/", "-q", "--tb=line",
+              "-p", "no:cacheprovider", *marca]),
+        Paso("imports del nucleo",
+             [sys.executable, "-c",
+              "import magi.core.paths, magi.core.context, magi.core.router;"
+              "import magi.core.prompts, magi.core.agent_loop;"
+              "import magi.core.providers.registry, magi.core.providers.cloud;"
+              "import magi.core.tools;"
+              "print('todos los modulos del nucleo importan')"]),
+    ]
+    if not rapido:
+        gui = RAIZ / "magi-gui"
+        pasos += [
+            Paso("interfaz: tests", [*_npm(), "test"], cwd=gui, opcional=True),
+            Paso("interfaz: build", [*_npm(), "run", "build"], cwd=gui,
+                 opcional=True),
+        ]
+    return pasos
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--todo", action="store_true",
+                    help="incluye los tests que compilan un .exe")
+    ap.add_argument("--rapido", action="store_true",
+                    help="solo Python, sin la interfaz")
+    args = ap.parse_args()
+
+    pasos = construir_pasos(args.todo, args.rapido)
+    t0 = time.perf_counter()
+    for p in pasos:
+        p.correr()
+
+    print(plegar("\n" + "=" * 66))
+    fallos = 0
+    for p in pasos:
+        if p.ok is None:
+            estado = "SALTADO"
+        elif p.ok:
+            estado = "  OK   "
+        else:
+            estado = " FALLA "
+            fallos += 1
+        print(plegar(f"  [{estado}] {p.nombre:<44} {p.segundos:6.1f}s"))
+    print(plegar(f"  total: {time.perf_counter() - t0:.1f}s"))
+
+    if fallos:
+        print(plegar(f"\n{fallos} paso(s) en rojo. NO subas esto."))
+        return 1
+    if not args.todo:
+        print(plegar("\nTodo verde. Antes de publicar una version, pasa "
+                     "tambien:\n    python scripts/verificar.py --todo"))
+    else:
+        print(plegar("\nTodo verde, incluidos los que compilan. Listo para "
+                     "publicar."))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

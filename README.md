@@ -223,4 +223,17 @@ Siete reglas, cada una nacida de un fallo real:
 
 **1250 tests en Python · 112 en la interfaz · sin tests verdes no hay release.**
 
+Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
+aquí, con los mismos comandos:
+
+```bash
+python scripts/verificar.py            # lo de cada push  (~4 min)
+python scripts/verificar.py --todo     # + los que compilan un .exe (~10 min)
+```
+
+Existe porque el CI se paró en seco el 13-ago: repositorio privado, minutos de
+Actions agotados, seis jobs fallando en dos segundos sin llegar a asignar
+runner. Una regla que depende de un servicio de pago no es una regla, es una
+suscripción.
+
 <!-- naoko:mejoras -->

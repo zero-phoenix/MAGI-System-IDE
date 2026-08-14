@@ -3,6 +3,49 @@ name: CI
 # Plan MAGI 9.0 §1.5 — tests en cada push, no solo al publicar.
 # v5.0.28 no tenía CI de tests: los test_area*.py vivían en scratch/ (que está
 # en .gitignore) y test_area0 estaba en rojo sin que nada lo detectara.
+#
+# ---------------------------------------------------------------------------
+# POR QUÉ ESTE FICHERO ES COMO ES: 46 MINUTOS POR PUSH
+# ---------------------------------------------------------------------------
+# El 2026-08-13 el CI se paró en seco. Los seis jobs fallaban en 2 segundos, sin
+# runner asignado y con cero pasos. La anotación de GitHub lo decía literal:
+#
+#   "The job was not started because recent account payments have failed or
+#    your spending limit needs to be increased."
+#
+# Este repositorio es PRIVADO, así que los minutos se pagan. Y medido sobre la
+# última corrida verde:
+#
+#   test (windows-latest, 3.11)   9,2 min x2 = 18,4 facturables
+#   test (windows-latest, 3.10)   7,0 min x2 = 14,0
+#   test (ubuntu-latest, 3.11)    6,9 min x1 =  6,9
+#   test (ubuntu-latest, 3.10)    6,1 min x1 =  6,1
+#   gui                           0,5 min    =  0,5
+#   lint                          0,4 min    =  0,4
+#   -----------------------------------------------
+#   TOTAL                                      46,3 min POR PUSH
+#
+# Con 2000 minutos al mes eso son 43 pushes. En una sola sesión de trabajo se
+# hacen seis. La cuota no se agotó por mala suerte: el CI estaba diseñado para
+# agotarla.
+#
+# DOS CAUSAS, LAS DOS EVITABLES
+# =============================
+# 1. Windows cuesta el DOBLE y había dos jobs de Windows. Se queda uno, en 3.10,
+#    que es la versión con la que se compila el .exe publicado. El segundo no
+#    aportaba información nueva: las diferencias entre 3.10 y 3.11 ya las cubre
+#    la matriz de Ubuntu, y la paridad de rutas se comprueba igual con un job.
+#
+# 2. Los tests marcados `slow` COMPILAN UN .EXE CON PYINSTALLER, y eso son dos
+#    tercios del tiempo (medido en local: 533 s la suite entera contra 187 s sin
+#    ellos). Se ejecutaban en los cuatro jobs, o sea cuatro veces por push, para
+#    comprobar algo que `release.yml` vuelve a comprobar antes de publicar.
+#
+#    NO se han eliminado: eso sería verde sin mirar, que es peor que rojo.
+#    Corren en el job `lentos` —semanal y bajo demanda— y en `release.yml`, que
+#    ya ejecuta `pytest tests/` completo y sin el cual no hay .exe.
+#
+# Estimado tras el recorte: ~12 min por push, unos 165 pushes al mes.
 
 on:
   push:
@@ -10,15 +53,30 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Domingos a las 4:00 UTC: los tests lentos, una vez por semana. Un fallo
+    # en la compilación del .exe conviene saberlo antes de querer publicar,
+    # no el día que se publica.
+    - cron: "0 4 * * 0"
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # Tres combinaciones, no cuatro, y no es por ahorrar sin más: Windows
+    # cuesta el doble de minutos y el segundo job de Windows no comprobaba
+    # nada que los otros tres no comprueben ya. Ver la cabecera del fichero.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]   # la paridad de rutas se comprueba en ambas
-        python: ["3.10", "3.11"]
+        include:
+          - os: ubuntu-latest
+            python: "3.10"
+          - os: ubuntu-latest
+            python: "3.11"
+          # La paridad de rutas de Windows se comprueba aquí, en 3.10, que es
+          # la versión con la que se compila el .exe que se publica.
+          - os: windows-latest
+            python: "3.10"
 
     steps:
     - uses: actions/checkout@v4
@@ -57,8 +115,11 @@ jobs:
       if: runner.os == 'Windows'
       run: choco install ffmpeg -y --no-progress
 
+    # `-m "not slow"`: los que compilan un .exe van al job `lentos` y a
+    # `release.yml`. Medido: 533 s la suite entera contra 187 s sin ellos, y
+    # aquí se pagaba cuatro veces por push. Ver la cabecera.
     - name: Run tests
-      run: python -m pytest tests/ -v --tb=short
+      run: python -m pytest tests/ -v --tb=short -m "not slow"
 
     # Cobertura de magi/core/ (informativa). continue-on-error: la cobertura
     # está hoy en ~79%; cuando suba, se puede convertir en umbral bloqueante.
@@ -160,3 +221,34 @@ jobs:
 
     - name: Type check and build
       run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # LOS QUE COMPILAN UN .EXE
+  # ---------------------------------------------------------------------------
+  # Salen del CI de cada push porque cuestan dos tercios del tiempo y se pagaban
+  # cuatro veces. NO desaparecen: verde sin comprobar es peor que rojo, y el
+  # fallo que cazan —un .exe que no arranca— es justo el que pasa todas las
+  # comprobaciones baratas.
+  #
+  # Corren aquí (semanal y bajo demanda) y en `release.yml`, que ejecuta la
+  # suite ENTERA y sin cuyo verde no se publica nada.
+  #
+  # Solo Windows: los .exe se compilan en Windows y en Linux estos tests se
+  # saltan, así que un job de Ubuntu aquí sería verde sin comprobar nada.
+  lentos:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Install ffmpeg
+      run: choco install ffmpeg -y --no-progress
+    - name: Tests que compilan artefactos
+      run: python -m pytest tests/ -v --tb=short -m "slow"

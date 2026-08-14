@@ -602,6 +602,75 @@ solo, pero no sube.
 
 ---
 
+## Parte V · El CI no se agotó por mala suerte: estaba diseñado para agotarse
+
+### Primero, una corrección sobre mí
+
+Dije que los minutos de Actions se habían agotado **sin comprobarlo**. Tenía
+razón, y aun así estaba mal dicho: es exactamente el mismo error que ya cometí
+en este proyecto atribuyéndole a FortiClient un cuelgue que no era suyo. La
+prueba está en la API, en la anotación del job, y es literal:
+
+> *«The job was not started because recent account payments have failed or your
+> spending limit needs to be increased.»*
+
+Y una correlación que descarté demasiado deprisa: la última corrida verde fue
+justo **antes** de mi cambio en `ci.yml`. Podría haber sido culpa mía. No lo
+era, pero eso no lo sabía cuando lo afirmé.
+
+### El dato que lo explica todo: el repositorio es PRIVADO
+
+En repos públicos Actions es gratis e ilimitado. En privados se paga, **Windows
+cuesta el doble** y macOS diez veces. Medido sobre la última corrida verde:
+
+| job | duración | multiplicador | facturables |
+|---|---|---|---|
+| test (windows, 3.11) | 9,2 min | **×2** | **18,4** |
+| test (windows, 3.10) | 7,0 min | **×2** | **14,0** |
+| test (ubuntu, 3.11) | 6,9 min | ×1 | 6,9 |
+| test (ubuntu, 3.10) | 6,1 min | ×1 | 6,1 |
+| gui + lint | 0,9 min | ×1 | 0,9 |
+| | | | **46,3 min POR PUSH** |
+
+Con 2000 minutos al mes eso son **43 pushes**. En una sesión de trabajo se hacen
+seis. No fue mala suerte: era aritmética.
+
+**El 70 % se lo llevaban los dos jobs de Windows**, y el segundo no comprobaba
+nada que los otros tres no comprobaran ya.
+
+### Lo que se ha hecho
+
+1. **Un solo job de Windows**, en 3.10 — la versión con la que se compila el
+   .exe publicado. Las diferencias entre versiones de Python las cubre la
+   matriz de Ubuntu; la paridad de rutas se comprueba igual con un job.
+2. **Los tests que compilan un .exe salen del push.** Son dos tercios del
+   tiempo (533 s contra 187 s, medido) y se pagaban **cuatro veces por push**.
+   No desaparecen: van a un job `lentos` semanal y bajo demanda, y `release.yml`
+   sigue ejecutando la suite ENTERA antes de publicar. *Verde sin comprobar es
+   peor que rojo.*
+3. **Guardián** (`test_ci_no_agota_la_cuota`) que vigila las dos decisiones que
+   multiplican el coste, y también la contraria: que los lentos no hayan
+   desaparecido de todas partes.
+
+Estimado: **~12 min por push**, unos 165 pushes al mes. Cuatro veces más margen.
+
+### Y la regla deja de depender de una suscripción
+
+`scripts/verificar.py` ejecuta lo mismo que el CI, con los mismos comandos y en
+el mismo orden: ruff bloqueante, los ~1250 tests rápidos, los imports del
+núcleo, y los tests y la compilación de la interfaz. Verificado en la máquina:
+**todo verde en 236 s**.
+
+> Una regla que depende de un servicio de pago no es una regla, es una
+> suscripción. *Sin tests verdes no hay release* vuelve a ser comprobable
+> aunque Actions esté caído.
+
+**Lo único que no puedo arreglar yo:** el límite de gasto de tu cuenta de
+GitHub. Está en *Settings → Billing & plans*. Hasta que se toque, ningún job
+arrancará por muy barato que sea el workflow.
+
+---
+
 ## Los tres principios que este documento deja escritos
 
 1. **Comprueba que el muro existe antes de escalarlo.** Un módulo de 812 líneas
