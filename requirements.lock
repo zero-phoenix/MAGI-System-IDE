@@ -34,6 +34,19 @@
 #       Compila el binario que se publica. Aquí no se quiere la última versión:
 #       se quiere EXACTAMENTE la que se probó.
 #
+# NOTA SOBRE curl_cffi  (2026-08-13)
+# ==================================
+# `requirements.txt` lo tenia clavado en ==0.5.10 y esto habria publicado un
+# binario roto sin que nada avisara: al montar un entorno limpio desde ESTE
+# fichero —lo mismo que hace el job que produce el .exe— Perplexity, que sirve
+# toda la familia `claude`, fallaba con
+#
+#     RequestsError: impersonate chrome is not supported
+#
+# En la maquina de desarrollo habia 0.16.0 instalado, asi que alli funcionaba.
+# El pin llevaba tiempo mintiendo y solo se vio al construir el entorno del
+# release de verdad. Un pin que nadie usa no protege: engana.
+#
 # NOTA SOBRE pytest-timeout
 # =========================
 # Entra el 2026-08-13 y merece su línea: la marca `@pytest.mark.timeout(300)`
@@ -105,6 +118,7 @@ capstone==5.0.9
     # via -r requirements.txt
 certifi==2026.7.22
     # via
+    #   curl-cffi
     #   httpcore
     #   httpx
     #   requests
@@ -127,7 +141,7 @@ colorama==0.4.6
     #   rich-click
 coverage==7.15.4
     # via pytest-cov
-curl-cffi==0.5.10
+curl-cffi==0.16.0
     # via -r requirements.txt
 editor==1.8.0
     # via inquirer

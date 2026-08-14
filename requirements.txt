@@ -1,7 +1,27 @@
 # MAGI System IDE — inferencia de nube gratuita, sin claves de API,
 # sin modelos locales (documento de arquitectura §I.3).
 g4f
-curl_cffi==0.5.10
+
+# curl_cffi: MEDIDO, no elegido. Estaba clavado en ==0.5.10 y eso habria
+# publicado un binario roto sin que nada avisara.
+#
+# El 2026-08-13 se compilo un entorno limpio desde requirements.lock —lo mismo
+# que hace el job que produce el .exe— y Perplexity, el proveedor que sirve
+# TODA la familia `claude`, fallaba asi:
+#
+#     RequestsError: impersonate chrome is not supported
+#
+# 0.5.10 solo admite alias con version ("chrome110"); el generico "chrome" que
+# usa g4f llego despues. Con >=0.16 la peticion vuelve a salir.
+#
+# Aqui funcionaba porque el entorno de desarrollo tiene 0.16.0 instalado: el
+# pin llevaba tiempo mintiendo y solo se vio al construir el entorno del
+# release de verdad. Un pin que nadie usa no protege, engana.
+#
+# Ademas `providers/compat_curl.py` existe precisamente porque las versiones
+# NUEVAS movieron `proxy` del constructor a `request`: el proyecto ya asumia
+# curl_cffi moderno en todas partes menos en este pin.
+curl_cffi>=0.16
 httpx
 requests==2.31.0
 websockets==12.0

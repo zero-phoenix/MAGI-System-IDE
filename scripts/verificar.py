@@ -92,11 +92,37 @@ class Paso:
             self.ok = None if self.opcional else False
         self.segundos = time.perf_counter() - t0
 
-        # Se enseñan las ultimas lineas, que es donde pytest pone el resumen.
-        cola = [l for l in self.salida.splitlines() if l.strip()][-12:]
-        for l in cola:
-            print(plegar("    " + l[:160]), flush=True)
+        self._informar()
         return bool(self.ok)
+
+    def _informar(self) -> None:
+        """
+        Si pasó, las últimas líneas. Si falló, LAS DEL FALLO.
+
+        La primera versión enseñaba siempre la cola, y falló en su estreno: un
+        test se puso rojo y en el registro solo quedaron avisos de `vite` sobre
+        el tamaño de los chunks. Hubo que volver a lanzar la suite entera —tres
+        minutos— para averiguar QUÉ había fallado.
+
+        Una herramienta de diagnóstico que obliga a repetir el diagnóstico no
+        está diagnosticando.
+        """
+        lineas = [l for l in self.salida.splitlines() if l.strip()]
+        if self.ok:
+            for l in lineas[-8:]:
+                print(plegar("    " + l[:160]), flush=True)
+            return
+
+        # Lo que de verdad importa cuando algo está en rojo. `FAILED` y `ERROR`
+        # son de pytest; `error`/`Error` cubren ruff, npm y tsc.
+        pistas = [l for l in lineas
+                  if l.lstrip().startswith(("FAILED", "ERROR", "E   "))
+                  or "error" in l.lower()[:40]]
+        for l in (pistas[:14] or lineas[-14:]):
+            print(plegar("    " + l[:170]), flush=True)
+        if pistas:
+            print(plegar(f"    ... y {len(lineas)} lineas mas en la salida "
+                         f"completa"), flush=True)
 
 
 def _npm() -> list[str]:

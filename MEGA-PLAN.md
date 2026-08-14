@@ -671,6 +671,66 @@ arrancará por muy barato que sea el workflow.
 
 ---
 
+## Parte VI · Lo gratuito sí existe, y por el camino apareció lo peor
+
+### Las dos vías gratuitas para el CI (comprobadas en la documentación)
+
+- **Repositorio público** → Actions gratis e ilimitado, runners estándar.
+- **Runner propio** en tu máquina → sigue siendo gratis; el cambio de
+  facturación que GitHub anunció para marzo de 2026 está **pospuesto**.
+
+Las dos son decisiones tuyas. Lo que sí he hecho es quitarle a la publicación
+la dependencia de Actions por completo (`scripts/publicar.py`): compila con el
+mismo `.spec`, exige las mismas comprobaciones y sube con `gh release`, que usa
+la API REST — y la API **no consume minutos de Actions**.
+
+### Y entonces apareció el fallo más grave del día
+
+Antes de publicar hay que saber qué se publica, así que monté un entorno limpio
+desde `requirements.lock` —lo mismo que hace el job del .exe— y medí allí. El
+resultado:
+
+```
+claude45sonnet   FALLO RequestsError: impersonate chrome is not supported
+```
+
+**El binario publicado habría llevado la familia `claude` completamente
+muerta.** Causa: `requirements.txt` clavaba `curl_cffi==0.5.10`, una versión
+que solo admite alias con número (`chrome110`) y no el genérico `chrome` que
+usa g4f. En esta máquina hay 0.16.0 instalado, así que aquí funcionaba.
+
+> Un pin que nadie usa no protege: engaña. Y solo se ve construyendo el entorno
+> del release de verdad, que es justo lo que nadie hace hasta que publica.
+
+Corregido a `curl_cffi>=0.16` y lock regenerado.
+
+### La segunda lección: ocho horas de vida útil
+
+Con el pin arreglado, remedí las familias **en el entorno que se publica**:
+
+| familia | resultado |
+|---|---|
+| `gemini` | ✅ 3 677 ms, castellano |
+| `gpt` (Yqcloud) | ✅ 6 592 ms, castellano |
+| `hf` | ✅ 14 323 ms, castellano |
+| `claude` / `grok` (Perplexity) | ❌ **inservible**: 4 caracteres, `'tud.'` |
+| `command` | ❌ HTTP 500 |
+
+`claude` y `command` estaban las dos entre las «verificadas» **esa misma
+mañana**. Ocho horas. Esa es la vida útil real de una lista escrita a mano.
+
+Dos cosas funcionaron exactamente como se diseñaron: `_por_que_es_inservible`
+rechazó el `'tud.'` en vez de entregarlo, y el reparto se recompone. El nuevo:
+BALTHASAR→`gemini`, CASPER→`gpt`, MELCHIOR→`hf`.
+
+Y una advertencia honesta: MELCHIOR se queda con el más lento (14,3 s), que es
+lo contrario de lo deseable porque propone y ejecuta en el mismo turno. Se hace
+así porque tu regla sobre BALTHASAR y CASPER es explícita y no se salta por
+conveniencia. Lo arregla la sonda cuando encuentre algo mejor, no yo
+reinterpretando la regla.
+
+---
+
 ## Los tres principios que este documento deja escritos
 
 1. **Comprueba que el muro existe antes de escalarlo.** Un módulo de 812 líneas

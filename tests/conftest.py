@@ -145,11 +145,12 @@ def _se_niega(nombre: str):
 #
 # QUÉ HACE ESTA PIEZA
 # ===================
-# Durante los tests, `FAMILY_SPECS`, `ROTOS`, `VERIFICADAS` y el reparto valen
-# un **catálogo de laboratorio fijo**, escrito aquí abajo y que no cambia
-# nunca. Los tests que necesitan el de verdad —«toda familia verificada tiene
-# candidatos», «el JSON coincide con las constantes»— lo piden con la marca
-# `catalogo_real`.
+# Durante los tests, `FAMILY_SPECS`, `ROTOS` y `VERIFICADAS` valen un
+# **catálogo de laboratorio fijo** que no cambia nunca. Los tests que necesitan
+# el de verdad —«toda familia verificada tiene candidatos», «el JSON coincide
+# con las constantes»— lo piden con la marca `catalogo_real`.
+#
+# El REPARTO del enjambre NO se congela: ver la nota de abajo.
 #
 # Nota sobre el alcance: se parchea el módulo `g4f_backend`, que es de donde
 # leen todos. Si alguien copia el valor a una variable en tiempo de import, se
@@ -191,9 +192,17 @@ _ROTOS_LABORATORIO = {
     "LMArena": "DESCARTADO: exige tu cuenta",
 }
 
-_REPARTO_LABORATORIO = {
-    "BALTHASAR": "claude", "CASPER": "gemini", "MELCHIOR": "command",
-}
+# EL REPARTO **NO** SE CONGELA, y esto costó un test.
+#
+# La primera versión lo fijaba aquí a mano. Resultado: `MelchiorAgent.family`
+# es un atributo de CLASE, resuelto al importar desde el reparto REAL, mientras
+# que la instancia leía el de laboratorio. Dos verdades sobre qué familia usa
+# cada nodo — exactamente el engaño que `test_reports_actual_family_when_its_own_is_down`
+# existe para impedir, reproducido por el guardián que venía a ayudar.
+#
+# Y hay una razón de fondo, la misma que con los nombres de familia: el reparto
+# es una DECISIÓN de diseño, no un dato volátil. Lo que cambia solo, sin que
+# nadie lo decida, es qué proveedor responde hoy. Eso es lo que se congela.
 
 
 def _catalogo_de_laboratorio(reales: dict) -> dict:
@@ -230,8 +239,6 @@ def catalogo_congelado(request, monkeypatch):
             tuple(f for f in lab
                   if f not in (_FAMILIA_AGOTADA, _FAMILIA_CON_NAVEGADOR)),
             raising=False)
-        monkeypatch.setattr(modulo, "DEFAULT_SWARM_FAMILIES",
-                            dict(_REPARTO_LABORATORIO), raising=False)
     yield
 
 

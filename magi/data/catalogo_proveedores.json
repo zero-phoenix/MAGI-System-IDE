@@ -12,9 +12,9 @@
     "nota": "3 en vez de 2: en el registro real del usuario, Yqcloud (familia gpt) tardaba entre 53 y 75 s por respuesta mientras el hedge solo lanzaba UN segundo candidato en paralelo. Con 3, un candidato rapido verificado (CopilotApp ~1,1 s, WeWordle ~2,4 s) puede cubrir la peticion mientras el lento sigue su curso. Sigue siendo gratuito y sin claves (§I.3); el coste es una llamada mas solo cuando el primero no responde en 'tras_segundos'."
   },
   "reparto_enjambre": {
-    "MELCHIOR": "command",
-    "BALTHASAR": "claude",
-    "CASPER": "gemini"
+    "BALTHASAR": "gemini",
+    "CASPER": "gpt",
+    "MELCHIOR": "hf"
   },
   "reparto_enjambre_nota": "Cambiado el 2026-08-13 con medidas, no con opiniones. Reglas que manda el usuario: la mejor IA para BALTHASAR, la segunda para CASPER, y cada una en una familia distinta. Medido hoy con el mismo prompt: claude45sonnet 3,7 s (Claude Sonnet 4.5, la mejor disponible) -> BALTHASAR; gemini-3.5-flash 4,9 s, castellano impecable -> CASPER; command-a 3,6 s, el mas fiable de los rapidos -> MELCHIOR, que propone Y ejecuta en el mismo turno y es quien menos puede permitirse esperar. `gpt` sale del enjambre pese a ser prioritaria para el usuario, y el motivo hay que decirlo entero: su unico candidato vivo responde en chino. Vuelve en cuanto CopilotApp o WeWordle revivan.",
   "rotos": {
@@ -38,7 +38,7 @@
   },
   "familias": {
     "command": {
-      "verificada": true,
+      "verificada": false,
       "candidatos": [
         {
           "proveedor": "CohereForAI_C4AI_Command",
@@ -61,7 +61,7 @@
       ]
     },
     "claude": {
-      "verificada": true,
+      "verificada": false,
       "candidatos": [
         {
           "proveedor": "Perplexity",
@@ -118,7 +118,7 @@
       ]
     },
     "gpt": {
-      "verificada": false,
+      "verificada": true,
       "candidatos": [
         {
           "proveedor": "Perplexity",
@@ -161,7 +161,7 @@
       ]
     },
     "grok": {
-      "verificada": true,
+      "verificada": false,
       "candidatos": [
         {
           "proveedor": "Perplexity",
@@ -174,7 +174,7 @@
       ]
     },
     "perplexity": {
-      "verificada": true,
+      "verificada": false,
       "candidatos": [
         {
           "proveedor": "Perplexity",

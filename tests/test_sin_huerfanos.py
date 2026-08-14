@@ -50,7 +50,13 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 
 #: techo actual. Solo puede bajar. Si bajas, baja también este número en el
 #: mismo commit: es la mitad del trinquete que hace que sirva de algo.
-TECHO = 107
+# 95 desde el 2026-08-13: bajó de 107 al cablear la sonda —`LlmDeSonda`,
+# `candidatos_para_sondear`, `medias_por_familia`, `refrescar_si_toca`— que
+# llevaba semanas construida y sin llamar. El trinquete lo detectó y exigió
+# consolidarlo, que es la mitad del mecanismo que se olvida siempre: si el
+# techo no baja cuando baja el conteo, el margen ganado se puede volver a
+# gastar sin que nadie se entere.
+TECHO = 95
 
 
 def _cuenta() -> int:

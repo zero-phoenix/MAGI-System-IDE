@@ -135,22 +135,33 @@ _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
     "auto": [("AnyProvider", "gpt-4o"), ("AnyProvider", "default")],
 }
 
-# Familias con al menos un candidato que RESPONDIÓ HOY, medido una a una.
+# Familias que RESPONDIERON en el entorno que se publica, medidas de nuevo el
+# 2026-08-13 por la tarde. Y la lista cambió respecto a la de por la mañana,
+# que es justo lo que hay que aprender de esto.
 #
-# `gpt` NO está, y merece explicación porque el usuario la puso entre sus
-# prioridades: su único candidato propio vivo, Yqcloud, contesta a veces en
-# chino, y el chino está prohibido sin excepción. Sus modelos siguen
-# alcanzables por Perplexity (gpt5, gpt41, gpt4o), pero esa ruta aún no tiene
-# medida limpia, y «verificada» aquí significa medida y fechada, no probable.
+# LA MEDIDA SE HIZO EN UN VENV CONSTRUIDO DESDE `requirements.lock`
+# ================================================================
+# O sea, con las versiones que lleva el .exe, no con las del equipo de
+# desarrollo. La diferencia no era teórica: con el pin viejo
+# (`curl_cffi==0.5.10`) Perplexity ni siquiera conectaba —«impersonate chrome
+# is not supported»— y ese proveedor sirve TODA la familia `claude`. El binario
+# publicado habría llevado esa familia muerta y aquí nadie lo habría notado.
 #
-# `llama`, `mistral`, `deepseek` y `razonamiento` tampoco: existen y apuntan a
-# Perplexity, pero nadie las ha medido todavía. Están en el mapa, no en la
-# lista de confianza.
+# LO MEDIDO, con `curl_cffi>=0.16` ya corregido:
 #
-# Una verificación del 6 de agosto no dice nada del 13: cinco familias que
-# figuraban como verificadas resultaron rotas al medirlas. Por eso cada
-# candidato lleva la FECHA de su medida y no solo un número.
-_VERIFICADAS_BASE = ("command", "claude", "gemini", "perplexity", "grok", "hf")
+#   gemini  Gemini                   3 677 ms  OK, castellano
+#   gpt     Yqcloud                  6 592 ms  OK, castellano (esta vez)
+#   hf      HuggingSpace            14 323 ms  OK, castellano
+#   claude  Perplexity               7 887 ms  INSERVIBLE: 4 caracteres, 'tud.'
+#   grok    Perplexity               7 886 ms  INSERVIBLE: idem
+#   command CohereForAI                486 ms  HTTP 500
+#
+# `claude` y `command` estaban las dos entre las verificadas ESTA MISMA MAÑANA.
+# Ocho horas. Esa es la vida útil real de una lista escrita a mano, y por eso
+# la lista de aquí es solo el arranque en frío: `sonda.medias_por_familia` +
+# `ProviderRegistry.aplicar_medidas` la corrigen en caliente con datos
+# fechados. Lo que no se puede hacer es fiarse de este literal.
+_VERIFICADAS_BASE = ("gemini", "gpt", "hf")
 
 #: Proveedores que NO pueden responder en este entorno, con el motivo medido.
 #:
@@ -248,21 +259,32 @@ _HEDGE_MAX_BASE = 3
 # Ahora apunta a tres familias verificadas y de linajes realmente distintos
 # —OpenAI, Google y Cohere—, que es lo que §1.1 pide de verdad: que el crítico
 # tenga sesgos distintos al proponente.
-# MEDIDO el 2026-08-13, no elegido. Reglas del usuario: la mejor para
-# BALTHASAR, la segunda para CASPER, una familia distinta cada uno.
-#   claude45sonnet   3,7 s   Claude Sonnet 4.5, la mejor disponible -> BALTHASAR
-#   gemini-3.5-flash 4,9 s   castellano impecable                   -> CASPER
-#   command-a        3,6 s   el más fiable de los rápidos           -> MELCHIOR
+# MEDIDO el 2026-08-13 POR LA TARDE, en el entorno del release. Reglas del
+# usuario: la mejor para BALTHASAR, la segunda para CASPER, familia distinta
+# cada uno.
 #
-# `gpt` sale del enjambre pese a ser prioritaria para el usuario, y el motivo
-# hay que decirlo entero: de sus cinco candidatos solo responde Yqcloud, y
-# responde EN CHINO. Esa es la causa raíz de que el enjambre contestara en otro
-# idioma; los reintentos de `agents.py` trataban el síntoma. Vuelve en cuanto
-# CopilotApp (WS 460) o WeWordle (429) revivan.
+#   gemini-3.5-flash   3,7 s   -> BALTHASAR
+#   Yqcloud gpt-4      6,6 s   -> CASPER
+#   HuggingSpace      14,3 s   -> MELCHIOR
+#
+# Dos avisos honestos sobre esto:
+#
+# 1. `claude` sale del enjambre pese a ser la prioridad del usuario. No por
+#    decisión: Perplexity devuelve cuatro caracteres ('tud.') para cualquier
+#    modelo, y `_por_que_es_inservible` lo rechaza. Vuelve en cuanto responda.
+#
+# 2. `gpt` entra y su candidato vivo es Yqcloud, que A VECES contesta en chino.
+#    Esta vez respondió en castellano. Es aceptable únicamente porque la guarda
+#    de idioma lo caza y rota (`agents.py`), no porque sea buen candidato.
+#
+# MELCHIOR se lleva el más lento, que es lo contrario de lo deseable —propone y
+# ejecuta en el mismo turno—, y aun así es lo correcto: la regla del usuario
+# sobre BALTHASAR y CASPER es explícita y no se salta por conveniencia. Se
+# arregla cuando la sonda encuentre algo mejor, no reinterpretando la regla.
 _REPARTO_BASE = {
-    "MELCHIOR": "command",
-    "BALTHASAR": "claude",
-    "CASPER": "gemini",
+    "BALTHASAR": "gemini",
+    "CASPER": "gpt",
+    "MELCHIOR": "hf",
 }
 
 
