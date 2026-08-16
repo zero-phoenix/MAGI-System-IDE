@@ -7,7 +7,7 @@ tu máquina** para ejecutar lo que deciden.
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**[⬇ Descargar la última versión para Windows](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta. Sin instalador.
+**[⬇ Descargar la última versión para Windows](https://github.com/zero-phoenix/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta. Sin instalador.
 
 ---
 
@@ -170,7 +170,7 @@ ficheros toca el cambio, su contenido antes y después con un diff real, las
 
 ### Binario para Windows (recomendado)
 
-**[⬇ Descargar la última versión](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)**
+**[⬇ Descargar la última versión](https://github.com/zero-phoenix/MAGI-System-IDE/releases/latest)**
 
 1. En **Assets**, descarga **`MAGI-IDE-v5.zip`**.
 2. Verifica la descarga (opcional): `certutil -hashfile MAGI-IDE-v5.zip SHA256`
@@ -191,7 +191,7 @@ ejecutan código funcionan sin que tengas Python instalado.
 ### Desde el código
 
 ```bash
-git clone https://github.com/4n0th1ng/MAGI-System-IDE
+git clone https://github.com/zero-phoenix/MAGI-System-IDE
 cd MAGI-System-IDE
 pip install -r requirements.txt
 
