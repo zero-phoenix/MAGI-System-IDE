@@ -354,6 +354,22 @@ CREATE INDEX IF NOT EXISTS idx_sonda_dia ON sonda_latencia(dia);
 """
 
 
+def _presupuesto(c: sqlite3.Connection) -> None:
+    """
+    Presupuesto por tarea (v6.0, Fase 1).
+
+    `calls_used` — llamadas lógicas de modelo que lleva gastadas la tarea. Sin
+    esto el orquestador no puede decir «no»: la petición del 16-ago quemó ~50
+    llamadas HTTP sin que nadie la frenara.
+
+    `rebuilds` — cuántas veces Melchior ha regenerado TODAS sus variantes
+    porque la verificación las rechazó. El log mostró 6 ciclos seguidos; con
+    el tope, la mejor variante se debate igual y se dice que no verificó.
+    """
+    anadir_columna(c, "task_state", "calls_used", "INTEGER NOT NULL DEFAULT 0")
+    anadir_columna(c, "task_state", "rebuilds", "INTEGER NOT NULL DEFAULT 0")
+
+
 MIGRACIONES: tuple[Migracion, ...] = (
     Migracion("0001_esquema_base",
               "Tablas originales: task_state, task_event, token_ledger",
@@ -379,6 +395,9 @@ MIGRACIONES: tuple[Migracion, ...] = (
     Migracion("0008_sonda_latencia",
               "sonda_latencia: medicion periodica por candidato, con dia",
               sql=_SONDA),
+    Migracion("0009_presupuesto",
+              "calls_used y rebuilds: techo de llamadas y regeneraciones",
+              paso=_presupuesto),
 )
 
 

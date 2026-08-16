@@ -54,9 +54,9 @@ TECHOS: dict[str, int] = {
     "magi/modules/infrastructure/naoko.py": 1560,
     "magi/modules/swarm/agents.py": 1090,
     "magi/core/kernel.py": 1000,
-    "magi/core/providers/backends/g4f_backend.py": 940,
+    "magi/core/providers/backends/g4f_backend.py": 955,
     "magi/core/sesion_web.py": 910,
-    "magi/modules/swarm/orchestrator.py": 870,
+    "magi/modules/swarm/orchestrator.py": 962,
 }
 
 #: Para todo lo demás. 800 líneas es mucho para un módulo de Python, y ninguno

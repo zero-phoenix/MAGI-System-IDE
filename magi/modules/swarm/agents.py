@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 from magi.core.blackboard import Blackboard  # type: ignore
 from magi.core.bus import BusEvent, MagiBus  # type: ignore
@@ -72,6 +73,27 @@ class SwarmAgentBase:
         self.rama: str | None = None
         self.rama_rol: str = ""
         self.rama_profundidad: int = 0
+        #: Política de cobertura de ESTE turno. El orquestador la pone a False
+        #: en las llamadas con redundancia estructural (variantes y ejes en
+        #: paralelo) y la deja en None —auto del backend— en las únicas
+        #: (arbitraje, Naoko). Ver `CompletionRequest.hedge`.
+        self.hedge: bool | None = None
+        #: Callback de contabilidad de llamadas, inyectado por el orquestador
+        #: (presupuesto por tarea). Nunca lanza: si no está puesto o falla, la
+        #: llamada sigue y el presupuesto queda sin contar — un sistema cuyo
+        #: techo se cae no puede tumbar al sistema que limita.
+        self.cobrar: Callable | None = None
+
+    def _contar(self, n: int = 1) -> None:
+        """Suma llamadas de modelo al presupuesto de la tarea, si hay quién."""
+        cb = getattr(self, "cobrar", None)
+        if cb is None:
+            return
+        try:
+            cb(int(n))
+        except Exception as e:
+            logger.debug("[%s] contabilidad de presupuesto falló: %s",
+                         self.role_name, e)
 
     def _telemetria(self):
         """
@@ -165,7 +187,10 @@ class SwarmAgentBase:
         # recibe la respuesta en su idioma, o la mejor que se pudo conseguir.
         content, provider_id = await self.llm.generate(
             full_sys, user_prompt,
-            family=self.family, temperature=temp, seed=self.seed)
+            family=self.family, temperature=temp, seed=self.seed,
+            hedge=getattr(self, "hedge", None),
+            tag=getattr(self, "rama", None) or "")
+        self._contar(1)
 
         vale, detectado = idioma.admisible(content)
         if not vale:
@@ -227,6 +252,7 @@ class SwarmAgentBase:
                     idioma.instruccion_de_traduccion(), content,
                     family=familia or self.family,
                     temperature=0.0, seed=self.seed)
+                self._contar(1)
             except Exception as e:
                 logger.debug("[%s] traducción en %s falló: %s",
                              self.role_name, familia or self.family, e)
@@ -266,6 +292,7 @@ class SwarmAgentBase:
                 alt, alt_pid = await self.llm.generate(
                     full_sys, user_prompt,
                     family=familia, temperature=temp, seed=self.seed)
+                self._contar(1)
             except Exception as e:
                 logger.debug("[%s] reintento en %s falló: %s",
                              self.role_name, familia, e)
@@ -368,6 +395,10 @@ class SwarmAgentBase:
             temperature=0.4 if engine == "fast" else 0.2,
             seed=self.seed, on_event=on_event, agent_name=self.role_name)
 
+        # Cada iteración del bucle de herramientas es una llamada de modelo.
+        # Contarlo es lo que hace el presupuesto honesto: sin esto, un turno
+        # con herramientas solo suma 1 pese a haber hecho 6 llamadas de red.
+        self._contar(max(1, getattr(turn, "iterations", 1)))
         logger.info("[%s] %s", self.role_name, turn.summary())
 
         # GUARDA DE IDIOMA (mismo principio que en _ask), CON RED DEBAJO.
@@ -431,6 +462,7 @@ class SwarmAgentBase:
                     if alt.text and idioma.coincide(alt.text, lang):
                         logger.info("[%s] reintento en %s acertó el idioma",
                                     self.role_name, familia)
+                        self._contar(max(1, getattr(alt, "iterations", 1)))
                         turn = alt
                         break
         except Exception as e:                            # pragma: no cover

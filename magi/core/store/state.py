@@ -65,11 +65,21 @@ class TaskState:
     sin_leer_en: float | None = None
     bifurcada_de: str | None = None
     motivo_cierre: str | None = None
+    # Presupuesto (v6.0 §A1): techo de llamadas y de regeneraciones. Solo lo
+    # incrementa el presupuesto; el resto del sistema lo lee.
+    calls_used: int = 0
+    rebuilds: int = 0
 
     @property
     def resumable(self) -> bool:
         return (self.status in RESUMABLE
                 and not self.archivada and not self.borrada)
+
+    @property
+    def agotado(self) -> bool:
+        from ..presupuesto import para as _para
+        p = _para(self.engine)
+        return self.calls_used >= p.llamadas
 
     @property
     def nombre(self) -> str:
@@ -115,6 +125,8 @@ class TaskState:
             "sin_leer_en": row["sin_leer_en"] if "sin_leer_en" in k else None,
             "bifurcada_de": row["bifurcada_de"] if "bifurcada_de" in k else None,
             "motivo_cierre": row["motivo_cierre"] if "motivo_cierre" in k else None,
+            "calls_used": int(row["calls_used"]) if "calls_used" in k else 0,
+            "rebuilds": int(row["rebuilds"]) if "rebuilds" in k else 0,
         }
 
 
@@ -160,8 +172,8 @@ class TaskStore:
                     narrative_style, route, max_rounds, use_tools,
                     last_proposal, last_critique, created_at, updated_at,
                     titulo, archivada, borrada, sin_leer_en, bifurcada_de,
-                    motivo_cierre)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    motivo_cierre, calls_used, rebuilds)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     command=excluded.command, status=excluded.status,
                     round_num=excluded.round_num, engine=excluded.engine,
@@ -173,7 +185,8 @@ class TaskStore:
                     titulo=excluded.titulo, archivada=excluded.archivada,
                     borrada=excluded.borrada, sin_leer_en=excluded.sin_leer_en,
                     bifurcada_de=excluded.bifurcada_de,
-                    motivo_cierre=excluded.motivo_cierre
+                    motivo_cierre=excluded.motivo_cierre,
+                    calls_used=excluded.calls_used, rebuilds=excluded.rebuilds
             """, (
                 state.task_id, state.command, state.status, state.round,
                 state.engine, state.narrative_style, state.route,
@@ -183,6 +196,7 @@ class TaskStore:
                 state.created_at, state.updated_at,
                 state.titulo, int(state.archivada), int(state.borrada),
                 state.sin_leer_en, state.bifurcada_de, state.motivo_cierre,
+                int(state.calls_used), int(state.rebuilds),
             ))
 
     def load(self, task_id: str) -> TaskState | None:

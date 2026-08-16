@@ -660,6 +660,29 @@ class G4FProvider(BaseProvider):
         self._anota_latencia(cand, (time.monotonic() - t0) * 1000)
         return cand, content
 
+    def _hedge_max_politica(self, req: CompletionRequest) -> int:
+        """
+        Cuántos candidatos simultáneos lanza esta petición.
+
+            req.hedge == True  -> HEDGE_MAX (el que pide cobertura la tiene)
+            req.hedge == False -> 1 (quien llama ya tiene redundancia)
+            None (auto)        -> HEDGE_MAX solo si la familia está sin medir o
+                                  su mejor latencia conocida supera 8 s. Si la
+                                  familia ya responde rápido, la cubierta solo
+                                  multiplica llamadas: medido el 16-ago, una
+                                  sola petición pasó de ~16 llamadas lógicas a
+                                  ~50 HTTP por el hedge global de 3.
+        """
+        if req.hedge is True:
+            return HEDGE_MAX
+        if req.hedge is False:
+            return 1
+        conocidas = list(self._latencia.values())
+        if not conocidas:
+            return HEDGE_MAX          # sin medida: no se puede saber si es lenta
+        mejor = min(conocidas)
+        return HEDGE_MAX if mejor > 8000.0 else 1
+
     async def complete(self, req: CompletionRequest) -> CompletionResponse:
         """
         Pide a la familia, con PETICIÓN CUBIERTA.
@@ -687,11 +710,16 @@ class G4FProvider(BaseProvider):
         if not cola:
             raise ProviderError(f"familia '{self.family}': ningún candidato existe")
 
+        # Tope simultáneo de ESTA petición: ahora el hedge es por llamada, no
+        # una constante global. Las variantes y ejes en paralelo no piden
+        # cubierta (ya se cubren entre sí); solo las llamadas únicas la
+        # conservan cuando la familia no está medida o va lenta.
+        hedge_max = self._hedge_max_politica(req)
         pendientes: dict[asyncio.Task, Candidate] = {}
         siguiente = 0
         try:
             while pendientes or siguiente < len(cola):
-                if siguiente < len(cola) and len(pendientes) < HEDGE_MAX:
+                if siguiente < len(cola) and len(pendientes) < hedge_max:
                     cand = cola[siguiente]
                     siguiente += 1
                     pendientes[asyncio.ensure_future(
@@ -755,8 +783,9 @@ class G4FProvider(BaseProvider):
                         completion_tokens=self.estimate_tokens(content),
                     )
                     nombre, modelo = ganador
-                    logger.info("[%s] respondió %s/%s en %.0fms%s",
-                                self.id, nombre, modelo or "default",
+                    etiqueta = f" ({req.tag})" if req.tag else ""
+                    logger.info("[%s]%s respondió %s/%s en %.0fms%s",
+                                self.id, etiqueta, nombre, modelo or "default",
                                 (time.monotonic() - started) * 1000,
                                 f" (cubierto x{len(pendientes) + 1})"
                                 if pendientes else "")

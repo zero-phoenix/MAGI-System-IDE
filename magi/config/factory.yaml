@@ -24,3 +24,17 @@ route:
 hardware:
   limits:
     override: false
+
+# Presupuesto por tarea (v6.0 §A1). Techo de llamadas lógicas de modelo,
+# tiempo de pared y regeneraciones por verificación fallida. Frente al log
+# del 16-ago (~50 llamadas HTTP en una sola petición, 6 rebuilds sin tope),
+# estos números son el freno: `fast` es frugal, `deep` conserva margen.
+presupuesto:
+  fast:
+    llamadas: 18
+    pared_s: 150
+    rebuilds: 2
+  deep:
+    llamadas: 40
+    pared_s: 480
+    rebuilds: 3

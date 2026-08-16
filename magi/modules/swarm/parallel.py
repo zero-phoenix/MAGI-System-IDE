@@ -119,6 +119,13 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
         # se quiere.
         mio = copy.copy(agent)
         mio.seed = base_seed + variant * 101
+        # N variantes van EN PARALELO: la redundancia ya existe aquí. Pedir
+        # además cobertura (hedge x3) por variante multiplica por 3 el coste —
+        # medido en el log del 16-ago: ~50 llamadas HTTP para una petición.
+        # El hedge queda solo para las llamadas únicas que no tienen quién las
+        # cubra (arbitraje de Casper). Sin esto, un candidato lento no cuesta
+        # una llamada, cuesta tres.
+        mio.hedge = False
         # Identidad de la rama. Sin esto, las N variantes publican con el mismo
         # task_id y la interfaz no puede separarlas: las apila como si fueran
         # una conversación, cuando son N intentos paralelos del mismo agente.
@@ -168,6 +175,9 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
         # Copia por eje, por lo mismo que en las variantes: estos cuatro van
         # por `gather` y mutar el agente compartido los haría pisarse.
         mio = copy.copy(agent)
+        # Igual que en las variantes: los ejes van en paralelo, la cobertura de
+        # cada uno es el resto de ejes. Hedge apagado — se paga una vez, no x3.
+        mio.hedge = False
         mio.rama = f"{task_id}/r{round_num}/balthasar/{axis}"
         mio.rama_rol = f"eje {axis}"
         mio.rama_profundidad = 1

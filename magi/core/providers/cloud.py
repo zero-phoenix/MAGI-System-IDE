@@ -101,13 +101,19 @@ class FreeCloudLLM:
                        model: str = "gpt-4o",
                        family: str | None = None,
                        temperature: float = 0.4,
-                       seed: int | None = None) -> tuple[str, str]:
+                       seed: int | None = None,
+                       hedge: bool | None = None,
+                       tag: str = "") -> tuple[str, str]:
         """
         Devuelve (contenido, nombre_del_proveedor_que_respondió).
 
         El segundo elemento es ahora el proveedor REAL. En v5.0.28 la GUI
         mostraba "G4F_Auto_Router(gpt-4o) (deepseek)" donde el paréntesis final
         era lo que el agente CREÍA usar, no lo que se usó.
+
+        `hedge` y `tag` viajan a `CompletionRequest` sin tocarlos: el hedge
+        decide quién llama (una variante paralela NO pide cobertura; el
+        arbitraje único SÍ) y el tag da trazabilidad en el log de backends.
         """
         reg = await self._reg()
         # `family` explícita gana sobre el alias de modelo. Es lo que permite que
@@ -120,6 +126,7 @@ class FreeCloudLLM:
         req = CompletionRequest(
             messages=[Message("system", system_prompt), Message("user", user_prompt)],
             timeout_s=150.0, temperature=temperature, seed=seed,
+            hedge=hedge, tag=tag,
         )
         try:
             resp = await reg.complete(req, prefer=prefer)

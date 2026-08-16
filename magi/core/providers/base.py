@@ -66,6 +66,22 @@ class CompletionRequest:
     #: tráfico de sonda no se juzga con las reglas del tráfico real ni
     #: castiga al cortacircuitos — si no, medir la salud enferma al sistema.
     probe: bool = False
+    #: Política de cobertura (hedge) para ESTA petición:
+    #:   True  -> lanzar candidatos de cubierta en paralelo (HEDGE_MAX)
+    #:   False -> una sola llamada, sin cubierta. Quien llama ya tiene
+    #:            redundancia estructural (variantes o ejes en paralelo).
+    #:   None  -> auto: el backend decide por la latencia medida de la familia.
+    #:
+    #: EL MULTIPLICADOR QUE EL LOG DEL 16-AGO DEMOSTRÓ. Cada llamada lógica
+    #: con hedge x3 disparaba 2-3 llamadas HTTP reales; en una sola petición
+    #: eso multiplicó ~16 llamadas lógicas hasta ~50 HTTP. La redundancia
+    #: estructural (N variantes de Melchior, N ejes de Balthasar) ya cubre el
+    #: caso "candidato lento": forzar hedge AHÍ es pagarlo dos veces.
+    hedge: bool | None = None
+    #: Etiqueta para la traza: `tarea/ronda/paso/rama`. Sin esto, el log de
+    #: backends no permite saber de qué petición salió cada llamada — el log
+    #: del 16-ago era ininteligible: 50 líneas sin tarea ni ronda.
+    tag: str = ""
 
 
 @dataclass

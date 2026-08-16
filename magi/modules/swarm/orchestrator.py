@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from magi.core.blackboard import Blackboard
 from magi.core.bus import BusEvent, MagiBus
@@ -89,6 +90,11 @@ class SwarmOrchestrator:
                     "use_tools": st.use_tools,
                     "last_proposal": st.last_proposal,
                     "last_critique": st.last_critique,
+                    # Presupuesto: se rehidrata para que una tarea reanudada
+                    # no estrene techo nuevo. Lo que quemó antes, cuenta.
+                    "calls_used": int(st.calls_used or 0),
+                    "rebuilds": int(st.rebuilds or 0),
+                    "inicio_pared": time.monotonic(),
                 }
                 self.latest_task_id = st.task_id
             if self.active_tasks:
@@ -155,10 +161,66 @@ class SwarmOrchestrator:
                 use_tools=state.get("use_tools", True),
                 last_proposal=state.get("last_proposal"),
                 last_critique=state.get("last_critique"),
+                calls_used=int(state.get("calls_used", 0)),
+                rebuilds=int(state.get("rebuilds", 0)),
                 created_at=existing.created_at if existing else __import__("time").time(),
             ))
         except Exception as e:
             logger.warning("[SWARM] no se pudo persistir %s: %s", task_id, e)
+
+    def _amarrar_presupuesto(self, task_id: str) -> None:
+        """Conecta el contador de llamadas de los agentes a la tarea en curso.
+
+        Cada `_ask` que se ejecuta dentro de la tarea (variantes, ejes,
+        arbitraje) incrementa `calls_used` del estado en RAM; `_persist` lo
+        vuelca a disco en las transiciones siguientes. El *cierre* del cobrador
+        sobre el `task_id` es lo que diferencia un enjambre multi-tarea de un
+        gasto sin dueño: sin él, la última tarea en preparar a los agentes se
+        comerse el contador de las demás. Reamarrado en cada alta del bucle.
+        """
+        def cobrar(n: int) -> None:
+            st = self.active_tasks.get(task_id)
+            if st is None:
+                return
+            st["calls_used"] = int(st.get("calls_used", 0)) + int(n)
+
+        for agente in (self.melchior, self.balthasar, self.casper):
+            agente.cobrar = cobrar
+
+    async def _cerrar_por_presupuesto(self, task_id: str, state, p,
+                                      usadas: int, pared: float) -> None:
+        """Entrega lo mejor de lo debatido y cierra la tarea con motivo claro.
+
+        No es un fallo: es una parada limpia. El usuario recibe la última
+        propuesta verificada y la contabilidad real de lo gastado; la GUI
+        puede proponer repetir en `deep` o afinar el encargo.
+        """
+        motivo = "llamadas" if usadas >= p.llamadas else "tiempo"
+        mejor = state.get("last_proposal")
+        informe = (
+            f"[SWARM] Presupuesto agotado ({motivo}): "
+            f"{int(state.get('calls_used', 0))}/{p.llamadas} llamadas · "
+            f"{int(pared)}/{int(p.pared_s)} s · {state.get('round', 1)} ronda(s)"
+        )
+        if mejor is not None:
+            informe += f"\n\n{mejor.get('content', '')[:300]}"
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"agent": "SYSTEM", "content": informe}))
+        await self.bus.publish(BusEvent(
+            topic="swarm.budget_exhausted",
+            payload={"task_id": task_id, "motivo": motivo,
+                     "calls_used": int(state.get("calls_used", 0)),
+                     "techo_llamadas": p.llamadas,
+                     "pared_s": int(pared), "techo_s": p.pared_s,
+                     "rounds": state.get("round", 1),
+                     "rebuilds": int(state.get("rebuilds", 0))}))
+        state["status"] = "completed"
+        self._persist(task_id)
+        await self.bus.publish(BusEvent(
+            topic="swarm.task_completed",
+            payload={"task_id": task_id, "result": informe,
+                     "motivo_cierre": f"presupuesto_{motivo}"}))
 
     async def submit_task(self, task_id: str, command: str, engine: str = "fast",
                           narrative_style: str = "tecnico",
@@ -466,8 +528,16 @@ class SwarmOrchestrator:
             "route": route,
             "max_rounds": max_rounds,
             "use_tools": use_tools,
+            # Presupuesto (v6.0 §A1): techo de llamadas y tiempo de pared.
+            # `calls_used` solo sube (vía `cobrar` de los agentes); `rebuilds`
+            # cuenta las regeneraciones completas por verificación fallida; el
+            # reloj de pared arranca con cada alta.
+            "calls_used": 0,
+            "rebuilds": 0,
+            "inicio_pared": time.monotonic(),
         }
         self._persist(task_id)
+        self._amarrar_presupuesto(task_id)
 
         await self.bus.publish(BusEvent(
             topic="TERMINAL_OUT",
@@ -569,9 +639,26 @@ class SwarmOrchestrator:
 
     async def _orchestrate_loop(self, task_id: str):
         state = self.active_tasks[task_id]
+        self._amarrar_presupuesto(task_id)
 
         while state["status"] == "in_progress":
             try:
+                # ---- PRESUPUESTO: el techo de esta tarea (v6.0 §A1) --------
+                # Sin esto, una petición puede quemar cuota sin límite: el log
+                # del 16-ago muestra ~50 llamadas HTTP para UNA petición, con
+                # 6 ciclos de Melchior regenerando variantes enteras. Aquí se
+                # pregunta antes de cada paso: si se pasó de llamadas o de
+                # tiempo de pared, se entrega lo que haya y se cierra limpio.
+                from magi.core import presupuesto as _pcto
+                p = _pcto.para(state.get("engine", "fast"))
+                usadas = int(state.get("calls_used", 0))
+                pared = time.monotonic() - float(
+                    state.get("inicio_pared", time.monotonic()))
+                if usadas >= p.llamadas or pared > p.pared_s:
+                    await self._cerrar_por_presupuesto(
+                        task_id, state, p, usadas, pared)
+                    break
+
                 current_round = state["round"]
                 logger.info(f"[SWARM] Iniciando Ronda {current_round} para {task_id}")
 
@@ -584,7 +671,10 @@ class SwarmOrchestrator:
                     for _a in (self.melchior, self.balthasar, self.casper):
                         _a.lang_usuario = state["lang_usuario"]
                 # Explorar cuesta cuota: solo la ruta build genera 3 enfoques.
-                n_variants = {"build": 3, "task": 2}.get(
+                # Y tras un fallo de verificación NO se regeneran 3 variantes
+                # completas: la autocuración va con 1 sola (ver abajo).
+                en_rebuild = int(state.get("rebuilds", 0)) > 0
+                n_variants = 1 if en_rebuild else {"build": 3, "task": 2}.get(
                     state.get("route", "task"), 1)
                 use_tools = state.get("use_tools", True)
 
@@ -604,6 +694,16 @@ class SwarmOrchestrator:
                     round_num=current_round, n=n_variants, engine=engine,
                     narrative_style=style, last_proposal=last_proposal,
                     last_critique=last_critique, use_tools=use_tools)
+                # Cada variante ya cobró su llamada vía `cobrar` en `_ask`;
+                # aquí solo se informa al GUI del coste acumulado.
+                usadas = int(state.get("calls_used", 0))
+                await self.bus.publish(BusEvent(
+                    topic="swarm.ronda",
+                    payload={"task_id": task_id, "round": current_round,
+                             "type": "variantes", "count": len(variants),
+                             "calls_used": usadas,
+                             "techo": p.llamadas}))
+                state["memory_touched"] = True
 
                 # ---- 2. VERIFICACIÓN EJECUTABLE (§2.5) ----------------------
                 # Ninguna propuesta con código llega al crítico sin ejecutarse.
@@ -619,25 +719,53 @@ class SwarmOrchestrator:
                 good = [v for v in variants if v.verified]
                 if not good and any(r.had_code for r in reports):
                     # Todas fallan: vuelve a Melchior con el traceback SIN
-                    # gastar una ronda de debate.
+                    # gastar una ronda de debate... PERO CON LIMITE.
+                    #
+                    # El log del 16-ago mostró el fallo sin freno: 6 ciclos
+                    # seguidos de «regenero las 3 variantes», ~30 llamadas
+                    # quemadas, y el usuario sin nada. La autocuración tiene
+                    # derecho a intentarlo `p.rebuilds` veces; después, lo
+                    # que haya se debate igual y se DICE que no verificó.
+                    rebuilds = int(state.get("rebuilds", 0))
                     worst = reports[0]
+                    if rebuilds < p.rebuilds:
+                        state["rebuilds"] = rebuilds + 1
+                        await self.bus.publish(BusEvent(
+                            topic="TERMINAL_OUT",
+                            payload={"content":
+                                     f"[VERIFICACIÓN] El código propuesto no "
+                                     f"arranca. Devuelto a Melchior "
+                                     f"(rebuild {state['rebuilds']}/{p.rebuilds}), "
+                                     f"con 1 sola variante. Llamadas {usadas}/{p.llamadas}."}))
+                        await self.bus.publish(BusEvent(
+                            topic="swarm.verification_failed",
+                            payload={"task_id": task_id, "round": current_round,
+                                     "rebuild": state["rebuilds"],
+                                     "detail": worst.render()[:2000]}))
+                        for v, rep in zip(variants, reports, strict=True):
+                            memory.record(round_num=current_round, approach=v.content,
+                                          outcome="no_verifica",
+                                          reason=(rep.failures[0].detail
+                                                  if rep.failures else "no arranca"))
+                        state["command"] = (f"{state['command']}\n\n"
+                                            f"{worst.feedback_for_author()}")
+                        await asyncio.sleep(0.5)
+                        continue
+
+                    # Límite de rebuilds alcanzado: el debate sigue, con la
+                    # advertencia de que ninguna variante verificó. Preferible
+                    # a una tercera ronda: lo que se pierde es la verificación,
+                    # no la tarea.
                     await self.bus.publish(BusEvent(
                         topic="TERMINAL_OUT",
-                        payload={"content": "[VERIFICACIÓN] El código propuesto no "
-                                            "arranca. Devuelto a Melchior sin gastar ronda."}))
+                        payload={"content":
+                                 f"[VERIFICACIÓN] {len(variants)} variante(s) "
+                                 f"sin verificar tras {p.rebuilds} intentos; se "
+                                 f"debate igual. Llamadas {usadas}/{p.llamadas}."}))
                     await self.bus.publish(BusEvent(
-                        topic="swarm.verification_failed",
-                        payload={"task_id": task_id, "round": current_round,
-                                 "detail": worst.render()[:2000]}))
-                    for v, rep in zip(variants, reports, strict=True):
-                        memory.record(round_num=current_round, approach=v.content,
-                                      outcome="no_verifica",
-                                      reason=(rep.failures[0].detail
-                                              if rep.failures else "no arranca"))
-                    state["command"] = (f"{state['command']}\n\n"
-                                        f"{worst.feedback_for_author()}")
-                    await asyncio.sleep(0.5)
-                    continue
+                        topic="swarm.verificacion_agotada",
+                        payload={"task_id": task_id, "rebuilds": rebuilds,
+                                 "detail": worst.render()[:1000]}))
 
                 chosen = good or variants
                 proposal = {"content": format_variants_for_critic(chosen),
