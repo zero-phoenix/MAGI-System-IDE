@@ -76,7 +76,13 @@ async def test_un_juego_pygame_arranca_y_no_cuelga():
         "    reloj.tick(60)\n"
         "pygame.quit()\n"
     )
-    v = ProposalVerifier(timeout_s=6.0)
+    # El contrato es «arranca y termina headless», no «en menos de 6 s»: el
+    # plazo es margen para que el guardián GUI lo pare. Con la CPU repartida
+    # entre workers de xdist, arrancar pygame + 60 fps no cabe en 6 s aunque
+    # todo funcione; se holga el margen, no el contrato.
+    import os as _os
+    margen = 2.5 if _os.environ.get("PYTEST_XDIST_WORKER") else 1.0
+    v = ProposalVerifier(timeout_s=6.0 * margen)
     report = await v.verify(f"```python\n{tetris}```")
     assert report.ok, f"El juego arrancó pero se marcó como fallo:\n{report.render()}"
     assert report.blocks[0].stage == "run-headless"
