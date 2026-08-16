@@ -19,7 +19,7 @@ from magi.core.obs.metrics import canary_probe
 from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.backends.g4f_backend import _por_que_es_inservible
 from magi.core.providers.base import CompletionRequest, Message
-from magi.core.providers.registry import ProviderRegistry
+from magi.core.providers.registry import ProviderError, ProviderRegistry
 
 
 def test_la_respuesta_corta_se_rechaza_para_trafico_y_se_acepta_para_sonda():
@@ -39,7 +39,7 @@ async def test_el_fallo_de_sonda_no_abre_el_cortacircuitos():
 
     req = CompletionRequest(messages=[Message("user", "Responde OK.")],
                             probe=True, timeout_s=5.0)
-    with pytest.raises(Exception):
+    with pytest.raises(ProviderError):
         await reg.complete(req, prefer="eco", max_attempts=1)
 
     # Falló la sonda, pero el cortacircuitos NO se movió: el tráfico real
@@ -63,7 +63,7 @@ async def test_el_fallo_de_trafico_real_sí_penaliza():
     reg.register(EchoProvider(provider_id="eco", family="echo", fail_times=1),
                  priority=1)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ProviderError):
         await reg.complete(
             CompletionRequest(messages=[Message("user", "tarea real")],
                               timeout_s=5.0),
