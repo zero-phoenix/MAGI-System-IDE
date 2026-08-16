@@ -156,6 +156,13 @@ ficheros toca el cambio, su contenido antes y después con un diff real, las
   y auto-mejora medible.
 - **Dónde se va el tiempo**: los agentes, familias y herramientas más lentos,
   ordenados por **p95**, no por media.
+- **Salud por día** *(nuevo en v5.5.0)*: chispa con la latencia diaria de cada
+  candidato (14 días) y su tendencia. La media histórica esconde que un
+  proveedor pasó de 3 s a 9 s esta semana; la pendiente no.
+- **Por qué faltan proveedores** *(nuevo en v5.5.0)*: los que exigen tu cuenta
+  o abren navegador («no van a volver») separados de los caídos («HTTP 429,
+  puede volver»), cada uno con su motivo medido — no un «sin verificar»
+  eterno.
 
 ---
 
@@ -166,8 +173,10 @@ ficheros toca el cambio, su contenido antes y después con un diff real, las
 **[⬇ Descargar la última versión](https://github.com/4n0th1ng/MAGI-System-IDE/releases/latest)**
 
 1. En **Assets**, descarga **`MAGI-IDE-v5.zip`**.
-2. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
-3. Ejecuta **`MAGI-IDE-v5.exe`**.
+2. Verifica la descarga (opcional): `certutil -hashfile MAGI-IDE-v5.zip SHA256`
+   contra **`CHECKSUMS.txt`**, que se publica junto al zip.
+3. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
+4. Ejecuta **`MAGI-IDE-v5.exe`**.
 
 Windows SmartScreen avisará porque el binario no está firmado: *Más
 información → Ejecutar de todas formas*.
@@ -221,7 +230,7 @@ Siete reglas, cada una nacida de un fallo real:
    hecho hasta que se comprueba **en el camino por el que pasa el sistema de
    verdad**.
 
-**1250 tests en Python · 112 en la interfaz · sin tests verdes no hay release.**
+**1255 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:

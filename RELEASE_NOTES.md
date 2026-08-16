@@ -1,12 +1,76 @@
-Suite completa en verde: **1269 pruebas en Python y 112 en la interfaz**. Sin
-tests verdes no hay release, y esa regla ya no depende de GitHub Actions —
-`python scripts/verificar.py` ejecuta lo mismo en tu máquina.
+# v5.5.0 — la sonda despierta y el sistema se audita a sí mismo
+
+Esta versión nace de auditar el propio MAGI con su propio método: medir antes
+de suponer. Lo que apareció fueron cuatro bugs reales que ningún test veía,
+y cada uno con su vacuna para no volver.
+
+## La sonda de latencia llevaba muerta desde que se escribió
+
+`kernel.py` importaba `get_registry` del módulo equivocado. El `except` que
+protegía el arranque se tragaba el ImportError y la sonda —la tarea que mide
+la latencia real de cada proveedor y reparte el enjambre por mérito— **no se
+ejecutaba nunca**. El reparto obedecía al catálogo escrito a mano desde el
+primer día. Ahora corre en cada arranque, y un test nuevo
+(`test_sonda_viva.py`) comprueba que cada import de la sonda resuelve de
+verdad: no puede volver a morir en silencio.
+
+## El panel de configuración enseña la salud, no solo el estado
+
+- **Salud por día**: chispa con la latencia diaria (14 días) de cada
+  candidato y su tendencia (mejora / empeora). La media histórica de 30 días
+  esconde que un proveedor pasó de 3 s a 9 s esta semana; la pendiente no.
+- **Por qué faltan proveedores**: los que exigen tu cuenta o abren navegador
+  («no van a volver») separados de los caídos («HTTP 429, puede volver»),
+  cada uno con su motivo medido. Antes todo era un «sin verificar» que
+  sonaba a trabajo pendiente que nadie haría.
+
+## Integridad verificable de la descarga
+
+Cada release publica **`CHECKSUMS.txt`** con el SHA256 del `.zip` y del
+`.exe` interno. El binario sigue sin firma (SmartScreen avisará: *Más
+información → Ejecutar de todas formas*), pero la integridad ya se puede
+comprobar: `certutil -hashfile MAGI-IDE-v5.zip SHA256`.
+
+## Dependencias sin vulnerabilidades conocidas
+
+`requests` 2.31.0 → 2.33.0 y `scikit-learn` 1.4.1 → 1.5.0 (4 CVE, ambos
+pineados a mano); `dompurify` corregido en la interfaz vía override. La
+auditoría (`pip-audit` + `npm audit`) es ahora bloqueante en el CI: si sale
+un CVE nuevo, el pin sube en el mismo commit o no hay release.
+
+## Más rápido y más limpio
+
+- La suite de tests corre en paralelo (`pytest-xdist`): de ~7 min a ~2,5 min
+  en local, también en el CI.
+- Lint a cero en errores reales (1 527 → 0) y tipado estricto en `magi/core`
+  (26 → 0), ambos bloqueantes. El tipado destapó dos de los cuatro bugs.
+- Seis paquetes de andamiaje sin un solo importador (`device`,
+  `fabrication`, `vision`, `reasoning`, `os_portable`, `capabilities`)
+  archivados en `_attic` como mapa de lo probado. Huérfanos: 94 → 70.
+- Traducciones con caché LRU: mismas entradas, cero llamadas repetidas —
+  la cuota gratuita se queda donde debe estar.
+
+## Los otros dos bugs corregidos
+
+- La lista de tareas de la interfaz fallaba **en silencio** desde siempre:
+  `t.nombre()` llamaba a una property. El `try/except` lo escondía y la
+  columna salía vacía tras cada reinicio.
+- `SecurityPolicyError` se lanzaba al detectar la pasarela expuesta… y nadie
+  la capturaba. Ahora `adapter.py` la atrapa y reporta `BLOCKED`.
+
+---
+
+Suite completa en verde, incluidos los tests que compilan el `.exe`:
+**1255 pruebas en Python y 122 en la interfaz**, verificadas en local antes
+de etiquetar. Sin tests verdes no hay release.
 
 ## Cómo instalarlo
 
 1. Descarga **`MAGI-IDE-v5.zip`** de la sección **Assets**, aquí abajo.
-2. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
-3. Ejecuta **`MAGI-IDE-v5.exe`**.
+2. Verifica (opcional): `certutil -hashfile MAGI-IDE-v5.zip SHA256` contra
+   `CHECKSUMS.txt`.
+3. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
+4. Ejecuta **`MAGI-IDE-v5.exe`**.
 
 Windows SmartScreen avisará porque el binario no está firmado: *Más
 información → Ejecutar de todas formas*. El `.zip` lo compila GitHub Actions
