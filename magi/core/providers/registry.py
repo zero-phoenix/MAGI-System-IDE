@@ -288,7 +288,7 @@ class ProviderRegistry:
           - el provider que se reporta es el que RESPONDIÓ
         """
         key = None
-        if use_cache and not req.tools:
+        if use_cache and not req.tools and not req.probe:
             key = make_key("complete", prefer, req.model, req.temperature,
                            [m.to_wire() for m in req.messages])
             hit = self.cache.get(key)
@@ -307,18 +307,27 @@ class ProviderRegistry:
                 resp = await asyncio.wait_for(
                     reg.provider.complete(req), timeout=req.timeout_s)
             except asyncio.TimeoutError:
-                reg.breaker.record_failure()
-                if self.metrics is not None:
-                    self.metrics.record_provider(reg.id, 0.0, ok=False)
+                # Una SONDA que falla es un dato («este candidato está caído
+                # ahora mismo»), no una razón para cerrarle el paso al tráfico
+                # real. El 2026-08-16 cada canario con respuesta corta —correcta
+                # pero corta— fallaba, abría cortacircuitos y el enjambre se
+                # quedaba sin proveedores por haber querido medirlos.
+                if not req.probe:
+                    reg.breaker.record_failure()
+                    if self.metrics is not None:
+                        self.metrics.record_provider(reg.id, 0.0, ok=False)
                 last_err = ProviderTimeout(f"{reg.id} excedió {req.timeout_s}s")
-                logger.warning("[registry] %s TIMEOUT (%.0fs)", reg.id, req.timeout_s)
+                logger.warning("[registry] %s TIMEOUT (%.0fs)%s", reg.id,
+                               req.timeout_s, " (sonda, no penaliza)" if req.probe else "")
                 continue
             except Exception as e:
-                reg.breaker.record_failure()
-                if self.metrics is not None:
-                    self.metrics.record_provider(reg.id, 0.0, ok=False)
+                if not req.probe:
+                    reg.breaker.record_failure()
+                    if self.metrics is not None:
+                        self.metrics.record_provider(reg.id, 0.0, ok=False)
                 last_err = e
-                logger.warning("[registry] %s falló: %s", reg.id, e)
+                logger.warning("[registry] %s falló: %s%s", reg.id, e,
+                               " (sonda, no penaliza)" if req.probe else "")
                 continue
 
             latency = (time.monotonic() - started) * 1000.0

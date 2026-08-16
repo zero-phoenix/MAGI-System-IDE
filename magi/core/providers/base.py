@@ -61,6 +61,11 @@ class CompletionRequest:
     timeout_s: float = 120.0
     seed: int | None = None
     stream: bool = False
+    #: Es una SONDA (canario de deriva, medición de latencia): su respuesta
+    #: es corta POR DISEÑO y su fallo es un dato, no una penalización. El
+    #: tráfico de sonda no se juzga con las reglas del tráfico real ni
+    #: castiga al cortacircuitos — si no, medir la salud enferma al sistema.
+    probe: bool = False
 
 
 @dataclass

@@ -1,3 +1,32 @@
+# v5.5.1 — corregido: medir la salud no puede enfermar al sistema
+
+**Corrección de la v5.5.0.** Al despertar la sonda de latencia por primera
+vez, el sistema se quedaba sin proveedores a los pocos minutos de uso.
+
+## Qué pasaba
+
+Los canarios piden respuestas cortas **por diseño** («51», «paris», «ok»).
+El filtro antichatarra del tráfico real (`MINIMO_UTIL = 12` caracteres,
+creado para cazar respuestas truncas como `'tud.'`) las rechazaba todas.
+Cada rechazo agotaba la familia, abría el cortacircuitos, y el siguiente
+chequeo de salud atacaba a otras familias: cascada total. Cuando llegaba
+tu tarea real, no quedaba nadie sano. La sonda llevaba muerta desde que
+nació, así que estas dos piezas jamás habían coincidido en ejecución —
+la v5.5.0 las despertó juntas y el choque apareció en tu máquina.
+
+## Qué cambia
+
+- **El tráfico de sonda se marca como tal** (`probe=True` en la petición)
+  y se juzga con su propia regla: cualquier respuesta no vacía cuenta.
+- **Un fallo de sonda ya no castiga al cortacircuitos** ni a las métricas:
+  «este candidato está caído ahora mismo» es un dato, no una penalización.
+- **Las sondas no usan la caché** del tráfico real: el '51' de un canario
+  nunca podrá servir de respuesta a una tarea.
+- Cinco tests de regresión nuevos (`test_sonda_no_envenena.py`) fijan las
+  tres reglas para que no vuelva a pasar.
+
+---
+
 # v5.5.0 — la sonda despierta y el sistema se audita a sí mismo
 
 Esta versión nace de auditar el propio MAGI con su propio método: medir antes

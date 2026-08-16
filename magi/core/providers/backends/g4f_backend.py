@@ -495,7 +495,7 @@ def _disable_g4f_browser() -> None:
 MINIMO_UTIL = 12
 
 
-def _por_que_es_inservible(content: str) -> str | None:
+def _por_que_es_inservible(content: str, minimo: int = MINIMO_UTIL) -> str | None:
     """
     ¿Por qué esta respuesta no sirve? `None` si sirve.
 
@@ -508,7 +508,7 @@ def _por_que_es_inservible(content: str) -> str | None:
     limpio = content.strip()
     if not limpio:
         return "vacía"
-    if len(limpio) < MINIMO_UTIL:
+    if len(limpio) < minimo:
         # Un fragmento como 'tud.' empieza en minúscula y termina en punto: es
         # el final de una frase cuyo principio se perdió. Pero no se exige eso
         # para rechazar —sería adivinar—: por debajo del mínimo no sirve, y el
@@ -739,7 +739,8 @@ class G4FProvider(BaseProvider):
                     # Tratarlo como error hace que la maquinaria de failover que
                     # ya existe pruebe al siguiente candidato, que es justo lo
                     # que hay que hacer.
-                    inservible = _por_que_es_inservible(content)
+                    inservible = _por_que_es_inservible(
+                        content, minimo=1 if req.probe else MINIMO_UTIL)
                     if inservible:
                         errors.append(f"{cand[0]}: {inservible}")
                         logger.warning("[%s] %s devolvió una respuesta "
@@ -909,11 +910,12 @@ class LlmDeSonda:
             model=modelo or "", provider=cls, messages=mensajes)  # type: ignore[arg-type]
         texto = (respuesta.choices[0].message.content or "")
 
-        # La misma criba que en `complete()`: una respuesta de cuatro
-        # caracteres no es una respuesta. Sin esto, la sonda registraría
-        # `'tud.'` como éxito y le daría al candidato una latencia estupenda
-        # por no haber contestado.
-        motivo = _por_que_es_inservible(texto)
+        # Aquí SOLO se rechaza lo vacío: el juicio del contenido lo pone
+        # `sonda.medir_candidato` con sus SEÑALES_ESPERADAS. Aplicar el mínimo
+        # del tráfico real aquí era medir la salud del proveedor con la regla
+        # del tráfico y matar al paciente en el chequeo: la respuesta de un
+        # canario es corta POR DISEÑO.
+        motivo = _por_que_es_inservible(texto, minimo=1)
         if motivo:
             raise ProviderError(f"respuesta inservible: {motivo}")
         return texto, f"{proveedor}/{modelo or 'default'}"

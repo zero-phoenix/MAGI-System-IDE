@@ -230,7 +230,7 @@ Siete reglas, cada una nacida de un fallo real:
    hecho hasta que se comprueba **en el camino por el que pasa el sistema de
    verdad**.
 
-**1255 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
+**1260 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:

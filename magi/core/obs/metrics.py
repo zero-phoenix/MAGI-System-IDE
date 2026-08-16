@@ -306,7 +306,8 @@ async def canary_probe(registry, provider_id: str,
             resp = await registry.complete(
                 CompletionRequest(
                     messages=[Message("user", prompt)],
-                    temperature=0.0, max_tokens=16, timeout_s=30.0),
+                    temperature=0.0, max_tokens=16, timeout_s=30.0,
+                    probe=True),
                 prefer=provider_id, use_cache=False, max_attempts=1)
             got = (resp.content or "").strip().lower()
             if expected in got:
