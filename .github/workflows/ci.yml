@@ -164,20 +164,40 @@ jobs:
     - name: Syntax and undefined names (bloqueante)
       run: ruff check magi/ tests/ --select E9,F63,F7,F82
 
-    - name: Lint completo (informativo — deuda técnica visible)
-      # --exit-zero: nunca falla el workflow, solo publica el conteo en el log.
-      # El objetivo es visibilidad progresiva: cuando la deuda baje, este step
-      # pasa a bloqueante. Por ahora, reportar sin romper el desarrollo.
-      run: ruff check magi/ tests/ --statistics --exit-zero || true
+    - name: Lint completo (bloqueante — deuda a cero el 2026-08-16)
+      # E501 está excluido en pyproject.toml (268 líneas, deuda de estilo).
+      # El resto SÍ bloquea: si esto falla, es un error real, no estilo.
+      run: ruff check magi/ tests/
 
-    - name: Type check (informativo)
-      # pyright lee pyrightconfig.json. continue-on-error: nunca falla el
-      # workflow. Misma idea que con ruff: visibilidad progresiva. El tipado de
-      # magi/ es parcial; cuando la cuenta de errores baje, quitamos el flag.
-      continue-on-error: true
+    - name: Audit de dependencias Python (bloqueante)
+      # pip-audit contra requirements.txt: 2026-08-16 encontró requests
+      # 2.31.0 (3 CVE) y scikit-learn 1.4.1 (1 CVE), ambos pineados a mano.
+      # Se subieron los pins. Si vuelve a fallar, hay un CVE nuevo y el pin
+      # correspondiente tiene que subir en el mismo commit.
+      run: |
+        pip install pip-audit
+        pip-audit -r requirements.txt --no-deps
+
+    - name: Audit de dependencias npm (bloqueante)
+      # La GUI Tauri también cuenta: dompurify <=3.4.12 (vía monaco-editor)
+      # se corrigió con un override a ^3.4.13 en magi-gui/package.json.
+      working-directory: ./magi-gui
+      run: npm audit --omit=dev
+
+    - name: Type check nucleo (bloqueante — a cero el 2026-08-16)
+      # pyright lee pyrightconfig.json. magi/core esta limpio desde el
+      # 2026-08-16 (26 errores -> 0, y dos bugs reales en el camino: la sonda
+      # de latencia muerta por un import equivocado y t.nombre() llamando a
+      # una property). Lo que esta a cero se queda bloqueante.
       run: |
         pip install pyright
-        pyright magi/
+        pyright magi/core
+
+    - name: Type check resto (informativo)
+      # magi/modules todavia tiene deuda de tipado. Misma idea que con ruff:
+      # visibilidad progresiva; cuando llegue a cero, pasa a bloqueante.
+      continue-on-error: true
+      run: pyright magi/
 
     - name: No hardcoded machine paths
       run: |

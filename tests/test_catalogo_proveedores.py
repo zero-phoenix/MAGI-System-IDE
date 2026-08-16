@@ -30,7 +30,7 @@ def test_el_json_dice_lo_mismo_que_las_constantes():
 def test_los_nombres_publicos_siguen_ahi_y_con_la_forma_de_siempre():
     """Nada de lo que ya consumía estos datos debería notar el cambio."""
     assert isinstance(g.FAMILY_SPECS, dict) and g.FAMILY_SPECS
-    for fam, cands in g.FAMILY_SPECS.items():
+    for _fam, cands in g.FAMILY_SPECS.items():
         assert isinstance(cands, list)
         for c in cands:
             assert isinstance(c, tuple) and len(c) == 2

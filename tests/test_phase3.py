@@ -7,14 +7,22 @@ import pytest
 
 from magi.core.bus import BusEvent, MagiBus
 from magi.core.eval.bench import (
-    BenchResult, EvalBench, EvalTask, TaskOutcome, compare, default_bench,
+    BenchResult,
+    EvalBench,
+    EvalTask,
+    TaskOutcome,
+    compare,
+    default_bench,
 )
 from magi.core.obs.metrics import (
-    Alert, Counter, MetricsCollector, Series, canary_probe,
+    Alert,
+    Counter,
+    MetricsCollector,
+    Series,
+    canary_probe,
 )
 from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.registry import ProviderRegistry
-
 
 # ------------------------------------------------- §3.4 series y contadores
 

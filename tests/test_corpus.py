@@ -9,7 +9,10 @@ import pytest
 
 from magi.core.tools import ToolContext, WriteJournal, build_registry
 from magi.modules.reverse.corpus import (
-    CorpusIndex, compare_corpora, index_source_tree, locate_subsystem,
+    CorpusIndex,
+    compare_corpora,
+    index_source_tree,
+    locate_subsystem,
     subsystem_names,
 )
 

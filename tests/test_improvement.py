@@ -19,9 +19,20 @@ existe.
 import pytest
 
 from magi.modules.infrastructure.improvement import (
-    CIRCUITOS, GATES, SECUENCIA, TRANSICIONES, ImprovementError,
-    ImprovementLog, Stage, advance, fail, next_actor, prompt_for,
-    record_round, start, user_decides,
+    CIRCUITOS,
+    GATES,
+    SECUENCIA,
+    TRANSICIONES,
+    ImprovementError,
+    ImprovementLog,
+    Stage,
+    advance,
+    fail,
+    next_actor,
+    prompt_for,
+    record_round,
+    start,
+    user_decides,
 )
 
 
@@ -496,7 +507,12 @@ def test_la_release_adjunta_el_exe_dentro_de_un_zip():
     comprimir = next(s for s in pasos if s.get("name") == "Zip Release")
     assert ".exe" in comprimir["run"] and ".zip" in comprimir["run"]
     crear = next(s for s in pasos if s.get("name") == "Create Release")
-    assert crear["with"]["files"].endswith(".zip")
+    # El zip del binario Y los checksums SHA256 para verificar la descarga
+    # (el .exe no está firmado: la integridad verificable es lo que hay).
+    files = crear["with"]["files"]
+    assert "MAGI-IDE-v5.zip" in files and "CHECKSUMS.txt" in files
+    checksums = next(s for s in pasos if s.get("name") == "Checksums SHA256")
+    assert "SHA256" in checksums["run"]
 
 
 def test_no_hay_release_sin_tests_verdes():

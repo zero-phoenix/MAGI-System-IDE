@@ -127,7 +127,7 @@ def test_el_enjambre_tiene_exactamente_tres_nodos(readme):
     'tres') debe revisarse entero, no solo la cifra.
     """
     # Verificamos que las tres clases de agente existen y son distintas.
-    from magi.modules.swarm.agents import MelchiorAgent, BalthasarAgent
+    from magi.modules.swarm.agents import BalthasarAgent, MelchiorAgent
     from magi.modules.swarm.orchestrator import SwarmOrchestrator
     roles = {MelchiorAgent, BalthasarAgent}
     # Casper vive dentro del orquestador como árbitro; lo importante es que

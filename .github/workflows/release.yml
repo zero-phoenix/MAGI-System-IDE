@@ -175,12 +175,26 @@ jobs:
         $z = [math]::Round((Get-Item "dist/MAGI-IDE-v5.zip").Length / 1MB, 1)
         Write-Host "zip: $z MB"
 
+    - name: Checksums SHA256
+      # El binario no está firmado y SmartScreen asusta; lo que SÍ se puede
+      # garantizar es la integridad: quien descargue puede verificar con
+      # `certutil -hashfile MAGI-IDE-v5.zip SHA256` contra CHECKSUMS.txt.
+      # Se generan del .zip Y del .exe interno por si alguien descomprime.
+      run: |
+        $h1 = (Get-FileHash "dist/MAGI-IDE-v5.zip" -Algorithm SHA256).Hash
+        $h2 = (Get-FileHash "dist/MAGI-IDE-v5.exe" -Algorithm SHA256).Hash
+        "$($h1.ToLower())  MAGI-IDE-v5.zip"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
+        "$($h2.ToLower())  MAGI-IDE-v5.exe"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
+        Get-Content dist/CHECKSUMS.txt
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.RELEASE_TAG }}
         name: "MAGI System IDE ${{ env.RELEASE_TAG }}"
-        files: dist/MAGI-IDE-v5.zip
+        files: |
+          dist/MAGI-IDE-v5.zip
+          dist/CHECKSUMS.txt
         body_path: RELEASE_NOTES.md
         draft: false
       env:

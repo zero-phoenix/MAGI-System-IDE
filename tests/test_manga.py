@@ -10,8 +10,14 @@ import pytest
 
 from magi.core.tools import ToolContext, WriteJournal, build_registry, registry_for_role
 from magi.modules.studio.manga import (
-    ComfyUIBackend, PageSpec, Panel, PlaceholderBackend, ReadingOrder,
-    compose_page, dramatic_page, grid_page,
+    ComfyUIBackend,
+    PageSpec,
+    Panel,
+    PlaceholderBackend,
+    ReadingOrder,
+    compose_page,
+    dramatic_page,
+    grid_page,
 )
 
 pytest.importorskip("PIL", reason="Pillow no instalado")

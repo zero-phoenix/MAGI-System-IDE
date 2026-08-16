@@ -783,7 +783,7 @@ class G4FProvider(BaseProvider):
             seq, emitted = 0, False
             try:
                 stream = client.chat.completions.stream(
-                    model=model or "", messages=messages, provider=cls)
+                    model=model or "", messages=messages, provider=cls)  # type: ignore[arg-type]
                 async for chunk in stream:
                     piece = ""
                     if getattr(chunk, "choices", None):
@@ -830,7 +830,7 @@ class G4FProvider(BaseProvider):
                 continue
             try:
                 resp = await client.chat.completions.create(
-                    model=model or "", messages=base, provider=cls)
+                    model=model or "", messages=base, provider=cls)  # type: ignore[arg-type]
                 content = (resp.choices[0].message.content or "") if resp.choices else ""
                 if content.strip():
                     return self._mk_response(content, f"{name}(vision)", started)
@@ -906,7 +906,7 @@ class LlmDeSonda:
             mensajes.insert(0, {"role": "system", "content": system_prompt})
 
         respuesta = await AsyncClient().chat.completions.create(
-            model=modelo or "", provider=cls, messages=mensajes)
+            model=modelo or "", provider=cls, messages=mensajes)  # type: ignore[arg-type]
         texto = (respuesta.choices[0].message.content or "")
 
         # La misma criba que en `complete()`: una respuesta de cuatro

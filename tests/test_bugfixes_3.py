@@ -27,7 +27,6 @@ from magi.modules.reverse.disasm import disassemble
 from magi.modules.reverse.identify import identify
 from magi.modules.swarm.orchestrator import SwarmOrchestrator
 
-
 # ---- BUG 1: 24 de 25 tareas concurrentes se perdían en silencio ----
 
 @pytest.fixture

@@ -197,9 +197,13 @@ def construir_pasos(todo: bool, rapido: bool) -> list[Paso]:
         Paso("ruff (sintaxis y nombres indefinidos)",
              [*py, "ruff", "check", "magi/", "tests/",
               "--select", "E9,F63,F7,F82"]),
+        # -n auto: la suite en paralelo (~2,5 min frente a ~5-7 en serie).
+        # --dist loadfile agrupa cada fichero en un worker: los tests que
+        # comparten estado (puertos reales, tmp_path encadenados) viven juntos.
         Paso("pytest" + ("" if todo else " (sin los que compilan)"),
              [*py, "pytest", "tests/", "-q", "--tb=line",
-              "-p", "no:cacheprovider", *marca]),
+              "-p", "no:cacheprovider", "-n", "auto", "--dist", "loadfile",
+              *marca]),
         Paso("imports del nucleo",
              [sys.executable, "-c",
               "import magi.core.paths, magi.core.context, magi.core.router;"

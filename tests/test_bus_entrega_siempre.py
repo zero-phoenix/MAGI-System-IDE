@@ -135,16 +135,21 @@ async def test_la_tarea_de_persistencia_tiene_dueño():
     """
     bus, _ = await _bus_con_suscriptor()
     visto_en_vuelo = asyncio.Event()
+    puede_terminar = asyncio.Event()
 
     async def sink_lento(event):
         visto_en_vuelo.set()
-        await asyncio.sleep(0.05)
+        # Sin sleeps a ciegas: bajo carga de CPU (pytest-xdist) el sink podía
+        # terminar antes de que el assert de arriba lo mirara. El test decide
+        # cuándo termina el sink, no el reloj.
+        await puede_terminar.wait()
 
     bus.attach_critical_sink(sink_lento)
     await bus.publish(BusEvent(topic="x", payload={"n": 5}, critical=True))
     await visto_en_vuelo.wait()
     assert bus._sink_tasks, "la tarea en vuelo debe tener una referencia viva"
 
+    puede_terminar.set()
     await asyncio.sleep(0.1)
     assert not bus._sink_tasks, (
         "y debe soltarse al terminar: si no, el conjunto crece sin límite "

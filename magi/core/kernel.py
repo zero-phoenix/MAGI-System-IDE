@@ -130,7 +130,7 @@ class Kernel:
                 # agotada se veía como una lista de proveedores sin explicar,
                 # y no había forma de saber si faltaba instalar algo, si era
                 # cuota o si el cortafuegos lo había cortado.
-                "descartados": (r.provider.motivos_descartados()
+                "descartados": (r.provider.motivos_descartados()  # type: ignore[attr-defined]
                                 if hasattr(r.provider, "motivos_descartados")
                                 else {}),
             })
@@ -414,7 +414,7 @@ class Kernel:
             store = self.swarm.store
             tareas = store.visibles(limit=100)
             return {"tasks": [
-                {"task_id": t.task_id, "titulo": t.nombre(),
+                {"task_id": t.task_id, "titulo": t.nombre,
                  "status": t.status, "round": t.round}
                 for t in tareas]}
         except Exception as e:
@@ -861,7 +861,14 @@ class Kernel:
                 LlmDeSonda,
                 candidatos_para_sondear,
             )
-            from magi.core.providers.registry import get_registry
+
+            # OJO al módulo: get_registry vive en providers.cloud, no en
+            # providers.registry. Importarlo del sitio equivocado lanzaba
+            # ImportError, el except de abajo se lo tragaba y la sonda no
+            # llegaba a ejecutarse NUNCA — con el catálogo escrito a mano
+            # mandando para siempre. Lo encontró pyright (unknown import
+            # symbol), no un test.
+            from magi.core.providers.cloud import get_registry
 
             store = self.swarm.store
             hechas, motivo = await sonda.refrescar_si_toca(

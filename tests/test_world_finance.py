@@ -9,12 +9,19 @@ números absurdos presentados con cara de tasación.
 import pytest
 
 from magi.modules.world.finance import (
-    DCFAssumptions, FinanceError, cash_conversion, dcf, dcf_sensitivity,
-    dilution, leverage, maintenance_capex, owner_earnings, quality_checklist,
+    DCFAssumptions,
+    FinanceError,
+    cash_conversion,
+    dcf,
+    dcf_sensitivity,
+    dilution,
+    leverage,
+    maintenance_capex,
+    owner_earnings,
+    quality_checklist,
     roic,
 )
 from magi.modules.world.thesis import ThesisError, ThesisLog
-
 
 # ------------------------------------------------- ganancias del propietario
 

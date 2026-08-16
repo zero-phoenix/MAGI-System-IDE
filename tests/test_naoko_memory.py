@@ -6,7 +6,8 @@ import json
 import pytest
 
 from magi.modules.infrastructure.naoko_memory import (
-    EternalMemory, SystemIntrospector,
+    EternalMemory,
+    SystemIntrospector,
 )
 
 
@@ -78,8 +79,9 @@ def test_una_identidad_editada_por_el_usuario_NO_se_toca(tmp_path):
 
 
 def test_una_invariante_nueva_llega_a_una_memoria_existente(tmp_path):
-    from magi.modules.infrastructure import naoko_memory as nm
     import json as _json
+
+    from magi.modules.infrastructure import naoko_memory as nm
 
     root = tmp_path / "naoko"
     root.mkdir(parents=True)
@@ -99,9 +101,9 @@ def test_una_leccion_nueva_llega_a_una_memoria_existente(tmp_path):
     (root / "lessons.jsonl").write_text(
         '{"clave": "vieja", "leccion": "algo"}\n', encoding="utf-8")
 
-    claves = {l["clave"] for l in EternalMemory(root=root).lessons()}
+    claves = {ln["clave"] for ln in EternalMemory(root=root).lessons()}
     assert "vieja" in claves, "no se pierde lo que ya había"
-    assert {l["clave"] for l in nm.LESSON_SEED} <= claves
+    assert {ln["clave"] for ln in nm.LESSON_SEED} <= claves
 
 
 def test_la_identidad_nombra_a_los_tres_nodos_del_enjambre():
@@ -119,7 +121,7 @@ def test_la_identidad_nombra_a_los_tres_nodos_del_enjambre():
 def test_las_lecciones_se_deduplican_por_clave(mem):
     mem.remember_lesson(clave="k", leccion="primera versión")
     mem.remember_lesson(clave="k", leccion="versión corregida")
-    ks = [l for l in mem.lessons() if l["clave"] == "k"]
+    ks = [ln for ln in mem.lessons() if ln["clave"] == "k"]
     assert len(ks) == 1
     assert ks[0]["leccion"] == "versión corregida"
 

@@ -235,13 +235,13 @@ def _install_cdp_block() -> None:
             setattr(cdp, name, repl)
 
     if hasattr(cdp, "CDPSession"):
-        cdp.CDPSession.start = _blocked_async
+        cdp.CDPSession.start = _blocked_async  # type: ignore[method-assign]
         if hasattr(cdp.CDPSession, "start_chrome"):
-            cdp.CDPSession.start_chrome = _blocked_sync
+            cdp.CDPSession.start_chrome = _blocked_sync  # type: ignore[method-assign]
     if hasattr(cdp, "SyncCDPSession"):
-        cdp.SyncCDPSession.start_chrome = _blocked_sync
+        cdp.SyncCDPSession.start_chrome = _blocked_sync  # type: ignore[method-assign]
         if hasattr(cdp.SyncCDPSession, "start"):
-            cdp.SyncCDPSession.start = _blocked_sync
+            cdp.SyncCDPSession.start = _blocked_sync  # type: ignore[method-assign]
 
 
 # ------------------------------------------------- capa 2: nodriver / webview
@@ -298,7 +298,7 @@ def _install_webbrowser_block() -> None:
         _record("webbrowser.open", str(url))
         return False
 
-    _blocked_open._magi_guarded = True
+    _blocked_open._magi_guarded = True  # type: ignore[attr-defined]
     webbrowser.open = _blocked_open
     webbrowser.open_new = _blocked_open
     webbrowser.open_new_tab = _blocked_open
@@ -347,5 +347,5 @@ def self_test() -> dict:
     except Exception:
         report["nodriver"] = True
     report["ok"] = all(v for k, v in report.items() if isinstance(v, bool))
-    report["violations"] = violation_count()
+    report["violations"] = violation_count()  # type: ignore[assignment]
     return report

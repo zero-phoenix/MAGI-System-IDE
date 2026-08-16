@@ -17,7 +17,10 @@ fallo no pueda repetirse en silencio.
 import pytest
 
 from magi.modules.infrastructure.naoko_repair import (
-    RepairOutcome, RepairReport, current_version, next_patch_version,
+    RepairOutcome,
+    RepairReport,
+    current_version,
+    next_patch_version,
     validate_version_bump,
 )
 

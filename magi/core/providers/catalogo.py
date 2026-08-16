@@ -53,8 +53,8 @@ NOMBRE = "catalogo_proveedores.json"
 
 def _ruta_usuario() -> Path | None:
     try:
-        from magi.core.paths import app_data_dir
-        return Path(app_data_dir()) / NOMBRE
+        from magi.core.paths import data_dir
+        return Path(data_dir()) / NOMBRE
     except Exception:
         import os
         base = os.environ.get("LOCALAPPDATA")

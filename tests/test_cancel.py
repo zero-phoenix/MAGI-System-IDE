@@ -20,9 +20,9 @@ import contextlib
 import sys
 
 import pytest
+from source_helpers import code_of
 
 from magi.core.cancel import CancelReport, TaskSupervisor, reset_supervisor, supervisor
-from source_helpers import code_of
 
 
 @pytest.fixture(autouse=True)
@@ -324,8 +324,9 @@ def test_run_command_inscribe_su_subproceso():
 def test_el_estop_del_kernel_cancela_de_verdad():
     import inspect
 
-    from magi.core.kernel import Kernel
     from source_helpers import strip_py_comments
+
+    from magi.core.kernel import Kernel
     src = strip_py_comments(inspect.getsource(Kernel._handle_estop).lstrip())
     assert "cancel_all" in src, "el botón de parada sigue sin parar nada"
     assert "EMERGENCY_STOP_TRIGGERED" not in src

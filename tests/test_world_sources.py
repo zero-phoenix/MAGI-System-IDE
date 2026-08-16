@@ -11,11 +11,19 @@ La suite no toca la red: todo pasa por `FrozenFetcher`.
 import pytest
 
 from magi.modules.world.edgar import (
-    annual_series, concept_facts, fundamentals, render_fundamentals, resolve_cik,
+    annual_series,
+    concept_facts,
+    fundamentals,
+    render_fundamentals,
+    resolve_cik,
 )
 from magi.modules.world.feeds import fetch_feed, headlines, parse_feed
 from magi.modules.world.macro import (
-    compare_countries, ecb_series, fred_series, macro_snapshot, worldbank,
+    compare_countries,
+    ecb_series,
+    fred_series,
+    macro_snapshot,
+    worldbank,
 )
 from magi.modules.world.sources import Datum, FrozenFetcher, SourceError
 

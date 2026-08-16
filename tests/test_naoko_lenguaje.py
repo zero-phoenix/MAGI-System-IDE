@@ -26,9 +26,11 @@ from __future__ import annotations
 import pytest
 
 from magi.modules.infrastructure.naoko_lenguaje import (
-    en_cristiano, nombre_de_tarea, que_te_toca, resumen_humano,
+    en_cristiano,
+    nombre_de_tarea,
+    que_te_toca,
+    resumen_humano,
 )
-
 
 # ---------------------------------------------------------------- el nombre
 

@@ -33,8 +33,7 @@ import logging
 
 import pytest
 
-from magi.core.bus import MagiBus, BusEvent
-
+from magi.core.bus import BusEvent, MagiBus
 
 # ============================================ todos los handlers arrancan
 
@@ -45,8 +44,8 @@ def _kernel_handlers() -> dict:
     Se construye el kernel con dependencias mínimas; lo que importa aquí no es
     que hagan su trabajo, sino que se puedan invocar sin reventar al importar.
     """
-    from magi.core.kernel import Kernel
     from magi.core.blackboard import Blackboard
+    from magi.core.kernel import Kernel
 
     bus = MagiBus()
     try:

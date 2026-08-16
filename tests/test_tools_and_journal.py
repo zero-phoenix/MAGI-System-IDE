@@ -8,8 +8,13 @@ permiso. Estos tests verifican que el deshacer funciona de verdad.
 import pytest
 
 from magi.core.tools import (
-    ToolContext, WriteJournal, build_registry, registry_for_role,
-    parse_tool_calls, strip_tool_calls, format_results,
+    ToolContext,
+    WriteJournal,
+    build_registry,
+    format_results,
+    parse_tool_calls,
+    registry_for_role,
+    strip_tool_calls,
 )
 from magi.core.tools.registry import ToolResult
 
@@ -217,7 +222,7 @@ def test_catalog_lines_stay_cheap():
     """Ninguna línea del catálogo puede dispararse: entra en cada prompt."""
     cat = build_registry().catalog()
     assert "read_file(" in cat
-    assert max(len(l) for l in cat.splitlines()) < 200
+    assert max(len(ln) for ln in cat.splitlines()) < 200
 
 
 def test_catalog_is_scoped_to_the_task_domain():

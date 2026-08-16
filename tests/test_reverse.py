@@ -8,13 +8,19 @@ import pytest
 
 from magi.core.tools import build_registry, registry_for_role
 from magi.modules.reverse.disasm import (
-    available_tools, disassemble, extract_strings,
+    available_tools,
+    disassemble,
+    extract_strings,
 )
 from magi.modules.reverse.emulate import differential_test, emulate
 from magi.modules.reverse.identify import CONSOLES, identify, profile
 from magi.modules.reverse.matrix import (
-    Reuse, analyze_port, compare_consoles, suggest_port_path,
+    Reuse,
+    analyze_port,
+    compare_consoles,
+    suggest_port_path,
 )
+
 
 def _mips_le(*words: int) -> bytes:
     """
@@ -262,7 +268,7 @@ def test_suggested_base_prefers_architectural_proximity():
     PSP (MIPS + pipeline fijo), aunque PSP sea el emulador más conocido.
     """
     out = suggest_port_path("vita")
-    lines = [l for l in out.splitlines() if "reutilización" in l]
+    lines = [ln for ln in out.splitlines() if "reutilización" in ln]
     assert lines and "3DS" in lines[0]
 
 

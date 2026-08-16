@@ -55,8 +55,8 @@ class Auditoria:
 
     def __init__(self, raiz: Path | None = None):
         if raiz is None:
-            from magi.core.paths import app_data_dir
-            raiz = Path(app_data_dir())
+            from magi.core.paths import data_dir
+            raiz = Path(data_dir())
         self.raiz = Path(raiz)
         self.raiz.mkdir(parents=True, exist_ok=True)
         self.diario = self.raiz / NOMBRE

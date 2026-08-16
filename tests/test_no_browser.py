@@ -139,7 +139,9 @@ def test_los_candidatos_con_navegador_van_al_final_de_la_cola():
     """
     pytest.importorskip("g4f.Provider")
     from magi.core.providers.backends.g4f_backend import (
-        G4FProvider, _resolve, _uses_browser,
+        G4FProvider,
+        _resolve,
+        _uses_browser,
     )
 
     # La familia viene del catálogo de laboratorio (tests/conftest.py) y

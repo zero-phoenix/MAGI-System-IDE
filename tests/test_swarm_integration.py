@@ -17,10 +17,10 @@ import asyncio
 import pytest
 
 from magi.core.blackboard import Blackboard
-from magi.core.bus import MagiBus, BusEvent
+from magi.core.bus import BusEvent, MagiBus
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.cloud import FreeCloudLLM, set_registry
 from magi.core.providers.registry import ProviderRegistry
-from magi.core.providers.backends.echo import EchoProvider
 from magi.modules.swarm.orchestrator import SwarmOrchestrator
 
 
@@ -242,8 +242,7 @@ def test_agents_never_pin_a_gpt_model():
 
 
 def test_each_agent_declares_a_distinct_family():
-    from magi.modules.swarm.agents import (
-        MelchiorAgent, BalthasarAgent, CasperAgent)
+    from magi.modules.swarm.agents import BalthasarAgent, CasperAgent, MelchiorAgent
     fams = [MelchiorAgent.family, BalthasarAgent.family, CasperAgent.family]
     assert len(set(fams)) == 3, f"familias repetidas: {fams}"
     assert "auto" not in fams, "ningún nodo debe quedar en el auto-router"
@@ -251,7 +250,6 @@ def test_each_agent_declares_a_distinct_family():
 
 def test_each_agent_has_a_distinct_seed():
     """Si solo hay una familia sana, la divergencia se fuerza por semilla."""
-    from magi.modules.swarm.agents import (
-        MelchiorAgent, BalthasarAgent, CasperAgent)
+    from magi.modules.swarm.agents import BalthasarAgent, CasperAgent, MelchiorAgent
     seeds = [MelchiorAgent.seed, BalthasarAgent.seed, CasperAgent.seed]
     assert len(set(seeds)) == 3 and None not in seeds

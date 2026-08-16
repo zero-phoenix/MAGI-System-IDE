@@ -23,7 +23,6 @@ import pytest
 
 from magi.core import idioma
 
-
 # ------------------------------------------------ qué se acepta y qué no
 
 @pytest.mark.parametrize("texto, codigo", [

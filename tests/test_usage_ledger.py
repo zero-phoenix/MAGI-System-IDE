@@ -20,9 +20,9 @@ import re
 from pathlib import Path
 
 import pytest
+from source_helpers import code_of
 
 from magi.core.store.state import TaskStore
-from source_helpers import code_of
 
 ROOT = Path(__file__).resolve().parents[1]
 

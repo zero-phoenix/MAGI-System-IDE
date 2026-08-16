@@ -18,8 +18,12 @@ from __future__ import annotations
 import pytest
 
 from magi.modules.infrastructure.diagnostico import (
-    CATALOGO, Situacion, diagnosticar, es_operativa, catalogo_legible)
-
+    CATALOGO,
+    Situacion,
+    catalogo_legible,
+    diagnosticar,
+    es_operativa,
+)
 
 # ------------------------------------------------- reconocer la queja
 

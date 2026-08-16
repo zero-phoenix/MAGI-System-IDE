@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 
 from magi.modules.studio.packager import (
-    build_project_exe,
     _find_entry,
     _looks_like_gui,
     _read_requirements,
+    build_project_exe,
 )
 
 

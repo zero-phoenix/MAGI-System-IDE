@@ -17,7 +17,10 @@ from pathlib import Path
 import pytest
 
 from magi.core.approval import (
-    MAX_BYTES_PER_FILE, ApprovalRequest, FileChange, build_approval_request,
+    MAX_BYTES_PER_FILE,
+    ApprovalRequest,
+    FileChange,
+    build_approval_request,
     changes_from_journal,
 )
 from magi.core.tools.journal import WriteJournal
@@ -27,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Era una copia local del mismo regex; ya iba por la tercera. Vive en
 # `source_helpers` porque tres copias es como empiezan las divergencias.
-from source_helpers import strip_js_comments as _sin_comentarios
+from source_helpers import strip_js_comments as _sin_comentarios  # noqa: E402
 
 
 @pytest.fixture

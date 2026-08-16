@@ -31,7 +31,8 @@ from __future__ import annotations
 import pytest
 
 from magi.core.providers.backends.g4f_backend import (
-    MINIMO_UTIL, _por_que_es_inservible,
+    MINIMO_UTIL,
+    _por_que_es_inservible,
 )
 
 

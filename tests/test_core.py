@@ -7,15 +7,14 @@ from pathlib import Path
 import pytest
 
 from magi.core import paths
-from magi.core.router import Route, classify, classify_heuristic
-from magi.core.prompts import build_system_prompt, style_fragment, NARRATIVE_STYLES
-from magi.core.context import ExecutionContext, HostInfo, GitInfo
-from magi.core.agent_loop import run_agent, _trim
+from magi.core.agent_loop import _trim, run_agent
+from magi.core.context import ExecutionContext, GitInfo, HostInfo
+from magi.core.prompts import NARRATIVE_STYLES, build_system_prompt, style_fragment
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.base import Message
 from magi.core.providers.registry import ProviderRegistry
-from magi.core.providers.backends.echo import EchoProvider
+from magi.core.router import Route, classify, classify_heuristic
 from magi.core.tools import ToolContext, WriteJournal, build_registry
-
 
 # ----------------------------------------------------------------- rutas §1.3
 

@@ -17,7 +17,6 @@ from magi.core.paths import python_executable
 from magi.core.tools.builtin import ToolContext, build_registry
 from magi.modules.studio.packager import build_project_exe
 
-
 TETRIS_MAIN = r'''
 import sys
 import pygame
@@ -79,7 +78,7 @@ async def test_build_tetris_executable(tetris_project, tmp_path):
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
-        raise AssertionError("el .exe del Tetris no terminó en 30s")
+        raise AssertionError("el .exe del Tetris no terminó en 30s") from None
 
     output = (stdout.decode(errors="ignore") +
               stderr.decode(errors="ignore")).strip()

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from ..paths import python_executable, workspace_dir
 from .journal import WriteJournal
-from .registry import ToolRegistry, ToolResult
+from .registry import Access, ToolRegistry, ToolResult
 
 #: Ver `paths.python_executable`: dentro del bundle `sys.executable` es el
 #: propio .exe y lanzarlo relanzaría MAGI en vez de ejecutar Python.
@@ -227,6 +227,7 @@ def build_registry() -> ToolRegistry:
         workdir.mkdir(parents=True, exist_ok=True)
         if ctx.dry_run:
             return ToolResult(True, f"[dry-run] ejecutaría en {workdir}: {command}")
+        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_shell(
                 command, cwd=str(workdir),
@@ -250,11 +251,12 @@ def build_registry() -> ToolRegistry:
         except asyncio.TimeoutError:
             # kill() sin wait() deja el transporte sin limpiar: el proceso queda
             # zombi y asyncio lanza "Event loop is closed" al recolectarlo.
-            try:
-                proc.kill()
-                await proc.wait()
-            except Exception:
-                pass
+            if proc is not None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
             return ToolResult(False, "", error=f"timeout tras {timeout}s")
 
     @reg.tool("python_exec", "Ejecuta código Python en un proceso aparte.",
@@ -368,7 +370,7 @@ def build_registry() -> ToolRegistry:
                                        "description": "nombre base (sin .exe)",
                                        "default": "MAGI-IDE-v5"}},
                "required": []}, access={"exec"}, dangerous=True)
-    async def build_exe(name: str = "MAGI-IDE-v5", ctx: ToolContext = None):
+    async def build_exe(name: str = "MAGI-IDE-v5", ctx: ToolContext | None = None):
         if ctx is None:
             return ToolResult(False, "", error="sin contexto")
         raiz = ctx.cwd
@@ -474,7 +476,7 @@ def build_registry() -> ToolRegistry:
                                          "default": "python"}},
                "required": []}, access={"exec"}, dangerous=True)
     async def create_venv(path: str = ".venv", python: str = "python",
-                          ctx: ToolContext = None):
+                          ctx: ToolContext | None = None):
         if ctx is None:
             return ToolResult(False, "", error="sin contexto")
         res = await run_command(f'"{python}" -m venv "{path}"', ctx=ctx, timeout=120)
@@ -524,7 +526,7 @@ def build_registry() -> ToolRegistry:
 
 # Perfiles por rol (Plan MAGI 9.0 §2.2).
 MELCHIOR_TOOLS = None                      # todo: propone y construye
-BALTHASAR_DENY = {"write"}                 # lee y ejecuta, no escribe
+BALTHASAR_DENY: set[Access] = {"write"}    # lee y ejecuta, no escribe
 CASPER_TOOLS = {"read_file", "list_dir", "grep", "glob", "run_tests",
                 "run_command",
                 # el árbitro necesita poder comprobar afirmaciones sobre

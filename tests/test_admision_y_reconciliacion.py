@@ -20,10 +20,15 @@ import sqlite3
 
 import pytest
 
-from magi.core.store.state import (TaskStore, TaskState, INTERRUMPIDA,
-                                   EN_CURSO, ESPERANDO_USUARIO)
-from magi.core.store.admision import (LibroDeAdmision, ADMITIDA, PROMOVIDA,
-                                      DESCARTADA, AHORA, ENCOLAR)
+from magi.core.store.admision import (
+    ADMITIDA,
+    AHORA,
+    DESCARTADA,
+    ENCOLAR,
+    PROMOVIDA,
+    LibroDeAdmision,
+)
+from magi.core.store.state import EN_CURSO, ESPERANDO_USUARIO, INTERRUMPIDA, TaskState, TaskStore
 
 
 @pytest.fixture()

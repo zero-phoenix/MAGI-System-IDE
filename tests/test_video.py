@@ -18,9 +18,18 @@ import pytest
 from magi.core.tools import ToolContext, WriteJournal, build_registry
 from magi.modules.studio.artifacts import VIDEO_EXTS, ArtifactKind, observe
 from magi.modules.studio.video import (
-    FROZEN_THRESHOLD, Slide, VideoError, VideoSpec, backends_report,
-    build_filtergraph, capture_program, ffmpeg_available, manga_to_video,
-    observe_video, probe, render_slideshow,
+    FROZEN_THRESHOLD,
+    Slide,
+    VideoError,
+    VideoSpec,
+    backends_report,
+    build_filtergraph,
+    capture_program,
+    ffmpeg_available,
+    manga_to_video,
+    observe_video,
+    probe,
+    render_slideshow,
 )
 
 sin_ffmpeg = pytest.mark.skipif(not ffmpeg_available(),

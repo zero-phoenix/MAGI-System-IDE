@@ -77,13 +77,13 @@ class HostInfo:
     def probe(cls) -> HostInfo:
         ram = 0.0
         try:
-            import psutil  # opcional
+            import psutil  # opcional  # type: ignore[import-not-found]
             ram = psutil.virtual_memory().total / (1024 ** 3)
         except Exception:
-            if hasattr(os, "sysconf") and "SC_PAGE_SIZE" in os.sysconf_names:
+            if hasattr(os, "sysconf") and "SC_PAGE_SIZE" in os.sysconf_names:  # type: ignore[attr-defined]
                 try:
-                    ram = (os.sysconf("SC_PAGE_SIZE")
-                           * os.sysconf("SC_PHYS_PAGES")) / (1024 ** 3)
+                    ram = (os.sysconf("SC_PAGE_SIZE")  # type: ignore[attr-defined]
+                           * os.sysconf("SC_PHYS_PAGES")) / (1024 ** 3)  # type: ignore[attr-defined]
                 except Exception:
                     pass
         return cls(

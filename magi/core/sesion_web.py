@@ -460,7 +460,10 @@ def _lanzar_headless_en_proceso(url: str, espera_s: float) -> list[dict]:
             # segundos después de cargar. Sin esta espera se cosechan las
             # cookies de ANTES de resolverlo, que no sirven para nada.
             pagina.wait_for_timeout(int(min(espera_s, 10) * 1000))
-            return list(pagina.context.cookies())
+            # context.cookies() devuelve objetos Cookie; la firma de esta
+            # funcion es list[dict] porque eso es lo que se persiste y lo que
+            # g4f espera al reinyectarlas.
+            return [dict(c) for c in pagina.context.cookies()]
         finally:
             pagina.close()
 

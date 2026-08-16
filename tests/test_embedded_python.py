@@ -44,6 +44,7 @@ def test_embedded_python_executable_returns_path():
 def test_python_executable_prefers_embedded_when_frozen(monkeypatch, tmp_path):
     """Cuando está congelado y no hay Python del sistema, usa el embebido."""
     import shutil
+
     from magi.core.paths import python_executable
 
     fake_embedded = tmp_path / "python.exe"

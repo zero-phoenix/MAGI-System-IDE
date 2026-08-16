@@ -13,7 +13,6 @@ import pytest
 from magi.core import idioma
 from magi.modules.studio import preview
 
-
 # =========================================================== idioma
 
 def test_detecta_espanol_en_un_saludo_corto():

@@ -11,8 +11,14 @@ import pytest
 
 from magi.core.tools import ToolContext, WriteJournal, build_registry
 from magi.modules.studio.artifacts import (
-    ArtifactKind, Observation, available_backends, observe, observe_document,
-    observe_game, observe_image, observe_program,
+    ArtifactKind,
+    Observation,
+    available_backends,
+    observe,
+    observe_document,
+    observe_game,
+    observe_image,
+    observe_program,
 )
 
 pygame = pytest.importorskip("pygame", reason="pygame no instalado")

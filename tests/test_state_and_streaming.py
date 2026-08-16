@@ -12,10 +12,10 @@ import asyncio
 import pytest
 
 from magi.core.blackboard import Blackboard
-from magi.core.bus import MagiBus, BusEvent
+from magi.core.bus import BusEvent, MagiBus
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.cloud import FreeCloudLLM, set_registry
 from magi.core.providers.registry import ProviderRegistry
-from magi.core.providers.backends.echo import EchoProvider
 from magi.core.store.state import TaskState, TaskStore
 from magi.modules.swarm.orchestrator import SwarmOrchestrator
 

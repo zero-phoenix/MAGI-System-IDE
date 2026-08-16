@@ -8,13 +8,16 @@ import asyncio
 
 import pytest
 
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.base import (
-    CompletionRequest, Message, ProviderError, ProviderState,
+    CompletionRequest,
+    Message,
+    ProviderError,
+    ProviderState,
 )
 from magi.core.providers.cache import TTLCache, make_key
 from magi.core.providers.circuit import CircuitBreaker
 from magi.core.providers.registry import ProviderRegistry
-from magi.core.providers.backends.echo import EchoProvider
 
 
 def _req(text="hola"):

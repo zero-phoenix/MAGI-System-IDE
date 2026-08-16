@@ -17,9 +17,9 @@ import time
 
 import pytest
 
-from magi.core.store.state import TaskStore
-from magi.core.store import telemetria as tl
 from magi.core.auditoria import Auditoria
+from magi.core.store import telemetria as tl
+from magi.core.store.state import TaskStore
 
 
 @pytest.fixture()
@@ -226,6 +226,7 @@ def test_el_diario_sin_estrenar_esta_intacto(tmp_path):
 def test_naoko_audita_antes_de_tocar_tu_repositorio():
     """Guard: si alguien quita la llamada, esto se entera."""
     import inspect
+
     from magi.modules.infrastructure import naoko
     fuente = inspect.getsource(naoko.NaokoAgent._git_push)
     assert "auditoria" in fuente
@@ -301,8 +302,8 @@ def test_el_agente_original_no_queda_manchado():
 
 
 def test_la_rama_viaja_en_el_payload_de_los_eventos():
-    from magi.modules.swarm.agents import SwarmAgentBase
     from magi.core.blackboard import Blackboard
+    from magi.modules.swarm.agents import SwarmAgentBase
 
     class Bus:
         def subscribe(self, *a, **k): pass

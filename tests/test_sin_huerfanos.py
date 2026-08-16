@@ -50,13 +50,21 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 
 #: techo actual. Solo puede bajar. Si bajas, baja también este número en el
 #: mismo commit: es la mitad del trinquete que hace que sirva de algo.
-# 95 desde el 2026-08-13: bajó de 107 al cablear la sonda —`LlmDeSonda`,
+# 94 desde el 2026-08-16: archivado providers/selector.py en _attic (mock
+# muerto de una arquitectura anterior: importaba ProviderDef y get_provider,
+# que ya no existen). 95 desde el 2026-08-13: bajó de 107 al cablear la sonda —`LlmDeSonda`,
 # `candidatos_para_sondear`, `medias_por_familia`, `refrescar_si_toca`— que
 # llevaba semanas construida y sin llamar. El trinquete lo detectó y exigió
 # consolidarlo, que es la mitad del mecanismo que se olvida siempre: si el
 # techo no baja cuando baja el conteo, el margen ganado se puede volver a
 # gastar sin que nadie se entere.
-TECHO = 95
+TECHO = 94
+
+#: techos por paquete (2026-08-16: modules 78, core 16). El total puede
+#: cumplir y aun así acumularse todo en un sitio: el desglose dice DÓNDE
+#: crece el andamiaje sin conectar, que es lo accionable. Misma regla que el
+#: techo global: solo pueden bajar, y en el mismo commit que la baja real.
+TECHOS_POR_PAQUETE = {"magi/modules": 78, "magi/core": 16}
 
 
 def _cuenta() -> int:
@@ -65,6 +73,20 @@ def _cuenta() -> int:
     if r.returncode != 0:
         pytest.fail(f"scripts/huerfanos.py falló:\n{r.stderr[-800:]}")
     return int(r.stdout.strip())
+
+
+def _por_paquete() -> dict[str, int]:
+    r = subprocess.run([sys.executable, str(SCRIPT), "--json"],
+                       capture_output=True, text=True, timeout=600, cwd=str(RAIZ))
+    if r.returncode != 0:
+        pytest.fail(f"scripts/huerfanos.py falló:\n{r.stderr[-800:]}")
+    import json
+    conteo: dict[str, int] = {}
+    for item in json.loads(r.stdout):
+        partes = item["sitios"][0].replace("\\", "/").split("/")
+        paquete = "/".join(partes[:2]) if partes[0] == "magi" and len(partes) > 2 else partes[0]
+        conteo[paquete] = conteo.get(paquete, 0) + 1
+    return conteo
 
 
 def test_el_codigo_publico_sin_llamar_no_crece():
@@ -77,6 +99,19 @@ def test_el_codigo_publico_sin_llamar_no_crece():
         f"(CONÉCTALA), andamiaje que sobra (BÓRRALO o llévalo a magi/_attic/), "
         f"o un punto de entrada legítimo (añádelo a ENTRADAS en el script, con "
         f"el motivo escrito).")
+
+
+def test_el_andamiaje_no_se_acumula_en_un_solo_paquete():
+    conteo = _por_paquete()
+    for paquete, techo in TECHOS_POR_PAQUETE.items():
+        n = conteo.get(paquete, 0)
+        assert n <= techo, (
+            f"`{paquete}` tiene {n} definiciones públicas sin llamar y su "
+            f"techo es {techo}. El total puede cumplir y aun así acumularse "
+            f"todo en un sitio: este desglose existe para que el crecimiento "
+            f"tenga dirección visible.\n\n"
+            f"Reparto actual: {conteo}. Si consolidaste huérfanos de este "
+            f"paquete, baja su techo en este mismo commit.")
 
 
 def test_si_baja_el_conteo_se_baja_el_techo():

@@ -12,14 +12,13 @@ import pytest
 
 from magi.core.agent_loop import _trim
 from magi.core.blackboard import Blackboard
-from magi.core.bus import MagiBus, BusEvent
+from magi.core.bus import BusEvent, MagiBus
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.base import Message
 from magi.core.providers.cloud import FreeCloudLLM, set_registry
 from magi.core.providers.registry import ProviderRegistry
-from magi.core.providers.backends.echo import EchoProvider
 from magi.core.tools import ToolContext, WriteJournal, build_registry
 from magi.modules.swarm.agents import MelchiorAgent
-
 
 # ------- BUG 1: la interfaz declaraba la familia PEDIDA, no la que respondió
 
@@ -163,6 +162,7 @@ def test_naoko_uses_verified_repair():
     "conecta o borra", incumplida.
     """
     import inspect
+
     from magi.modules.infrastructure.naoko import NaokoAgent
     src = inspect.getsource(NaokoAgent._handle_error_event)
     assert "VerifiedRepair" in src
@@ -172,8 +172,8 @@ def test_naoko_uses_verified_repair():
 @pytest.mark.asyncio
 async def test_blind_patch_path_is_gone():
     """La vía peligrosa debe fallar explícitamente si alguien la reintroduce."""
-    from magi.modules.infrastructure.naoko import NaokoAgent
     from magi.core.store.database import MagiDatabase
+    from magi.modules.infrastructure.naoko import NaokoAgent
 
     naoko = NaokoAgent(MagiBus(), MagiDatabase())
     with pytest.raises(NotImplementedError):

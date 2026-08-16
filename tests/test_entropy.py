@@ -13,7 +13,12 @@ import pytest
 
 from magi.core.tools import ToolContext, WriteJournal, build_registry
 from magi.modules.reverse.entropy import (
-    BLOCK, HIGH_ENTROPY, EntropyReport, analyze_file, reading, shannon,
+    BLOCK,
+    HIGH_ENTROPY,
+    EntropyReport,
+    analyze_file,
+    reading,
+    shannon,
 )
 
 

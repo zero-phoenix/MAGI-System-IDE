@@ -11,7 +11,6 @@ import pytest
 from magi.core import consola
 from magi.modules.swarm import intencion
 
-
 # ============================================ absorción de peticiones nuevas
 
 def test_la_pregunta_exacta_del_usuario_no_es_una_aprobacion():
@@ -129,13 +128,16 @@ def test_los_nodos_ya_no_llevan_familias_muertas_cableadas():
     candidato vivo, se actualizó DEFAULT_SWARM_FAMILIES y a los agentes NO les
     llegó: cada ronda gastaba seis intentos condenados antes de acertar.
     """
-    from magi.core.bus import MagiBus
     from magi.core.blackboard import Blackboard
+    from magi.core.bus import MagiBus
     from magi.core.providers.backends.g4f_backend import (
-        DEFAULT_SWARM_FAMILIES, VERIFIED_FAMILIES,
+        DEFAULT_SWARM_FAMILIES,
+        VERIFIED_FAMILIES,
     )
     from magi.modules.swarm.agents import (
-        MelchiorAgent, BalthasarAgent, CasperAgent,
+        BalthasarAgent,
+        CasperAgent,
+        MelchiorAgent,
     )
 
     bb, bus = Blackboard(), MagiBus()
@@ -167,8 +169,6 @@ def test_los_candidatos_rotos_no_se_intentan():
     fichero de auth, Cloudflare por abrir navegador.
     """
     pytest.importorskip("g4f.Provider")
-    from magi.core.providers.backends.g4f_backend import G4FProvider, ROTOS
-
     # Se recorren TODAS las familias del catálogo, no tres elegidas a mano.
     #
     # Antes eran ("deepseek", "claude", "qwen") y el test reventó con
@@ -178,7 +178,7 @@ def test_los_candidatos_rotos_no_se_intentan():
     # nombrando datos en vez de comprobar una propiedad.
     #
     # La propiedad es: ninguna familia, ninguna, ofrece un candidato roto.
-    from magi.core.providers.backends.g4f_backend import FAMILY_SPECS
+    from magi.core.providers.backends.g4f_backend import FAMILY_SPECS, ROTOS, G4FProvider
 
     for familia in FAMILY_SPECS:
         p = G4FProvider(family=familia)
@@ -216,7 +216,8 @@ def test_una_familia_agotada_lo_dice_en_vez_de_fingir(monkeypatch):
 def test_las_familias_verificadas_si_tienen_candidatos():
     pytest.importorskip("g4f.Provider")
     from magi.core.providers.backends.g4f_backend import (
-        G4FProvider, VERIFIED_FAMILIES,
+        VERIFIED_FAMILIES,
+        G4FProvider,
     )
     for f in VERIFIED_FAMILIES:
         assert G4FProvider(family=f)._ordered(), f"{f} se quedó sin candidatos"

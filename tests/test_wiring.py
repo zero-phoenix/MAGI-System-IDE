@@ -216,8 +216,7 @@ def test_swarm_agents_can_reach_the_tools():
     Comprobación de contrato: los tres nodos declaran perfil de herramientas y
     tienen el método que las usa.
     """
-    from magi.modules.swarm.agents import (
-        MelchiorAgent, BalthasarAgent, CasperAgent, SwarmAgentBase)
+    from magi.modules.swarm.agents import BalthasarAgent, CasperAgent, MelchiorAgent, SwarmAgentBase
 
     assert hasattr(SwarmAgentBase, "_ask_with_tools")
     roles = {MelchiorAgent.tool_role, BalthasarAgent.tool_role, CasperAgent.tool_role}
@@ -342,6 +341,7 @@ def test_final_resolution_declares_every_parameter_it_uses():
     """
     import ast
     import inspect
+
     from magi.modules.swarm.agents import CasperAgent
 
     for fn in (CasperAgent.generate_final_resolution, CasperAgent.arbitrate):
@@ -362,6 +362,7 @@ def test_final_resolution_declares_every_parameter_it_uses():
         # extraer `_leer_decision` a nivel de módulo, el test lo denunció como
         # nombre no declarado. El código estaba bien; el instrumento, desfasado.
         import builtins
+
         import magi.modules.swarm.agents as _mod
         conocidos = set(vars(_mod)) | set(dir(builtins)) | {"self"}
         unknown = used - declared - assigned - conocidos
@@ -412,7 +413,12 @@ def test_sin_pista_se_ofrecen_todos_los_dominios():
     """
     from magi.core.tools import registry_for_role
     from magi.core.tools.builtin import (
-        ALL_DOMAINS, REVERSE_TOOLS, STUDIO_TOOLS, WORLD_TOOLS, domains_for)
+        ALL_DOMAINS,
+        REVERSE_TOOLS,
+        STUDIO_TOOLS,
+        WORLD_TOOLS,
+        domains_for,
+    )
     assert domains_for("") == ALL_DOMAINS
     nombres = set(registry_for_role("MELCHIOR").names())
     for conjunto in (REVERSE_TOOLS, STUDIO_TOOLS, WORLD_TOOLS):
@@ -486,6 +492,7 @@ def test_todo_ArtifactKind_tiene_rama_en_observe():
     pasar con el siguiente tipo que se añada.
     """
     import inspect
+
     from magi.modules.studio.artifacts import ArtifactKind, observe
 
     src = inspect.getsource(observe)
@@ -532,7 +539,7 @@ def test_el_schema_de_observe_artifact_no_promete_de_mas():
 KNOWN_ORPHANS = {
     "magi.core.agent", "magi.core.evolution", "magi.core.hive",
     "magi.core.membrane", "magi.core.octopus",
-    "magi.core.providers.rate_limit", "magi.core.providers.selector",
+    "magi.core.providers.rate_limit",
     "magi.core.providers.wal",
     "magi.gui.server",
     "magi.modules.memgraph.knowledge_store",

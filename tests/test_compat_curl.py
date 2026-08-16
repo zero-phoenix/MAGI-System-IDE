@@ -30,7 +30,6 @@ import pytest
 
 from magi.core.providers import compat_curl
 
-
 # ------------------------------------------------------- el filtro, aislado
 
 def test_quita_lo_que_la_firma_no_admite():
