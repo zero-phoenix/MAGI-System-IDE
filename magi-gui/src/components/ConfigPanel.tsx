@@ -14,6 +14,7 @@
  * docena de sesiones desmontando exactamente esa clase de mentira.
  */
 import { useCallback, useEffect, useState } from "react";
+import { clasificaRotos, puntosChispa, tendencia } from "../lib/salud";
 import {
   Estadistica, Telemetria, hayDatos, lectura, ms, ordenadas,
 } from "../lib/latencia";
@@ -38,6 +39,23 @@ type Config = {
   cortafuegos: Record<string, any>;
   violaciones: { source: string; detail: string }[];
   telemetria?: Telemetria;
+  sonda?: {
+    ventana_dias: number;
+    familias: {
+      familia: string; mejor_ms: number | null; vivos: number; total: number;
+      candidatos: {
+        proveedor: string; modelo: string;
+        media_historica_ms: number | null; ultima_ms: number | null;
+        tasa_exito: number | null; vivo: boolean; medido: boolean;
+        historico?: { dia: string; media_ms: number; n: number }[];
+      }[];
+    }[];
+  };
+  catalogo?: {
+    rotos_motivos?: Record<string, string>;
+    rotos_imposibles?: string[];
+    rotos_caidos?: string[];
+  };
 };
 
 const DIVERSIDAD: Record<string, { txt: string; color: string }> = {
@@ -325,6 +343,107 @@ export function ConfigPanel({ fetchConfig }: { fetchConfig: () => Promise<any> }
           </tbody>
         </table>
       </div>
+
+      {/* ------------------------------------------- salud por día (sonda) */}
+      {cfg.sonda && cfg.sonda.familias.length > 0 && (
+        <div style={caja}>
+          <div style={titulo}>
+            Salud por día — la pendiente, no la media
+          </div>
+          <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Familia</th><th style={th}>Candidato</th>
+                <th style={th}>14 días</th><th style={th}>Media hist.</th>
+                <th style={th}>Última</th><th style={th}>Tendencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cfg.sonda.familias.map((f) =>
+                f.candidatos.map((c, i) => {
+                  const serie = c.historico || [];
+                  const tnd = tendencia(serie);
+                  return (
+                    <tr key={`${f.familia}-${i}`}>
+                      {i === 0 && (
+                        <td rowSpan={f.candidatos.length}
+                            style={{ ...td, color: "var(--acc)", verticalAlign: "top" }}>
+                          {f.familia}
+                          <div style={{ color: "var(--dim)", fontSize: "11px" }}>
+                            {f.vivos}/{f.total} vivos
+                          </div>
+                        </td>
+                      )}
+                      <td style={td}>
+                        {c.proveedor} · {c.modelo}
+                        {!c.vivo && <span style={{ color: "#f87171" }}> ✗</span>}
+                      </td>
+                      <td style={td}>
+                        {serie.length >= 2 ? (
+                          <svg width="90" height="22" aria-label="latencia diaria">
+                            <polyline points={puntosChispa(serie, 90, 22)}
+                                      fill="none" stroke="var(--acc)" strokeWidth="1.5" />
+                          </svg>
+                        ) : (
+                          <span style={{ color: "var(--dim)" }}>sin serie</span>
+                        )}
+                      </td>
+                      <td style={td}>{c.media_historica_ms
+                        ? `${c.media_historica_ms} ms` : "—"}</td>
+                      <td style={td}>{c.ultima_ms ? `${c.ultima_ms} ms` : "—"}</td>
+                      <td style={{ ...td, color:
+                        tnd === "empeora" ? "#f87171" :
+                        tnd === "mejora" ? "#4ade80" : "var(--dim)" }}>
+                        {tnd ?? "—"}
+                      </td>
+                    </tr>
+                  );
+                }),
+              )}
+            </tbody>
+          </table>
+          <div style={{ color: "var(--dim)", fontSize: "11px", marginTop: 5 }}>
+            La chispa es la latencia media de cada día con datos (más alto =
+            más lento). Una media histórica de 30 días esconde que algo pasó
+            de 3 s a 9 s esta semana; la pendiente no.
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------- rotos, con su motivo */}
+      {cfg.catalogo?.rotos_motivos &&
+        Object.keys(cfg.catalogo.rotos_motivos).length > 0 && (() => {
+        const { imposibles, caidos } = clasificaRotos(cfg.catalogo.rotos_motivos);
+        return (
+          <div style={caja}>
+            <div style={titulo}>Por qué faltan proveedores</div>
+            {imposibles.length > 0 && (
+              <div style={{ marginBottom: "8px" }}>
+                <div style={{ color: "#f87171", fontSize: "12px", marginBottom: "4px" }}>
+                  No van a volver — exigen tu cuenta o abren navegador:
+                </div>
+                {imposibles.map(([p_, m]) => (
+                  <div key={p_} style={{ fontSize: "11px", color: "var(--dim)" }}>
+                    <span style={{ color: "#cfe0e4" }}>{p_}</span> — {m}
+                  </div>
+                ))}
+              </div>
+            )}
+            {caidos.length > 0 && (
+              <div>
+                <div style={{ color: "#fbbf24", fontSize: "12px", marginBottom: "4px" }}>
+                  Caídos ahora, pueden volver:
+                </div>
+                {caidos.map(([p_, m]) => (
+                  <div key={p_} style={{ fontSize: "11px", color: "var(--dim)" }}>
+                    <span style={{ color: "#cfe0e4" }}>{p_}</span> — {m}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ---------------------------------------------------- cortafuegos */}
       <div style={caja}>
