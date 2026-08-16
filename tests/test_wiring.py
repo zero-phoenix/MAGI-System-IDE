@@ -47,10 +47,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 #
 # La segunda dirección es la peligrosa: es exactamente el fallo que este
 # fichero existe para cazar, escondido en el propio instrumento de medida.
+# 2026-08-16: capabilities, reasoning, fabrication, device, os_portable y
+# vision se movieron FÍSICAMENTE a magi/_attic/ (cero importadores, andamiaje
+# aspiracional). Ya no necesitan estar aquí: esto solo exime del rinquete a
+# directorios que siguen en su sitio.
 ATTIC_DIRS = {
-    "_attic", "execution", "capabilities", "debate", "invention", "reasoning",
-    "fabrication", "device", "ingest", "os_portable", "logic", "prompts",
-    "vision", "gui", "web", "shell", "project", "config",
+    "_attic", "execution", "debate", "invention",
+    "ingest", "logic", "prompts",
+    "gui", "web", "shell", "project", "config",
 }
 
 

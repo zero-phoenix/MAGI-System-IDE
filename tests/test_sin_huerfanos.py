@@ -58,13 +58,14 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 # consolidarlo, que es la mitad del mecanismo que se olvida siempre: si el
 # techo no baja cuando baja el conteo, el margen ganado se puede volver a
 # gastar sin que nadie se entere.
-TECHO = 94
+TECHO = 70
 
-#: techos por paquete (2026-08-16: modules 78, core 16). El total puede
+#: techos por paquete (2026-08-16, tras archivar 6 paquetes sin importadores:
+#: device, fabrication, vision, reasoning, os_portable, capabilities -> _attic). El total puede
 #: cumplir y aun así acumularse todo en un sitio: el desglose dice DÓNDE
 #: crece el andamiaje sin conectar, que es lo accionable. Misma regla que el
 #: techo global: solo pueden bajar, y en el mismo commit que la baja real.
-TECHOS_POR_PAQUETE = {"magi/modules": 78, "magi/core": 16}
+TECHOS_POR_PAQUETE = {"magi/modules": 54, "magi/core": 16}
 
 
 def _cuenta() -> int:
