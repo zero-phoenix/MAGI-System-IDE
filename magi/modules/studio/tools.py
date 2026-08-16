@@ -67,8 +67,7 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
     async def compose_manga_page(out_path: str, ctx=None, rows: int = 2,
                                  cols: int = 2, prompts: list | None = None,
                                  layout: str = "grid", order: str = "rtl"):
-        from .manga import (ReadingOrder, compose_page, dramatic_page,
-                            grid_page)
+        from .manga import ReadingOrder, compose_page, dramatic_page, grid_page
         ro = ReadingOrder.RTL if order == "rtl" else ReadingOrder.LTR
         prompts = prompts or []
         spec = (dramatic_page(prompts, order=ro) if layout == "dramatic"

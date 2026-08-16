@@ -35,13 +35,18 @@ import asyncio
 import logging
 import sys
 import time
-from typing import Any, AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable
+from typing import Any
 
 from ...no_browser import install as install_browser_guard
-
 from ..base import (
-    BaseProvider, CompletionRequest, CompletionResponse, Delta,
-    ProviderError, ProviderUnavailable, Usage,
+    BaseProvider,
+    CompletionRequest,
+    CompletionResponse,
+    Delta,
+    ProviderError,
+    ProviderUnavailable,
+    Usage,
 )
 from ..cache import TTLCache
 
@@ -299,7 +304,7 @@ _REPARTO_BASE = {
 # ejecutable a editar `%LOCALAPPDATA%\MagiSystem\catalogo_proveedores.json`.
 # Ver `core/providers/catalogo.py`.
 # ---------------------------------------------------------------------------
-from magi.core.providers.catalogo import catalogo as _catalogo   # noqa: E402
+from magi.core.providers.catalogo import catalogo as _catalogo  # noqa: E402
 
 _CAT = _catalogo()
 

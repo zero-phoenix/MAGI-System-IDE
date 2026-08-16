@@ -1,7 +1,8 @@
 import asyncio
 import concurrent.futures
 import logging
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class MagiHive:
     """
     def __init__(self, max_workers: int = 4):
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
-        
+
     async def delegate_task(self, task_name: str, func: Callable, *args) -> Any:
         """
         Ejecuta la función en un proceso secundario y devuelve el resultado de forma asíncrona.
@@ -23,6 +24,6 @@ class MagiHive:
         result = await loop.run_in_executor(self.executor, func, *args)
         logger.debug(f"[HIVE] Tarea '{task_name}' completada.")
         return result
-        
+
     def shutdown(self):
         self.executor.shutdown(wait=True)

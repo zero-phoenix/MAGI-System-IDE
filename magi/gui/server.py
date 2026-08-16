@@ -1,13 +1,13 @@
 import asyncio
 import json
 import logging
-import websockets
-from typing import Set
-import sys
 import os
+import sys
+
+import websockets
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from magi.core.bus import MagiBus, BusEvent
+from magi.core.bus import BusEvent, MagiBus
 
 logger = logging.getLogger(__name__)
 
@@ -21,33 +21,33 @@ class GUIServer:
         self.bus = bus
         self.host = host
         self.port = port
-        self.clients: Set[websockets.WebSocketServerProtocol] = set()
-        
+        self.clients: set[websockets.WebSocketServerProtocol] = set()
+
     async def start(self):
         """Inicia el servidor WebSocket y la subscripción al bus."""
         # Suscribir al bus (interceptamos todos los eventos)
         self.bus.subscribe("*", self._handle_bus_event)
-        
+
         server = await websockets.serve(self._handler, self.host, self.port)
         logger.info(f"GUI Server running at ws://{self.host}:{self.port}")
         return server
-        
+
     async def _handle_bus_event(self, event: BusEvent):
         """Callback invocado por el MagiBus. Retransmite a todos los clientes WebSocket conectados."""
         if not self.clients:
             return
-            
+
         message = json.dumps({
             "type": "event",
             "topic": event.topic,
             "payload": event.payload
         })
-        
+
         # Enviar a todos los clientes concurrentemente
         await asyncio.gather(
             *[self._send_safe(client, message) for client in self.clients]
         )
-            
+
     async def _send_safe(self, client, message: str):
         try:
             await client.send(message)
@@ -65,7 +65,7 @@ class GUIServer:
 
         self.clients.add(websocket)
         logger.info(f"Cliente GUI conectado desde {remote_ip}")
-        
+
         try:
             async for message in websocket:
                 if isinstance(message, bytes):
@@ -87,19 +87,19 @@ class GUIServer:
             method = data.get("type") or data.get("method")
             command = data.get("command", "")
             req_id = data.get("id")
-            
+
             if method == "magi_estop" or command == "EMERGENCY_STOP" or command == "KILL_ALL_PROCESSES":
                 logger.critical("E-STOP INVOCADO DESDE LA GUI")
                 response = {"id": req_id, "result": "EMERGENCY_STOP_TRIGGERED"}
                 await websocket.send(json.dumps(response))
                 return
-                
+
             elif method == "SYS_EXEC":
                 await websocket.send(json.dumps({
                     "type": "TERMINAL_OUT",
                     "content": f"[SWARM] Iniciando análisis para la tarea: '{command}'"
                 }))
-                
+
                 # Ronda 1
                 await asyncio.sleep(1.5)
                 await websocket.send(json.dumps({
@@ -111,7 +111,7 @@ class GUIServer:
                     "changes": 0,
                     "stats": "1.5s"
                 }))
-                
+
                 await asyncio.sleep(2.0)
                 await websocket.send(json.dumps({
                     "type": "AGENT_POST",
@@ -122,7 +122,7 @@ class GUIServer:
                     "changes": 0,
                     "stats": "1.8s"
                 }))
-                
+
                 await asyncio.sleep(2.0)
                 await websocket.send(json.dumps({
                     "type": "AGENT_POST",
@@ -133,7 +133,7 @@ class GUIServer:
                     "changes": 0,
                     "stats": "2.4s"
                 }))
-                
+
                 # Ronda 2
                 await asyncio.sleep(1.5)
                 await websocket.send(json.dumps({
@@ -145,7 +145,7 @@ class GUIServer:
                     "changes": 3,
                     "stats": "1.7s"
                 }))
-                
+
                 await asyncio.sleep(1.5)
                 await websocket.send(json.dumps({
                     "type": "AGENT_POST",
@@ -156,7 +156,7 @@ class GUIServer:
                     "changes": 0,
                     "stats": "1.4s"
                 }))
-                
+
                 await asyncio.sleep(1.0)
                 await websocket.send(json.dumps({
                     "type": "AGENT_POST",
@@ -167,20 +167,20 @@ class GUIServer:
                     "changes": 0,
                     "stats": "1.1s"
                 }))
-                
+
                 await websocket.send(json.dumps({
                     "type": "TERMINAL_OUT",
                     "content": f"[SWARM] Ejecución completada. Consolidando {3} archivos en el árbol del proyecto."
                 }))
                 return
-                
+
             elif method == "magi_connect":
                 response = {"id": req_id, "result": "CONNECTED", "version": "1.0.0"}
-                
+
             else:
                 response = {"id": req_id, "error": f"Method {method} not found"}
-                
+
             await websocket.send(json.dumps(response))
-            
+
         except json.JSONDecodeError:
             logger.error("Mensaje no es JSON válido.")

@@ -1,9 +1,9 @@
 import logging
-import asyncio
+
+from .adapter import GatewayInfo, RouteAdapter
+from .models import InferenceRequest, ModelResponse, RouteDirective
 from .privacy_filter import PrivacyFilter
 from .quota_ledger import QuotaLedger
-from .adapter import RouteAdapter, GatewayInfo
-from .models import InferenceRequest, RouteDirective, ModelResponse
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +15,11 @@ class Gateway:
     def __init__(self):
         self.privacy = PrivacyFilter()
         self.adapter = RouteAdapter()
-        
+
         # Reservas para el camino de fallback (cuando OmniRoute no está)
         self.cloud_quota = QuotaLedger(limit=100)
         self.local_quota = QuotaLedger(limit=999999)
-        
+
     async def get_status(self) -> GatewayInfo:
         return await self.adapter.ensure_gateway()
 
@@ -38,8 +38,8 @@ class Gateway:
             logger.info("Intentando enrutar a través de OmniRoute...")
             response: ModelResponse = await self.adapter.complete(req, route)
             return {
-                "success": True, 
-                "provider_used": response.telemetry.provider, 
+                "success": True,
+                "provider_used": response.telemetry.provider,
                 "response": response.text,
                 "telemetry": response.telemetry.model_dump()
             }
@@ -56,18 +56,18 @@ class Gateway:
         target = provider_preference
         if route.privacy_class == "local_only":
             target = "local"
-            
+
         estimated_cost = 10
         if target == "cloud":
             if self.cloud_quota.consume(estimated_cost):
                 return {"success": True, "provider_used": "cloud_direct", "response": f"[Fallback Cloud] Respondiendo a: {req.prompt}"}
             else:
                 target = "local"
-                
+
         if target == "local":
             if self.local_quota.consume(estimated_cost):
                 return {"success": True, "provider_used": "local_direct", "response": f"[Fallback Local] Respondiendo a: {req.prompt}"}
             else:
                 return {"success": False, "error": "WAITING_QUOTA: All fallback providers exhausted"}
-                
+
         return {"success": False, "error": "Unknown Provider"}

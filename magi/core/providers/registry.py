@@ -21,12 +21,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Iterable, Sequence
 
 from .base import (
-    BaseProvider, CompletionRequest, CompletionResponse, Delta,
-    ProviderError, ProviderTimeout, Usage,
+    BaseProvider,
+    CompletionRequest,
+    CompletionResponse,
+    Delta,
+    ProviderError,
+    ProviderTimeout,
 )
 from .cache import TTLCache, make_key
 from .circuit import CircuitBreaker
@@ -138,7 +142,7 @@ class ProviderRegistry:
         self._medias_ms = {f: ms for f, ms in (medias_ms or {}).items()
                            if isinstance(ms, (int, float)) and ms > 0}
 
-    def _merito(self, familia: str, regs: list["Registration"]) -> tuple:
+    def _merito(self, familia: str, regs: list[Registration]) -> tuple:
         """Clave de orden: primero lo medido y más rápido; luego lo no medido."""
         medida = self._medias_ms.get(familia)
         # (0, ms) ordena antes que (1, ...) para cualquier ms: lo medido manda.
@@ -242,7 +246,7 @@ class ProviderRegistry:
             # distinta dejaría a alguno sin familia.
             preferentes = [r for r in ORDEN_DE_MERITO if r in roles]
             resto = [r for r in roles if r not in preferentes]
-            for role, fam in zip(preferentes + resto, fams):
+            for role, fam in zip(preferentes + resto, fams, strict=False):
                 by_role[role] = by_family[fam][0].id
                 families[role] = fam
             return SwarmAssignment(by_role, families, "full")

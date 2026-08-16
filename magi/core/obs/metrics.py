@@ -189,6 +189,7 @@ class MetricsCollector:
         logger.warning("[obs] %s", alert.detail)
         if self.bus is not None:
             import asyncio
+
             from magi.core.bus import BusEvent
             try:
                 asyncio.get_running_loop()

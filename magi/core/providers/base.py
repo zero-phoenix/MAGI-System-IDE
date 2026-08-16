@@ -14,9 +14,10 @@ declare abiertamente cuando no lo sea.
 from __future__ import annotations
 
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 Role = Literal["system", "user", "assistant", "tool"]
 

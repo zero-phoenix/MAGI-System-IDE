@@ -43,8 +43,8 @@ import hashlib
 import logging
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 

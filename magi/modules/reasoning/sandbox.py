@@ -1,5 +1,5 @@
 import concurrent.futures
-import time
+
 
 def _execute_in_isolation(code: str) -> str:
     """
@@ -20,7 +20,7 @@ class SandboxEvaluator:
     """
     def __init__(self, timeout: int = 5):
         self.timeout = timeout
-        
+
     def evaluate(self, python_code: str) -> str:
         """
         Ejecuta el bloque matematico en un hilo (o proceso) con timeout.

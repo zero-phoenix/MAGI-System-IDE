@@ -1,4 +1,5 @@
-from .schemas import Tesis, Refutacion, Acta
+from .schemas import Acta, Refutacion, Tesis
+
 
 class EvidenceRubric:
     """
@@ -13,7 +14,7 @@ class EvidenceRubric:
             "ev_legal_01": 2,
             "ev_llm_01": 1
         }
-        
+
     def evaluate(self, tesis: Tesis, refutacion: Refutacion) -> Acta:
         """
         Decide el ganador del debate.
@@ -26,11 +27,11 @@ class EvidenceRubric:
                 score=1.0,
                 justificacion="Consenso alcanzado"
             )
-            
+
         # Hay conflicto
         t_tier = self.evidence_tier.get(tesis.evidencia_id, 1)
         r_tier = self.evidence_tier.get(refutacion.evidencia_contra_id, 1)
-        
+
         if r_tier > t_tier:
             return Acta(
                 tesis_id="tesis_01",

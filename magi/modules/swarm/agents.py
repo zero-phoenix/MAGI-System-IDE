@@ -1,8 +1,8 @@
-import asyncio
 import logging
-from magi.core.blackboard import Blackboard # type: ignore
-from magi.core.bus import MagiBus, BusEvent # type: ignore
-from magi.core.providers.cloud import FreeCloudLLM # type: ignore
+
+from magi.core.blackboard import Blackboard  # type: ignore
+from magi.core.bus import BusEvent, MagiBus  # type: ignore
+from magi.core.providers.cloud import FreeCloudLLM  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +140,9 @@ class SwarmAgentBase:
         - `narrative_style` se inyecta de verdad en el prompt: en v5.0.28 el
           <select> de la GUI no enviaba su valor a ninguna parte.
         """
-        from magi.core.prompts import style_fragment
-        from magi.core.context import get_context
         from magi.core import idioma
+        from magi.core.context import get_context
+        from magi.core.prompts import style_fragment
 
         # El idioma sale del enunciado del usuario. Sin esta línea un
         # proveedor gratuito puede contestar en otro: se vio a Naoko responder
@@ -309,13 +309,13 @@ class SwarmAgentBase:
         pero no escribe (lo que le permite aportar evidencia en vez de
         sospechas), Casper lee y corre tests.
         """
+        from magi.core import idioma
         from magi.core.agent_loop import run_agent
-        from magi.core.prompts import style_fragment
         from magi.core.context import get_context
+        from magi.core.paths import workspace_dir
+        from magi.core.prompts import style_fragment
         from magi.core.tools import ToolContext, registry_for_role
         from magi.core.tools.journal import WriteJournal
-        from magi.core.paths import workspace_dir
-        from magi.core import idioma
 
         full_sys = "\n\n".join([
             sys_prompt,
@@ -486,10 +486,10 @@ class SwarmAgentBase:
         Si el proveedor no soporta streaming real, BaseProvider.stream() emite
         la respuesta completa como un delta único: el camino es el mismo.
         """
-        from magi.core.prompts import style_fragment
-        from magi.core.context import get_context
-        from magi.core.providers.base import CompletionRequest, Message
         from magi.core import idioma
+        from magi.core.context import get_context
+        from magi.core.prompts import style_fragment
+        from magi.core.providers.base import CompletionRequest, Message
 
         # La instrucción de idioma faltaba aquí (estaba en _ask pero no en
         # _ask_stream). Como _ask_stream es el camino principal del enjambre,
@@ -652,7 +652,7 @@ class MelchiorAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.family = _familia_por_defecto("MELCHIOR")
         self.provider = self.family
-        
+
     async def generate_proposal(self, task_id: str, command: str, round_num: int,
                                 last_proposal: dict | None = None,
                                 last_critique: dict | None = None,
@@ -661,7 +661,7 @@ class MelchiorAgent(SwarmAgentBase):
                                 use_tools: bool = False,
                                 publicar: bool = True) -> dict:
         logger.info(f"[MELCHIOR] Analizando comando con {self.provider}...")
-        
+
         sys_prompt = """Eres MELCHIOR, el nodo de la TESIS del sistema MAGI.
 
 MAGI es un enjambre de tres inteligencias que aplican el método dialéctico (tesis → antítesis → síntesis) a cada petición del usuario:
@@ -680,18 +680,18 @@ Tu rol como TESIS:
 - Sé directo, técnico y didáctico (usa analogías simples si ayuda), pero NUNCA elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
 
 OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSIÓN'. Esa sección final ESCRÍBELA SIEMPRE EN ESPAÑOL, sin excepción, aunque el resto de tu respuesta esté en otro idioma. Es lo que el usuario leerá."""
-        
+
         loader = self.blackboard.read("global.skills_loader")
         if loader:
             skills = loader.search(command)
             sys_prompt += f"\n\nCATÁLOGO DE SKILLS RELEVANTES:\n{skills}\nPuedes sugerir el uso de estas skills para resolver la tarea."
-            
+
         if round_num > 1 and last_proposal and last_critique:
             sys_prompt += "\n\nESTA ES UNA RONDA DE REVISIÓN. Genera la PROPUESTA CORREGIDA aplicando las correcciones solicitadas en la crítica a la propuesta original."
             user_prompt = f"Ronda {round_num}.\n\nPROPUESTA ANTERIOR:\n{last_proposal['content']}\n\nCRÍTICA:\n{last_critique['content']}\n\nInstrucción de Árbitro: {command}\n\nGenera la propuesta corregida y mejorada."
         else:
             user_prompt = f"Ronda {round_num}. Requerimiento: {command}. Genera la propuesta."
-        
+
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
@@ -700,7 +700,7 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
             content, actual_provider, actual_family = await self._ask_stream(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
-        
+
         # UN SOLO MENSAJE POR IA Y POR RONDA.
         #
         # Este método se llama N veces en paralelo (2-3 variantes de Melchior,
@@ -733,7 +733,7 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
                     "stats": "N/A"
                 }
             ))
-        
+
         return {"content": content, "changes": 1 if round_num > 1 else 0}
 
 class BalthasarAgent(SwarmAgentBase):
@@ -746,14 +746,14 @@ class BalthasarAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.family = _familia_por_defecto("BALTHASAR")
         self.provider = self.family
-        
+
     async def generate_critique(self, task_id: str, proposal: dict, round_num: int,
                                 engine: str = "fast",
                                 narrative_style: str = "tecnico",
                                 use_tools: bool = False,
                                 publicar: bool = True) -> dict:
         logger.info(f"[BALTHASAR] Criticando propuesta con {self.provider}...")
-        
+
         sys_prompt = """Eres BALTHASAR, el nodo de la ANTÍTESIS del sistema MAGI.
 
 MAGI es un enjambre de tres inteligencias que aplican el método dialéctico (tesis → antítesis → síntesis):
@@ -774,7 +774,7 @@ Tu rol como ANTÍTESIS:
 
 OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSIÓN'. Esa sección final ESCRÍBELA SIEMPRE EN ESPAÑOL, sin excepción, aunque el resto de tu respuesta esté en otro idioma."""
         user_prompt = f"Ronda {round_num}. Propuesta a evaluar:\n{proposal['content']}\n\nGenera tu crítica concisa."
-        
+
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
@@ -783,7 +783,7 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
             content, actual_provider, actual_family = await self._ask_stream(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
-            
+
         if publicar:
             await self.bus.publish(BusEvent(
                 topic="AGENT_POST",
@@ -802,7 +802,7 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
                     "stats": "N/A"
                 }
             ))
-        
+
         return {"content": content, "status": "CRITIQUE_GENERATED"}
 
 
@@ -862,9 +862,8 @@ def _leer_decision(content: str, round_num: int) -> tuple[str, str]:
     # anterior a mitad del texto, la primera coincidencia sería la equivocada.
     # Se mira la cola del mensaje, que es donde el prompt la pide.
     cola = texto[-400:]
-    m = None
-    for m in re.finditer(r"DECISI[ÓO]N\s*:\s*(.+)", cola, re.IGNORECASE):
-        pass                                  # nos quedamos con la ÚLTIMA
+    coincidencias = list(re.finditer(r"DECISI[ÓO]N\s*:\s*(.+)", cola, re.IGNORECASE))
+    m = coincidencias[-1] if coincidencias else None   # nos quedamos con la ÚLTIMA
     if m:
         valor = m.group(1).strip().upper()
         if "REVIS" in valor or "RECHAZ" in valor or "REJECT" in valor:
@@ -892,13 +891,13 @@ class CasperAgent(SwarmAgentBase):
         super().__init__(blackboard, bus)
         self.family = _familia_por_defecto("CASPER")
         self.provider = self.family
-        
+
     async def arbitrate(self, task_id: str, proposal: dict, critique: dict,
                         round_num: int, engine: str = "fast",
                         narrative_style: str = "tecnico",
                         use_tools: bool = False) -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
-        
+
         sys_prompt = """Eres CASPER (Gaspar), el nodo de la SÍNTESIS del sistema MAGI.
 
 MAGI es un enjambre de tres inteligencias que aplican el método dialéctico (tesis → antítesis → síntesis):
@@ -935,7 +934,7 @@ DECISIÓN: APROBADA
             f"Redacta tu SÍNTESIS: evalúa qué acertó cada uno, construye y "
             f"ejecuta la solución consolidada, y entrégala. Termina con la "
             f"línea de DECISIÓN.")
-        
+
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
@@ -944,12 +943,12 @@ DECISIÓN: APROBADA
             content, actual_provider, actual_family = await self._ask_stream(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
-        
+
         decision, feedback = _leer_decision(content, round_num)
-        
+
         # Formatear bonito para la GUI en lugar del raw JSON
         formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"
-            
+
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
             payload={
@@ -967,7 +966,7 @@ DECISIÓN: APROBADA
                 "stats": f"Decisión: {decision}"
             }
         ))
-        
+
         return {"decision": decision, "feedback": feedback}
 
     async def generate_final_resolution(self, task_id: str, command: str,
@@ -977,7 +976,7 @@ DECISIÓN: APROBADA
                                         narrative_style: str = "tecnico",
                                         use_tools: bool = False) -> str:
         logger.info(f"[CASPER] Generando respuesta final contextualizada y detallada para {task_id}...")
-        
+
         sys_prompt = """Eres CASPER (Gaspar), la SÍNTESIS del sistema MAGI, y le hablas directamente al usuario.
 
 MAGI es un enjambre de tres inteligencias (método dialéctico): Melchior fue la TESIS, Balthasar la ANTÍTESIS, y tú eres la SÍNTESIS definitiva. El usuario ha aprobado, así que entregas la respuesta final consolidada.
@@ -990,12 +989,12 @@ Tu rol:
 IDIOMA: RESPONDE SIEMPRE EN ESPAÑOL, en todo tu mensaje, porque eres quien le habla al usuario.
 
 OBLIGATORIO: Finaliza con el encabezado '### CONCLUSIÓN FINAL CONSOLIDADA' (en español)."""
-        
+
         prop_content = proposal.get("content", "") if proposal else "N/A"
         crit_content = critique.get("content", "") if critique else "N/A"
-        
+
         user_prompt = f"Consulta original del usuario: {command}\n\nPropuesta de Melchior:\n{prop_content}\n\nCrítica de Balthasar:\n{crit_content}\n\nEl usuario aprobó la propuesta. Genera la respuesta final completa, profunda y detallada."
-        
+
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
@@ -1004,7 +1003,7 @@ OBLIGATORIO: Finaliza con el encabezado '### CONCLUSIÓN FINAL CONSOLIDADA' (en 
             content, actual_provider, actual_family = await self._ask_stream(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
-        
+
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",
             payload={
@@ -1022,7 +1021,7 @@ OBLIGATORIO: Finaliza con el encabezado '### CONCLUSIÓN FINAL CONSOLIDADA' (en 
                 "stats": "FINALIZADO"
             }
         ))
-        
+
         return content
 
 

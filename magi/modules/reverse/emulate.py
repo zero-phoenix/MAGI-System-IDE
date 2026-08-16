@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class EmulationResult:
         regs = "  ".join(f"{k}=0x{v:08x}" for k, v in self.registers.items())
         return (f"{self.instructions_run} instrucciones ejecutadas\n{regs}")
 
-    def diff(self, other: "EmulationResult") -> str:
+    def diff(self, other: EmulationResult) -> str:
         """Compara dos ejecuciones. La herramienta de depuración de dynarecs."""
         diffs = []
         for k, v in self.registers.items():

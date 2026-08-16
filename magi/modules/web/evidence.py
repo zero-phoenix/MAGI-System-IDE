@@ -1,6 +1,7 @@
 import hashlib
 from datetime import datetime
 
+
 class EvidencePackager:
     """
     Empaquetador de Evidencia Web (A19-2).
@@ -9,9 +10,9 @@ class EvidencePackager:
     def create_package(self, page_data: dict, purpose: str) -> dict:
         content = page_data["a11y_snapshot"]
         content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
-        
+
         url = page_data["url"]
-        
+
         # A19-2: Formato estricto para citar y verificar
         return {
             "evidence_id": f"wev_{hashlib.md5(content.encode('utf-8')).hexdigest()[:8]}",

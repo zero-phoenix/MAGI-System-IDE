@@ -1,4 +1,5 @@
-from typing import List, Dict, Any, Tuple
+from typing import Any
+
 
 class LayoutEngine:
     """
@@ -7,8 +8,8 @@ class LayoutEngine:
     """
     def __init__(self):
         pass
-        
-    def _compute_iou(self, boxA: Tuple[float, float, float, float], boxB: Tuple[float, float, float, float]) -> float:
+
+    def _compute_iou(self, boxA: tuple[float, float, float, float], boxB: tuple[float, float, float, float]) -> float:
         """
         Intersección sobre Unión (IoU).
         Cajas: (x1, y1, x2, y2)
@@ -28,7 +29,7 @@ class LayoutEngine:
         iou = interArea / float(boxAArea + boxBArea - interArea)
         return iou
 
-    def extract_layout(self, image_data: bytes) -> Dict[str, Any]:
+    def extract_layout(self, image_data: bytes) -> dict[str, Any]:
         """
         Retorna las cajas delimitadoras y calcula IoU matemático.
         """
@@ -37,12 +38,12 @@ class LayoutEngine:
             {"id": 1, "box": (10, 10, 100, 50), "text": "Header"},
             {"id": 2, "box": (10, 60, 200, 100), "text": "Paragraph"}
         ]
-        
+
         # Test IoU calculation against a mock VLM box
         mock_vlm_box = (12, 12, 98, 48)
-        
+
         iou_val = self._compute_iou(mock_boxes[0]["box"], mock_vlm_box)
-        
+
         return {
             "boxes": mock_boxes,
             "mean_iou_mock": iou_val,

@@ -1,4 +1,5 @@
-from typing import Dict, Any, Optional
+from typing import Any
+
 
 class DeviceIdentifier:
     """
@@ -10,8 +11,8 @@ class DeviceIdentifier:
             "054c:01c8": {"name": "Sony PSP", "modes": ["msc"]},
             "18d1:4ee2": {"name": "Android Device (MTP+ADB)", "modes": ["mtp", "adb"]}
         }
-        
-    def identify(self, vid: str, pid: str) -> Optional[Dict[str, Any]]:
+
+    def identify(self, vid: str, pid: str) -> dict[str, Any] | None:
         """
         Retorna el perfil del dispositivo en base a su VID:PID.
         """
@@ -19,9 +20,9 @@ class DeviceIdentifier:
         # Matches exactos
         if key in self.profiles:
             return self.profiles[key]
-            
+
         # Matches parciales (Android general, Sony general)
         if vid == "18d1":
             return {"name": "Generic Android", "modes": ["mtp", "adb", "fastboot"]}
-            
+
         return None

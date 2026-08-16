@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Callable, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ class PeripheralNode:
     """
     def __init__(self, node_id: str):
         self.node_id = node_id
-        
+
     async def reflex_action(self, stimulus: Any) -> Any:
         logger.debug(f"[PERIPHERAL:{self.node_id}] Estímulo recibido: {stimulus}. Ejecutando arco reflejo...")
         await asyncio.sleep(0.01) # Latencia sub-milisegundo simulada
@@ -28,14 +28,14 @@ class CognitiveCore:
     """
     def __init__(self):
         self.tentacles = [PeripheralNode(f"Tentacle-{i}") for i in range(8)]
-        
+
     async def process_intent(self, high_level_intent: str) -> list:
         logger.info(f"[COGNITIVE-CORE] Procesando intención bajo directriz ZCode (Objective-Driven): '{high_level_intent}'")
         # El cerebro central descompone la tarea y delega a los tentáculos sin bloquearse
         tasks = []
         for i, tentacle in enumerate(self.tentacles[:3]): # Usar 3 tentáculos para este intent
             tasks.append(tentacle.reflex_action(f"Sub-tarea {i} de {high_level_intent}"))
-            
+
         results = await asyncio.gather(*tasks)
-        logger.info(f"[COGNITIVE-CORE] Consolidando respuestas reflejas de los tentáculos.")
+        logger.info("[COGNITIVE-CORE] Consolidando respuestas reflejas de los tentáculos.")
         return results

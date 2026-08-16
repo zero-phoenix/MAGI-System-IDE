@@ -1,6 +1,6 @@
+import logging
 import os
 import sys
-import logging
 import tempfile
 
 logger = logging.getLogger(__name__)
@@ -28,33 +28,33 @@ class SingleInstanceGuard:
 
     def _acquire_windows(self) -> bool:
         try:
-            import win32event
             import win32api
+            import win32event
             import winerror
-            
+
             mutex_name = f"Global\\{self.app_id}_SingleInstanceMutex"
             self._lock = win32event.CreateMutex(None, 1, mutex_name)
-            
+
             if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
                 # Ya existe otra instancia
                 self._lock = None
                 return False
-                
+
             return True
-            
+
         except ImportError:
             logger.warning("pywin32 no instalado. Guardia de instancia ignorado en modo fallback.")
             return True
 
     def _acquire_unix(self) -> bool:
         import fcntl
-        
+
         lock_file = os.path.join(tempfile.gettempdir(), f"{self.app_id}.lock")
         try:
             self._fd = os.open(lock_file, os.O_CREAT | os.O_RDWR)
             fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
-        except (IOError, OSError):
+        except OSError:
             if self._fd:
                 os.close(self._fd)
                 self._fd = None

@@ -1,5 +1,6 @@
 import collections
-from typing import List, Any
+from typing import Any
+
 
 class AdaptiveSampler:
     """
@@ -10,13 +11,13 @@ class AdaptiveSampler:
         # deque con maxlen actúa como Ring Buffer automático
         self.buffer = collections.deque(maxlen=max_items)
         self.dropped = 0
-        
+
     def push_sample(self, sample: Any):
         if len(self.buffer) == self.buffer.maxlen:
             self.dropped += 1
         self.buffer.append(sample)
-        
-    def read_all(self) -> List[Any]:
+
+    def read_all(self) -> list[Any]:
         items = list(self.buffer)
         self.buffer.clear()
         return items

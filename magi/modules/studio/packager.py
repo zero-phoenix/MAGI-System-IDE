@@ -10,9 +10,7 @@ import asyncio
 import os
 import re
 import shutil
-import subprocess
 import sys
-import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,7 +35,7 @@ if TYPE_CHECKING:
 
 import logging
 
-from ...core.paths import python_executable, data_dir
+from ...core.paths import data_dir, python_executable
 
 logger = logging.getLogger(__name__)
 

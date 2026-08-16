@@ -1,5 +1,3 @@
-import os
-import json
 import logging
 from pathlib import Path
 
@@ -53,12 +51,12 @@ class AASLoader:
         if not self.repo_path.exists():
             logger.warning(f"[AASLoader] Repositorio {self.repo_path} no encontrado.")
             return 0
-            
+
         plugins_dir = self.repo_path / "plugins"
         if not plugins_dir.exists():
             logger.warning("[AASLoader] Directorio 'plugins' no encontrado.")
             return 0
-            
+
         count = 0
         for skill_dir in plugins_dir.iterdir():
             if skill_dir.is_dir():
@@ -69,9 +67,9 @@ class AASLoader:
                 if skill_md.exists():
                     try:
                         desc = skill_md.read_text(encoding="utf-8")
-                    except:
+                    except OSError:
                         pass
-                        
+
                 self.skills[skill_id] = {
                     "id": skill_id,
                     "description": desc,
@@ -79,11 +77,11 @@ class AASLoader:
                 }
                 self.skill_ids.append(skill_id)
                 count += 1
-                
+
         if count > 0:
             corpus = [self.skills[sid]["description"] for sid in self.skill_ids]
             self.tfidf_matrix = self._get_vectorizer().fit_transform(corpus)
-                
+
         logger.info(f"[AASLoader] {count} skills de agentic-awesome-skills indexadas y vectorizadas (TF-IDF) exitosamente.")
         return count
 
@@ -102,7 +100,7 @@ class AASLoader:
 
         # Obtener los índices con mayor similitud
         top_indices = np.argsort(similarities)[::-1][:top_k]
-        
+
         summary = "Skills recomendadas para esta tarea (RAG Vectorial):\\n"
         for idx in top_indices:
             score = similarities[idx]
@@ -112,9 +110,9 @@ class AASLoader:
                 summary += f"\\n- [Skill: {sid} | Ruta: {skill['path']} | Score de Relevancia: {score:.3f}]\\n"
                 snippet = skill['description'][:150].replace('\\n', ' ')
                 summary += f"  Descripción: {snippet}...\\n"
-                
+
         if "Score de Relevancia" not in summary:
             for sid in self.skill_ids[:top_k]:
                 summary += f"- {sid} (Ruta: {self.skills[sid]['path']})\\n"
-                
+
         return summary

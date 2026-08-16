@@ -1,17 +1,22 @@
 import asyncio
 import logging
+
 from magi.core.blackboard import Blackboard
-from magi.core.bus import MagiBus, BusEvent
-from .agents import MelchiorAgent, BalthasarAgent, CasperAgent
-from .intencion import aprueba as _aprueba, es_respuesta_a_aprobacion
-from magi.core.store.state import INTERRUMPIDA
+from magi.core.bus import BusEvent, MagiBus
+from magi.core.paths import workspace_dir
 from magi.core.store.admision import AHORA, ENCOLAR
-from .parallel import (
-    critique_multi_axis, format_variants_for_critic, generate_variants,
-)
+from magi.core.store.state import INTERRUMPIDA
 from magi.core.verification import ProposalVerifier
 from magi.modules.memory.episodic import EpisodicMemory
-from magi.core.paths import project_root, workspace_dir
+
+from .agents import BalthasarAgent, CasperAgent, MelchiorAgent
+from .intencion import aprueba as _aprueba
+from .intencion import es_respuesta_a_aprobacion
+from .parallel import (
+    critique_multi_axis,
+    format_variants_for_critic,
+    generate_variants,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +295,7 @@ class SwarmOrchestrator:
                         topic="TERMINAL_OUT",
                         payload={"content": f"[SWARM] Aprobación recibida. Tarea {task_id} finalizada exitosamente."}
                     ))
-                    
+
                     import re
                     # `.get("last_proposal", {})` NO protege de nada aquí: el
                     # segundo argumento solo se usa si la clave FALTA. Si está
@@ -307,11 +312,10 @@ class SwarmOrchestrator:
                     prop = state.get("last_proposal") or {}
                     content = prop.get("content") or ""
                     blocks = re.findall(r'```(\w+)?\n(.*?)```', content, re.IGNORECASE | re.DOTALL)
-                    
+
                     if blocks:
-                        from pathlib import Path
                         import os
-                        
+
                         async def _auto_exec():
                             # MAGI 9.0 §4.2: la ejecución sigue siendo sin
                             # restricciones, pero pasa por el journal para poder
@@ -320,14 +324,14 @@ class SwarmOrchestrator:
                             journal = WriteJournal(task_id=task_id)
                             scratch_dir = workspace_dir()
                             os.makedirs(scratch_dir, exist_ok=True)
-                            
+
                             for i, (lang, code) in enumerate(blocks):
                                 lang = lang.lower().strip() if lang else ""
                                 await self.bus.publish(BusEvent(
-                                    topic="TERMINAL_OUT", 
+                                    topic="TERMINAL_OUT",
                                     payload={"content": f"[AUTO-EXEC] Ejecutando bloque {i+1} ({lang or 'shell'})..."}
                                 ))
-                                
+
                                 if lang in ["python", "py"]:
                                     temp_file = scratch_dir / f"auto_script_{i}.py"
                                     journal.record(temp_file, "create", tool="auto_exec")
@@ -338,7 +342,7 @@ class SwarmOrchestrator:
                                     journal.record(temp_file, "create", tool="auto_exec")
                                     temp_file.write_text(code, encoding="utf-8")
                                     cmd = f"powershell -ExecutionPolicy Bypass -File {temp_file.name}"
-                                    
+
                                 process = await asyncio.create_subprocess_shell(
                                     cmd,
                                     cwd=str(scratch_dir),
@@ -359,10 +363,10 @@ class SwarmOrchestrator:
                                     supervisor().forget_process(task_id, process)
                                 out_msg = (stdout.decode() + "\n" + stderr.decode()).strip()
                                 await self.bus.publish(BusEvent(
-                                    topic="TERMINAL_OUT", 
+                                    topic="TERMINAL_OUT",
                                     payload={"content": f"Salida del bloque {i+1}:\n{out_msg}\n[Finalizado con código {process.returncode}]"}
                                 ))
-                                
+
                         self._spawn_tracked(task_id, _auto_exec())
                     else:
                         await self.bus.publish(BusEvent(
@@ -464,12 +468,12 @@ class SwarmOrchestrator:
             "use_tools": use_tools,
         }
         self._persist(task_id)
-        
+
         await self.bus.publish(BusEvent(
             topic="TERMINAL_OUT",
             payload={"content": f"[SWARM] Iniciando análisis para la tarea: '{command}'"}
         ))
-        
+
         # Arrancar el bucle de la conversación asíncronamente
         self._spawn_loop(task_id)
         return task_id
@@ -565,12 +569,12 @@ class SwarmOrchestrator:
 
     async def _orchestrate_loop(self, task_id: str):
         state = self.active_tasks[task_id]
-        
+
         while state["status"] == "in_progress":
             try:
                 current_round = state["round"]
                 logger.info(f"[SWARM] Iniciando Ronda {current_round} para {task_id}")
-                
+
                 engine = state.get("engine", "fast")
                 style = state.get("narrative_style", "tecnico")
                 # Se reafirma en cada ronda: una tarea rehidratada tras un
@@ -583,7 +587,7 @@ class SwarmOrchestrator:
                 n_variants = {"build": 3, "task": 2}.get(
                     state.get("route", "task"), 1)
                 use_tools = state.get("use_tools", True)
-                
+
                 last_proposal = state.get("last_proposal")
                 last_critique = state.get("last_critique")
 
@@ -608,7 +612,7 @@ class SwarmOrchestrator:
                 verifier = ProposalVerifier()
                 reports = await asyncio.gather(
                     *(verifier.verify(v.content) for v in variants))
-                for v, rep in zip(variants, reports):
+                for v, rep in zip(variants, reports, strict=True):
                     v.verified = rep.ok
                     v.verification = rep.render()
 
@@ -625,7 +629,7 @@ class SwarmOrchestrator:
                         topic="swarm.verification_failed",
                         payload={"task_id": task_id, "round": current_round,
                                  "detail": worst.render()[:2000]}))
-                    for v, rep in zip(variants, reports):
+                    for v, rep in zip(variants, reports, strict=True):
                         memory.record(round_num=current_round, approach=v.content,
                                       outcome="no_verifica",
                                       reason=(rep.failures[0].detail
@@ -712,7 +716,7 @@ class SwarmOrchestrator:
                 if "SYS_EMERGENCY_STOP" in critique["content"]:
                     await self._trigger_emergency_stop(task_id, state)
                     break
-                
+
                 # 3. Casper Arbitra
                 verdict = await self.casper.arbitrate(
                     task_id, proposal, critique, current_round, engine, style,
@@ -728,10 +732,10 @@ class SwarmOrchestrator:
                 state["status"] = "WAITING_USER_APPROVAL"
                 await self.bus.publish(BusEvent(topic="swarm.task_completed", payload={"task_id": task_id, "result": error_msg}))
                 break
-            
+
             feedback_text = verdict.get("feedback", "").upper()
             is_asking_approval = "¿APRUEBAS" in feedback_text or "APRUEBAS" in feedback_text or verdict["decision"] == "APPROVED"
-            
+
             if is_asking_approval or current_round >= state.get("max_rounds", 3):
                 # Antes de pedir aprobación, mirar si escribiste algo mientras
                 # trabajábamos. Si lo hay, se atiende AHORA en vez de pedirte
@@ -752,7 +756,7 @@ class SwarmOrchestrator:
 
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
-                    payload={"content": f"[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
+                    payload={"content": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
                 ))
                 break # Pausar el bucle hasta recibir input del usuario
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":

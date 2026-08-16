@@ -2,11 +2,11 @@ import logging
 import subprocess
 import time
 from pathlib import Path
-from typing import List
-from .models import IngestResult, IngestAttempt, Custody, Fidelity
+
+from .encoding import EncodingDetector
+from .models import Custody, Fidelity, IngestAttempt, IngestResult
 from .n0_identify import IdentifierN0
 from .n4_container import ContainerExpanderN4, DecompressionBombError
-from .encoding import EncodingDetector
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +21,16 @@ class IngestCascade:
 
     def process(self, path: Path, allow_era_env: bool = True) -> IngestResult:
         logger.info(f"Iniciando cascada de ingesta para {path.name}")
-        
+
         # N0: Identificación
         profile = self.n0.identify(path)
         logger.info(f"N0: Identificado como {profile.name} (Confianza: {profile.confidence})")
-        
+
         attempts = []
         status = "no_legible"
         resolved_level = 0
         fidelity = Fidelity(text="ninguno", formato="ninguno", imagenes="ninguno", perdido=["todo"])
-        
+
         # N4: Contenedores
         if profile.family == "archive":
             try:
@@ -49,7 +49,7 @@ class IngestCascade:
                 status = "no_legible"
                 resolved_level = 4
                 return self._build_result(path, profile, attempts, status, resolved_level, fidelity)
-        
+
         # N1-N3: Delegación a Conversores (Degradación Elegante)
         elif profile.family in ["wordprocessor", "spreadsheet", "presentation"]:
             # Intentar usar LibreOffice
@@ -72,13 +72,13 @@ class IngestCascade:
             status = "leido_completo"
             resolved_level = 1
             fidelity = Fidelity(text="completo", formato="completo", imagenes="completo", perdido=[])
-            
+
             # Detectar encoding
             with open(path, "rb") as f:
                 data = f.read()
                 enc_guess = self.encoding.detect(data)
                 logger.info(f"N1 (Text): Codificación detectada {enc_guess.detected} ({enc_guess.method})")
-                
+
         elif profile.family == "image":
             # Intentar usar ImageMagick
             im_attempt = self._run_external("magick", ["identify", str(path)])
@@ -87,7 +87,7 @@ class IngestCascade:
                 status = "leido_completo"
                 resolved_level = 3
                 fidelity = Fidelity(text="completo", formato="completo", imagenes="completo", perdido=[])
-                
+
         else:
             # Fallback a N7 o no legible si nada lo soporta y no tenemos N6
             attempts.append(IngestAttempt(level=7, tool="salvage_strings", ok=True, duration_ms=50))
@@ -97,7 +97,7 @@ class IngestCascade:
 
         return self._build_result(path, profile, attempts, status, resolved_level, fidelity)
 
-    def _run_external(self, cmd: str, args: List[str]) -> IngestAttempt:
+    def _run_external(self, cmd: str, args: list[str]) -> IngestAttempt:
         start_time = time.time()
         try:
             # R0 wrapper determinista para conversor externo

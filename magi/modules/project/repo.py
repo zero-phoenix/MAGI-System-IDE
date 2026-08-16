@@ -1,6 +1,6 @@
-import os
 import logging
 from pathlib import Path
+
 from .secrets import SecretScanner
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class ProjectRepository:
     def init_repo(self) -> bool:
         if not HAS_PYGIT2:
             return False
-            
+
         try:
             # Inicializa repo desnudo o estándar
             repo_path = self.project_path
@@ -44,23 +44,23 @@ class ProjectRepository:
             filepath = self.project_path / file
             if not filepath.exists() or filepath.is_dir():
                 continue
-                
+
             # CTL-9: Barrido de secretos
             findings = self.scanner.scan_file(str(filepath))
             if findings:
                 issues.append(f"[CTL-9 Bloqueo] Secreto en {file}: {findings[0]}")
-                
+
             # CTL-1: Regla de volcado de hardware
             # (Simplificado: si el archivo es un binario .bin o .rom en un directorio específico)
             if file.endswith('.bin') or file.endswith('.rom'):
                 issues.append(f"[CTL-1 Bloqueo] Archivo de firmware/volcado excluido: {file}")
-                
+
         return len(issues) == 0, issues
 
     def status(self) -> dict:
         if not HAS_PYGIT2:
             return {"error": "pygit2 no disponible"}
-            
+
         repo = pygit2.Repository(str(self.project_path))
         status_dict = repo.status()
         return {filepath: flags for filepath, flags in status_dict.items()}

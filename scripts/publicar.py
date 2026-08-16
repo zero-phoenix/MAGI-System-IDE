@@ -119,8 +119,8 @@ def correr(orden: list[str], *, cwd: Path = RAIZ, titulo: str = "") -> bool:
     r = subprocess.run(orden, cwd=cwd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace", env=_entorno())
     salida = (r.stdout or "") + (r.stderr or "")
-    for l in [x for x in salida.splitlines() if x.strip()][-10:]:
-        di("    " + l[:150])
+    for ln in [x for x in salida.splitlines() if x.strip()][-10:]:
+        di("    " + ln[:150])
     return r.returncode == 0
 
 
@@ -128,11 +128,11 @@ def correr(orden: list[str], *, cwd: Path = RAIZ, titulo: str = "") -> bool:
 
 def _directas() -> set[str]:
     fuera = set()
-    for l in (RAIZ / "requirements.txt").read_text(encoding="utf-8").splitlines():
-        l = l.strip()
-        if not l or l.startswith("#"):
+    for ln in (RAIZ / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
             continue
-        m = re.match(r"^([A-Za-z0-9._-]+)", l)
+        m = re.match(r"^([A-Za-z0-9._-]+)", ln)
         if m:
             fuera.add(m.group(1).lower().replace("_", "-"))
     return fuera
@@ -146,8 +146,8 @@ def divergencias_con_el_lock() -> list[tuple[str, str, str]]:
     """
     directas = _directas()
     fuera: list[tuple[str, str, str]] = []
-    for l in (RAIZ / "requirements.lock").read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^([A-Za-z0-9._-]+)==([^\s;]+)", l)
+    for ln in (RAIZ / "requirements.lock").read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^([A-Za-z0-9._-]+)==([^\s;]+)", ln)
         if not m:
             continue
         nombre = m.group(1).lower().replace("_", "-")

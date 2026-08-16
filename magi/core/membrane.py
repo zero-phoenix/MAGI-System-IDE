@@ -1,7 +1,7 @@
-import logging
 import asyncio
-from typing import Any, List
+import logging
 from concurrent.futures import ProcessPoolExecutor
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Organelle:
     """
     def __init__(self, function_name: str):
         self.function_name = function_name
-        
+
     async def process(self, substrate: Any, pool: ProcessPoolExecutor) -> Any:
         logger.debug(f"[ORGANELLE:{self.function_name}] Despachando a CPU core...")
         loop = asyncio.get_running_loop()
@@ -39,22 +39,22 @@ class SkinMembrane:
     """
     def __init__(self):
         self.organelles = [
-            Organelle("Compilar"), 
-            Organelle("Auditar"), 
+            Organelle("Compilar"),
+            Organelle("Auditar"),
             Organelle("Evolucionar"),
             Organelle("QuantTrader_HFT") # Organelo Financiero (Fase 7)
         ]
         # Pool de 8 hilos físicos mapeados a los 8 threads lógicos del i7-3770
         self.cpu_pool = ProcessPoolExecutor(max_workers=8)
-        
-    async def absorb_and_process(self, external_problem: str) -> List[Any]:
+
+    async def absorb_and_process(self, external_problem: str) -> list[Any]:
         logger.info(f"[MEMBRANE-SKIN] (Multi-Core CPU) Endocitosis: '{external_problem}'")
-        
+
         # El problema se ejecuta en hilos de silicio reales
         tasks = [organelle.process(external_problem, self.cpu_pool) for organelle in self.organelles]
         synthesized_results = await asyncio.gather(*tasks)
-        
-        logger.info(f"[MEMBRANE-SKIN] (Multi-Core CPU) Exocitosis celular completada.")
+
+        logger.info("[MEMBRANE-SKIN] (Multi-Core CPU) Exocitosis celular completada.")
         return synthesized_results
 
     def shutdown(self):

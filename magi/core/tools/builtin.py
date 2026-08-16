@@ -75,7 +75,7 @@ def build_registry() -> ToolRegistry:
         if offset > 1 or limit:
             end = (offset - 1 + limit) if limit else len(lines)
             lines = lines[offset - 1:end]
-        numbered = "\n".join(f"{i + offset:>6}\t{l}" for i, l in enumerate(lines))
+        numbered = "\n".join(f"{i + offset:>6}\t{ln}" for i, ln in enumerate(lines))
         return ToolResult(True, numbered + note, meta={"lines": len(lines), "path": str(p)})
 
     @reg.tool("list_dir", "Lista un directorio.",
@@ -429,8 +429,8 @@ def build_registry() -> ToolRegistry:
             console: bool = False,
             requirements: list | None = None,
             hiddenimports: list | None = None):
-        from ...modules.studio.packager import build_project_exe as _build
         from ...core.paths import python_executable
+        from ...modules.studio.packager import build_project_exe as _build
 
         project_dir = ctx.resolve(path)
         if not project_dir.is_dir():

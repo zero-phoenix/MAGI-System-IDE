@@ -51,8 +51,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .artifacts import (ArtifactKind, Observation, _mirar_imagen,
-                        pillow_available)
+from .artifacts import ArtifactKind, Observation, _mirar_imagen, pillow_available
 
 logger = logging.getLogger(__name__)
 

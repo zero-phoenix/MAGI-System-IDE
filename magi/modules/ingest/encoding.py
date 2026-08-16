@@ -1,5 +1,7 @@
 import chardet
+
 from .models import EncodingGuess
+
 
 class EncodingDetector:
     """
@@ -58,7 +60,7 @@ class EncodingDetector:
             method="chardet estadístico",
             line_endings=line_ends
         )
-        
+
     def _guess_lines(self, data: bytes) -> str:
         has_cr = b'\r' in data
         has_lf = b'\n' in data

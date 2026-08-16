@@ -1,5 +1,6 @@
+
 from pydantic import BaseModel, Field
-from typing import List, Optional
+
 
 class Tesis(BaseModel):
     """
@@ -15,7 +16,7 @@ class Refutacion(BaseModel):
     """
     valido: bool = Field(..., description="¿Es válida la Tesis?")
     mecanismo: str = Field(..., description="Mecanismo lógico o empírico de la refutación")
-    evidencia_contra_id: Optional[str] = Field(None, description="ID de la unidad que contradice la tesis")
+    evidencia_contra_id: str | None = Field(None, description="ID de la unidad que contradice la tesis")
 
 class Acta(BaseModel):
     """

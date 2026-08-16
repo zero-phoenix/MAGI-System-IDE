@@ -12,14 +12,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
 
 from .providers.base import CompletionRequest, Message, ProviderError, ProviderTimeout
 from .providers.registry import ProviderRegistry
 from .tools import (
-    ToolContext, ToolRegistry, format_results, parse_tool_calls,
-    strip_tool_calls, build_system_suffix,
+    ToolContext,
+    ToolRegistry,
+    build_system_suffix,
+    format_results,
+    parse_tool_calls,
+    strip_tool_calls,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,7 +160,7 @@ async def run_agent(
                     ", ".join(c.name for c in calls))
 
         results = await tools.execute_many([(c.name, c.args) for c in calls], ctx=ctx)
-        for c, r in zip(calls, results):
+        for c, r in zip(calls, results, strict=True):
             used.append({"tool": c.name, "args": c.args, "ok": r.ok,
                          "error": r.error, "iteration": i})
         await emit("agent.tool_result", {

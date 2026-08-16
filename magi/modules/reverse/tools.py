@@ -36,7 +36,7 @@ def register_reverse_tools(reg: ToolRegistry) -> ToolRegistry:
               {"type": "object", "properties": {"path": {"type": "string"}},
                "required": ["path"]}, access={"read"})
     def binary_identify(path: str, ctx=None):
-        from .entropy import HIGH_ENTROPY, analyze_file, reading
+        from .entropy import analyze_file, reading
         from .identify import identify
         p = ctx.resolve(path) if ctx else Path(path)
         try:

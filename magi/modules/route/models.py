@@ -1,22 +1,24 @@
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
-from typing import List, Literal, Optional, Any, Dict
+
 
 class RouteDirective(BaseModel):
     role: Literal["MELCHIOR", "BALTHASAR", "CASPER", "VLM", "EMBED", "RERANK"]
-    pin_model: Optional[str] = None
+    pin_model: str | None = None
     allow_remote: bool = False
-    required_caps: Dict[str, Any] = Field(default_factory=dict)
+    required_caps: dict[str, Any] = Field(default_factory=dict)
     strategy: Literal["priority", "lkgp", "cost-optimized", "round-robin"]
-    forbid_providers: List[str] = Field(default_factory=list)
+    forbid_providers: list[str] = Field(default_factory=list)
     max_tokens_in: int = 12000
     unit_id: str
     privacy_class: Literal["local_only", "consented_remote"] = "local_only"
 
 class InferenceRequest(BaseModel):
     prompt: str
-    system: Optional[str] = None
+    system: str | None = None
     temperature: float = 0.7
-    seed: Optional[int] = None
+    seed: int | None = None
 
 class CostTelemetry(BaseModel):
     provider: str

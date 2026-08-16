@@ -1,8 +1,6 @@
 import logging
-import zipfile
 import tarfile
-import os
-import shutil
+import zipfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -23,7 +21,7 @@ class ContainerExpanderN4:
         if current_depth > self.MAX_DEPTH:
             logger.warning(f"Límite de profundidad (N4) excedido en {path.name}")
             return []
-            
+
         output_dir.mkdir(parents=True, exist_ok=True)
         extracted_files = []
         total_extracted = 0
@@ -38,33 +36,33 @@ class ContainerExpanderN4:
                     for info in zf.infolist():
                         if info.is_dir():
                             continue
-                            
+
                         # Ratio check
                         c_size = info.compress_size
                         u_size = info.file_size
                         if c_size > 0 and (u_size / c_size) > self.MAX_RATIO:
                             raise DecompressionBombError(f"Ratio de compresión excedido ({u_size/c_size:.1f}:1) en {info.filename}")
-                            
+
                         total_extracted += u_size
                         if total_extracted > self.MAX_TOTAL_BYTES:
                             raise DecompressionBombError("Límite total de expansión excedido (4GB)")
-                            
+
                         extracted_path = Path(zf.extract(info, str(output_dir)))
                         extracted_files.append(extracted_path)
-            
+
             elif tarfile.is_tarfile(str(path)):
                 with tarfile.open(str(path), 'r') as tf:
                     for member in tf.getmembers():
                         if not member.isfile():
                             continue
-                            
-                        # El ratio es más difícil de ver antes de extraer en .tar.gz, 
+
+                        # El ratio es más difícil de ver antes de extraer en .tar.gz,
                         # pero vigilamos el tamaño total declarado
                         u_size = member.size
                         total_extracted += u_size
                         if total_extracted > self.MAX_TOTAL_BYTES:
                             raise DecompressionBombError("Límite total de expansión excedido (4GB)")
-                            
+
                         tf.extract(member, str(output_dir))
                         extracted_files.append(output_dir / member.name)
             else:

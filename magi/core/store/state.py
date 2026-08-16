@@ -83,7 +83,7 @@ class TaskState:
         return asdict(self)
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "TaskState":
+    def from_row(cls, row: sqlite3.Row) -> TaskState:
         return cls(
             task_id=row["task_id"], command=row["command"], status=row["status"],
             round=row["round_num"], engine=row["engine"],

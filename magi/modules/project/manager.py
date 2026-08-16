@@ -1,9 +1,8 @@
-import os
-import yaml
-import shutil
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,7 @@ class ProjectManager:
     Gestiona la inicialización de carpetas de proyecto (P21.c).
     Un proyecto es una carpeta real en el disco con estructura declarada.
     """
-    
+
     DEFAULT_DIRS = [
         ".magi",
         ".magi/memory",
@@ -38,18 +37,18 @@ secrets.yaml
     def create_project(self, target_path: str, template: str = None) -> bool:
         """Inicializa un proyecto nuevo en la ruta especificada."""
         base = Path(target_path)
-        
+
         if base.exists() and any(base.iterdir()):
             logger.error("El directorio destino no está vacío.")
             return False
-            
+
         try:
             base.mkdir(parents=True, exist_ok=True)
-            
+
             # Crear estructura
             for d in self.DEFAULT_DIRS:
                 (base / d).mkdir(parents=True, exist_ok=True)
-                
+
             # Escribir project.yaml
             project_meta = {
                 "name": base.name,
@@ -60,30 +59,30 @@ secrets.yaml
             }
             with open(base / ".magi" / "project.yaml", "w", encoding="utf-8") as f:
                 yaml.dump(project_meta, f)
-                
+
             # Escribir .gitignore
             with open(base / ".gitignore", "w", encoding="utf-8") as f:
                 f.write(self.DEFAULT_GITIGNORE.strip() + "\n")
-                
+
             # Archivo de portabilidad vacío (P21.d)
             with open(base / ".magi" / "portability.json", "w", encoding="utf-8") as f:
                 f.write('{"compatible": true, "missing": []}\n')
-                
+
             # El repositorio se inicializa separadamente en repo.py
             logger.info(f"Proyecto inicializado en {base}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error creando proyecto: {e}")
             return False
-            
+
     def open_project(self, target_path: str) -> dict:
         """Abre y valida un proyecto existente."""
         base = Path(target_path)
         yaml_path = base / ".magi" / "project.yaml"
-        
+
         if not yaml_path.exists():
             raise FileNotFoundError("No es un proyecto MAGI válido (falta .magi/project.yaml)")
-            
-        with open(yaml_path, "r", encoding="utf-8") as f:
+
+        with open(yaml_path, encoding="utf-8") as f:
             return yaml.safe_load(f)

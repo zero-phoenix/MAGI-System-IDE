@@ -1,9 +1,9 @@
+import argparse
 import asyncio
 import logging
-import argparse
-import sys
 import os
 import signal
+import sys
 import threading
 
 # §I.3 — ANTES QUE NADA. El cortafuegos de navegador se instala en la primera
@@ -12,6 +12,7 @@ import threading
 # así que instalarla aquí garantiza que ninguna ruta —conocida o futura— pueda
 # lanzar una ventana de navegador durante el arranque ni durante la inferencia.
 from magi.core.no_browser import install as _install_browser_guard
+
 _install_browser_guard()
 
 # Y la consola en UTF-8, por el mismo motivo de orden: escribir un acento en la
@@ -20,16 +21,18 @@ _install_browser_guard()
 # ('charmap' codec can't encode characters...)"—, forzando pedir la respuesta
 # entera otra vez. Este proyecto habla español: no era un caso raro.
 from magi.core.consola import configurar as _configurar_consola
+
 _configurar_consola()
 
 import webview
+
 from magi.gui_server import GUIServer
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from magi.core.kernel import Kernel
+from magi.modules.memory.composer import Composer
 from magi.modules.resilience.selector import CloudSelector
 from magi.modules.route.gateway import Gateway
-from magi.modules.memory.composer import Composer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,7 +51,7 @@ class MagiSystem:
         self.debug = debug
         if self.debug:
             logging.getLogger().setLevel(logging.DEBUG)
-            
+
         self.kernel = Kernel(host=self.host, port=self.port)
         self.bus = self.kernel.bus
         # Inicialización de Resiliencia Cloud-Only (Área 6)
@@ -68,23 +71,23 @@ class MagiSystem:
 
     async def start(self):
         logger.info("Iniciando MAGI System IDE...")
-        
+
         # 1. Setup de señales
         await self._setup_signal_handlers()
-        
+
         # Los suscriptores registrados en constructores síncronos (colector de
         # métricas, logger del bus) tienen su worker pendiente hasta aquí.
         self.bus.start_pending_workers()
 
         # 2. Levantar el Kernel (Área 0)
         await self.kernel.start()
-        
+
         # 3. Levantar otros módulos base
         self.gateway = Gateway()
         from magi.modules.memory.record import MemoryRecord
         self.record = MemoryRecord("main_session")
         self.composer = Composer(self.record)
-        
+
         # ---------------------------------------------------------------
         # MAGI 9.0 — Regla "conecta o borra".
         #
@@ -106,8 +109,8 @@ class MagiSystem:
         #
         # Se retiran. Lo que queda está conectado y tiene tests.
         # ---------------------------------------------------------------
-        from magi.core.providers.cloud import get_registry
         from magi.core.context import refresh_context
+        from magi.core.providers.cloud import get_registry
 
         self.provider_registry = await get_registry()
         self.exec_context = refresh_context(
@@ -125,7 +128,7 @@ class MagiSystem:
         logger.info("Datos en: %s", __import__("magi.core.paths", fromlist=["x"]).data_dir())
 
         logger.info("SISTEMA MAGI OPERATIVO Y ESPERANDO CONEXIONES.")
-        
+
         # 4. Mantener vivo hasta apagado
         try:
             if sys.platform == 'win32':
@@ -136,7 +139,7 @@ class MagiSystem:
                 await self._shutdown_event.wait()
         except KeyboardInterrupt:
             logger.info("Interrupción por teclado detectada.")
-            
+
         await self.stop()
 
     async def stop(self):
@@ -161,23 +164,23 @@ def main():
     parser.add_argument("--port", type=int, default=20128, help="Puerto para el GUI Server (default: 20128)")
     parser.add_argument("--gui-port", type=int, default=1420, help="Puerto HTTP local para el Frontend (default: 1420)")
     parser.add_argument("--debug", action="store_true", help="Habilitar logs de depuración")
-    
+
     args = parser.parse_args()
-    
+
     magi = MagiSystem(host=args.host, port=args.port, debug=args.debug)
-    
+
     # 1. Iniciar Servidor GUI Estático
     gui = GUIServer(port=args.gui_port)
     gui.start()
-    
+
     # 2. Iniciar el Kernel MAGI en un Hilo Secundario
     magi_loop = asyncio.new_event_loop()
     magi_thread = threading.Thread(target=_start_magi_background, args=(magi, magi_loop), daemon=True)
     magi_thread.start()
-    
-    import sys
+
     import os
-    
+    import sys
+
     def get_resource_path(relative_path):
         """ Get absolute path to resource, works for dev and for PyInstaller """
         try:
@@ -196,21 +199,21 @@ def main():
         frameless=False,
         easy_drag=False
     )
-    
+
     # Esto bloqueará hasta que el usuario cierre la ventana
     webview.start(debug=args.debug)
-    
+
     # 4. Apagado Limpio al cerrar la ventana
     logger.info("Ventana cerrada. Apagando sistemas...")
     gui.stop()
-    
+
     # Señalizar al loop que se detenga
     if sys.platform != 'win32':
         magi_loop.call_soon_threadsafe(magi._shutdown_event.set)
     else:
         # Hack simple para despertar y apagar en Windows
         magi_loop.call_soon_threadsafe(magi._shutdown_event.set)
-        
+
     magi_thread.join(timeout=3)
     logger.info("MAGI cerrado por completo. Adiós.")
     sys.exit(0)

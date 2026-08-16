@@ -11,9 +11,9 @@ class Identifier:
             return {"format": "PDF", "confidence": 0.9}
         elif magic_bytes == "WORDPERFECT_MAGIC":
             return {"format": "WordPerfect 1.0", "confidence": 0.8}
-        
+
         # Si magic contradice extensión agresivamente
         if ext == ".pdf" and magic_bytes == "EXE_MAGIC":
              return {"format": "UNSAFE_EXECUTABLE", "confidence": 0.95}
-             
+
         return {"format": "UNKNOWN", "confidence": 0.0}

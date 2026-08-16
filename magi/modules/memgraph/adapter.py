@@ -1,9 +1,9 @@
-import logging
 import asyncio
-import re
-from typing import Dict, Any, List, Optional
+import logging
 from pathlib import Path
-from magi.core.bus import MagiBus, BusEvent
+from typing import Any
+
+from magi.core.bus import BusEvent, MagiBus
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +25,16 @@ class MemGraphAdapter:
         absoluta a una máquina concreta, así que el binario no se encontraba en
         ninguna otra.
         """
-        from magi.core.paths import data_dir
         import os
+
+        from magi.core.paths import data_dir
         if bin_path is None:
             bin_path = (os.environ.get("CODEBASE_MEMORY_MCP")
                         or str(data_dir() / "codebase-memory-mcp.exe"))
         self.bus = bus
         self.bin_path = Path(bin_path)
         self.is_binary_present = self.bin_path.exists()
-        
+
     async def start(self):
         """Verifica la existencia del binario y avisa al sistema si usa el Fallback."""
         if not self.is_binary_present:
@@ -63,48 +64,48 @@ class MemGraphAdapter:
         for f in forbidden:
             if f in upper_q:
                 raise ValueError(f"Security Violation: Consulta Cypher contiene cláusula prohibida de escritura '{f}'")
-        
+
         # 2. Exigir o añadir LIMIT
         if "LIMIT " not in upper_q:
             query += " LIMIT 5000"
-            
+
         # 3. Anclaje a proyecto (Simplificado para validación)
         if "PROJECT" not in upper_q and "PROJECT_NAME" not in upper_q:
             logger.debug("[MAGI-MEM] Advertencia: La consulta debería anclarse a un Project.")
-            
+
         return query
 
-    async def query_graph(self, cypher: str, timeout_ms: int = 2000) -> List[Dict[str, Any]]:
+    async def query_graph(self, cypher: str, timeout_ms: int = 2000) -> list[dict[str, Any]]:
         """Ejecuta una consulta Cypher contra el grafo de código."""
         try:
             safe_query = self._validate_cypher(cypher)
         except ValueError as e:
             logger.error(f"[MAGI-MEM] {e}")
             raise
-            
+
         if not self.is_binary_present:
             # Fallback path: Devolver simulado o vacío para pruebas de integración
             logger.debug(f"[MAGI-MEM Fallback] Executing stub query: {safe_query}")
             await asyncio.sleep(0.1) # Simulando I/O
             return []
-            
+
         # Llamada real al MCP (Stub para implementación completa posterior)
         logger.debug(f"[MAGI-MEM] Executing MCP query: {safe_query}")
         return []
 
-    def search_graph(self, label: str, name_pattern: str) -> List[Dict[str, Any]]:
+    def search_graph(self, label: str, name_pattern: str) -> list[dict[str, Any]]:
         """Stub para simular búsqueda en el grafo MCP por label y patrón."""
         if label == "Method" and name_pattern == "auth.*":
             return [{"id": "auth.login"}, {"id": "auth.logout"}]
         return []
 
-    def trace_call_path(self, method: str) -> List[str]:
+    def trace_call_path(self, method: str) -> list[str]:
         """Stub para simular trace de llamadas."""
         if method == "auth.login":
             return ["auth.login", "crypto.hash_password", "db.query"]
         return []
 
-    async def record_knowledge(self, knowledge_id: str, qualified_name: str, statement: str, evidence: List[str]):
+    async def record_knowledge(self, knowledge_id: str, qualified_name: str, statement: str, evidence: list[str]):
         """Emite un evento de registro de delta de conocimiento para que el Database lo guarde."""
         await self.bus.publish(BusEvent(
             topic="knowledge.recorded",

@@ -42,7 +42,8 @@ import sys
 import time
 from pathlib import Path
 
-from magi.core.paths import data_dir, describe as describe_paths
+from magi.core.paths import data_dir
+from magi.core.paths import describe as describe_paths
 
 logger = logging.getLogger(__name__)
 
@@ -299,16 +300,16 @@ class EternalMemory:
                 pass
 
         if not self.lessons_path.exists():
-            for l in LESSON_SEED:
-                self.remember_lesson(**l)
+            for ln in LESSON_SEED:
+                self.remember_lesson(**ln)
         else:
             # Las lecciones se deduplican por clave al leerlas, así que basta
             # con añadir las que aún no estén.
             try:
-                claves = {l.get("clave") for l in self.lessons()}
-                for l in LESSON_SEED:
-                    if l["clave"] not in claves:
-                        self.remember_lesson(**l)
+                claves = {ln.get("clave") for ln in self.lessons()}
+                for ln in LESSON_SEED:
+                    if ln["clave"] not in claves:
+                        self.remember_lesson(**ln)
             except Exception:
                 pass
 
@@ -353,8 +354,8 @@ class EternalMemory:
     def lessons(self, limit: int | None = None) -> list[dict]:
         """Lecciones deduplicadas por clave, la más reciente gana."""
         by_key: dict[str, dict] = {}
-        for l in self._read_jsonl(self.lessons_path):
-            by_key[l.get("clave", str(len(by_key)))] = l
+        for ln in self._read_jsonl(self.lessons_path):
+            by_key[ln.get("clave", str(len(by_key)))] = ln
         out = list(by_key.values())
         return out[-limit:] if limit else out
 
@@ -427,10 +428,10 @@ class EternalMemory:
             partes.append(f"- [{i['id']}] {i['regla']} (sonda: {i['sonda']}, "
                           f"severidad: {i['severidad']})")
         partes += ["", "## Lecciones aprendidas (memoria eterna)"]
-        for l in les:
-            partes.append(f"- {l['leccion']}")
-            if l.get("consecuencia"):
-                partes.append(f"  -> {l['consecuencia']}")
+        for ln in les:
+            partes.append(f"- {ln['leccion']}")
+            if ln.get("consecuencia"):
+                partes.append(f"  -> {ln['consecuencia']}")
         if eps:
             partes += ["", f"## Últimos {len(eps)} episodios registrados"]
             for e in eps:

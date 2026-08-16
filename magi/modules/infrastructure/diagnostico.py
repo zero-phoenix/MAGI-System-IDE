@@ -49,9 +49,8 @@ from __future__ import annotations
 
 import logging
 import re
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +300,7 @@ CATALOGO = CATALOGO + (
         causa="Hay trabajo en curso de verdad (bucle vivo comprobado).",
         arreglo=lambda s: (
             f"En ejecución: {_lista(s.en_curso_de_verdad)}. "
-            + (f"Latencias medidas por familia: "
+            + ("Latencias medidas por familia: "
                + ", ".join(f"{k} {v:.1f}s" for k, v in
                            sorted(s.latencias.items())[:4]) + ". "
                if s.latencias else "")

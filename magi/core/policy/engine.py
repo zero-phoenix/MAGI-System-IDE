@@ -1,5 +1,5 @@
 import logging
-from typing import List, Literal, Optional
+
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,10 @@ class PolicyEngine:
                 "allow": ["1a86:*", "0483:*"] # CH340, ST-Link etc.
             }
         }
-        
+
     def request_capability(self, module: str, cap: Capability) -> PolicyResult:
         logger.info(f"Módulo '{module}' solicita capacidad '{cap.name}' sobre '{cap.resource}'")
-        
+
         if cap.name == "net.out":
             # Si intenta acceder a algo denegado (como puerto bloqueado o IP externa no permitida)
             if cap.resource == "127.0.0.1:20128" or "github.com" in cap.resource:
@@ -40,11 +40,11 @@ class PolicyEngine:
                  logger.warning(f"Política denegada: {cap.name} sobre {cap.resource} no está permitido.")
                  # En el núcleo real, esto emitiría 'policy.denied' al bus.
                  return PolicyResult(granted=False, reason="Resource blocked by default deny rule.")
-                 
+
         elif cap.name == "usb.claim":
             if cap.resource in self.rules["usb.claim"]["allow"]:
                 return PolicyResult(granted=True, reason="USB VID:PID allowed.")
             else:
                 return PolicyResult(granted=False, reason="USB VID:PID not in allowlist.")
-                
+
         return PolicyResult(granted=False, reason=f"Unknown capability {cap.name}")

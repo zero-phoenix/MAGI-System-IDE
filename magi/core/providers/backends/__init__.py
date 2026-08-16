@@ -11,7 +11,10 @@ proveedor g4f por familia, no dejando el auto-router. Ver g4f_backend.py.
 """
 from .echo import EchoProvider
 from .g4f_backend import (
-    G4FProvider, FAMILY_SPECS, DEFAULT_SWARM_FAMILIES, build_swarm_providers,
+    DEFAULT_SWARM_FAMILIES,
+    FAMILY_SPECS,
+    G4FProvider,
+    build_swarm_providers,
 )
 
 __all__ = [

@@ -1,9 +1,9 @@
-import sqlite3
 import asyncio
-import logging
 import json
+import logging
+import sqlite3
 import uuid
-from typing import Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class MagiDatabase:
         # una ruta explícita.
         from magi.core.paths import db_path as default_db_path
         self.db_path = db_path or str(default_db_path())
-        self._init_db()        
+        self._init_db()
     def _get_connection(self):
         # check_same_thread=False para poder operar asíncronamente con to_thread
         return sqlite3.connect(self.db_path, check_same_thread=False)
@@ -29,7 +29,7 @@ class MagiDatabase:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 # Tabla de Misiones / Tareas
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS tasks (
@@ -39,7 +39,7 @@ class MagiDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                
+
                 # Tabla de Debates (Memoria de los Agentes)
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS debates (
@@ -54,7 +54,7 @@ class MagiDatabase:
                         FOREIGN KEY(task_id) REFERENCES tasks(id)
                     )
                 """)
-                
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS naoko_memory (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,9 +64,9 @@ class MagiDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                
+
                 # --- ÁREA 13: MAGI-MEM ---
-                
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS mem_project (
                         project TEXT PRIMARY KEY,
@@ -76,7 +76,7 @@ class MagiDatabase:
                         languages TEXT
                     )
                 """)
-                
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS mem_query_log (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +86,7 @@ class MagiDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS mem_knowledge (
                         knowledge_id TEXT PRIMARY KEY,
@@ -99,7 +99,7 @@ class MagiDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS mem_coverage (
                         project TEXT NOT NULL,
@@ -119,7 +119,7 @@ class MagiDatabase:
                         specialization TEXT
                     )
                 """)
-                
+
                 conn.commit()
                 logger.info(f"[DB] Esquema de persistencia inicializado en {self.db_path}")
         except Exception as e:
@@ -147,8 +147,8 @@ class MagiDatabase:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    """INSERT INTO debates 
-                       (id, task_id, round_num, agent_name, role, provider, content) 
+                    """INSERT INTO debates
+                       (id, task_id, round_num, agent_name, role, provider, content)
                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     (entry_id, task_id, round_num, agent_name, role, provider, content)
                 )
@@ -165,8 +165,8 @@ class MagiDatabase:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    """INSERT INTO mem_knowledge 
-                       (knowledge_id, qualified_name, statement, evidence_refs, evidence_tier_min, expires_when) 
+                    """INSERT INTO mem_knowledge
+                       (knowledge_id, qualified_name, statement, evidence_refs, evidence_tier_min, expires_when)
                        VALUES (?, ?, ?, ?, ?, ?)""",
                     (knowledge_id, qualified_name, statement, evidence_json, evidence_tier_min, expires_when)
                 )
@@ -176,7 +176,7 @@ class MagiDatabase:
         except Exception as e:
             logger.error(f"[DB] Error guardando knowledge delta para {qualified_name}: {e}")
 
-    async def get_knowledge_for(self, qualified_name: str) -> List[Dict[str, Any]]:
+    async def get_knowledge_for(self, qualified_name: str) -> list[dict[str, Any]]:
         """Recupera los deltas de conocimiento vigentes para un nodo."""
         def _get():
             with self._get_connection() as conn:
@@ -206,16 +206,16 @@ class MagiDatabase:
                     avg_lat = row[3] + (latency_ms - row[3]) / s_count
                     avg_wc = row[4] + (word_count - row[4]) / s_count
                     code_ratio = row[5] + ((1.0 if has_code else 0.0) - row[5]) / s_count
-                    
+
                     cursor.execute("""
-                        UPDATE provider_telemetry 
-                        SET success_count = ?, avg_latency_ms = ?, avg_word_count = ?, code_density_ratio = ?, specialization = ? 
+                        UPDATE provider_telemetry
+                        SET success_count = ?, avg_latency_ms = ?, avg_word_count = ?, code_density_ratio = ?, specialization = ?
                         WHERE provider = ?
                     """, (s_count, avg_lat, avg_wc, code_ratio, role, provider))
                 else:
                     cursor.execute("""
-                        INSERT INTO provider_telemetry 
-                        (provider, success_count, failure_count, avg_latency_ms, avg_word_count, code_density_ratio, specialization) 
+                        INSERT INTO provider_telemetry
+                        (provider, success_count, failure_count, avg_latency_ms, avg_word_count, code_density_ratio, specialization)
                         VALUES (?, 1, 0, ?, ?, ?, ?)
                     """, (provider, latency_ms, word_count, 1.0 if has_code else 0.0, role))
                 conn.commit()
@@ -235,8 +235,8 @@ class MagiDatabase:
                     cursor.execute("UPDATE provider_telemetry SET failure_count = failure_count + 1 WHERE provider = ?", (provider,))
                 else:
                     cursor.execute("""
-                        INSERT INTO provider_telemetry 
-                        (provider, success_count, failure_count, avg_latency_ms, avg_word_count, code_density_ratio, specialization) 
+                        INSERT INTO provider_telemetry
+                        (provider, success_count, failure_count, avg_latency_ms, avg_word_count, code_density_ratio, specialization)
                         VALUES (?, 0, 1, 0.0, 0.0, 0.0, 'None')
                     """, (provider,))
                 conn.commit()
@@ -245,7 +245,7 @@ class MagiDatabase:
         except Exception as e:
             logger.error(f"[DB] Error guardando fallo para {provider}: {e}")
 
-    async def get_telemetry(self) -> List[Dict[str, Any]]:
+    async def get_telemetry(self) -> list[dict[str, Any]]:
         """Devuelve todas las métricas de los proveedores para el Dashboard."""
         def _get():
             with self._get_connection() as conn:
@@ -273,8 +273,8 @@ class MagiDatabase:
             except Exception as e:
                 logger.error(f"Error escribiendo en naoko_memory: {e}")
         await asyncio.to_thread(_log)
-        
-    async def get_naoko_memory(self, limit: int = 10) -> List[Dict[str, Any]]:
+
+    async def get_naoko_memory(self, limit: int = 10) -> list[dict[str, Any]]:
         def _get():
             try:
                 with self._get_connection() as conn:

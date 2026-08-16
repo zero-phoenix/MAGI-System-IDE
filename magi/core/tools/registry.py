@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class ToolRegistry:
         return sorted(self._tools)
 
     def subset(self, allowed: set[str] | None = None,
-               deny_access: set[Access] | None = None) -> "ToolRegistry":
+               deny_access: set[Access] | None = None) -> ToolRegistry:
         """
         Vista filtrada. Se usa para dar a Balthasar lectura y ejecución pero no
         escritura — que no es una restricción de seguridad, es lo que le da

@@ -1,18 +1,19 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+
+from pydantic import BaseModel
+
 
 class Param(BaseModel):
     name: str
     value: float
     unit: str
-    range: List[float]
+    range: list[float]
     sensitivity: str
 
 class Principle(BaseModel):
     summary: str
-    physical_domain: List[str]
-    governing_equations: List[str]
-    key_phenomena: List[str]
+    physical_domain: list[str]
+    governing_equations: list[str]
+    key_phenomena: list[str]
 
 class Invention(BaseModel):
     """
@@ -23,10 +24,10 @@ class Invention(BaseModel):
     title: str
     domain: str
     operating_principle: Principle
-    parameter_vector: List[Param]
+    parameter_vector: list[Param]
     trl: int
     killer_hypothesis: str
-    
+
     def validate_schema(self) -> bool:
         """Validación extra más allá de Pydantic si es necesario."""
         if not self.killer_hypothesis:

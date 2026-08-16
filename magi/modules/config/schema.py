@@ -1,19 +1,21 @@
-from typing import Any, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 
 class ConfigField(BaseModel):
     path: str
     type_name: str
     default: Any
-    minimum: Optional[Any] = None
-    maximum: Optional[Any] = None
+    minimum: Any | None = None
+    maximum: Any | None = None
     label: str
     effect: str
-    consequence_if_lower: Optional[str] = None
-    cost_hint: Optional[str] = None
+    consequence_if_lower: str | None = None
+    cost_hint: str | None = None
     gate: str
     restart_required: bool = False
-    scope_allowed: List[str] = Field(default_factory=lambda: ["global", "project", "turn"])
+    scope_allowed: list[str] = Field(default_factory=lambda: ["global", "project", "turn"])
 
 class ConfigDeclarationRegister:
     """
@@ -22,11 +24,11 @@ class ConfigDeclarationRegister:
     def __init__(self):
         self.fields: dict[str, ConfigField] = {}
         self._bootstrap_core_schema()
-        
+
     def register_field(self, field: ConfigField):
         self.fields[field.path] = field
 
-    def get_field(self, path: str) -> Optional[ConfigField]:
+    def get_field(self, path: str) -> ConfigField | None:
         return self.fields.get(path)
 
     def _bootstrap_core_schema(self):

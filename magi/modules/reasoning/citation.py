@@ -1,4 +1,4 @@
-from typing import List, Dict
+
 
 class CitationValidator:
     """
@@ -8,8 +8,8 @@ class CitationValidator:
     def __init__(self, corpus_index):
         # Mantenemos una lista de locators válidos en memoria para validación
         self.valid_locators = {doc["locator"] for doc in corpus_index.documents}
-        
-    def validate(self, citations: List[Dict[str, str]]) -> List[Dict[str, str]]:
+
+    def validate(self, citations: list[dict[str, str]]) -> list[dict[str, str]]:
         """
         Descarta citas donde el 'locator' (referencia) no existe en el corpus real.
         """

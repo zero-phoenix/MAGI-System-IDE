@@ -1,5 +1,6 @@
 import re
 
+
 class SecretsBlockedError(Exception):
     pass
 
@@ -13,7 +14,7 @@ class SecretsSweeper:
             re.compile(r"AKIA[0-9A-Z]{16}"), # AWS Access Key ID
             re.compile(r"-----BEGIN PRIVATE KEY-----") # PKCS8
         ]
-        
+
     def sweep(self, file_content: str, filename: str) -> None:
         """
         Rechaza el contenido si parece un secreto.

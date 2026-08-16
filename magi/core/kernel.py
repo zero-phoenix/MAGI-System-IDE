@@ -1,18 +1,19 @@
 import asyncio
 import logging
-import json
-from .bus import MagiBus, BusEvent
-from .policy.engine import PolicyEngine, Capability
-from .rpc.ws_server import WSServer
-from .blackboard import Blackboard
-from magi.modules.swarm.orchestrator import SwarmOrchestrator
+
+from magi.core.obs.bus_log_handler import BusLogHandler
+from magi.core.paths import db_path, workspace_dir
 from magi.core.store.database import MagiDatabase
 from magi.core.store.logger import BusLogger
-from magi.core.obs.bus_log_handler import BusLogHandler
+from magi.modules.infrastructure.naoko import NaokoAgent
 from magi.modules.memgraph import MemGraphAdapter
 from magi.modules.skills.loader import AASLoader
-from magi.modules.infrastructure.naoko import NaokoAgent
-from magi.core.paths import project_root, workspace_dir, db_path
+from magi.modules.swarm.orchestrator import SwarmOrchestrator
+
+from .blackboard import Blackboard
+from .bus import BusEvent, MagiBus
+from .policy.engine import Capability, PolicyEngine
+from .rpc.ws_server import WSServer
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class Kernel:
         self.bus = MagiBus()
         self.db = MagiDatabase(db_path=str(db_path()))
         self.bus_logger = None # Se inicializa en start()
-        
+
         self.blackboard = Blackboard()
         self.swarm = SwarmOrchestrator(self.blackboard, self.bus)
         self.policy = PolicyEngine()
@@ -37,16 +38,16 @@ class Kernel:
         self.metrics.attach(self.bus)
         self.naoko = NaokoAgent(self.bus, self.db, swarm=self.swarm,
                                 metrics=self.metrics)
-        
+
         # Cargar catálogo de Skills
         self.skills_loader = AASLoader()
         loaded_count = self.skills_loader.load()
         if loaded_count > 0:
             self.blackboard.post("global.skills_loader", self.skills_loader)
-        
+
         self.rpc = WSServer(bus=self.bus, host=host, port=port)
         self._setup_rpc()
-        
+
     def _setup_rpc(self):
         self.rpc.register_handler("rpc.hello", self._handle_hello)
         self.rpc.register_handler("rpc.policy.check", self._handle_policy_check)
@@ -95,10 +96,13 @@ class Kernel:
         cosa que este proyecto ha estado desmontando.
         """
         from magi.core import no_browser, paths
-        from magi.core.providers.cloud import get_registry
         from magi.core.providers.backends.g4f_backend import (
-            FAMILY_SPECS, VERIFIED_FAMILIES, HEDGE_AFTER_S, HEDGE_MAX,
+            FAMILY_SPECS,
+            HEDGE_AFTER_S,
+            HEDGE_MAX,
+            VERIFIED_FAMILIES,
         )
+        from magi.core.providers.cloud import get_registry
         from magi.core.tools import ALL_DOMAINS, registry_for_role
 
         reg = await get_registry()
@@ -189,6 +193,7 @@ class Kernel:
         """
         try:
             from dataclasses import asdict
+
             from magi.core import no_browser, sesion_web
             d = asdict(sesion_web.estado())
             d["necesitan_sesion"] = dict(sesion_web.PROVEEDORES_QUE_LA_NECESITAN)
@@ -327,10 +332,10 @@ class Kernel:
         image = payload.get("image", None) if isinstance(payload, dict) else None
         await self.bus.publish(BusEvent(topic="naoko.user_message", payload={"message": msg, "image": image}))
         return {"status": "ok"}
-        
+
     async def _handle_hello(self, payload, websocket):
         return {"status": "MAGI Kernel Online", "version": "1.0"}
-        
+
     async def _handle_connect(self, payload, websocket):
         return {"result": "CONNECTED", "version": "1.0.0"}
 
@@ -575,39 +580,35 @@ class Kernel:
 
     async def _handle_git_clone(self, payload, websocket):
         import asyncio
-        import os
-        from pathlib import Path
-        
+
         repo_url = payload.get("url")
         if not repo_url:
             return {"status": "error", "message": "URL requerida"}
-            
+
         scratch_dir = workspace_dir()
         scratch_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Publicar inicio en terminal
         await self.bus.publish(BusEvent(topic="SYS_EXEC", payload={"task_id": "sys_git", "command": f"git clone {repo_url}"}))
         await self.bus.publish(BusEvent(topic="sys.terminal.out", payload=f"\\n> Clonando {repo_url} en {scratch_dir}...\\n"))
-        
+
         process = await asyncio.create_subprocess_shell(
             f"git clone {repo_url}",
             cwd=str(scratch_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        
+
         stdout, stderr = await process.communicate()
         out_msg = (stdout.decode() + "\\n" + stderr.decode()).strip()
-        
+
         await self.bus.publish(BusEvent(topic="sys.terminal.out", payload=f"{out_msg}\\n[Git Clone completado con código {process.returncode}]"))
-        
-        return {"status": "ok", "message": f"Clonado completado en scratch/"}
+
+        return {"status": "ok", "message": "Clonado completado en scratch/"}
 
     async def _handle_state_sync(self, payload, websocket):
         """Devuelve el estado real del sistema para poblar la GUI sin simulación."""
-        import os
-        from pathlib import Path
-        
+
         # Escanear proyectos reales en el workspace del usuario
         base_dir = workspace_dir()
         real_projects = []
@@ -618,7 +619,7 @@ class Kernel:
                         "name": child.name,
                         "desc": "local · git detectado" if (child / ".git").exists() else "local · sin remoto"
                     })
-        
+
         return {
             "projects": real_projects,
             "metrics": {
@@ -630,25 +631,23 @@ class Kernel:
         }
 
     async def _handle_sys_exec(self, payload, websocket):
-        import uuid
-        import os
-        from pathlib import Path
         import asyncio
-        
+        import uuid
+
         command = payload.get("command", "") if isinstance(payload, dict) else payload
         raw_id = payload.get("id", "task_0") if isinstance(payload, dict) else "task_0"
-        
+
         # interceptar comando GIT_PUSH_TO_GITHUB
         if isinstance(command, str) and command.startswith("GIT_PUSH_TO_GITHUB"):
             repo_url = command.split(" ", 1)[1] if " " in command else ""
             if not repo_url:
                 await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="URL de GitHub requerida para push."))
                 return
-                
+
             scratch_dir = workspace_dir()
-            
+
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"Iniciando subida a GitHub: {repo_url}"))
-            
+
             script = f"""
             git init
             git add .
@@ -657,7 +656,7 @@ class Kernel:
             git remote add origin {repo_url}
             git push -u origin main -f
             """
-            
+
             process = await asyncio.create_subprocess_shell(
                 script,
                 cwd=str(scratch_dir),
@@ -672,9 +671,9 @@ class Kernel:
         if isinstance(command, str) and command.startswith("SYS_EXEC_HOST"):
             script = command.replace("SYS_EXEC_HOST", "", 1).strip()
             scratch_dir = workspace_dir()
-            
+
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload="Ejecutando script local en host (ZCode Mode)..."))
-            
+
             process = await asyncio.create_subprocess_shell(
                 script,
                 cwd=str(scratch_dir),
@@ -691,7 +690,7 @@ class Kernel:
             task_id = f"task_{uuid.uuid4().hex[:8]}"
         else:
             task_id = raw_id
-            
+
         engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"
         # MAGI 9.0 §2.7: el estilo narrativo llegaba de la GUI (un selector de 4
         # opciones que el usuario tenía que elegir a mano). v5.3.0: Naoko lo
@@ -701,8 +700,8 @@ class Kernel:
         gui_style = (payload.get("narrative_style", "tecnico")
                      if isinstance(payload, dict) else "tecnico")
         try:
-            from magi.modules.infrastructure.naoko import estilo_para
             from magi.core.providers.cloud import FreeCloudLLM
+            from magi.modules.infrastructure.naoko import estilo_para
             narrative_style = await estilo_para(command, llm=FreeCloudLLM())
             logger.info("[kernel] estilo decidido por naoko: %s (gui: %s)",
                         narrative_style, gui_style)
@@ -713,24 +712,24 @@ class Kernel:
         except Exception as e:
             logger.debug("[kernel] estilo naoko falló (%s); uso %s", e, gui_style)
             narrative_style = gui_style
-            
+
         # Generar un proyecto automático si es una conversación nueva
         # Para simular "cada vez que inicie una conversacion", creamos la carpeta
         new_proj_dir = workspace_dir() / f"project_{task_id}"
         new_proj_dir.mkdir(parents=True, exist_ok=True)
-        
+
         await self.bus.publish(BusEvent(
             topic="system.project_created",
             payload={"name": f"project_{task_id}"}
         ))
-        
+
         # Publicar en el bus para que el Logger lo intercepte
         await self.bus.publish(BusEvent(
             topic="SYS_EXEC",
             payload={"task_id": task_id, "command": command, "engine": engine,
                      "narrative_style": narrative_style}
         ))
-        
+
         # Delegamos el control al Orquestador del Enjambre (Área 16)
         # El orquestador publicará los avances en el MagiBus que la GUI consumirá
         # MAGI 9.0 §2.3 — enrutamiento adaptativo.
@@ -738,14 +737,14 @@ class Kernel:
         # Estaba escrito y con tests, y NO se llamaba desde ningún sitio: toda
         # petición seguía pasando por el debate popperiano completo. Preguntar
         # "¿qué hora es?" costaba 9 llamadas a la nube y 60-90 s.
-        from magi.core.router import classify
         from magi.core.providers.cloud import get_registry
+        from magi.core.router import classify
 
         try:
             decision = await classify(command, await get_registry())
         except Exception as e:
             logger.warning("[kernel] clasificador falló (%s); ruta task", e)
-            from magi.core.router import RoutingDecision, Route
+            from magi.core.router import Route, RoutingDecision
             decision = RoutingDecision(Route.TASK, 0.5, "fallo del clasificador",
                                        2, True)
 
@@ -774,8 +773,8 @@ class Kernel:
         """Genera un título corto para la tarea y avisa a la GUI."""
         titulo = command.strip().splitlines()[0][:60] if command else task_id
         try:
-            from magi.core.providers.cloud import get_registry
             from magi.core.providers.base import CompletionRequest, Message
+            from magi.core.providers.cloud import get_registry
             reg = await get_registry()
             resp = await reg.complete(CompletionRequest(
                 messages=[
@@ -810,15 +809,15 @@ class Kernel:
 
         # Inicializamos el Logger ahora que el event_loop existe
         self.bus_logger = BusLogger(self.bus, self.db)
-        
+
         # Conectar el root logger al bus para enviar logs a la UI
         bus_handler = BusLogHandler(self.bus)
         logging.getLogger().addHandler(bus_handler)
-        
+
         await self.memgraph.start()
         await self.naoko.start()
         await self.rpc.start()
-        
+
         await self.bus.publish(BusEvent(
             topic="system.started",
             payload={"status": "online"},
@@ -859,7 +858,8 @@ class Kernel:
         try:
             from magi.core.providers import sonda
             from magi.core.providers.backends.g4f_backend import (
-                LlmDeSonda, candidatos_para_sondear,
+                LlmDeSonda,
+                candidatos_para_sondear,
             )
             from magi.core.providers.registry import get_registry
 
@@ -950,5 +950,5 @@ if __name__ == "__main__":
             await asyncio.Future()
         except KeyboardInterrupt:
             await kernel.shutdown()
-            
+
     asyncio.run(main())

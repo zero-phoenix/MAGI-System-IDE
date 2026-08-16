@@ -13,6 +13,6 @@ class IPCManager:
         """
         if open_ports:
             raise IPCChannelError(f"Abortando: Se detectaron puertos no autorizados {open_ports}. El sistema de interfaz debe aislarse mediante pipes/sockets.")
-            
+
     def init_channel(self) -> str:
         return "pipe://local/MagiSystem"

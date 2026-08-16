@@ -1,4 +1,5 @@
-from typing import Dict, Any
+from typing import Any
+
 
 class ErrorClassifier:
     """
@@ -7,18 +8,18 @@ class ErrorClassifier:
     """
     def __init__(self):
         pass
-        
-    def classify(self, execution_record: Dict[str, Any]) -> str:
+
+    def classify(self, execution_record: dict[str, Any]) -> str:
         code = execution_record.get("exit_code", 0)
         stderr = execution_record.get("stderr", "")
-        
+
         if code == 0:
             return "ok"
-            
+
         if "SyntaxError" in stderr or "Parse error" in stderr:
             return "sintaxis"
-            
+
         if code == 139 or "Segmentation fault" in stderr:
             return "runtime"
-            
+
         return "logico"

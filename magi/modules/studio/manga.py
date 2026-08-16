@@ -26,10 +26,11 @@ fallo que no se ve mirando cada dibujo por separado.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 

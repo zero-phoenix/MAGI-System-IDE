@@ -1,12 +1,12 @@
-import logging
-import httpx
 import asyncio
-from typing import Dict, Any, List, Optional
+import logging
+
+import httpx
 from pydantic import BaseModel
 
-from .models import RouteDirective, InferenceRequest, ModelResponse, CostTelemetry
-from .telemetry import TelemetryMonitor
+from .models import CostTelemetry, InferenceRequest, ModelResponse, RouteDirective
 from .preflight import PreflightChecker, SecurityPolicyError
+from .telemetry import TelemetryMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class GatewayInfo(BaseModel):
 class HealthReport(BaseModel):
     healthy: bool
     latency_ms: float
-    error: Optional[str] = None
+    error: str | None = None
 
 class RouteModel(BaseModel):
     id: str
@@ -51,6 +51,12 @@ class RouteAdapter:
                     models=len(data.get("data", []))
                 )
             return GatewayInfo(version="unknown", status="DEGRADED", models=0)
+        except SecurityPolicyError as e:
+            # La pasarela fuera de loopback no es un fallo de red: es una
+            # exposición que la política prohíbe. No se reintenta ni se
+            # degrada: se reporta y se queda caída hasta que se corrija.
+            logger.error(f"Preflight bloqueó la pasarela: {e}")
+            return GatewayInfo(version="unknown", status="BLOCKED", models=0)
         except httpx.RequestError as e:
             logger.warning(f"Gateway no disponible en {self.base_url}: {e}")
             return GatewayInfo(version="unknown", status="DOWN", models=0)
@@ -66,7 +72,7 @@ class RouteAdapter:
         except Exception as e:
             return HealthReport(healthy=False, latency_ms=0, error=str(e))
 
-    async def list_models(self) -> List[RouteModel]:
+    async def list_models(self) -> list[RouteModel]:
         try:
             res = await self.client.get(f"{self.base_url}/models")
             res.raise_for_status()
@@ -84,18 +90,18 @@ class RouteAdapter:
 
     async def complete(self, req: InferenceRequest, route: RouteDirective) -> ModelResponse:
         logger.info(f"Iniciando enrutamiento para unidad {route.unit_id} (Rol: {route.role})")
-        
+
         # 2. Regla Dura de Privacidad
         if route.privacy_class == "local_only":
             logger.info("Privacidad local_only detectada: Forzando allow_remote=False y forbid_providers=['*']")
             route.allow_remote = False
             route.forbid_providers = ["*"]
-            
+
         # Simulación de prohibición de estrategias (e.g. fusion/pipeline)
         if route.strategy in ["fusion", "pipeline"]:
             logger.warning(f"Estrategia {route.strategy} prohibida. Degadando a priority.")
             route.strategy = "priority"
-            
+
         # Preparar payload OpenAI compatible
         payload = {
             "model": route.pin_model if route.pin_model else "gpt-3.5-turbo",
@@ -105,7 +111,7 @@ class RouteAdapter:
         if req.system:
             payload["messages"].append({"role": "system", "content": req.system})
         payload["messages"].append({"role": "user", "content": req.prompt})
-        
+
         if req.seed:
             payload["seed"] = req.seed
 
@@ -124,18 +130,18 @@ class RouteAdapter:
             )
             res.raise_for_status()
             data = res.json()
-            
+
             text = data["choices"][0]["message"]["content"]
-            
+
             # Procesar cabeceras de telemetría de coste de OmniRoute
             cost = self.cost_headers(res)
             self.telemetry.check_cost(cost)
-            
+
             return ModelResponse(text=text, telemetry=cost)
-            
+
         except httpx.RequestError as e:
             logger.error(f"Fallo de conexión a la pasarela OmniRoute: {e}")
-            raise Exception("MAGI-ROUTE_FALLBACK")
+            raise Exception("MAGI-ROUTE_FALLBACK") from e
         except Exception as e:
             logger.error(f"Error en OmniRoute: {e}")
             raise

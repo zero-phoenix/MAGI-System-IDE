@@ -1,6 +1,7 @@
-import logging
 import asyncio
-from typing import Callable, Any
+import logging
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class SwarmAgent:
         self.name = name
         self.interest_keys = interest_keys
         self.process_func = process_func
-        
+
     async def observe(self, key: str, value: Any):
         """Callback invocado por el Blackboard."""
         if key in self.interest_keys:

@@ -13,12 +13,27 @@ no existe sin fórmula, y `ThesisLog` puntúa lo que el sistema afirmó hace sei
 meses lo recuerde o no.
 """
 from .finance import (
-    Calc, DCFAssumptions, DCFResult, FinanceError, cash_conversion, dcf,
-    dcf_sensitivity, dilution, leverage, maintenance_capex, owner_earnings,
-    quality_checklist, roic,
+    Calc,
+    DCFAssumptions,
+    DCFResult,
+    FinanceError,
+    cash_conversion,
+    dcf,
+    dcf_sensitivity,
+    dilution,
+    leverage,
+    maintenance_capex,
+    owner_earnings,
+    quality_checklist,
+    roic,
 )
 from .sources import (
-    Datum, Fetcher, FrozenFetcher, HttpFetcher, SourceError, set_default_fetcher,
+    Datum,
+    Fetcher,
+    FrozenFetcher,
+    HttpFetcher,
+    SourceError,
+    set_default_fetcher,
 )
 from .thesis import Thesis, ThesisError, ThesisLog
 from .tools import register_world_tools

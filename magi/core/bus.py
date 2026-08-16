@@ -1,7 +1,9 @@
 import asyncio
 import logging
-from pydantic import BaseModel, Field
-from typing import Callable, Awaitable, Dict, List, Any
+from collections.abc import Callable
+from typing import Any
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +19,17 @@ class MagiBus:
     Maneja backpressure y descarta telemetría vieja si la cola se llena.
     """
     def __init__(self):
-        self.subscribers: Dict[str, List[asyncio.Queue]] = {}
-        self.handlers: Dict[asyncio.Queue, Callable[[BusEvent], Any]] = {}
-        self.dropped_counts: Dict[str, int] = {}
+        self.subscribers: dict[str, list[asyncio.Queue]] = {}
+        self.handlers: dict[asyncio.Queue, Callable[[BusEvent], Any]] = {}
+        self.dropped_counts: dict[str, int] = {}
         # Workers cuya creación quedó pendiente por no haber bucle de eventos.
-        self._pending_workers: List[asyncio.Queue] = []
-        self._worker_tasks: List[asyncio.Task] = []
+        self._pending_workers: list[asyncio.Queue] = []
+        self._worker_tasks: list[asyncio.Task] = []
         # Persistencia opcional de eventos críticos. El Kernel engancha aquí
         # su MagiDatabase al arrancar. Sin esto, un crash pierde los eventos
         # críticos (system.started, error.critical, obs.alert...) que justo
         # son los que hacen falta para diagnosticar por qué se cayó.
-        self._critical_sink: Callable[["BusEvent"], Any] | None = None
+        self._critical_sink: Callable[[BusEvent], Any] | None = None
         # Tareas de persistencia en vuelo. Guardar la referencia NO es
         # decorativo: el bucle de eventos solo mantiene una referencia DÉBIL a
         # las tareas, así que una tarea sin dueño puede ser recolectada por el
@@ -45,7 +47,7 @@ class MagiBus:
         sink, y un fallo del sink nunca impide el broadcast.
         """
         self._critical_sink = sink
-        
+
     def subscribe(self, topic_glob: str, handler: Callable[[BusEvent], Any], maxsize: int = 1024) -> str:
         queue = asyncio.Queue(maxsize=maxsize)
         if topic_glob not in self.subscribers:
@@ -92,7 +94,7 @@ class MagiBus:
         if self._worker_tasks:
             await asyncio.gather(*self._worker_tasks, return_exceptions=True)
         self._worker_tasks.clear()
-        
+
     async def publish(self, event: BusEvent) -> None:
         if self._pending_workers:
             self.start_pending_workers()
@@ -198,11 +200,12 @@ class MagiBus:
         return dict(self.dropped_counts)
 
     def _match_topic(self, glob: str, topic: str) -> bool:
-        if glob == "*": return True
+        if glob == "*":
+            return True
         if glob.endswith("*"):
             return topic.startswith(glob[:-1])
         return glob == topic
-        
+
     async def _worker(self, queue: asyncio.Queue):
         handler = self.handlers[queue]
         while True:

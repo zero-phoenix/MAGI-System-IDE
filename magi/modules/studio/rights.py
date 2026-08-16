@@ -9,7 +9,7 @@ class RightsGate:
     def __init__(self):
         # Lista simulada de términos bloqueados
         self.blocked_terms = ["persona famosa", "actor conocido", "disney", "nintendo", "mario bros"]
-        
+
     def check_spec(self, request_text: str) -> None:
         """
         Valida que el encargo no viole políticas de derechos (CTL-8).

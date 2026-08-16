@@ -21,7 +21,6 @@ import platform
 import shutil
 import socket
 import subprocess
-import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -52,7 +51,7 @@ class GitInfo:
     tag: str = ""
 
     @classmethod
-    def probe(cls, root: Path) -> "GitInfo":
+    def probe(cls, root: Path) -> GitInfo:
         if not (root / ".git").exists() or not shutil.which("git"):
             return cls()
         return cls(
@@ -75,7 +74,7 @@ class HostInfo:
     python: str = ""
 
     @classmethod
-    def probe(cls) -> "HostInfo":
+    def probe(cls) -> HostInfo:
         ram = 0.0
         try:
             import psutil  # opcional

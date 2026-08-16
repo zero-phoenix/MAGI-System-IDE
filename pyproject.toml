@@ -90,10 +90,20 @@ select = [
     "UP",   # pyupgrade (sintaxis moderna)
     "B",    # flake8-bugbear (bugs comunes probables)
 ]
+# E501 queda fuera hasta saldar la deuda: 268 lineas pasan de 100 y tocarlas
+# a mano hoy es ruido sin beneficio. El resto de las reglas SI bloquea: la
+# deuda pendiente tras la limpieza del 2026-08-16 es cero en errores reales
+# (F, E722, E741, B...) y debe seguir siendolo.
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests pueden tener imports sin uso (fixtures) y nombres ambigüos.
 "tests/**/*.py" = ["F401", "F841"]
+
+# main.py configura la consola ANTES de importar webview y la GUI: si no, el
+# primer print en cp1252 tira toda la consola en Windows. Los imports por
+# debajo de esa llamada son deliberados.
+"magi/main.py" = ["E402"]
 
 # NOTA: la config de pyright sigue en pyrightconfig.json. pyright no está en
 # requirements (es opcional, para desarrollo) y no podemos verificar localmente

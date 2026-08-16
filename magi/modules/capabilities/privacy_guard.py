@@ -5,7 +5,7 @@ class PrivacyGuard:
     """
     def __init__(self):
         pass
-        
+
     def check_data_provenance(self, capability_id: str, dataset_metadata: dict) -> dict:
         """
         Bloquea procesamientos si la data no tiene procedencia explícita o consentimiento.

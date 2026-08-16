@@ -1,16 +1,16 @@
 import asyncio
-import logging
 import json
+import logging
 import re
-import os
-import subprocess
-from magi.core.bus import MagiBus, BusEvent
+
+from magi.core import idioma
+from magi.core.bus import BusEvent, MagiBus
+from magi.core.paths import project_root
 from magi.core.providers.cloud import FreeCloudLLM
 from magi.core.store.database import MagiDatabase
-from magi.core.paths import project_root, workspace_dir
-from magi.core import idioma
 from magi.modules.infrastructure.naoko_memory import (
-    EternalMemory, SystemIntrospector,
+    EternalMemory,
+    SystemIntrospector,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,6 @@ async def estilo_para(command: str, llm=None) -> str:
     # Ambigüedad o sin señales: preguntar a la IA si hay LLM disponible.
     if llm is not None:
         try:
-            from magi.core.providers.base import CompletionRequest, Message
             content, _ = await llm.generate(ESTILO_PROMPT, command[:500])
             cand = (content or "").strip().lower().splitlines()[0].strip()
             for est in _ESTILO_PATRONES:
@@ -362,11 +361,11 @@ class NaokoAgent:
         """Conversación directa con el usuario desde la UI"""
         user_msg = event.payload.get("message", "")
         image_data = event.payload.get("image", None)
-        
+
         log_content = user_msg
         if image_data:
             log_content += "\n[📷 Imagen Adjuntada por el usuario]"
-            
+
         await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "USER", "content": log_content}))
 
         # PRIMERO EL CATÁLOGO, DESPUÉS EL MODELO
@@ -503,7 +502,7 @@ Antes de responder a una queja operativa me obligo a mirar, en este orden:
 Nunca pregunto «¿qué pregunta era?» ni «¿puedes darme más detalles?» sobre
 algo que aparece en mi propio estado. Nunca hablo de servidores saturados,
 planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
-        
+
         try:
             response = await self._generate_with_rotation(
                 system_prompt, user_msg, image=image_data, lang=lang)
@@ -596,8 +595,8 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         # El idioma NO se negocia y NO se deduce: Naoko informa en español.
         # El parámetro se conserva por compatibilidad de firma, pero cualquier
         # valor que no sea español sería un error de quien llama, no una
-        # preferencia legítima.
-        lang = idioma.IDIOMA_FINAL
+        # preferencia legítima. (La constante idioma.IDIOMA_FINAL es la que
+        # fija el idioma en la capa de proveedores; aquí no se vuelve a tocar.)
         for model in models:
             await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": f"Pensando ({model})..."}))
             try:
@@ -632,7 +631,7 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                 return await self._naoko_en_espanol(response, detectado)
             except Exception as e:
                 logger.debug("[naoko] fallo en %s: %s; rotando", model, e)
-                
+
         # Agotamiento real: aquí sí hay que avisar, porque el usuario va a
         # esperar una respuesta que no llegará. El status ya lo dice claro.
         await self.bus.publish(BusEvent(topic="naoko.status",
@@ -836,7 +835,7 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         `apply_change` / `revert_change` son callables async que aplican y
         deshacen el cambio propuesto.
         """
-        from magi.core.eval import default_bench, compare
+        from magi.core.eval import compare, default_bench
 
         bench = default_bench()
 
@@ -869,24 +868,24 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         """Disparador autónomo ante errores del sistema"""
         if self.is_fixing:
             return # Ya estamos reparando algo
-            
+
         self.is_fixing = True
         error_details = str(getattr(event, 'payload', getattr(event, 'data', str(event))))
         logger.warning(f"[NAOKO] Error detectado: {error_details}")
-        
+
         await self.bus.publish(BusEvent(topic="naoko.status", payload={"status": "Diagnosticando..."}))
         await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"⚠️ He detectado una anomalía en el sistema:\n```\n{error_details}\n```\nIniciando diagnóstico..."}))
-        
-        system_prompt = """Eres Naoko, IA Devops de MAGI System. 
+
+        system_prompt = """Eres Naoko, IA Devops de MAGI System.
 Has detectado un error. Analiza el error, y si es necesario ejecutar un script de python o powershell para parchear dependencias o el código, debes incluir un bloque de código marcado como ```powershell o ```python.
 Tienes herramientas reales sobre esta máquina. Usa edit_file para cambios quirúrgicos y revisables; no generes scripts que reescriban ficheros a bulto. La raíz del proyecto te llega en el bloque de CONTEXTO DE EJECUCIÓN.
 Si no se requiere código, simplemente explica el problema.
 Devuelve tu diagnóstico y tu parche."""
-        
+
         try:
             diagnostic = await self._generate_with_rotation(system_prompt, f"Error:\n{error_details}")
             await self.bus.publish(BusEvent(topic="naoko.log", payload={"agent": "NAOKO", "content": f"### Diagnóstico\n{diagnostic}"}))
-            
+
             # MAGI 9.0 §3.1 — reparación VERIFICADA.
             #
             # v5.0.28 hacía: regex sobre la respuesta del LLM -> ejecutar el
@@ -897,14 +896,14 @@ Devuelve tu diagnóstico y tu parche."""
             # Ahora el ciclo es reproducir -> localizar -> parchear en rama ->
             # VERIFICAR con la suite -> decidir. Si los tests quedan rojos, se
             # revierte y se prueba la siguiente hipótesis.
-            from magi.modules.infrastructure.naoko_repair import VerifiedRepair
             from magi.core.agent_loop import run_agent
+            from magi.core.context import get_context
+            from magi.core.paths import project_root
+            from magi.core.prompts import build_system_prompt
+            from magi.core.providers.cloud import get_registry
             from magi.core.tools import ToolContext, registry_for_role
             from magi.core.tools.journal import WriteJournal
-            from magi.core.paths import project_root
-            from magi.core.providers.cloud import get_registry
-            from magi.core.prompts import build_system_prompt
-            from magi.core.context import get_context
+            from magi.modules.infrastructure.naoko_repair import VerifiedRepair
 
             task_id = f"naoko-{int(__import__('time').time())}"
             provider_reg = await get_registry()
@@ -986,7 +985,10 @@ Devuelve tu diagnóstico y tu parche."""
         determinar NO se etiqueta nada. El README no se toca jamás.
         """
         from magi.modules.infrastructure.naoko_repair import (
-            current_version, next_patch_version, validate_version_bump, commit_files,
+            commit_files,
+            current_version,
+            next_patch_version,
+            validate_version_bump,
         )
         root = project_root()
 
@@ -1248,7 +1250,10 @@ Devuelve tu diagnóstico y tu parche."""
         los otros.
         """
         from magi.modules.infrastructure.improvement import (
-            Stage, next_actor, prompt_for, record_round,
+            Stage,
+            next_actor,
+            prompt_for,
+            record_round,
         )
         if self.swarm is None:
             raise RuntimeError("sin enjambre no hay circuito que recorrer")

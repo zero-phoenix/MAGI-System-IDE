@@ -26,7 +26,7 @@ import logging
 import shutil
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -104,7 +104,7 @@ class WriteJournal:
         return entry
 
     class _Guard:
-        def __init__(self, journal: "WriteJournal", entry: JournalEntry):
+        def __init__(self, journal: WriteJournal, entry: JournalEntry):
             self.journal, self.entry = journal, entry
 
         def __enter__(self):

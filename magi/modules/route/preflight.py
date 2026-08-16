@@ -1,4 +1,3 @@
-import socket
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,13 +12,13 @@ class PreflightChecker:
     """
     def __init__(self, target_port: int = 20128):
         self.port = target_port
-        
+
     def ensure_gateway(self):
         logger.info("Ejecutando A14-2: Preflight de no-exposición de red...")
-        
+
         # En una implementación real, listaríamos las IPs activas y probaríamos connect().
         # Para MAGI-ROUTE, vamos a simular el chequeo y demostrar el aborto si se expone a 0.0.0.0
-        
+
         # Simulación: El adaptador bloquea internamente si un flag simulado de "exposición" está activo.
         # Aquí proveemos el mock para los tests.
         pass
@@ -29,5 +28,5 @@ class PreflightChecker:
             # Simulamos que la pasarela respondió en la IP pública
             logger.critical(f"ABORTO: La pasarela responde en interfaces públicas (puerto {self.port}).")
             raise SecurityPolicyError("Arranque bloqueado: La pasarela expone el puerto fuera de loopback (0.0.0.0 detectado).")
-            
+
         logger.info("Preflight superado: Pasarela anclada de forma segura a loopback.")

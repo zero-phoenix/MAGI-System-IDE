@@ -151,7 +151,7 @@ class Paso:
         Una herramienta de diagnóstico que obliga a repetir el diagnóstico no
         está diagnosticando.
         """
-        lineas = [l for l in self.salida.splitlines() if l.strip()]
+        lineas = [ln for ln in self.salida.splitlines() if ln.strip()]
         if self.falta:
             print(plegar(f"    NO INSTALADO: {self.falta}"), flush=True)
             print(plegar(f"    Instalalo y vuelve a pasar:  pip install "
@@ -160,17 +160,17 @@ class Paso:
                          "comprobado)"), flush=True)
             return
         if self.ok:
-            for l in lineas[-8:]:
-                print(plegar("    " + l[:160]), flush=True)
+            for ln in lineas[-8:]:
+                print(plegar("    " + ln[:160]), flush=True)
             return
 
         # Lo que de verdad importa cuando algo está en rojo. `FAILED` y `ERROR`
         # son de pytest; `error`/`Error` cubren ruff, npm y tsc.
-        pistas = [l for l in lineas
-                  if l.lstrip().startswith(("FAILED", "ERROR", "E   "))
-                  or "error" in l.lower()[:40]]
-        for l in (pistas[:14] or lineas[-14:]):
-            print(plegar("    " + l[:170]), flush=True)
+        pistas = [ln for ln in lineas
+                  if ln.lstrip().startswith(("FAILED", "ERROR", "E   "))
+                  or "error" in ln.lower()[:40]]
+        for ln in (pistas[:14] or lineas[-14:]):
+            print(plegar("    " + ln[:170]), flush=True)
         if pistas:
             print(plegar(f"    ... y {len(lineas)} lineas mas en la salida "
                          f"completa"), flush=True)

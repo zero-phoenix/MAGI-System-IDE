@@ -39,9 +39,8 @@ import asyncio
 import logging
 import threading
 import time
-from typing import Any
 
-from magi.core.bus import MagiBus, BusEvent  # type: ignore
+from magi.core.bus import BusEvent, MagiBus  # type: ignore
 
 #: Módulos cuyos errores NO despiertan a Naoko.
 #:

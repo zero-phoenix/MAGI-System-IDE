@@ -8,7 +8,6 @@ código Python generado sin depender de la máquina destino.
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import sys
 from pathlib import Path

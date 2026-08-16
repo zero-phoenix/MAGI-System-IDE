@@ -1,5 +1,6 @@
 from .schemas import Refutacion
 
+
 class SycophancyGuard:
     """
     Guardas (P3.d).
@@ -7,7 +8,7 @@ class SycophancyGuard:
     """
     def __init__(self):
         self.consecutive_agreements = 0
-        
+
     def check_sycophancy(self, refutacion: Refutacion) -> bool:
         """
         Si Balthasar está de acuerdo demasiadas veces, fuerza un reinicio ciego
@@ -18,11 +19,11 @@ class SycophancyGuard:
             self.consecutive_agreements += 1
         else:
             self.consecutive_agreements = 0
-            
+
         if self.consecutive_agreements >= 2:
             return True # Demasiada complacencia
-            
+
         return False
-        
+
     def reset(self):
         self.consecutive_agreements = 0

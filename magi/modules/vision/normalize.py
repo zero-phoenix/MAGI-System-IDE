@@ -1,5 +1,6 @@
 import math
-from typing import Tuple, Dict, Any
+from typing import Any
+
 
 class Normalizer:
     """
@@ -8,7 +9,7 @@ class Normalizer:
     """
     def __init__(self):
         pass
-        
+
     def _estimate_skew_angle(self, image_data: bytes) -> float:
         """
         Mock: Estima el ángulo de rotación de la imagen.
@@ -21,16 +22,16 @@ class Normalizer:
             return -5.0
         return 0.0
 
-    def process(self, image_data: bytes) -> Dict[str, Any]:
+    def process(self, image_data: bytes) -> dict[str, Any]:
         """
         Calcula el deskew, recorta márgenes y normaliza DPI.
         """
         # 1. Calcular ángulo
         skew = self._estimate_skew_angle(image_data)
-        
+
         # 2. Corregir ángulo
         corrected_angle = -skew
-        
+
         # 3. Retornar metadata
         return {
             "dpi_effective": 300,

@@ -1,8 +1,8 @@
-import os
-import sys
 import json
-import struct
 import logging
+import os
+import struct
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,12 @@ class NativeMessagingHost:
         raw_length = sys.stdin.buffer.read(4)
         if not raw_length:
             return None
-            
+
         msg_length = struct.unpack('@I', raw_length)[0]
         # P21.b.2: Tamaño máximo 8 MB
         if msg_length > 8 * 1024 * 1024:
             raise ValueError("Mensaje demasiado grande")
-            
+
         message = sys.stdin.buffer.read(msg_length).decode('utf-8')
         return json.loads(message)
 
@@ -47,18 +47,18 @@ class NativeMessagingHost:
                 msg = self.read_message()
                 if not msg:
                     break
-                
+
                 # A21-2: Aquí se validaría el emparejamiento (ext_pairing)
                 # y se pasaría al Área 15 (Ingesta) a través del bus.
                 logger.info(f"Mensaje recibido: {msg.get('action')}")
-                
+
                 # Respuesta base (sólo acuse de recibo y estado del IDE)
                 response = {
                     "status": "ok",
                     "ide_state": "ready"
                 }
                 self.send_message(response)
-                
+
             except Exception as e:
                 logger.error(f"Error procesando mensaje: {e}")
                 break
