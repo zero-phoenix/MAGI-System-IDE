@@ -58,7 +58,16 @@ PAQUETE = RAIZ / "magi"
 
 #: no se audita. `_attic` es andamiaje retirado que se conserva a propósito
 #: como mapa de lo que se probó; señalarlo sería ruido garantizado.
-EXCLUIDOS = {"_attic", "__pycache__", "node_modules", ".git", "dist", "build"}
+#: 2026-08-16: el conteo LOCAL daba 70 y el CI 80, y el CI tenia razon.
+#: El indice de uso leía ficheros que existen en la maquina de desarrollo
+#: pero no en un checkout limpio (.venv-lock/site-packages sobre todo):
+#: nombres comunes encontrados ahí contaban como "uso" y bajaban el conteo
+#: sin que nadie hubiera conectado nada. Un rinquete que mide distinto según
+#: dónde corre no es un rinquete.
+EXCLUIDOS = {"_attic", "__pycache__", "node_modules", ".git", "dist", "build",
+             ".venv-lock", "venv", "env", "release", "journal", "scratch",
+             "generated_media", "htmlcov", ".pytest_cache", ".ruff_cache",
+             ".idea", ".vscode"}
 
 #: extensiones donde se busca uso. El frontend cuenta: media docena de
 #: capacidades del backend solo se invocan desde TypeScript.

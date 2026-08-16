@@ -50,6 +50,12 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 
 #: techo actual. Solo puede bajar. Si bajas, baja también este número en el
 #: mismo commit: es la mitad del trinquete que hace que sirva de algo.
+#:
+#: 80 desde el 2026-08-16 (recalibrado): el conteo local daba 70 porque el
+#: indice de uso leía .venv-lock/site-packages y otros directorios que no
+#: existen en un checkout limpio — nombres comunes contaban como "uso" sin
+#: que nadie hubiera conectado nada. El CI tenía razón. Arreglado en
+#: scripts/huerfanos.py (EXCLUIDOS) y recalibrado a lo que de verdad hay.
 # 94 desde el 2026-08-16: archivado providers/selector.py en _attic (mock
 # muerto de una arquitectura anterior: importaba ProviderDef y get_provider,
 # que ya no existen). 95 desde el 2026-08-13: bajó de 107 al cablear la sonda —`LlmDeSonda`,
@@ -58,14 +64,14 @@ SCRIPT = RAIZ / "scripts" / "huerfanos.py"
 # consolidarlo, que es la mitad del mecanismo que se olvida siempre: si el
 # techo no baja cuando baja el conteo, el margen ganado se puede volver a
 # gastar sin que nadie se entere.
-TECHO = 70
+TECHO = 80
 
 #: techos por paquete (2026-08-16, tras archivar 6 paquetes sin importadores:
 #: device, fabrication, vision, reasoning, os_portable, capabilities -> _attic). El total puede
 #: cumplir y aun así acumularse todo en un sitio: el desglose dice DÓNDE
 #: crece el andamiaje sin conectar, que es lo accionable. Misma regla que el
 #: techo global: solo pueden bajar, y en el mismo commit que la baja real.
-TECHOS_POR_PAQUETE = {"magi/modules": 54, "magi/core": 16}
+TECHOS_POR_PAQUETE = {"magi/modules": 62, "magi/core": 18}
 
 
 def _cuenta() -> int:
