@@ -184,6 +184,15 @@ jobs:
       working-directory: ./magi-gui
       run: npm audit --omit=dev
 
+    # pyright necesita poder IMPORTAR lo que el nucleo importa (pydantic,
+    # g4f, curl_cffi...). Sin esto, en local funcionaba (por el .venv-lock
+    # presente) y en el CI todo eran reportMissingImports: el mismo truco
+    # de siempre — el instrumento media distinto segun donde corre.
+    - name: Install project deps (para pyright)
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
     - name: Type check nucleo (bloqueante — a cero el 2026-08-16)
       # pyright lee pyrightconfig.json. magi/core esta limpio desde el
       # 2026-08-16 (26 errores -> 0, y dos bugs reales en el camino: la sonda
