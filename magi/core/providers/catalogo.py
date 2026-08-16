@@ -213,6 +213,19 @@ class Catalogo:
             "familias": len(self.datos.get("familias", {})),
             "verificadas": list(self.verificadas),
             "rotos": len(self.rotos),
+            # Degradación honesta: un número no dice nada accionable. Los
+            # IMPOSIBLES (exigen TU cuenta o abren navegador: no vuelven)
+            # separados de los CAÍDOS (429/403/captcha: pueden volver), con
+            # su motivo, para que el panel pueda decir «no disponible —
+            # requiere tu cuenta» en vez de un «sin verificar» que suena a
+            # trabajo pendiente que nadie va a hacer.
+            "rotos_imposibles": sorted(
+                p for p, motivo in self.rotos.items()
+                if "tu cuenta" in motivo or "navegador" in motivo),
+            "rotos_caidos": sorted(
+                p for p, motivo in self.rotos.items()
+                if "tu cuenta" not in motivo and "navegador" not in motivo),
+            "rotos_motivos": dict(self.rotos),
             "ventana_contexto_caracteres": self.ventana_contexto,
             "editable_en": str(_ruta_usuario()) if _ruta_usuario() else None,
         }

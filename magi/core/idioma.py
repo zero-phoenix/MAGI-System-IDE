@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import OrderedDict
 
 __all__ = ["detectar", "nombre_de", "instruccion", "coincide", "NOMBRES",
            "ADMITIDOS", "PROHIBIDOS", "IDIOMA_FINAL", "admisible",
@@ -111,6 +112,29 @@ _PISTAS = {
     "de": {"der", "die", "das", "und", "ist", "nicht", "mit", "für", "wie",
            "hallo", "danke", "warum"},
 }
+
+# Caché de traducciones. La traducción es determinista para un texto dado
+# (temperature=0, prompt fijo), así que repetirla solo gasta cuota gratuita
+# y añade latencia. Vida del proceso, LRU acotado: lo que se repite en una
+# sesión (reintentos, resíntesis con el mismo contenido) sale al instante.
+_CACHE_TRADUCCIONES: OrderedDict[str, str] = OrderedDict()
+_CACHE_TRADUCCIONES_MAX = 512
+
+
+def traduccion_cacheada(texto: str) -> str | None:
+    """La traducción registrada para este texto, o None."""
+    t = _CACHE_TRADUCCIONES.get(texto)
+    if t is not None:
+        _CACHE_TRADUCCIONES.move_to_end(texto)
+    return t
+
+
+def recordar_traduccion(texto: str, traducido: str) -> None:
+    """Anota una traducción válida para no repetir la llamada."""
+    _CACHE_TRADUCCIONES[texto] = traducido
+    _CACHE_TRADUCCIONES.move_to_end(texto)
+    while len(_CACHE_TRADUCCIONES) > _CACHE_TRADUCCIONES_MAX:
+        _CACHE_TRADUCCIONES.popitem(last=False)
 
 # Rangos de alfabeto que identifican el idioma por sí solos.
 _ALFABETOS = (

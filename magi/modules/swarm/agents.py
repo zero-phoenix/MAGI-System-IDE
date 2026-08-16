@@ -214,6 +214,13 @@ class SwarmAgentBase:
         if not content or not content.strip():
             return content
 
+        # Misma entrada, misma salida: la traducción es determinista y la
+        # cuota no lo es. Reintentos y resíntesis con contenido repetido
+        # salen de aquí sin gastar una llamada.
+        cacheada = idioma.traduccion_cacheada(content)
+        if cacheada is not None:
+            return cacheada
+
         for familia in ([None] + self._otras_familias_del_registry()[:1]):
             try:
                 traducido, _ = await self.llm.generate(
@@ -225,6 +232,7 @@ class SwarmAgentBase:
                              self.role_name, familia or self.family, e)
                 continue
             if traducido and traducido.strip():
+                idioma.recordar_traduccion(content, traducido)
                 return traducido
         logger.warning("[%s] no se pudo traducir del %s; se entrega el "
                        "original", self.role_name, detectado)

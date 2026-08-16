@@ -657,6 +657,10 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         if not texto or not texto.strip():
             return texto
 
+        cacheada = idioma.traduccion_cacheada(texto)
+        if cacheada is not None:
+            return cacheada
+
         for model in ("command-a", "gemini-3.5-flash"):
             try:
                 traducido, _ = await self.llm.generate(
@@ -665,6 +669,7 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                 logger.debug("[naoko] traducción en %s falló: %s", model, e)
                 continue
             if traducido and traducido.strip():
+                idioma.recordar_traduccion(texto, traducido)
                 return traducido
         logger.warning("[naoko] no se pudo traducir del %s; se entrega el "
                        "original", detectado)

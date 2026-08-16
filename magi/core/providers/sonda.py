@@ -329,6 +329,12 @@ def resumen_para_panel(store, dias: int = 30) -> dict:
             "proveedor": e.proveedor, "modelo": e.modelo or "(por defecto)",
             "media_historica_ms": e.media_historica_ms,
             "ultima_ms": e.ultima_ms,
+            # Serie diaria para VER la degradación antes de que la media
+            # histórica la absorba: una media de 30 días esconde que algo
+            # pasó de 3 s a 9 s esta semana. 14 días bastan para la pendiente
+            # y mantienen el payload de sys.config acotado.
+            "historico": medias_por_dia(store, e.familia, e.proveedor,
+                                        e.modelo, dias=14),
             "dias_con_datos": e.dias_con_datos,
             "mediciones": e.mediciones,
             "tasa_exito": e.tasa_exito,
