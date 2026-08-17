@@ -1,0 +1,219 @@
+"""
+Fase 2 (v6.0 §A3, §A7, §C7): velocidad sin nuevas llamadas.
+
+De qué van estos tests
+======================
+La meta del plan es una petición como la del 16-ago («tetris exe portable»)
+en <15 llamadas y <2,5 min. La Fase 1 puso el techo; esta Fase 2 afina:
+
+- A3 fan-out por motor: `deep` explora más (su presupuesto lo permite),
+  `fast` se queda frugal, y un rebuild nunca regenera el fan-out entero.
+- A7 degradación por latencia: un candidato que ya demostró responder en
+  2 s no puede secuestrar 24 s de espera. El registry corta por el techo
+  dinámico antes de fallar y pasar al siguiente.
+- C7 cortesía de tasa: `RateLimiterManager` existía y nadie lo usaba. Un
+  bucket por candidato espacia las ráfagas de llamadas HTTP hacia los
+  proveedores gratuitos sin bloquear nunca una llamada.
+"""
+import asyncio
+import time
+
+import pytest
+
+from magi.core.providers.base import (
+    BaseProvider,
+    CompletionRequest,
+    Delta,
+    Message,
+    ProviderError,
+)
+from magi.core.providers.backends.echo import EchoProvider
+from magi.core.providers.registry import (
+    ProviderRegistry,
+    _techo_dinamico_s,
+)
+from magi.modules.swarm.orchestrator import _n_variantes
+
+# ---------------------------------------------------------------- §A3 fan-out
+
+
+def test_fast_no_explora_mas_de_lo_medido():
+    assert _n_variantes("fast", "build", False) == 3
+    assert _n_variantes("fast", "task", False) == 2
+
+
+def test_deep_explora_mas_porque_su_presupuesto_lo_permite():
+    assert _n_variantes("deep", "build", False) == 4
+    assert _n_variantes("deep", "task", False) == 3
+
+
+def test_un_rebuild_nunca_reabre_el_fan_out_entero():
+    # El log del 16-ago: 6 ciclos regenerando las 3 variantes enteras.
+    assert _n_variantes("deep", "build", True) == 1
+    assert _n_variantes("fast", "task", True) == 1
+
+
+def test_motor_desconocido_cae_al_perfil_frugal():
+    assert _n_variantes("rapidisimo", "task", False) == 2
+
+
+def test_ruta_desconocida_genera_una_variante():
+    assert _n_variantes("fast", "otra_cosa", False) == 1
+
+
+# ---------------------------------------------------------------- §A7 techo
+
+class ProveedorDormilon(EchoProvider):
+    """Responde tras `demo_s`; opcionalmente con una medida previa."""
+
+    def __init__(self, provider_id, family, *, demo_s, medido_ms=None):
+        super().__init__(provider_id, family)
+        self._demo_s = demo_s
+        self._medido_ms = medido_ms
+
+    def mejor_latencia_ms(self):
+        return self._medido_ms
+
+    async def complete(self, req):
+        await asyncio.sleep(self._demo_s)
+        return await super().complete(req)
+
+
+class ProveedorStreamEcho(BaseProvider):
+    """Stream que tarda `demo_s` en emitir el primer token."""
+
+    supports_stream = True
+
+    def __init__(self, provider_id, family, *, demo_s, medido_ms=None):
+        object.__init__(self)
+        self.id = provider_id
+        self.family = family
+        self._demo_s = demo_s
+        self._medido_ms = medido_ms
+
+    def mejor_latencia_ms(self):
+        return self._medido_ms
+
+    async def available(self):
+        return True
+
+    async def stream(self, req):
+        await asyncio.sleep(self._demo_s)
+        yield Delta(text="hola", seq=0, provider_id=self.id)
+        yield Delta(text="", seq=1, done=True, provider_id=self.id)
+
+
+def test_el_techo_es_3x_la_mejor_medida_mas_margen_con_piso():
+    assert _techo_dinamico_s(ProveedorDormilon("x", "gpt", demo_s=1,
+                                               medido_ms=200), 15.0, False) == 6.0
+    assert _techo_dinamico_s(ProveedorDormilon("x", "gpt", demo_s=1,
+                                               medido_ms=8000), 15.0, False) == 15.0
+    assert _techo_dinamico_s(ProveedorDormilon("x", "gpt", demo_s=1,
+                                               medido_ms=2000), 60.0, False) == 11.0
+
+
+def test_sin_medida_no_hay_techo_y_la_sonda_no_se_mutila():
+    sin = ProveedorDormilon("x", "gpt", demo_s=1)
+    assert _techo_dinamico_s(sin, 15.0, False) is None
+    assert _techo_dinamico_s(sin, 15.0, True) is None, (
+        "una sonda mide el tiempo REAL; recortarlo falsearía el dato")
+
+
+@pytest.mark.asyncio
+async def test_un_candidato_lento_con_medida_rapida_no_secuestra_la_cola():
+    """
+    Medido 200 ms y respuesta de 8 s: el techo (6 s) corta antes que el
+    timeout del request (15 s). Sin el techo, esta llamada se llevaba 8 s
+    de la cola entera cada vez.
+    """
+    reg = ProviderRegistry()
+    reg.register(ProveedorDormilon("lento", "gpt", demo_s=8, medido_ms=200))
+    req = CompletionRequest(messages=[Message(role="user", content="x")],
+                            timeout_s=15.0)
+    t0 = time.monotonic()
+    with pytest.raises(ProviderError):
+        await reg.complete(req)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 8.0, f"cortó tarde: {elapsed:.1f}s (techo debería ser 6s)"
+
+
+@pytest.mark.asyncio
+async def test_sin_medida_espera_lo_que_haga_falta():
+    """
+    Sin medición no hay techo: cortar sin dato sería adivinar. El request
+    respeta su timeout y la respuesta llega.
+    """
+    reg = ProviderRegistry()
+    reg.register(ProveedorDormilon("lento", "gpt", demo_s=0.4))
+    req = CompletionRequest(messages=[Message(role="user", content="x")],
+                            timeout_s=15.0)
+    resp = await reg.complete(req)
+    assert resp.content
+
+
+@pytest.mark.asyncio
+async def test_stream_corta_en_el_primer_token_si_falta_a_su_promesa():
+    reg = ProviderRegistry()
+    reg.register(ProveedorStreamEcho("lentox", "gpt", demo_s=8, medido_ms=200))
+    req = CompletionRequest(messages=[Message(role="user", content="x")],
+                            timeout_s=15.0, stream=True)
+    t0 = time.monotonic()
+    with pytest.raises(ProviderError):
+        async for _ in reg.stream(req):
+            pass
+    elapsed = time.monotonic() - t0
+    assert elapsed < 8.0, f"el primer token tardó de más: {elapsed:.1f}s"
+
+
+@pytest.mark.asyncio
+async def test_stream_llega_cuando_responde_a_tiempo():
+    reg = ProviderRegistry()
+    reg.register(ProveedorStreamEcho("rapida", "gpt", demo_s=0.2, medido_ms=200))
+    req = CompletionRequest(messages=[Message(role="user", content="x")],
+                            timeout_s=15.0, stream=True)
+    textos = [d.text async for d in reg.stream(req)]
+    assert "".join(textos) == "hola"
+
+
+# ---------------------------------------------------------------- §C7 tasa
+
+def test_la_tasa_viene_del_catalogo():
+    from magi.core.providers.backends.g4f_backend import (
+        TASA_CAPACITY,
+        TASA_RATE,
+    )
+    assert TASA_RATE == 2.0
+    assert TASA_CAPACITY == 4
+
+
+@pytest.mark.asyncio
+async def test_el_bucket_espacia_la_rafaga_y_nunca_bloquea():
+    """
+    El bucket de TASA_CAPACITY tokens deja pasar el burst y luego espacia;
+    la espera tiene un tope duro (2 s) y una llamada suelta inmediata pasa
+    sin espera porque el bucket se recargó.
+    """
+    from magi.core.providers.backends.g4f_backend import (
+        _MAX_ESPERA_TASA_S,
+        _tasa_manager,
+    )
+
+    p = None  # no necesita el provider: _esperar_tasa vive en la clase
+    from magi.core.providers.backends.g4f_backend import G4FProvider
+    p = G4FProvider("gpt", candidates=[("nostalgia", "v1")])
+
+    # El bucket deja pasar el burst y luego espacia: con 2 tokens dentro,
+    # dos llamadas pasan al instante y la tercera espera a que se recargue.
+    bucket = _tasa_manager.get_bucket("nostalgia", 2.0, 4)
+    bucket.tokens = 2.0
+
+    for _ in range(2):
+        t0 = time.monotonic()
+        await p._esperar_tasa("nostalgia")
+        assert time.monotonic() - t0 < 0.2, "burst debe pasar al instante"
+
+    t0 = time.monotonic()
+    await p._esperar_tasa("nostalgia")
+    espera = time.monotonic() - t0
+    assert 0.3 < espera < _MAX_ESPERA_TASA_S + 0.2, (
+        f"esperaba recarga (~0.6s), tardó {espera:.2f}s")

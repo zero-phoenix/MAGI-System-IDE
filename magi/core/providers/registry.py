@@ -39,6 +39,32 @@ logger = logging.getLogger(__name__)
 
 SWARM_ROLES = ("MELCHIOR", "BALTHASAR", "CASPER")
 
+
+def _techo_dinamico_s(provider: BaseProvider, timeout_s: float,
+                      probe: bool) -> float | None:
+    """
+    Techo de espera efectivo para un proveedor (v6.0 §A7).
+
+    El log del 16-ago tiene colas enteras pagadas por un solo candidato
+    lento: la misma latencia de 24 s esperada porque `req.timeout_s` es de
+    150 s y nadie consideraba lo que el proveedor YA demostró. Si este
+    proveedor tiene mediciones, se le dejan `3 × (mejor medida) + 5 s` (piso
+    6 s): no se le corta una respuesta que dentro de lo normal, pero una
+    familia que demostró responder en 2 s no puede secuestrar 24.
+
+    Devuelve None si no hay nada que decir (sin medida o es una sonda, cuyo
+    tiempo es un dato y no debe mutilarse).
+    """
+    if probe:
+        return None
+    medir = getattr(provider, "mejor_latencia_ms", None)
+    if medir is None:
+        return None
+    mejor = medir()
+    if mejor is None:
+        return None
+    return min(timeout_s, max(6.0, mejor / 1000.0 * 3.0 + 5.0))
+
 #: ORDEN DE MÉRITO: quién se lleva la mejor familia.
 #:
 #: No es el orden en que hablan (Melchior → Balthasar → Casper). Es el orden en
@@ -303,9 +329,10 @@ class ProviderRegistry:
         last_err: Exception | None = None
         for reg in candidates[:max_attempts]:
             started = time.monotonic()
+            espera = _techo_dinamico_s(reg.provider, req.timeout_s, req.probe)
             try:
                 resp = await asyncio.wait_for(
-                    reg.provider.complete(req), timeout=req.timeout_s)
+                    reg.provider.complete(req), timeout=espera or req.timeout_s)
             except asyncio.TimeoutError:
                 # Una SONDA que falla es un dato («este candidato está caído
                 # ahora mismo»), no una razón para cerrarle el paso al tráfico
@@ -356,10 +383,26 @@ class ProviderRegistry:
         for reg in candidates:
             started = time.monotonic()
             emitted = False
+            espera = _techo_dinamico_s(reg.provider, req.timeout_s, req.probe)
             try:
-                async for delta in reg.provider.stream(req):
+                if espera is None:
+                    async for delta in reg.provider.stream(req):
+                        emitted = True
+                        yield delta
+                else:
+                    # El techo mira SOLO el primer token: una vez que el
+                    # proveedor habló, la respuesta ya está en marcha y
+                    # cortarla por abajo multiplicaría texto parcial.
+                    it = reg.provider.stream(req)
+                    try:
+                        primer = await asyncio.wait_for(
+                            it.__anext__(), timeout=espera)
+                    except StopAsyncIteration:                   # pragma: no cover
+                        raise ProviderError(f"{reg.id}: stream vacío") from None
                     emitted = True
-                    yield delta
+                    yield primer
+                    async for delta in it:
+                        yield delta
                 reg.breaker.record_success((time.monotonic() - started) * 1000.0)
                 reg.calls += 1
                 return

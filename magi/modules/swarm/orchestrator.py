@@ -21,6 +21,25 @@ from .parallel import (
 
 logger = logging.getLogger(__name__)
 
+
+def _n_variantes(engine: str | None, route: str, en_rebuild: bool) -> int:
+    """
+    Cuántos enfoques genera Melchior (v6.0 §A3): fan-out por motor.
+
+    `fast` es frugal —su presupuesto es de 18 llamadas— y `deep` explora
+    más porque su presupuesto lo permite (40). Un rebuild nunca vuelve a
+    disparar el fan-out entero: la autocuración va con 1 sola variante,
+    porque las otras 2-3 ya fallaron verificación y regenerarlas fue
+    exactamente lo que el log del 16-ago mostró repetido sin tope.
+    """
+    if en_rebuild:
+        return 1
+    por_motor = {
+        "fast": {"build": 3, "task": 2},
+        "deep": {"build": 4, "task": 3},
+    }
+    return por_motor.get(engine or "fast", por_motor["fast"]).get(route, 1)
+
 class SwarmOrchestrator:
     """
     Controla el ciclo de vida de un debate Popperiano en el Enjambre (Área 16).
@@ -670,12 +689,13 @@ class SwarmOrchestrator:
                 if state.get("lang_usuario"):
                     for _a in (self.melchior, self.balthasar, self.casper):
                         _a.lang_usuario = state["lang_usuario"]
-                # Explorar cuesta cuota: solo la ruta build genera 3 enfoques.
-                # Y tras un fallo de verificación NO se regeneran 3 variantes
-                # completas: la autocuración va con 1 sola (ver abajo).
+                # Explorar cuesta cuota: el fan-out depende del motor. `deep`
+                # puede permitirse más enfoques; `fast` es frugal. Y tras un
+                # fallo de verificación NO se regeneran N variantes completas:
+                # la autocuración va con 1 sola (ver más abajo).
                 en_rebuild = int(state.get("rebuilds", 0)) > 0
-                n_variants = 1 if en_rebuild else {"build": 3, "task": 2}.get(
-                    state.get("route", "task"), 1)
+                n_variants = _n_variantes(engine, state.get("route", "task"),
+                                          en_rebuild)
                 use_tools = state.get("use_tools", True)
 
                 last_proposal = state.get("last_proposal")

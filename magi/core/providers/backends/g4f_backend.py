@@ -305,6 +305,7 @@ _REPARTO_BASE = {
 # Ver `core/providers/catalogo.py`.
 # ---------------------------------------------------------------------------
 from magi.core.providers.catalogo import catalogo as _catalogo  # noqa: E402
+from magi.core.providers.rate_limit import RateLimiterManager  # noqa: E402
 
 _CAT = _catalogo()
 
@@ -314,6 +315,16 @@ ROTOS: dict[str, str] = _CAT.rotos
 HEDGE_AFTER_S: float = _CAT.hedge_tras_s
 HEDGE_MAX: int = _CAT.hedge_max
 DEFAULT_SWARM_FAMILIES: dict[str, str] = _CAT.reparto
+
+# Cortesía de tasa (v6.0 §C7): espaciar las ráfagas hacia los proveedores
+# gratuitos. El log del 16-ago disparó ~50 llamadas HTTP seguidas y varios
+# endpoints responden después con 429; el bucket por candidato deja pasar el
+# burst (capacity) y luego espacia (rate) sin esperar más que unos pocos
+# milisegundos por llamada. `rate_limit.py` ya existía y nadie lo usaba.
+TASA_RATE: float = _CAT.tasa_rate
+TASA_CAPACITY: int = _CAT.tasa_capacity
+_MAX_ESPERA_TASA_S = 2.0
+_tasa_manager = RateLimiterManager()
 
 #: Tope de caracteres del prompt. ANTES NO HABÍA NINGUNO: se mandaba lo que
 #: hiciera falta y, si no cabía, el error se leía como "proveedor roto" y se
@@ -328,6 +339,7 @@ def recargar_catalogo() -> dict:
     """
     global _CAT, FAMILY_SPECS, VERIFIED_FAMILIES, ROTOS
     global HEDGE_AFTER_S, HEDGE_MAX, DEFAULT_SWARM_FAMILIES, VENTANA_CONTEXTO
+    global TASA_RATE, TASA_CAPACITY
     _CAT = _catalogo(recargar=True)
     FAMILY_SPECS = _CAT.family_specs
     VERIFIED_FAMILIES = _CAT.verificadas
@@ -336,6 +348,8 @@ def recargar_catalogo() -> dict:
     HEDGE_MAX = _CAT.hedge_max
     DEFAULT_SWARM_FAMILIES = _CAT.reparto
     VENTANA_CONTEXTO = _CAT.ventana_contexto
+    TASA_RATE = _CAT.tasa_rate
+    TASA_CAPACITY = _CAT.tasa_capacity
     return _CAT.informe()
 
 
@@ -639,6 +653,18 @@ class G4FProvider(BaseProvider):
         previa = self._latencia.get(cand)
         self._latencia[cand] = ms if previa is None else previa * 0.7 + ms * 0.3
 
+    def mejor_latencia_ms(self) -> float | None:
+        """
+        La respuesta más rápida que tenemos medida de esta familia.
+
+        El techo dinámico del registry (v6.0 §A7) usa esto para no dejar que
+        un candidato que ya demostró responder en 2 s se lleve 24 s de espera:
+        el log del 16-ago tiene colas de latencia enteras pagadas por un solo
+        proveedor lento con alternativas de 2 s esperando turno.
+        """
+        conocidas = [v for v in self._latencia.values() if v and v > 0]
+        return min(conocidas) if conocidas else None
+
     # ------------------------------------------------------------- inferencia
 
     async def _pedir(self, cand: Candidate, messages: list, req: CompletionRequest
@@ -648,6 +674,7 @@ class G4FProvider(BaseProvider):
         cls = _resolve(name)
         if cls is None:
             raise ProviderError(f"{name}: no existe en g4f")
+        await self._esperar_tasa(name)
         t0 = time.monotonic()
         kwargs: dict[str, Any] = {"model": model or "", "messages": messages,
                                   "provider": cls}
@@ -682,6 +709,27 @@ class G4FProvider(BaseProvider):
             return HEDGE_MAX          # sin medida: no se puede saber si es lenta
         mejor = min(conocidas)
         return HEDGE_MAX if mejor > 8000.0 else 1
+
+    async def _esperar_tasa(self, name: str) -> None:
+        """
+        Cortesía por candidato: no bombardear al proveedor (v6.0 §C7).
+
+        Si el bucket está vacío, se espera solo hasta que se recargue un
+        token o `_MAX_ESPERA_TASA_S`, y se procede igual aunque no llegue:
+        la cortesía espacia ráfagas, pero una llamada NUNCA se bloquea por
+        ella. Sin esto, una petición en `fast` puede lanzar ~18 llamadas
+        seguidas a un endpoint gratuito; con esto, las primeras `capacity`
+        pasan y el resto entra a ritmo `rate`.
+        """
+        from magi.core.providers.rate_limit import RateLimiterManager
+        bucket = _tasa_manager.get_bucket(name, TASA_RATE, TASA_CAPACITY)
+        if bucket.consume(1.0):
+            return
+        fin = time.monotonic() + _MAX_ESPERA_TASA_S
+        while time.monotonic() < fin:
+            await asyncio.sleep(0.05)
+            if bucket.consume(1.0):
+                return
 
     async def complete(self, req: CompletionRequest) -> CompletionResponse:
         """
@@ -810,6 +858,7 @@ class G4FProvider(BaseProvider):
             cls = _resolve(name)
             if cls is None:
                 continue
+            await self._esperar_tasa(name)
             seq, emitted = 0, False
             try:
                 stream = client.chat.completions.stream(

@@ -154,6 +154,15 @@ class BaseProvider:
     supports_tools: bool = False
     supports_vision: bool = False
     supports_stream: bool = False
+
+    def mejor_latencia_ms(self) -> float | None:
+        """La respuesta más rápida medida de este proveedor, o None.
+
+        Un backend sin mediciones devuelve None: «no lo sé» no debe
+        confundirse con «es rápido». La usa el registry para el techo de
+        espera dinámico (v6.0 §A7).
+        """
+        return None
     is_local: bool = False
     default_model: str = ""
 

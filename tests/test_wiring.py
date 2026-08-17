@@ -543,7 +543,6 @@ def test_el_schema_de_observe_artifact_no_promete_de_mas():
 KNOWN_ORPHANS = {
     "magi.core.agent", "magi.core.evolution", "magi.core.hive",
     "magi.core.membrane", "magi.core.octopus",
-    "magi.core.providers.rate_limit",
     "magi.core.providers.wal",
     "magi.gui.server",
     "magi.modules.memgraph.knowledge_store",

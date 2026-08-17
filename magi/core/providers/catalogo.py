@@ -169,6 +169,24 @@ class Catalogo:
     def reparto(self) -> dict[str, str]:
         return dict(self.datos.get("reparto_enjambre", {}))
 
+    @property
+    def tasa_rate(self) -> float:
+        """
+        Tokens/segundo de la cortesía de tasa (v6.0 §C7).
+
+        Los proveedores gratuitos no publican cuota, pero el log del 16-ago
+        mostró ráfagas de ~50 llamadas HTTP seguidas; varios endpoints
+        responden después con 429 y echando tierra al sistema. Un token
+        bucket por candidato espacia las ráfagas sin tocar nunca una sola
+        llamada: es cortesía, no un diente.
+        """
+        return float(self.datos.get("tasa", {}).get("rate", 2.0))
+
+    @property
+    def tasa_capacity(self) -> int:
+        """Burst permisible de esa cortesía: las primeras N llamadas pasan."""
+        return int(self.datos.get("tasa", {}).get("capacity", 4))
+
 
     # -- lo que ANTES no existía en ninguna parte
 
@@ -246,6 +264,7 @@ def _desde_respaldo() -> Catalogo:
         "limites": {"ventana_contexto_caracteres": 120_000},
         "hedge": {"tras_segundos": g._HEDGE_AFTER_S_BASE,
                   "maximo": g._HEDGE_MAX_BASE},
+        "tasa": {"rate": 2.0, "capacity": 4},
         "reparto_enjambre": dict(g._REPARTO_BASE),
         "rotos": dict(g._ROTOS_BASE),
         "familias": {
