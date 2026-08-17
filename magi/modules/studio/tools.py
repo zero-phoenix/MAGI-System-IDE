@@ -115,6 +115,44 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
         from .artifacts import backends_report
         return ToolResult(True, backends_report())
 
+    @reg.tool("entregar_artefacto",
+              "Fabrica y entrega al Escritorio del usuario el contenido final "
+              "de la tarea: une los bloques ```python, los verifica con el "
+              "guardián GUI, empaqueta a .exe si es un juego o ventana (pygame, "
+              "tkinter, turtle) y copia el resultado con hash SHA-256 y evento "
+              "swarm.artefacto_listo. Solo sobre una propuesta final ya "
+              "verificada por Casper.",
+              {"type": "object", "properties": {
+                  "nombre": {"type": "string",
+                             "description": "nombre del archivo, p.ej. tetris.exe"},
+                  "codigo": {"type": "string",
+                             "description": "propuesta final con bloques ```python"},
+                  "empaquetar": {"type": "boolean",
+                                 "description": "True fuerza .exe; False fuerza "
+                                                ".py; sin valor, la heurística "
+                                                "de GUI decide"}},
+               "required": ["nombre", "codigo"]},
+              access={"write", "exec"}, dangerous=True)
+    async def entregar_artefacto(nombre: str, codigo: str, ctx=None,
+                                 empaquetar: bool | None = None):
+        from .entrega import fabricar_y_entregar
+        informe = await fabricar_y_entregar(
+            codigo, nombre=nombre,
+            task_id=getattr(ctx, "task_id", "") if ctx else "",
+            bus=getattr(ctx, "bus", None) if ctx else None,
+            empaquetar=empaquetar)
+        if not informe.ok:
+            return ToolResult(False, "", error=informe.motivo)
+        cuerpo = (f"{informe.tipo} entregado en {informe.destino}:\n"
+                  f"  archivo: {informe.ruta}\n"
+                  f"  tamaño:  {informe.bytes_} bytes\n"
+                  f"  sha256:  {informe.sha256}\n"
+                  f"pasos:\n  " + "\n  ".join(informe.pasos))
+        return ToolResult(
+            True, cuerpo,
+            meta={"ruta": str(informe.ruta), "sha256": informe.sha256,
+                  "tipo": informe.tipo, "destino": informe.destino})
+
     # ------------------------------------------------------------------ §5.5
 
     # Presets en lugar de ancho/alto/fps sueltos. Tres motivos: la línea del

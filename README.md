@@ -109,7 +109,7 @@ además **decide el estilo** de cada respuesta:
 
 ## Qué sabe hacer
 
-Más allá de debatir, el enjambre tiene **49 herramientas** reales sobre tu
+Más allá de debatir, el enjambre tiene **50 herramientas** reales sobre tu
 máquina, repartidas por rol y acotadas por dominio antes de entrar en el prompt.
 
 - **Ingeniería de software**: crear, modificar y ejecutar código, construir

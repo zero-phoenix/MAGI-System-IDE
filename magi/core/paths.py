@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "project_root", "data_dir", "workspace_dir", "journal_dir",
     "db_path", "logs_dir", "cache_dir", "is_frozen", "describe",
-    "python_executable", "pytest_argv",
+    "python_executable", "pytest_argv", "escritorio",
 ]
 
 _ENV_ROOT = "MAGI_ROOT"
@@ -247,6 +247,48 @@ def _poda_temporales(base: Path, max_edad_s: int = 6 * 3600) -> None:
     except OSError as e:                                  # pragma: no cover
         # Limpiar nunca puede impedir correr los tests.
         logger.debug("[paths] no se pudieron podar temporales de pytest: %s", e)
+
+
+def escritorio() -> Path | None:
+    """
+    El Escritorio real del usuario (entrega de artefactos, Plan §B1).
+
+    En Windows se pregunta al shell (SHGetKnownFolderPath con FOLDERID_Desktop),
+    que responde con la carpeta VERDADERA — la de OneDrive si el usuario la
+    redirigió allí, que es exactamente el caso que rompería una entrega a
+    `Path.home()/Desktop`: la copia iría a un Escritorio espejo que el usuario
+    no ve, y el evento diría "entregado" sin haberlo entregado.
+
+    Devuelve `None` si no hay Escritorio accesible; el llamante decide entonces
+    dónde caer (workspace/entregas). `MAGI_DESKTOP` sobrescribe la ruta para
+    pruebas y despliegues raros.
+    """
+    override = os.environ.get("MAGI_DESKTOP")
+    if override:
+        return Path(override).expanduser().resolve()
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import byref, c_wchar_p, windll, wintypes
+
+            # FOLDERID_Desktop = {B4BFCC3A-DB2C-424C-B029-7FE99FA87E641}
+            guid = wintypes.GUID(0xB4BFCC3A, 0xDB2C, 0x424C,
+                                 b"\xB0\x29\x7F\xE9\x9F\xA8\x7E\x64\x01")
+            puntero = c_wchar_p()
+            if windll.shell32.SHGetKnownFolderPath(
+                    byref(guid), 0, None, byref(puntero)) == 0 and puntero.value:
+                try:
+                    ruta = Path(puntero.value)
+                finally:
+                    windll.ole32.CoTaskMemFree(puntero)
+                return ruta if ruta.is_dir() else None
+        except Exception:
+            pass
+        base = os.environ.get("USERPROFILE") or str(Path.home())
+        p = Path(base) / "Desktop"
+        return p if p.is_dir() else None
+    p = Path.home() / "Desktop"
+    return p if p.is_dir() else None
 
 
 def describe() -> dict:

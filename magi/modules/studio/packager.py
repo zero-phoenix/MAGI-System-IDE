@@ -298,6 +298,16 @@ async def build_project_exe(
                 meta={"pyinstaller_output": full_output[:8000]},
             )
 
+        # EL CONTRATO DE exe_path. `clean=True` borra work_base (build/ y
+        # dist/, que pesan cientos de MB) al salir; si `output_exe` es None, el
+        # exe_path del resultado apuntaría a un archivo que el `finally` ya
+        # habrá eliminado. El PackagerResult no puede prometer una ruta que no
+        # existe cuando el llamante la mira (fue la mitad del dolor del informe
+        # de la fábrica: ok=True y exe desaparecido). Se rescata el exe a un
+        # lugar estable antes de que la limpieza ocurra.
+        if output_exe is None and clean:
+            output_exe = data_dir() / "entregas-built" / exe_name
+
         final_exe = output_exe or built_exe
         if output_exe and output_exe.resolve() != built_exe.resolve():
             final_exe.parent.mkdir(parents=True, exist_ok=True)
