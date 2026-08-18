@@ -1,3 +1,83 @@
+# v5.5.2 — la fábrica entrega de verdad, y el enjambre deja de quemar cuota
+
+Cuatro frentes, todos con medida detrás. Dos de ellos eran fallos que **no
+daban error**: el sistema decía haber hecho el trabajo y el trabajo no estaba.
+
+## La fábrica devolvía un archivo que ya no existía
+
+`build_project_exe(clean=True)` borraba `work_base` —el build entero— en su
+`finally`, y devolvía `PackagerResult(ok=True)` con un `exe_path` apuntando a
+un fichero ya eliminado. Quien llamara sin `output_exe` recibía un éxito
+vacío: esa es la causa de las llamadas quemadas construyendo binarios que se
+evaporaban. Ahora el .exe se rescata a `data_dir()/entregas-built` antes de
+purgar, así que ningún llamante vuelve a recibir una ruta muerta.
+
+Encima de eso, `fabricar_y_entregar()` (`magi/modules/studio/entrega.py`):
+une los bloques Python, los verifica con el guardián GUI real (Tetris, 30
+frames, rc=0), empaqueta y deja el .exe en el Escritorio real
+—`SHGetKnownFolderPath`, OneDrive incluido— con su SHA-256, respaldo en
+`artifacts/entregas` y evento `swarm.artefacto_listo`, sin pisar entregas
+previas. Verificado de extremo a extremo: 14,3 MB con hash en el Escritorio.
+Preflight antes de empezar: intérprete, nombre sano y 250 MB libres.
+
+## Una sola petición quemaba ~50 llamadas
+
+Medido el 16-ago: «crea un juego de tetris en un único ejecutable exe
+portable» gastó 18 llamadas gpt + 14 gemini + 18 command, casi todas a 8-9 s.
+Sin techo, el bucle de re-verificación de Melchior regeneraba las tres
+variantes enteras una y otra vez, y el hedge multiplicaba por tres cada
+llamada lógica.
+
+`magi/core/presupuesto.py` pone tres frenos por tarea —llamadas lógicas,
+tiempo de pared y número de regeneraciones— configurables desde
+`factory.yaml` sin tocar código. Con `rebuilds: 2`, la mejor variante se
+debate igual y se dice claramente que no verificó, en vez de reintentar seis
+veces en silencio.
+
+## Velocidad: fan-out por motor, techo por latencia, cortesía de tasa
+
+El hedge deja de ser global y pasa a repartirse por motor, con un techo de
+latencia por candidato y una cortesía de tasa que evita el 429 en cadena.
+
+## Resiliencia del orquestador (B3–B6)
+
+- **Carreras**: las decisiones de enrutamiento van bajo `asyncio.Lock`; dos
+  peticiones interactivas simultáneas ya no pueden corromper el estado.
+- **Aprobación por evento**: se acabó el `break` al pedir aprobación. La
+  tarea espera en un `asyncio.Event` que se rehidrata al reiniciar, en vez de
+  dejar una corrutina huérfana.
+- **Parada-Cubre-Hedge**: `magi/core/circuit_breaker.py` aplica timeout duro
+  a cada herramienta y, si cuelga o revienta, revierte al último snapshot del
+  journal y devuelve un error estructurado para que el LLM busque otra ruta.
+- **Auto-ejecución idempotente**: las herramientas de la fábrica trabajan
+  dentro de un `TemporaryDirectory`; los ficheros a medio cocer no asoman al
+  disco real, y solo con `ok=True` el bloque se extrae al `out_path`.
+
+## La sonda ya no espera a que le pregunten
+
+`_refrescar_sonda()` pasa a ser tarea periódica en segundo plano con freno
+propio: la latencia histórica se recolecta sola, sin bloquear el arranque, y
+el reparto por mérito del registro trabaja con datos frescos.
+
+## Familia gpt: viva otra vez
+
+Yqcloud responde en chino cuando le apetece, y eso fue la causa raíz de las
+respuestas del enjambre en otro idioma. Ahora se le inyecta la orden de
+sistema a nivel de API antes de cada llamada (~2,7 s medidos, castellano).
+WeWordle vuelve a los candidatos: su descarte por 429 sobra desde que el
+circuit breaker y el hedge gestionan la cuota.
+
+Barrido completo de los 37 proveedores `working` sin login: sobreviven
+Yqcloud y WeWordle (y PollinationsImage para imagen). El resto son timeouts,
+402/403 o directamente no existen. Se dice entero en vez de prometer magia.
+
+## Además
+
+El job `lint` del CI no instalaba las dependencias que pyright importa, así
+que analizaba un árbol incompleto. Corregido.
+
+---
+
 # v5.5.1 — corregido: medir la salud no puede enfermar al sistema
 
 **Corrección de la v5.5.0.** Al despertar la sonda de latencia por primera

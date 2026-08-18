@@ -39,12 +39,27 @@ jobs:
     - name: Run test suite
       run: python -m pytest tests/ -v
     - name: Verify no absolute machine paths
+      # ESTE PASO NO COMPROBABA NADA, Y ESO ES PEOR QUE NO TENERLO.
+      #
+      # El patrón iba entre comillas DOBLES: el shell dejaba `\|` (que en ERE
+      # es un pipe LITERAL, no alternancia) y convertía `\\\\` en `\\` (una
+      # barra literal). Resultado: grep buscaba la cadena única
+      # `D:/PROYECTOS|d:/PROYECTOS|C:\Users\[A-Za-z]`, que no existe en ningún
+      # fichero. Verde siempre, sin mirar. Con comillas simples el patrón
+      # llega intacto a grep.
+      #
+      # Y se generaliza: la ruta que rompe el .exe no es solo `D:/PROYECTOS`
+      # —este repo ha vivido en tres carpetas distintas—, es cualquier ruta
+      # absoluta de una máquina concreta.
       run: |
-        ! grep -rnE "D:/PROYECTOS\|d:/PROYECTOS\|C:\\\\Users\\\\[A-Za-z]" \
-          --include="*.py" --include="*.json" --include="*.toml" --include="*.yml" --include="*.yaml" \
-          --exclude=paths.py --exclude=naoko_repair.py \
-          magi/ pyrightconfig.json pyproject.toml || \
-          (echo "Ruta absoluta detectada: el .exe no arrancaría en otra maquina" && exit 1)
+        if grep -rnE '[A-Za-z]:[\\/](PROYECTOS|Users|Games Only)' \
+             --include='*.py' --include='*.json' --include='*.toml' \
+             --include='*.yml' --include='*.yaml' \
+             --exclude=paths.py --exclude=naoko_repair.py \
+             magi/ pyrightconfig.json pyproject.toml; then
+          echo "Ruta absoluta detectada: el .exe no arrancaria en otra maquina"
+          exit 1
+        fi
 
   build:
     runs-on: windows-latest
