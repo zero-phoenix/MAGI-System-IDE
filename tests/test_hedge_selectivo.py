@@ -79,9 +79,19 @@ async def test_variantes_y_ejes_piden_hedge_false(monkeypatch):
     es lo que multiplicó ~16 llamadas lógicas hasta ~50 HTTP el 16-ago.
     """
     vistos: list[tuple[str, object]] = []
+    #: Quién hizo cada llamada. Solo se rellena para las que llegan SIN tag,
+    #: que son las que no deberían existir: cuando este test falló en la suite
+    #: en paralelo (y pasaba al ejecutarlo solo) el mensaje era un
+    #: `AttributeError: 'NoneType' has no attribute 'startswith'`, que no dice
+    #: quién llamó. Un fallo que no nombra al culpable se archiva como
+    #: «flaky» y se ignora, que es como se pierden los guardianes.
+    culpables: list[str] = []
 
     async def falso(self, *a, **kw):
         vistos.append((kw.get("tag"), kw.get("hedge")))
+        if kw.get("tag") is None:
+            import traceback
+            culpables.append("".join(traceback.format_stack(limit=12)))
         return ("Respuesta válida en español. ### CONCLUSIÓN", "g4f-cualquiera")
 
     monkeypatch.setattr(FreeCloudLLM, "generate", falso)
@@ -100,6 +110,9 @@ async def test_variantes_y_ejes_piden_hedge_false(monkeypatch):
 
     assert vistos, "ninguna llamada llegó al transporte"
     for tag, hedge in vistos:
+        assert tag is not None, (
+            "una llamada al modelo llegó sin identidad; la hizo esto:\n"
+            + "\n".join(culpables))
         assert tag.startswith("t/r1/"), f"rama sin identidad en el tag: {tag}"
         assert hedge is False, (
             f"{tag} pidió hedge={hedge} teniendo redundancia estructural")
