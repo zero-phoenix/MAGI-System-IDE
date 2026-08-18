@@ -114,6 +114,10 @@ _FAMILY_SPECS_BASE: dict[str, list[Candidate]] = {
         ("Perplexity", "gpt41"),
         ("Perplexity", "gpt4o"),
         ("Yqcloud", "gpt-4"),                                # 11795 ms, ojo chino
+        # Vuelve tras el 429 del 13-ago: un limite de ritmo no es una rotura, y
+        # ahora hay quien lo gestione (cortacircuitos + hedge por presupuesto).
+        # Medido: ~2,4 s, castellano.
+        ("WeWordle", "gpt-4o"),
     ],
     "razonamiento": [
         # Familia NUEVA. Los modelos de razonamiento explícito no estaban en el
@@ -231,9 +235,12 @@ _ROTOS_BASE: dict[str, str] = {
     # ---- FUERA POR REGLA, no por fallo.
     "Ollama": "DESCARTADO: es un motor LOCAL y §I.3 solo admite nube.",
 
-    # ---- NO descartado: fallo transitorio. Se queda fuera de las familias
-    # pero puede volver, así que no lleva la palabra DESCARTADO.
-    "WeWordle": "HTTP 429 Too Many Requests (medido 13-ago): límite de ritmo, puede recuperarse.",
+    # ---- WeWordle VOLVIÓ a la familia `gpt` (v5.5.2). Su 429 del 13-ago era
+    # un límite de ritmo, no una rotura, y desde entonces hay quien lo
+    # gestione: cortacircuitos por herramienta y hedge con presupuesto por
+    # tarea. Se deja escrito aquí, y no borrado, porque la razón por la que
+    # algo salió y volvió a entrar es justo lo que nadie recuerda medio año
+    # después.
 }
 
 #: Margen antes de cubrir una petición lenta con el siguiente candidato.

@@ -261,3 +261,44 @@ def entorno_explicito(request, monkeypatch):
             monkeypatch.setattr(modulo, nombre, _se_niega(nombre),
                                 raising=False)
     yield
+
+
+@pytest.fixture(autouse=True)
+def ningun_bucle_sobrevive_a_su_test():
+    """
+    Ningún bucle de orquestación sigue vivo cuando el test termina.
+
+    POR QUÉ EXISTE
+    ==============
+    La aprobación por evento (B5) cambió el `break` por
+    `await state["approval_event"].wait()`: la tarea ya no termina, se aparca
+    esperando al usuario. En producción es lo que se quiere. En un test no hay
+    usuario, así que `_orchestrate_loop` se queda aparcado PARA SIEMPRE, y al
+    cerrar el bucle de eventos pytest-asyncio se queda esperando a una tarea
+    que nunca va a acabar.
+
+    El síntoma no dice nada de esto: la suite se para en seco en
+    `test_swarm_integration.py`, sin fallo, sin traza, sin nombre de test —
+    porque el test PASA y lo que se cuelga es el desmontaje. Se diagnosticó
+    como «cuelgue transitorio de xdist» y no lo era: se reproduce en serie,
+    con un solo test y sin xdist.
+
+    POR QUÉ AQUÍ Y NO EN CADA TEST
+    ==============================
+    Cualquier test que arranque el enjambre y no llegue a aprobar deja el
+    mismo zombi. Pedirle a cada uno que se acuerde de limpiar es la clase de
+    regla que se cumple hasta que alguien escribe el test 1251. Esto lo hace
+    el mecanismo: a la salida de CADA test, lo que quede registrado en el
+    supervisor se cancela y el registro se vacía.
+    """
+    yield
+    from magi.core import cancel
+    sup = cancel.supervisor()
+
+    for tareas in list(sup._loops.values()):
+        for tarea in list(tareas):
+            if not tarea.done():
+                tarea.cancel()
+
+    cancel.reset_supervisor()
+

@@ -13,6 +13,7 @@ dynarec es adivinar.
 """
 from __future__ import annotations
 
+import faulthandler
 import logging
 from dataclasses import dataclass, field
 
@@ -110,6 +111,26 @@ def emulate(code: bytes, *, arch: str = "mips", bits: int = 32,
     result = EmulationResult(ok=False)
     counter: dict[str, int] = {"n": 0}
     mu = None
+
+    # EL VIGILANTE DE FALLOS SE APARTA MIENTRAS EMULA UNICORN.
+    #
+    # Unicorn es QEMU por dentro, y su MMU se apoya en excepciones del sistema
+    # (páginas guarda) que él mismo captura y resuelve: son parte de su
+    # funcionamiento normal, no un fallo. Pero `faulthandler` —que pytest
+    # activa por defecto— las ve pasar y escribe «Windows fatal exception:
+    # access violation» con un volcado de pila entero por cada una.
+    #
+    # No es solo ruido. En la suite en paralelo ese volcado va al mismo canal
+    # por el que los workers de xdist se comunican, y el fichero que le tocaba
+    # después al worker fallaba con errores imposibles —`tag=None` en un test
+    # de hedge que pasa perfectamente solo—. Dos días de «cuelgue transitorio
+    # de xdist» eran esto.
+    #
+    # Se aparta solo durante la emulación y se repone después, porque un
+    # crash de verdad en el resto del programa sí hay que verlo.
+    _vigilaba = faulthandler.is_enabled()
+    if _vigilaba:
+        faulthandler.disable()
     try:
         mu = unicorn.Uc(uc_arch, mode)
 
@@ -154,6 +175,10 @@ def emulate(code: bytes, *, arch: str = "mips", bits: int = 32,
                 result.stopped_at = mu.reg_read(pc_const)
             except Exception:
                 pass
+
+    finally:
+        if _vigilaba:
+            faulthandler.enable()
 
     result.instructions_run = counter.get("n", 0) if isinstance(counter, dict) else 0
     if mu is None:

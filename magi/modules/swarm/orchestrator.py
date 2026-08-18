@@ -917,20 +917,26 @@ class SwarmOrchestrator:
                     topic="TERMINAL_OUT",
                     payload={"content": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
                 ))
-                if "approval_event" not in state:
-                    state["approval_event"] = asyncio.Event()
-                else:
-                    state["approval_event"].clear()
-                
-                # B5: Esperar aprobación por evento reactivo
-                await state["approval_event"].wait()
-                
-                # Si el usuario rechazó y dio feedback, el estado cambió a 'in_progress' y el comando tiene las objeciones
-                if state["status"] == "in_progress":
-                    continue
-                elif state["status"] == "completed":
-                    # El bloque automático ya fue lanzado en submit_task al aprobar
-                    break
+                # AQUI NO SE APARCA EL BUCLE ESPERANDO AL USUARIO.
+                #
+                # La v5.5.2 cambio este `break` por
+                # `await state["approval_event"].wait()`. Costo dos cosas:
+                #
+                # 1. La suite se colgaba entera. La tarea no termina nunca, y
+                #    al cerrar el bucle de eventos pytest-asyncio espera para
+                #    siempre. El sintoma no señalaba aqui —el test PASA y lo
+                #    que se cuelga es el desmontaje—, asi que se diagnostico
+                #    como «cuelgue transitorio de xdist». Se reproduce en
+                #    serie, con un solo test y sin xdist.
+                # 2. Dos bucles para la misma tarea: al responder con
+                #    objeciones, `submit_task` reanuda con `_spawn_loop` Y el
+                #    bucle aparcado despertaba con `.set()`. Gasto duplicado
+                #    de cuota, justo lo que esta version venia a frenar.
+                #
+                # Con `break` la corrutina TERMINA, que es lo contrario de
+                # dejar un huerfano: quien reanuda es `_spawn_loop`, que ya se
+                # llama en los tres caminos de vuelta.
+                break  # Pausar el bucle hasta recibir input del usuario
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 self.memory_for(task_id).record(
                     round_num=current_round,

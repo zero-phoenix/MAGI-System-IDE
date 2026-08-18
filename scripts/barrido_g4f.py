@@ -1,7 +1,19 @@
 import asyncio
-import time
-import g4f
 import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# ANTES de importar g4f, no después. g4f trae proveedores que abren un
+# navegador real (nodriver/webdriver) en cuanto se los toca, y §I.3 prohíbe
+# iniciar sesión: un barrido que arranca Chrome deja de medir el sistema y
+# pasa a medir la máquina. El cortafuegos los corta en seco.
+from magi.core.no_browser import install as instalar_cortafuegos
+
+instalar_cortafuegos()
+
+import g4f  # noqa: E402  — después del cortafuegos, a propósito
 
 async def medir_proveedor(provider_name):
     cls = getattr(g4f.Provider, provider_name, None)

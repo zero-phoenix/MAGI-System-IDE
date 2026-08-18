@@ -54,9 +54,15 @@ TECHOS: dict[str, int] = {
     "magi/modules/infrastructure/naoko.py": 1560,
     "magi/modules/swarm/agents.py": 1090,
     "magi/core/kernel.py": 1000,
-    "magi/core/providers/backends/g4f_backend.py": 1002,
+    # +48 en la v5.5.2: el filtro de idioma que se le inyecta a Yqcloud por
+    # API (responde en chino cuando le apetece) y el catálogo de la familia
+    # `gpt` con WeWordle de vuelta, cada entrada con el motivo escrito.
+    "magi/core/providers/backends/g4f_backend.py": 1050,
     "magi/core/sesion_web.py": 910,
-    "magi/modules/swarm/orchestrator.py": 982,
+    # +68 en la v5.5.2: presupuesto por tarea (contador, cierre por techo y
+    # rehidratación), fan-out por motor y el candado que serializa el
+    # despacho. Tres frenos que solo tienen sentido donde se decide gastar.
+    "magi/modules/swarm/orchestrator.py": 1050,
 }
 
 #: Para todo lo demás. 800 líneas es mucho para un módulo de Python, y ninguno

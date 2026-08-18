@@ -43,9 +43,14 @@ latencia por candidato y una cortesía de tasa que evita el 429 en cadena.
 
 - **Carreras**: las decisiones de enrutamiento van bajo `asyncio.Lock`; dos
   peticiones interactivas simultáneas ya no pueden corromper el estado.
-- **Aprobación por evento**: se acabó el `break` al pedir aprobación. La
-  tarea espera en un `asyncio.Event` que se rehidrata al reiniciar, en vez de
-  dejar una corrutina huérfana.
+- **Aprobación**: se probó a aparcar el bucle en un `asyncio.Event` en vez de
+  cortarlo con `break`, y se revirtió antes de publicar. Costaba dos cosas y
+  no aportaba ninguna: la tarea no terminaba nunca —lo que colgaba la suite
+  entera en el desmontaje, sin fallo ni traza que señalara aquí— y, al
+  responder con objeciones, `_spawn_loop` arrancaba un segundo debate sobre
+  la misma tarea mientras el aparcado despertaba: gasto duplicado de cuota,
+  justo lo que esta versión venía a frenar. Quien reanuda sigue siendo
+  `_spawn_loop`, que ya se llama en los tres caminos de vuelta.
 - **Parada-Cubre-Hedge**: `magi/core/circuit_breaker.py` aplica timeout duro
   a cada herramienta y, si cuelga o revienta, revierte al último snapshot del
   journal y devuelve un error estructurado para que el LLM busque otra ruta.
