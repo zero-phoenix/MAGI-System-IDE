@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...core.tools.registry import ToolRegistry, ToolResult
+import tempfile
+import shutil
 
 
 def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
@@ -78,7 +80,15 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
         out = ctx.resolve(out_path) if ctx else Path(out_path)
         if ctx is not None:
             ctx.get_journal().record(out, "create", tool="compose_manga_page")
-        report = await compose_page(spec, out)
+        
+        with tempfile.TemporaryDirectory(dir=ctx.cwd if ctx else None) as tmpd:
+            tmp_out = Path(tmpd) / out.name
+            report = await compose_page(spec, tmp_out)
+            if report.get("ok"):
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(tmp_out, out)
+                report["path"] = str(out)
+                
         lines = [f"página: {report.get('path')}",
                  f"viñetas: {report.get('panels')} · "
                  f"generadas: {report.get('generated')} · "
@@ -196,7 +206,14 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
         destino = ctx.resolve(out_path) if ctx else Path(out_path)
         if ctx and getattr(ctx, "journal", None):
             ctx.journal.record(destino, "create", tool="render_animatic")
-        obs = await render_slideshow(spec, destino)
+            
+        with tempfile.TemporaryDirectory(dir=ctx.cwd if ctx else None) as tmpd:
+            tmp_out = Path(tmpd) / destino.name
+            obs = await render_slideshow(spec, tmp_out)
+            if obs.ok:
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(tmp_out, destino)
+                
         return ToolResult(obs.ok, obs.render(),
                           error=None if obs.ok else "; ".join(obs.problems),
                           meta={"path": str(destino), "screenshot": obs.screenshot})
@@ -219,8 +236,15 @@ def register_studio_tools(reg: ToolRegistry) -> ToolRegistry:
         destino = ctx.resolve(out_path) if ctx else Path(out_path)
         if ctx and getattr(ctx, "journal", None):
             ctx.journal.record(destino, "create", tool="record_program")
-        obs = await capture_program(origen, destino, seconds=float(seconds),
-                                    fps=int(fps), entry=entry)
+            
+        with tempfile.TemporaryDirectory(dir=ctx.cwd if ctx else None) as tmpd:
+            tmp_out = Path(tmpd) / destino.name
+            obs = await capture_program(origen, tmp_out, seconds=float(seconds),
+                                        fps=int(fps), entry=entry)
+            if obs.ok:
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(tmp_out, destino)
+                
         return ToolResult(obs.ok, obs.render(),
                           error=None if obs.ok else "; ".join(obs.problems),
                           meta={"path": str(destino)})

@@ -674,6 +674,17 @@ class G4FProvider(BaseProvider):
         cls = _resolve(name)
         if cls is None:
             raise ProviderError(f"{name}: no existe en g4f")
+            
+        # Yqcloud es rápido pero suele contestar en chino. Forzamos el idioma
+        # inyectando la directiva a nivel de sistema.
+        if name == "Yqcloud":
+            lang_prompt = {"role": "system", "content": "You are a helpful assistant. You must always answer in Spanish language. Do NOT use Chinese language."}
+            if not messages or messages[0]["role"] != "system":
+                messages = [lang_prompt] + messages
+            else:
+                messages = list(messages)
+                messages[0] = {"role": "system", "content": messages[0]["content"] + "\n\n" + lang_prompt["content"]}
+
         await self._esperar_tasa(name)
         t0 = time.monotonic()
         kwargs: dict[str, Any] = {"model": model or "", "messages": messages,

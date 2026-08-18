@@ -33,8 +33,7 @@
     "PhindAi": "DESCARTADO: HTTP 403 Security (medido 13-ago). compat_curl arregló la firma de curl_cffi, no el acceso.",
     "Qwen": "DESCARTADO: success=false del servidor (medido 13-ago). Mismo caso que PhindAi.",
     "CopilotApp": "DESCARTADO: WSServerHandshakeError 460 al abrir el websocket (medido 13-ago).",
-    "Ollama": "DESCARTADO: es un motor LOCAL y §I.3 solo admite nube.",
-    "WeWordle": "HTTP 429 Too Many Requests (medido 13-ago): límite de ritmo, puede recuperarse."
+    "Ollama": "DESCARTADO: es un motor LOCAL y §I.3 solo admite nube."
   },
   "familias": {
     "command": {
@@ -139,6 +138,11 @@
           "latencia_real_max_ms": 75000,
           "verificado": "2026-08-13",
           "aviso": "responde en chino; ademas 24 s y hasta 75 s en uso sostenido segun el registro del usuario"
+        },
+        {
+          "proveedor": "WeWordle",
+          "modelo": "gpt-4",
+          "aviso": "HTTP 429 medido en 13-ago, pero reintentable y suele ser muy rápido."
         }
       ],
       "nota_orden": "MEDIDA el 2026-08-13 y el resultado obliga a decir algo incomodo: de sus cinco candidatos solo responde Yqcloud, y responde EN CHINO (medido: 'di: funciona' -> '<caracteres chinos>...') en 9,7 s. CopilotApp da WSServerHandshakeError 460, WeWordle HTTP 429, Pollinations HTTP 402 y OpenaiChat exige un .har de sesion (prohibido por la regla de no iniciar sesion). Esto es la CAUSA RAIZ de que las respuestas del enjambre salieran en otro idioma: MELCHIOR usaba la familia gpt y su unico proveedor vivo es un servicio chino. Los reintentos por idioma de agents.py tratan el sintoma; esto es la enfermedad. Por eso MELCHIOR se mueve a `command` y gpt queda de reserva."

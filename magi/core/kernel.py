@@ -855,37 +855,45 @@ class Kernel:
         la sonda existiera. Un sistema de observación que impide arrancar al
         sistema observado no es una mejora.
         """
-        try:
-            from magi.core.providers import sonda
-            from magi.core.providers.backends.g4f_backend import (
-                LlmDeSonda,
-                candidatos_para_sondear,
-            )
+        # Bucle periódico (Fase 1.2) - comprueba periódicamente sin bloquear,
+        # pero el freno real está en `sonda.refrescar_si_toca`.
+        while True:
+            try:
+                from magi.core.providers import sonda
+                from magi.core.providers.backends.g4f_backend import (
+                    LlmDeSonda,
+                    candidatos_para_sondear,
+                )
 
-            # OJO al módulo: get_registry vive en providers.cloud, no en
-            # providers.registry. Importarlo del sitio equivocado lanzaba
-            # ImportError, el except de abajo se lo tragaba y la sonda no
-            # llegaba a ejecutarse NUNCA — con el catálogo escrito a mano
-            # mandando para siempre. Lo encontró pyright (unknown import
-            # symbol), no un test.
-            from magi.core.providers.cloud import get_registry
+                # OJO al módulo: get_registry vive en providers.cloud, no en
+                # providers.registry. Importarlo del sitio equivocado lanzaba
+                # ImportError, el except de abajo se lo tragaba y la sonda no
+                # llegaba a ejecutarse NUNCA — con el catálogo escrito a mano
+                # mandando para siempre. Lo encontró pyright (unknown import
+                # symbol), no un test.
+                from magi.core.providers.cloud import get_registry
 
-            store = self.swarm.store
-            hechas, motivo = await sonda.refrescar_si_toca(
-                LlmDeSonda(), candidatos_para_sondear(), store)
-            logger.info("[sonda] %s", motivo)
+                store = self.swarm.store
+                hechas, motivo = await sonda.refrescar_si_toca(
+                    LlmDeSonda(), candidatos_para_sondear(), store)
+                logger.info("[sonda] %s", motivo)
 
-            medias = sonda.medias_por_familia(store)
-            if medias:
-                (await get_registry()).aplicar_medidas(medias)
-                logger.info("[sonda] el reparto ahora obedece a %d familias "
-                            "medidas", len(medias))
-            await self.bus.publish(BusEvent(
-                topic="sonda.actualizada",
-                payload={"mediciones": hechas, "motivo": motivo,
-                         "familias_medidas": len(medias)}))
-        except Exception as e:
-            logger.warning("[sonda] no se pudo refrescar: %s", e)
+                medias = sonda.medias_por_familia(store)
+                if medias:
+                    (await get_registry()).aplicar_medidas(medias)
+                    logger.info("[sonda] el reparto ahora obedece a %d familias "
+                                "medidas", len(medias))
+                await self.bus.publish(BusEvent(
+                    topic="sonda.actualizada",
+                    payload={"mediciones": hechas, "motivo": motivo,
+                             "familias_medidas": len(medias)}))
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning("[sonda] no se pudo refrescar: %s", e)
+            
+            # Revisar cada hora (3600s). El verdadero freno (24h) lo pone refrescar_si_toca.
+            await asyncio.sleep(3600)
 
     async def _persist_critical_event(self, event):
         """

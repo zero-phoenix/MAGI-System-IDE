@@ -159,7 +159,12 @@ async def run_agent(
         logger.info("[%s] iter %d: %s", agent_name, i,
                     ", ".join(c.name for c in calls))
 
-        results = await tools.execute_many([(c.name, c.args) for c in calls], ctx=ctx)
+        # Ejecutar a través del Circuit Breaker (B4: Parada-Cubre-Hedge)
+        from .circuit_breaker import ToolCircuitBreaker
+        cb = ToolCircuitBreaker(tools)
+        cb_res = await cb.execute_with_hedge([(c.name, c.args) for c in calls], ctx=ctx)
+        results = cb_res.results
+
         for c, r in zip(calls, results, strict=True):
             used.append({"tool": c.name, "args": c.args, "ok": r.ok,
                          "error": r.error, "iteration": i})

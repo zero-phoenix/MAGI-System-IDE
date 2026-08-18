@@ -54,6 +54,7 @@ class SwarmOrchestrator:
         from magi.core.store.state import TaskStore
         self.store = store if store is not None else TaskStore()
         self.active_tasks = {}
+        self._lock = asyncio.Lock()
         self.latest_task_id = None
         self._memory: dict[str, EpisodicMemory] = {}
         self._reconciliadas: list[str] = []
@@ -114,6 +115,7 @@ class SwarmOrchestrator:
                     "calls_used": int(st.calls_used or 0),
                     "rebuilds": int(st.rebuilds or 0),
                     "inicio_pared": time.monotonic(),
+                    "approval_event": asyncio.Event(),
                 }
                 self.latest_task_id = st.task_id
             if self.active_tasks:
@@ -265,9 +267,10 @@ class SwarmOrchestrator:
         # Devolverlo es lo único que lo mantiene honesto.
         destino = task_id
         try:
-            destino = await self._despachar(
-                task_id, command, engine, narrative_style,
-                route, max_rounds, use_tools, entrada) or task_id
+            async with self._lock:
+                destino = await self._despachar(
+                    task_id, command, engine, narrative_style,
+                    route, max_rounds, use_tools, entrada) or task_id
         except Exception as e:
             if entrada is not None:
                 try:
@@ -371,6 +374,8 @@ class SwarmOrchestrator:
                 # Ahora se comparan palabras enteras y sin acentos.
                 if _aprueba(command):
                     state["status"] = "completed"
+                    if "approval_event" in state:
+                        state["approval_event"].set()
                     self._persist(task_id)
                     await self.bus.publish(BusEvent(
                         topic="TERMINAL_OUT",
@@ -487,7 +492,10 @@ class SwarmOrchestrator:
                         topic="TERMINAL_OUT",
                         payload={"content": f"[SWARM] Feedback del usuario recibido. Reanudando debate (Ronda {state['round']}): Melchior parte de la síntesis previa + tus observaciones."}
                     ))
-                    self._spawn_loop(task_id)
+                    if "approval_event" in state:
+                        state["approval_event"].set()
+                    else:
+                        self._spawn_loop(task_id)
                 return task_id
             elif state["status"] in ("in_progress", INTERRUMPIDA):
                 # AQUÍ ESTABA EL FALLO QUE BLOQUEABA EL SISTEMA
@@ -554,6 +562,7 @@ class SwarmOrchestrator:
             "calls_used": 0,
             "rebuilds": 0,
             "inicio_pared": time.monotonic(),
+            "approval_event": asyncio.Event(),
         }
         self._persist(task_id)
         self._amarrar_presupuesto(task_id)
@@ -601,6 +610,8 @@ class SwarmOrchestrator:
                 payload={"content":
                          f"[SWARM] La tarea {task_id} {motivo}. Retomo con lo "
                          f"que acabas de escribir."}))
+            if "approval_event" in state and state["approval_event"].is_set():
+                state["approval_event"].clear()
             self._spawn_loop(task_id)
             return
 
@@ -906,7 +917,20 @@ class SwarmOrchestrator:
                     topic="TERMINAL_OUT",
                     payload={"content": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
                 ))
-                break # Pausar el bucle hasta recibir input del usuario
+                if "approval_event" not in state:
+                    state["approval_event"] = asyncio.Event()
+                else:
+                    state["approval_event"].clear()
+                
+                # B5: Esperar aprobación por evento reactivo
+                await state["approval_event"].wait()
+                
+                # Si el usuario rechazó y dio feedback, el estado cambió a 'in_progress' y el comando tiene las objeciones
+                if state["status"] == "in_progress":
+                    continue
+                elif state["status"] == "completed":
+                    # El bloque automático ya fue lanzado en submit_task al aprobar
+                    break
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 self.memory_for(task_id).record(
                     round_num=current_round,
