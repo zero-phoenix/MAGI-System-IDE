@@ -25,7 +25,6 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
-import sys
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,7 +73,15 @@ def _nombre_sano(nombre: str) -> str:
     texto = re.sub(r"\s+", "_", texto)
     if not texto:
         texto = "artefacto"
-    if sys.platform == "win32" and texto.lower().split(".", 1)[0] in _NOMBRES_RESERVADOS:
+    # SIN mirar en qué sistema corremos, y a propósito. La entrega termina en
+    # el Escritorio de Windows —ahí es donde `con.py` o `aux.exe` se vuelven
+    # un fichero que no se puede abrir ni borrar—, así que el nombre tiene que
+    # salir sano de aquí venga de donde venga el proceso. Condicionarlo a
+    # `sys.platform` hacía además que la misma función devolviera cosas
+    # distintas en el CI (Linux) y en tu máquina: el test decía la verdad en
+    # una y mentía en la otra, y el job `test` del release llevaba rojo desde
+    # que se escribió.
+    if texto.lower().split(".", 1)[0] in _NOMBRES_RESERVADOS:
         texto = "magi_" + texto
     if len(texto) > 128:
         raiz, _, ext = texto.rpartition(".")
