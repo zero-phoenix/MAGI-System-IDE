@@ -12,6 +12,7 @@ import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
 import NaokoPanel from './components/NaokoPanel';
+import RitsukoPanel from './components/RitsukoPanel';
 import { crearRenderCode } from './components/CodigoMarkdown';
 import GraficoRondas from './components/GraficoRondas';
 import ImprovementPanel from './components/ImprovementPanel';
@@ -35,6 +36,7 @@ export default function App() {
     telemetry,
     activeFileContent, activeFilePath,
     naokoMessages, naokoStatus,
+    ritsukoMessages, ritsukoStatus, ritsukoInformes,
     sysCommand, conversations, streaming, toolTrace, route, alerts, dismissAlert,
     approval, setApproval, awaitingApproval, setAwaitingApproval,
     taskTitles  // v5.3.0 — títulos IA de cada conversación
@@ -57,6 +59,7 @@ export default function App() {
           fetchHealth, runBenchmark, runSelfImprovement,
           listImprovements, proposeImprovement, decideImprovement,
           requestFileContent, sendNaokoChat,
+          sendRitsukoChat, fetchRitsukoInformes,
           fetchConfig, listArtifacts, readArtifact,
           archiveTask, deleteTask  // v5.3.0 — archivar / borrar conversación
         } = useMagiSocket(20128);
@@ -176,8 +179,8 @@ export default function App() {
   // §7.3 — catálogo de la paleta. Las pestañas se derivan de la misma lista
   // que pinta la barra, para que añadir una no exija acordarse de esto.
   const PESTAÑAS = ["Plan", "Código", "Vista previa", "Terminal", "Naoko",
-                    "Configuración", "Gráfico HDC", "Estado de Motores IA",
-                    "Coste", "Sistema", "Mejoras"];
+                    "Ritsuko", "Configuración", "Gráfico HDC",
+                    "Estado de Motores IA", "Coste", "Sistema", "Mejoras"];
 
   const comandos: Command[] = [
     { id: "cancel", title: "Parar solo esta tarea", group: "Ejecución",
@@ -637,6 +640,15 @@ export default function App() {
                           renderCode={renderCode}
                           imagen={naokoImage}
                           setImagen={setNaokoImage} />
+            )}
+
+            {activeTab === "Ritsuko" && (
+              <RitsukoPanel ritsukoMessages={ritsukoMessages}
+                            ritsukoStatus={ritsukoStatus}
+                            informes={ritsukoInformes}
+                            sendRitsukoChat={sendRitsukoChat}
+                            fetchRitsukoInformes={fetchRitsukoInformes}
+                            renderCode={renderCode} />
             )}
             
              {activeTab === "Estado de Motores IA" && (

@@ -38,6 +38,16 @@ class Kernel:
         self.metrics.attach(self.bus)
         self.naoko = NaokoAgent(self.bus, self.db, swarm=self.swarm,
                                 metrics=self.metrics)
+        # RITSUKO — quien revisa a quien corrige. Naoko diagnostica al enjambre
+        # y aplica cambios; hasta hoy nadie comprobaba a Naoko, y un corrector
+        # equivocado mueve el sistema entero en la dirección equivocada con
+        # toda la autoridad. Ritsuko solo informa: no arregla nada a propósito
+        # (ver la cabecera de ritsuko.py) y usa una familia que no comparte con
+        # ninguno de los cuatro, porque un auditor que se cae cuando se cae el
+        # auditado no sirve justo el día que hace falta.
+        from magi.modules.infrastructure.ritsuko import RitsukoAgent
+        self.ritsuko = RitsukoAgent(self.bus, self.db, swarm=self.swarm,
+                                    naoko=self.naoko, metrics=self.metrics)
 
         # Cargar catálogo de Skills
         self.skills_loader = AASLoader()
@@ -70,6 +80,14 @@ class Kernel:
         self.rpc.register_handler("rpc.state.sync", self._handle_state_sync)
         self.rpc.register_handler("git.clone", self._handle_git_clone)
         self.rpc.register_handler("naoko.chat", self._handle_naoko_chat)
+        # Canal propio de Ritsuko: separado del de Naoko a propósito. Mezclar
+        # al corrector y a su auditora en la misma conversación es la forma más
+        # rápida de no saber quién dijo qué.
+        # Los handlers viven en la propia Ritsuko, no aquí: el kernel ya roza
+        # su techo de líneas y, sobre todo, la superficie RPC de una pieza se
+        # entiende mejor al lado de la pieza que en una lista de cien.
+        self.rpc.register_handler("ritsuko.chat", self.ritsuko.rpc_chat)
+        self.rpc.register_handler("ritsuko.informes", self.ritsuko.rpc_informes)
         self.rpc.register_handler("obs.metrics", self._handle_metrics)
         self.rpc.register_handler("naoko.self_improve", self._handle_self_improve)
         self.rpc.register_handler("eval.run", self._handle_eval_run)
@@ -816,6 +834,10 @@ class Kernel:
 
         await self.memgraph.start()
         await self.naoko.start()
+        # Ritsuko DESPUÉS de Naoko: se suscribe a lo que Naoko emite, y un
+        # auditor que arranca antes que el auditado se pierde justo el
+        # arranque, que es donde más cosas se rompen.
+        await self.ritsuko.start()
         await self.rpc.start()
 
         await self.bus.publish(BusEvent(

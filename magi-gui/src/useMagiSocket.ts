@@ -122,6 +122,23 @@ export function useMagiSocket(port: number = 20128) {
                 });
               } else if (topic === 'naoko.status') {
                 useMagiStore.getState().setNaokoStatus(payload.status);
+              } else if (topic === 'ritsuko.log') {
+                useMagiStore.getState().addRitsukoMessage({
+                  id: Math.random().toString(36),
+                  agent: payload.agent,
+                  role: "Auditoria",
+                  provider: "G4F",
+                  content: payload.content,
+                  changes: 0,
+                  stats: "0 ms"
+                });
+              } else if (topic === 'ritsuko.status') {
+                useMagiStore.getState().setRitsukoStatus(payload.status);
+              } else if (topic === 'ritsuko.informe') {
+                // Cada informe nuevo refresca la lista: el usuario no tiene
+                // que acordarse de pulsar "actualizar" para ver lo que acaba
+                // de pedir.
+                ws.current?.send(JSON.stringify({ type: 'ritsuko.informes', id: 'req_ritsuko_informes' }));
               } else if (topic === 'system.project_created') {
                 ws.current?.send(JSON.stringify({ type: 'rpc.state.sync', id: 'sync_0' }));
               }
@@ -132,6 +149,8 @@ export function useMagiSocket(port: number = 20128) {
                  if (data.result.metrics) {
                    useMagiStore.getState().setMetrics(data.result.metrics);
                  }
+               } else if (data.id === 'req_ritsuko_informes' && data.result) {
+                 useMagiStore.getState().setRitsukoInformes(data.result.informes || []);
                } else if (data.id === 'req_telemetry' && data.result) {
                  useMagiStore.getState().setTelemetry(data.result);
                } else if (data.id === 'file_tree_0' && data.result) {
@@ -337,10 +356,29 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
+  const sendRitsukoChat = (message: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "ritsuko.chat",
+        payload: { message }
+      }));
+    }
+  };
+
+  const fetchRitsukoInformes = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "ritsuko.informes",
+        id: "req_ritsuko_informes"
+      }));
+    }
+  };
+
   return { sendCommand, sendGitClone, cancelTask, stopEverything,
            fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
            listImprovements, proposeImprovement, decideImprovement,
            fetchTelemetry, requestFileContent, sendNaokoChat,
+           sendRitsukoChat, fetchRitsukoInformes,
            fetchConfig, listArtifacts, readArtifact,
            fetchTaskList, archiveTask, deleteTask };
 }

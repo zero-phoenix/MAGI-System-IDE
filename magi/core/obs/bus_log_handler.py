@@ -94,11 +94,24 @@ class BusLogHandler(logging.Handler):
         return False
 
     def _publicar(self, topic: str, payload: dict) -> None:
+        # EL ORDEN IMPORTA: primero se comprueba que HAY bucle, y solo entonces
+        # se construye la corrutina.
+        #
+        # Antes era `asyncio.create_task(self.bus.publish(...))` dentro de un
+        # try/except RuntimeError. Python evalúa los argumentos primero, así
+        # que `self.bus.publish(...)` ya había creado la corrutina cuando
+        # `create_task` fallaba por no haber bucle: el except se la tragaba sin
+        # awaitarla y el intérprete lo cantaba en cada arranque con
+        # «RuntimeWarning: coroutine 'MagiBus.publish' was never awaited».
+        # Aviso feo, sí, pero lo caro es lo otro: ese registro se perdía en
+        # silencio, y son justo los de antes de levantar el bucle —los del
+        # arranque— los que hacen falta cuando algo no arranca.
         try:
-            asyncio.create_task(self.bus.publish(BusEvent(topic=topic,
-                                                          payload=payload)))
+            bucle = asyncio.get_running_loop()
         except RuntimeError:
-            pass          # sin bucle todavía: no hay a quién avisar
+            return        # sin bucle todavía: no hay a quién avisar
+        bucle.create_task(self.bus.publish(BusEvent(topic=topic,
+                                                    payload=payload)))
 
     # -------------------------------------------------------------- emit
 

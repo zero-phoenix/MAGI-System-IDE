@@ -42,7 +42,23 @@ MELCHIOR  ──TESIS────▶  BALTHASAR  ──ANTÍTESIS────▶
                                                          │
                                                          ▼
                                               RESPUESTA DEFINITIVA (en español)
+
+RITSUKO  ──audita a NAOKO y su relación con los tres──▶  informes y megaplanes
+(no toca nada: solo informa, en su propia pestaña)
 ```
+
+**Ritsuko** es la quinta IA, y existe porque nadie comprobaba a la cuarta.
+Naoko corrige al enjambre —detecta deriva, reordena el reparto, aplica
+mejoras—, así que un diagnóstico suyo equivocado mueve el sistema entero en la
+dirección equivocada con toda la autoridad. Ritsuko revisa eso: mira la
+evidencia del bus, dice si el sistema mejora o empeora, señala cuándo un nodo
+se ha quedado mudo y deja cada informe escrito en disco para descargar.
+
+No arregla nada, a propósito: un auditor con permiso para aplicar cambios
+acaba revisándose a sí mismo. Y usa una familia de modelo que **no comparte con
+ninguna de las otras cuatro**, porque un auditor que se cae cuando se cae el
+auditado no sirve justo el día que hace falta. Habla español o inglés, nunca
+otro idioma.
 
 ---
 

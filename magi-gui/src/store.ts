@@ -104,6 +104,15 @@ interface MagiState {
   addNaokoMessage: (msg: AgentMessage) => void;
   naokoStatus: string;
   setNaokoStatus: (status: string) => void;
+
+  // Ritsuko va en su propio cajón, no en el de Naoko: es quien la audita, y
+  // mezclar los dos hilos hace imposible saber quién dijo qué.
+  ritsukoMessages: AgentMessage[];
+  addRitsukoMessage: (msg: AgentMessage) => void;
+  ritsukoStatus: string;
+  setRitsukoStatus: (status: string) => void;
+  ritsukoInformes: Array<{ nombre: string; ruta: string; bytes: number }>;
+  setRitsukoInformes: (v: Array<{ nombre: string; ruta: string; bytes: number }>) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -277,5 +286,12 @@ export const useMagiStore = create<MagiState>((set) => ({
   naokoMessages: [],
   naokoStatus: "Inactiva",
   addNaokoMessage: (msg) => set((state) => ({ naokoMessages: [...state.naokoMessages, msg] })),
-  setNaokoStatus: (status) => set({ naokoStatus: status })
+  setNaokoStatus: (status) => set({ naokoStatus: status }),
+
+  ritsukoMessages: [],
+  ritsukoStatus: "Inactiva",
+  ritsukoInformes: [],
+  addRitsukoMessage: (msg) => set((state) => ({ ritsukoMessages: [...state.ritsukoMessages, msg] })),
+  setRitsukoStatus: (status) => set({ ritsukoStatus: status }),
+  setRitsukoInformes: (v) => set({ ritsukoInformes: v })
 }));

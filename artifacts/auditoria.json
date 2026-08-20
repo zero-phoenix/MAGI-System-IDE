@@ -1,0 +1,385 @@
+{
+  "tarea": "Escribe una funcion python que sume dos numeros y su test con pytest.",
+  "task_id": "auditoria-1787204437",
+  "motor": "fast",
+  "rondas": 1,
+  "estado_final": "WAITING_USER_APPROVAL",
+  "tiempos": {
+    "imports_s": 0.11,
+    "arranque_kernel_s": 0.39,
+    "tarea_s": 206.2,
+    "total_s": 206.98
+  },
+  "llamadas": {
+    "total": 2,
+    "ok": 2,
+    "fallidas": 0,
+    "sin_etiqueta": 0,
+    "segundos_modelo": 24.7,
+    "mediana_s": 12.65,
+    "peor_s": 12.65
+  },
+  "por_etapa": {
+    "balthasar": {
+      "llamadas": 2,
+      "segundos": 24.7,
+      "errores": 0
+    }
+  },
+  "etapas_cronometradas": [
+    {
+      "t_rel": 13.43,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 71.39
+    },
+    {
+      "t_rel": 148.82,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "CASPER",
+      "segundos": 57.49
+    },
+    {
+      "t_rel": 148.82,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 57.48
+    },
+    {
+      "t_rel": 85.5,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 39.26
+    },
+    {
+      "t_rel": 85.5,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 39.25
+    },
+    {
+      "t_rel": 52.3,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 32.51
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 22.53
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 22.52
+    },
+    {
+      "t_rel": 13.44,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 18.71
+    },
+    {
+      "t_rel": 33.54,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 17.31
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 12.65
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 12.65
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 12.41
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 12.39
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 12.05
+    },
+    {
+      "t_rel": 126.28,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 12.05
+    },
+    {
+      "t_rel": 0.85,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 11.29
+    },
+    {
+      "t_rel": 1.33,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 10.79
+    },
+    {
+      "t_rel": 1.33,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 10.07
+    },
+    {
+      "t_rel": 1.33,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 9.95
+    },
+    {
+      "t_rel": 180.78,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 7.88
+    },
+    {
+      "t_rel": 196.49,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 7.84
+    },
+    {
+      "t_rel": 188.67,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 7.83
+    },
+    {
+      "t_rel": 124.76,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 1.5
+    },
+    {
+      "t_rel": 12.14,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.78
+    },
+    {
+      "t_rel": 12.14,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.76
+    },
+    {
+      "t_rel": 84.82,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.17
+    }
+  ],
+  "resumen_etapas": {
+    "ProviderRegistry.complete": {
+      "veces": 14,
+      "segundos": 269.16
+    },
+    "SwarmAgentBase._ask_with_tools": {
+      "veces": 7,
+      "segundos": 224.44
+    },
+    "ProposalVerifier.verify": {
+      "veces": 4,
+      "segundos": 3.21
+    },
+    "SwarmAgentBase._ask": {
+      "veces": 2,
+      "segundos": 24.7
+    }
+  },
+  "familias_registradas": [],
+  "detalle_llamadas": [
+    {
+      "t_rel": 126.28,
+      "tag": "auditoria-1787204437/r1/balthasar/seguridad",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 3890,
+      "segundos": 12.05,
+      "proveedor": "g4f-gemini:Gemini/gemini-3.5-flash",
+      "ok": true,
+      "chars_respuesta": 413
+    },
+    {
+      "t_rel": 126.28,
+      "tag": "auditoria-1787204437/r1/balthasar/rendimiento",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 3871,
+      "segundos": 12.65,
+      "proveedor": "g4f-gemini:Gemini/gemini-3.5-flash",
+      "ok": true,
+      "chars_respuesta": 670
+    }
+  ],
+  "errores": [],
+  "eventos": [
+    {
+      "t_rel": 0.83,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Lo tomo como pregunta nueva. La tarea auditoria sigue esperando tu aprobación; escribe 'sí' o 'apruebo' cuando quieras cerrarla."
+    },
+    {
+      "t_rel": 0.83,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Iniciando análisis para la tarea: 'Escribe una funcion python que sume dos numeros y su test con pytest.'"
+    },
+    {
+      "t_rel": 0.85,
+      "tema": "sonda.actualizada",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 12.93,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[VERIFICACIÓN] El código propuesto no arranca. Devuelto a Melchior (rebuild 1/2), con 1 sola variante. Llamadas 2/18."
+    },
+    {
+      "t_rel": 52.3,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 60.5,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 85.0,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[VERIFICACIÓN] El código propuesto no arranca. Devuelto a Melchior (rebuild 2/2), con 1 sola variante. Llamadas 5/18."
+    },
+    {
+      "t_rel": 85.51,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 93.49,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 114.13,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 121.97,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 126.28,
+      "tema": "AGENT_POST",
+      "agente": "MELCHIOR",
+      "texto": "El error `ModuleNotFoundError` ocurre porque los bloques de código Python en la verificación ejecutada por el arnés de pruebas corren como scripts individuales aislados en carpetas temporales, por lo que un archivo en un bloque anterior no es importable directamente desde el siguiente bloque mediante `import`.\n\nPara solucionar esto de forma autónoma y sin dependencias de importación externa entre "
+    },
+    {
+      "t_rel": 148.82,
+      "tema": "AGENT_POST",
+      "agente": "BALTHASAR",
+      "texto": "### Corrección\nLínea 12 (`return a + b`): Retorna un tipo `int` cuando los operandos son enteros (p. ej., `suma(2, 3)`), incumpliendo el contrato de tipo de retorno `-> float` especificado en la línea 3. Requiere coercionar explícitamente con `return float(a + b)`.\n\nLínea 31 (`code = pytest.main([\"-v\", __file__])`): Provoca `NameError: name '__file__' is not defined` en entornos de ejecución tempo"
+    },
+    {
+      "t_rel": 156.74,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 177.51,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 177.52,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 185.62,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 204.34,
+      "tema": "naoko.log",
+      "agente": "NAOKO",
+      "texto": "Deriva detectada en g4f-gpt: solo 0/3 respuestas canarias correctas. Las comparaciones con resultados anteriores dejan de ser válidas."
+    },
+    {
+      "t_rel": 206.3,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 206.33,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[AVISO] CASPER no respondió en 150.0s (proveedor: g4f-gpt). Se devuelve respuesta degradada."
+    },
+    {
+      "t_rel": 206.33,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "APROBACIÓN PEDIDA — tarea auditoria-1787204437\n\n[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt. Error: todos los proveedores fallaron: g4f-gemini excedió 150.0s]\n\nNo toca ningún fichero.\n\nTESTS: no se ejecutaron. No hay evidencia de que esto no rompa nada.\nReversible: el journal guarda el estado previo, así que aprobar no es definitivo (§4.2)."
+    },
+    {
+      "t_rel": 206.33,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."
+    },
+    {
+      "t_rel": 206.33,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 206.33,
+      "tema": "AGENT_POST",
+      "agente": "CASPER",
+      "texto": "**Decisión Técnica:** APPROVED\n\n[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt. Error: todos los proveedores fallaron: g4f-gemini excedió 150.0s]"
+    }
+  ]
+}
