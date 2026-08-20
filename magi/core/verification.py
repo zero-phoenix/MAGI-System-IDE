@@ -356,25 +356,36 @@ class ProposalVerifier:
         #
         # Se prueba primero el conjunto unido; solo si el conjunto falla se cae
         # al modo por bloque, que sigue siendo útil para localizar CUÁL rompe.
+        # TODO A LA VEZ: el conjunto unido Y los bloques sueltos.
+        #
+        # La primera versión de B1 probaba primero el conjunto y solo caía a
+        # los sueltos si fallaba. Correcto en resultado y **serializaba la
+        # verificación**: `test_blocks_are_verified_in_parallel` —cinco bloques
+        # con 0,4 s de pausa, que en serie son 2 s— pasó de 0,8 s a 2,0 s y lo
+        # cazó el CI. Un arreglo que arregla una cosa y estropea otra sin que
+        # nadie lo mida es medio arreglo.
+        #
+        # Lanzándolo todo junto se conserva lo que B1 buscaba (que la función y
+        # su test se ejecuten en el mismo módulo, sin el
+        # `ModuleNotFoundError` que forzaba un rebuild entero) y el tiempo de
+        # pared sigue siendo el del bloque más lento. El coste es una
+        # ejecución de más, en paralelo, que es exactamente lo que sobra aquí.
         unido = self._unir_por_lenguaje(blocks)
-        for lang, codigo in unido.items():
-            junto = await self._verify_block(0, lang, codigo, tmp)
-            if junto.ok:
-                report.blocks.append(junto)
-            else:
-                sueltos = await asyncio.gather(*[
-                    self._verify_block(i, lg, code, tmp)
-                    for i, (lg, code) in enumerate(blocks) if lg == lang
-                ])
-                report.blocks.extend(sueltos)
+        tareas_juntas = [self._verify_block(0, lang, codigo, tmp)
+                         for lang, codigo in unido.items()]
+        tareas_sueltas = [self._verify_block(i, lg, code, tmp)
+                          for i, (lg, code) in enumerate(blocks)]
+        juntas, sueltas = await asyncio.gather(
+            asyncio.gather(*tareas_juntas), asyncio.gather(*tareas_sueltas))
 
-        # Lo que no se pudo unir (un solo bloque por lenguaje ya va arriba;
-        # aquí quedan los lenguajes que no se unen) se verifica como siempre.
-        resto = [(i, lg, code) for i, (lg, code) in enumerate(blocks)
-                 if lg not in unido]
-        if resto:
-            report.blocks.extend(await asyncio.gather(*[
-                self._verify_block(i, lg, code, tmp) for i, lg, code in resto]))
+        # Si el conjunto de un lenguaje pasa, ese veredicto MANDA sobre los
+        # sueltos de ese mismo lenguaje: es el que refleja cómo se va a usar el
+        # código de verdad, todo junto en un fichero.
+        juntas_ok = {lang for lang, r in zip(unido, juntas, strict=True) if r.ok}
+        report.blocks.extend(r for lang, r in zip(unido, juntas, strict=True)
+                             if r.ok)
+        report.blocks.extend(r for (lg, _), r in zip(blocks, sueltas, strict=True)
+                             if lg not in juntas_ok)
         return report
 
     @staticmethod

@@ -1,3 +1,31 @@
+# v5.7.1 — lo que encontró el CI en la v5.7.0
+
+Tres fallos que la suite local no vio y el CI sí, porque **el CI corre en
+Linux y la máquina de desarrollo es Windows**. Los tres eran míos y los tres
+son la misma lección: una prueba que solo se ejecuta donde se escribió
+comprueba menos de lo que parece.
+
+**La detección de artefactos asumía Windows.** El reconocimiento de los
+ejecutables que construye el agente (D10) buscaba rutas con letra de unidad
+(`C:\…`). En Ubuntu, la ruta temporal de pytest empieza por `/tmp/`, así que no
+encontraba nada y los dos tests de D10 caían. El producto es de Windows; el
+código no tiene por qué serlo, y una expresión regular que da por supuesto el
+sistema operativo falla en cuanto alguien la ejecuta en otro. Ahora acepta las
+dos formas.
+
+**La verificación había dejado de ser paralela.** Al hacer que los bloques de
+Python se verifiquen unidos (B1), la primera versión probaba el conjunto y solo
+después caía a los bloques sueltos: correcto en el resultado y **el doble de
+lento**. `test_blocks_are_verified_in_parallel` —cinco bloques con 0,4 s de
+pausa— pasó de 0,8 a 2,0 segundos y lo cazó el CI. Ahora se lanza todo a la vez
+y manda el veredicto del conjunto cuando pasa: se conserva lo que B1 buscaba y
+el tiempo de pared vuelve a ser el del bloque más lento.
+
+Un arreglo que arregla una cosa y estropea otra sin que nadie lo mida es medio
+arreglo.
+
+---
+
 # v5.7.0 — el lazo se cierra: de proponer un .exe a entregarlo
 
 La v5.6.0 consiguió que el sistema dejara de mentir. Esta consigue que

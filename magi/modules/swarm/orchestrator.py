@@ -310,7 +310,15 @@ class SwarmOrchestrator:
                 payload={"content": f"[FÁBRICA] No se pudo entregar: {motivo}"}))
 
     #: Rutas absolutas a un ejecutable dentro del texto de una propuesta.
-    _RUTA_EXE = re.compile(r"[A-Za-z]:[\\/][^\s\"'`)*\]]+?\.exe")
+    #:
+    #: Windows (`C:\...`) **y** POSIX (`/tmp/...`). La primera versión solo
+    #: contemplaba la letra de unidad porque el sistema corre en Windows, y el
+    #: CI —que corre en Ubuntu— tumbó los dos tests de D10 en el primer
+    #: intento: la ruta del `tmp_path` de pytest no empieza por `C:`. El
+    #: producto es de Windows; los tests no tienen por qué serlo, y una
+    #: expresión regular que asume el sistema operativo es una que falla en
+    #: cuanto alguien la ejecuta en otro.
+    _RUTA_EXE = re.compile(r"(?:[A-Za-z]:[\\/]|/)[^\s\"'`)*\]]+?\.exe")
 
     async def _registrar_artefactos_del_agente(self, task_id: str, state: dict,
                                                contenido: str) -> bool:
