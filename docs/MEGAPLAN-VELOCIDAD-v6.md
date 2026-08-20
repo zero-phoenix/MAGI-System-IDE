@@ -299,3 +299,151 @@ decisión de dependencia sin justificar es un defecto, no un detalle.
 5. **B4** (hedge en el bucle de herramientas) — el mayor ahorro de tiempo.
 6. **C5 + C6** — usar lo que se sabe y distinguir roto de agotado.
 7. El resto de las fases 1-4, y **C8 + C10** como criterio permanente.
+
+
+---
+
+# Fase C-bis — lo que enseñó la prueba del ping pong (C11-C16)
+
+Evidencia: `docs/COMPARATIVA-C-pingpong-16bits.md`. Tercera muestra del mismo
+patrón, con una agravante nueva y dos hallazgos que las pruebas A y B no
+podían dar porque Naoko y Ritsuko no estaban bajo observación.
+
+## C11. Un fallo que viene como texto sigue siendo un fallo  ⟵ **el arreglo de una línea que cierra media lista**
+
+**Evidencia:** el sistema tiene DOS formas de devolver un error disfrazado de
+respuesta normal, las dos son cadenas de texto corrientes:
+
+| Origen | Texto | Marca máquina |
+|---|---|---|
+| `cloud.py:135` | `[Inferencia no disponible: …]` | `provider_id == "SYSTEM_ERROR"` |
+| `agent_loop.py:116` | `[Tiempo de espera agotado tras 150s…]` | ninguna |
+
+Quien no mire el `provider_id` se las traga. **Así se firma `APPROVED` sobre un
+timeout** (pruebas A y B) y así el primer informe de Ritsuko traía el error como
+veredicto (prueba C). Lo cometí yo mismo en Ritsuko y ya está corregido con
+test; falta hacerlo en el resto del sistema.
+
+**Qué se hace:**
+1. Una función única —`es_degradada(texto, provider_id)`— en `magi/core/providers/base.py`,
+   y **todo** el que consuma una respuesta la usa: agentes, orquestador, Naoko.
+2. `agent_loop` devuelve también una marca máquina (`degraded=True` en
+   `AgentTurn`), no solo un texto que empieza por corchete.
+
+**Cómo se comprueba:** test que inyecta las dos cadenas y exige que ningún
+camino produzca `APPROVED` ni las publique como contenido de agente.
+
+## C12. Declarar éxito de algo que no se hizo
+
+**Evidencia (prueba C):** «Se compiló **exitosamente** el binario ejecutable
+único portable (`onefile`)» con **0** bloques de código, **0** llamadas a
+`entregar_artefacto` y **0** artefactos en el bus.
+
+Es peor que fallar: el informe parece perfecto y el usuario va a buscar un
+fichero que no existe.
+
+**Qué se hace:** el texto del árbitro no puede afirmar hechos que el sistema
+puede comprobar. Antes de publicar la síntesis, se contrasta contra el registro
+de la tarea: ¿hubo bloques?, ¿hubo verificación con rc=0?, ¿hubo artefacto? Si
+la síntesis afirma «compilado/creado/entregado» y el registro dice que no, la
+afirmación se sustituye por lo que de verdad pasó y el estado baja a
+`INCOMPLETO`.
+
+**Cómo se comprueba:** test con una síntesis que dice «se compiló» y un
+registro vacío: el evento final debe contener «no se genero ningun artefacto» y
+no `APPROVED`.
+
+## C13. Naoko no puede diagnosticar con la cuota que ella misma está gastando
+
+**Evidencia (prueba C):** 12 intervenciones, y cuatro «deriva detectada» —gpt,
+gemini (dos veces), llama— **durante** una tarea que hacía 50 llamadas contra
+esos proveedores. Los canarios fallan por cuota, no por deriva del modelo.
+
+Es la tercera vez que este proyecto tropieza con lo mismo: la v5.5.1 ya corrigió
+que medir la salud enfermara al sistema. Vuelve por otra puerta.
+
+**Qué se hace:**
+1. `_check_drift` no corre con tareas vivas (lo mismo que B8 pide para la sonda).
+2. Un canario que falla por 429, timeout o respuesta trunca cuenta como **no
+   concluyente**, nunca como deriva. Deriva es que el modelo conteste bien y
+   distinto, no que no conteste.
+3. Naoko declara deriva solo con **dos** medidas consecutivas concluyentes.
+
+**Cómo se comprueba:** test que simula canarios con 429 y exige cero eventos de
+deriva.
+
+## C14. La familia de Ritsuko tiene que anclarse por familia, no por alias
+
+**Evidencia (prueba C):** el fallo de Ritsuko mencionó la familia `deepseek`,
+que no es ninguna de las suyas (`razonamiento`, `grok`, `perplexity`). Los
+alias de modelo se resuelven a familia por una ruta que la auditora no
+controla, así que su independencia —el requisito que la hace útil— depende hoy
+de una tabla que puede cambiar sin que nadie se entere.
+
+**Qué se hace:** `_pensar` pide **por familia** (`family=`), no por alias de
+modelo, y el test `test_ritsuko_no_comparte_familia` pasa a comprobar la
+familia efectivamente usada en la respuesta (`provider_id`), no solo la lista
+declarada.
+
+## C15. Cuando el enunciado es ambiguo, la ambigüedad se resuelve por escrito
+
+**Evidencia:** el enjambre resolvió BIEN dos ambigüedades reales del encargo
+—16 bits de color (65.536) frente a paleta retro, y binario de 16 bits frente a
+color de 16 bits— pero esa resolución se quedó dentro del debate. El usuario no
+vio ninguna de las dos.
+
+**Qué se hace:** la síntesis empieza por «cómo he entendido el encargo» en dos
+líneas, con las decisiones tomadas sobre lo ambiguo. Es barato y es lo que
+separa una entrega de una sorpresa.
+
+## C16. Lo que se pide medir se mide en el binario, no en el fuente
+
+**De dónde sale:** mis dos entregas (`tetris_claude.exe`, `pong16_claude.exe`)
+se verifican **ellas mismas**: `--autotest` juega N fotogramas y `--paleta`
+comprueba que los doce colores existen en RGB565. Por eso puedo afirmar que
+«16 bits» es cierto en vez de decirlo.
+
+**Qué se hace:** cuando el encargo incluye una propiedad comprobable (formato
+de color, tamaño, resolución, dependencias), el contrato de `build` exige un
+modo de autoprueba que **la compruebe**, y la fábrica lo ejecuta sobre el
+binario ya empaquetado. Una propiedad afirmada y no comprobada cuenta como no
+cumplida.
+
+---
+
+## Apéndice — dónde se toca cada cosa
+
+Para que este plan sea ejecutable sin volver a razonarlo. Un bloque sin fichero
+y sin test es una intención, no una tarea.
+
+| Bloque | Fichero(s) | Test que lo demuestra |
+|---|---|---|
+| C1 | `magi/modules/swarm/orchestrator.py` (`_orchestrate_loop`, publicación del veredicto) | `tests/test_arbitro_no_aprueba_a_ciegas.py` |
+| C2 | `orchestrator.py` (`_publish_approval`) | mismo test: la propuesta viaja en el mensaje |
+| C3 | `agents.py::_ask_with_tools`, `agent_loop.py::run_agent` (`iteration_timeout_s`) | `tests/test_presupuesto_tarea.py` (ampliar) |
+| C4 | `orchestrator.py` + `magi/modules/swarm/intencion.py` | `tests/test_contrato_de_entregable.py` |
+| C5 | `magi/core/tools/__init__.py::registry_for_role`, prompts de `agents.py` | `tests/test_wiring.py` (ampliar: herramientas ofrecidas vs usadas) |
+| C6 | `magi/core/providers/backends/g4f_backend.py` (adaptador HuggingSpace) | test con respuesta `None` del proveedor |
+| C7 | `magi/core/verification.py::ProposalVerifier.verify` | `tests/test_verificacion_vacia.py` |
+| C8 | `scripts/auditar_sistema.py` + `ritsuko.evidencia()` | el propio informe de auditoría |
+| C9 / C16 | `magi/modules/studio/entrega.py`, `packager.py` | `tests/test_entrega_artefactos.py` (ampliar) |
+| C10 | prompts de `agents.py` (especificación y crítica) | revisión del prompt en `tests/test_prompts.py` |
+| C11 | `magi/core/providers/base.py` (nueva `es_degradada`), `agent_loop.py` | `tests/test_ritsuko.py` (ya) + uno en el orquestador |
+| C12 | `orchestrator.py` (contraste síntesis ↔ registro) | `tests/test_contrato_de_entregable.py` |
+| C13 | `magi/modules/infrastructure/naoko.py::_check_drift` | `tests/test_sonda_no_envenena.py` (ampliar) |
+| C14 | `magi/modules/infrastructure/ritsuko.py::_pensar` | `tests/test_ritsuko.py::test_ritsuko_no_comparte_familia` |
+| C15 | prompt de Casper en `agents.py` | revisión del prompt |
+
+## Orden final, con las tres pruebas encima de la mesa
+
+1. **C11** — una función y su uso en tres sitios. Cierra la puerta por la que
+   entran C1, C12 y el fallo que cometí en Ritsuko.
+2. **C1 + C12** — dejar de firmar éxitos: ni sobre un error, ni sobre un
+   artefacto que no existe.
+3. **C2** — que el trabajo bueno llegue aunque el último paso falle.
+4. **C4 + C7 + C9/C16** — «hazme un exe» termina en un exe que se prueba solo.
+5. **C13 + B8** — que medir deje de envenenar lo medido.
+6. **B1 + B4** — velocidad: unir bloques antes de verificar y cubrir la puerta
+   de las herramientas.
+7. **C5, C10, C14, C15** — usar lo que se sabe, justificar dependencias, anclar
+   la independencia de la auditora y decir cómo se entendió el encargo.

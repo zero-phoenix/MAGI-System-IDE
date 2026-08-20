@@ -148,8 +148,9 @@ def _cronometrar_etapas(t0: float) -> None:
 #: telemetria de grano fino y el informe tiene que caber en una pantalla.
 TEMAS = ("AGENT_POST", "TERMINAL_OUT", "swarm.task_completed",
          "swarm.budget_exhausted", "swarm.artefacto_listo", "naoko.log",
-         "naoko.status", "naoko.diagnostico", "obs.alert", "error.critical",
-         "sonda.actualizada", "task.cancelled")
+         "naoko.status", "naoko.diagnostico", "naoko.improvement",
+         "ritsuko.log", "ritsuko.status", "ritsuko.informe",
+         "obs.alert", "error.critical", "sonda.actualizada", "task.cancelled")
 
 
 #: La respuesta final, ENTERA. Los eventos se recortan a 400 caracteres para
@@ -219,11 +220,29 @@ def _resumen_etapas() -> dict:
     return d
 
 
-async def auditar(tarea: str, motor: str, rondas: int, espera_s: float) -> dict:
+def _quien_hablo() -> dict:
+    """
+    Quien aporto y cuanto. La pregunta que contesta es «¿funcionaron los tres?»,
+    y un nodo mudo es la respuesta mas barata de obtener y la que nadie mira.
+    """
+    d: dict[str, dict] = {}
+    for r in RESPUESTAS:
+        quien = str(r.get("agente") or "?")
+        e = d.setdefault(quien, {"veces": 0, "chars": 0, "t_primera": r["t_rel"]})
+        e["veces"] += 1
+        e["chars"] += len(r["texto"])
+    for nodo in ("MELCHIOR", "BALTHASAR", "CASPER"):
+        d.setdefault(nodo, {"veces": 0, "chars": 0, "t_primera": None})
+    return d
+
+
+async def auditar(tarea: str, motor: str, rondas: int, espera_s: float,
+                  con_ritsuko: bool = False) -> dict:
     t0 = time.perf_counter()
     _instrumentar(t0)
 
     t_imp = time.perf_counter()
+    from magi.core.bus import BusEvent
     from magi.core.kernel import Kernel
     imports_s = round(time.perf_counter() - t_imp, 2)
     _cronometrar_etapas(t0)
@@ -266,6 +285,33 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float) -> dict:
             break
     tarea_s = round(time.perf_counter() - t_tarea, 2)
 
+    # RITSUKO, DESPUES DE LA TAREA Y NO ANTES. Auditar el sistema en reposo no
+    # dice nada: lo que hay que ver es si sabe leer lo que acaba de pasar. Se
+    # le pregunta por el bus, igual que haria el usuario desde su pestana, y
+    # se espera a que conteste o se anota que no contesto.
+    informe_ritsuko = None
+    if con_ritsuko:
+        antes = len([e for e in EVENTOS if e["tema"] == "ritsuko.log"])
+        await kernel.bus.publish(BusEvent(
+            topic="ritsuko.user_message",
+            payload={"message": "Audita lo que acaba de pasar en el sistema: "
+                                "si Naoko hizo bien su trabajo, si los tres "
+                                "nodos funcionaron y que recomiendas cambiar."}))
+        limite_r = time.perf_counter() + 240
+        while time.perf_counter() < limite_r:
+            await asyncio.sleep(1.0)
+            dichos = [e for e in EVENTOS if e["tema"] == "ritsuko.log"]
+            if len(dichos) > antes + 1:
+                break
+        informes = kernel.ritsuko._informes
+        informe_ritsuko = {
+            "contesto": len([e for e in EVENTOS if e["tema"] == "ritsuko.log"]) > antes,
+            "informes_escritos": len(informes),
+            "ruta_ultimo": str(informes[-1].ruta) if informes else None,
+            "veredicto": informes[-1].veredicto if informes else None,
+            "evidencia": informes[-1].evidencia if informes else None,
+        }
+
     # Cierre a mano: el Kernel no expone `stop()`. Se apagan las tres cosas
     # que dejan el proceso vivo â€” la sonda periodica, el servidor RPC y los
     # workers del busâ€” en ese orden.
@@ -303,6 +349,13 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float) -> dict:
         "etapas_cronometradas": sorted(ETAPAS, key=lambda e: -e["segundos"])[:40],
         "resumen_etapas": _resumen_etapas(),
         "respuestas": RESPUESTAS,
+        "quien_hablo": _quien_hablo(),
+        "ritsuko": informe_ritsuko,
+        "naoko": {
+            "intervenciones": len([e for e in EVENTOS if e["tema"].startswith("naoko.")]),
+            "dijo": [e["texto"][:300] for e in EVENTOS
+                     if e["tema"] == "naoko.log" and e["texto"]][:10],
+        },
         "familias_registradas": familias,
         "detalle_llamadas": LLAMADAS,
         "errores": [c for c in fallidas],
@@ -350,9 +403,12 @@ def main() -> int:
     ap.add_argument("--espera", type=float, default=300.0,
                     help="segundos maximos de espera a que la tarea termine")
     ap.add_argument("--salida", default=str(RAIZ / "artifacts" / "auditoria.json"))
+    ap.add_argument("--con-ritsuko", action="store_true",
+                    help="al terminar, pide a Ritsuko que audite lo ocurrido")
     args = ap.parse_args()
 
-    inf = asyncio.run(auditar(args.tarea, args.motor, args.rondas, args.espera))
+    inf = asyncio.run(auditar(args.tarea, args.motor, args.rondas, args.espera,
+                              con_ritsuko=args.con_ritsuko))
     destino = Path(args.salida)
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps(inf, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -86,6 +86,22 @@ IDIOMAS_PERMITIDOS = ("es", "en")
 VENTANA_EVENTOS = 400
 
 
+#: Marcas con las que el sistema devuelve un fallo DISFRAZADO de respuesta.
+#: Están aquí y no dispersas porque el patrón se repite: `cloud.py` devuelve
+#: `[Inferencia no disponible: ...]` con proveedor `SYSTEM_ERROR`, y el bucle
+#: de herramientas devuelve `[Tiempo de espera agotado ...]`. Las dos son
+#: cadenas normales que cualquiera puede tratar como contenido bueno, y así es
+#: como se acaba firmando un veredicto sobre un error.
+MARCAS_DEGRADADAS = ("[Inferencia no disponible",
+                     "[Tiempo de espera agotado",
+                     "todos los proveedores fallaron")
+
+
+def _es_degradada(texto: str | None) -> bool:
+    t = (texto or "").strip()
+    return any(t.startswith(m) or m in t[:200] for m in MARCAS_DEGRADADAS)
+
+
 @dataclass
 class Informe:
     """Lo que Ritsuko entrega: un veredicto con la evidencia que lo sostiene."""
@@ -283,11 +299,25 @@ class RitsukoAgent:
                 topic="ritsuko.status",
                 payload={"status": f"Auditando ({modelo})..."}))
             try:
-                texto, _ = await self.llm.generate(sistema, user_prompt,
-                                                   model=modelo)
+                texto, proveedor = await self.llm.generate(sistema, user_prompt,
+                                                           model=modelo)
             except Exception as e:
                 ultimo_error = f"{type(e).__name__}: {e}"
                 logger.debug("[ritsuko] %s fallo: %s", modelo, e)
+                continue
+            # UN FALLO QUE VIENE COMO TEXTO SIGUE SIENDO UN FALLO.
+            #
+            # `cloud.py` devuelve `("[Inferencia no disponible: ...]",
+            # "SYSTEM_ERROR")` y el bucle de herramientas devuelve
+            # "[Tiempo de espera agotado tras 150s...]". Las dos son cadenas
+            # normales: quien no mire el `provider_id` se las traga como
+            # respuesta. Esto lo cazo en mi propia primera version —la prueba
+            # del 20-ago dejo un informe de Ritsuko cuyo veredicto era
+            # literalmente el mensaje de error— y es exactamente el mismo fallo
+            # que el enjambre comete al firmar APPROVED sobre un timeout.
+            if proveedor == "SYSTEM_ERROR" or _es_degradada(texto):
+                ultimo_error = f"{modelo}: respuesta degradada ({(texto or '')[:80]})"
+                logger.warning("[ritsuko] %s", ultimo_error)
                 continue
             if not (texto or "").strip():
                 ultimo_error = f"{modelo} devolvio vacio"

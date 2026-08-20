@@ -163,3 +163,45 @@ async def test_sin_proveedores_lo_dice_en_vez_de_inventarse_un_veredicto(monkeyp
     monkeypatch.setattr(agente.llm, "generate", siempre_falla)
     texto = await agente._pensar("audita esto", "es")
     assert "no he podido emitir veredicto" in texto.lower()
+
+
+async def test_un_fallo_disfrazado_de_texto_no_es_un_veredicto(monkeypatch):
+    """
+    Lo cazó la prueba del 20-ago: el informe de Ritsuko traía como veredicto
+    `[Inferencia no disponible: todos los proveedores fallaron...]`.
+
+    `cloud.py` devuelve ese texto con `provider_id == "SYSTEM_ERROR"`, y la
+    primera version de `_pensar` solo miraba el texto. Es EXACTAMENTE el fallo
+    que Ritsuko existe para denunciar en el enjambre —firmar un veredicto
+    encima de un error—, cometido por ella misma.
+    """
+    bus = MagiBus()
+    agente = RitsukoAgent(bus)
+    intentos: list[str] = []
+
+    async def degradada(system_prompt, user_prompt, **kw):
+        intentos.append(kw.get("model"))
+        return "[Inferencia no disponible: todos los proveedores fallaron]", "SYSTEM_ERROR"
+
+    monkeypatch.setattr(agente.llm, "generate", degradada)
+    texto = await agente._pensar("audita esto", "es")
+
+    assert "no he podido emitir veredicto" in texto.lower()
+    # El veredicto es SUYO y dice que no puede opinar. Puede citar el error
+    # como causa —eso es informar—, pero el error no puede SER el veredicto.
+    assert texto.startswith("[RITSUKO]")
+    # Y se prueban TODOS sus modelos antes de rendirse, no solo el primero.
+    assert len(intentos) == len(MODELOS_RITSUKO)
+
+
+async def test_un_timeout_del_bucle_de_herramientas_tampoco_cuela(monkeypatch):
+    bus = MagiBus()
+    agente = RitsukoAgent(bus)
+
+    async def timeout(system_prompt, user_prompt, **kw):
+        return ("[Tiempo de espera agotado tras 150s en iteracion 1. "
+                "Proveedor: g4f-gpt]"), "g4f-gpt"
+
+    monkeypatch.setattr(agente.llm, "generate", timeout)
+    texto = await agente._pensar("audita esto", "es")
+    assert "no he podido emitir veredicto" in texto.lower()
