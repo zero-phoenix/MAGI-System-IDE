@@ -1,4 +1,17 @@
-# MEGAPLAN v6 — que el sistema vaya rápido sin dejar de ser honesto
+# MEGAPLAN v6 — que el sistema vaya rápido y entregue lo que promete
+
+> **Segunda tanda (2026-08-20).** A las fases de velocidad se suman los
+> bloques **C1-C10**, que salen de dos pruebas nuevas: una pregunta compleja y
+> un encargo de producto, contrastadas con la respuesta y el ejecutable que
+> haría yo. El detalle está en `docs/COMPARATIVA-MAGI-vs-claude.md`.
+>
+> Resumen de lo que enseñaron: el enjambre **razona bien** —la crítica de
+> Balthasar cazó tres errores técnicos reales y coincidió con mi análisis— y
+> **entrega mal**: en las dos pruebas el usuario recibió 252 caracteres de
+> aviso de timeout firmados como `APPROVED`, con 33.000 caracteres de trabajo
+> bueno tirados a la basura y, en la prueba del `.exe`, ningún ejecutable.
+>
+> Si solo se pudiera hacer una cosa de todo este documento, sería **C1**.
 
 Base de todo lo que sigue: la auditoría de `docs/INFORME-AUDITORIA-v5.5.2.md`.
 **206 s de pared, 98 % esperando al proveedor, 16 llamadas para sumar dos
@@ -136,3 +149,153 @@ Tres números y ninguna interpretación:
 | Media por llamada | 19,2 s | ≤ 10 s |
 | Factor de solape | 1,4× | ≥ 2,5× |
 | Rebuilds por tarea trivial | 1 | 0 |
+
+
+---
+
+# Fase C — que lo que llega al usuario valga lo que costó
+
+Todo lo de abajo sale de las pruebas A y B del 2026-08-20
+(`docs/COMPARATIVA-MAGI-vs-claude.md`). Las fases 1-4 hacen el sistema rápido;
+esta lo hace **fiable**, que es lo que decide si alguien lo usa dos veces.
+
+## C1. `APPROVED` deja de ser lo que sale por defecto  ⟵ **empezar por aquí**
+
+**Evidencia:** las dos pruebas terminaron con
+`**Decisión Técnica:** APPROVED` seguido de un aviso de timeout. Casper no
+recibió respuesta del modelo y aun así el veredicto salió aprobado.
+
+**Qué se hace:** el veredicto se construye desde la respuesta del árbitro, y si
+no hay respuesta el estado es `SIN ARBITRAJE`, nunca `APPROVED`. Un turno
+degradado no puede producir un visto bueno, en ninguna rama.
+
+**Cómo se comprueba:** test que simula el timeout del árbitro y exige que el
+evento final NO contenga `APPROVED`.
+
+**Por qué es lo primero:** es la diferencia entre un sistema que se equivoca y
+un sistema que miente. Todo lo demás de este documento asume que cuando MAGI
+dice «aprobado» es porque alguien lo leyó.
+
+## C2. Si el último paso falla, se entrega lo penúltimo
+
+**Evidencia:** 30.866 chars de tesis + 2.522 de crítica producidos y pagados;
+252 chars entregados. El trabajo estaba hecho.
+
+**Qué se hace:** ante un fallo del árbitro, el usuario recibe la mejor variante
+verificada más la crítica, con una cabecera honesta: «sin arbitraje final, esto
+es lo que hay y por qué». Degradar es legítimo; desaparecer no.
+
+**Cómo se comprueba:** mismo test de C1, exigiendo que el mensaje final
+contenga la propuesta.
+
+## C3. El prompt del árbitro crece con el fan-out; el timeout no
+
+**Evidencia:** 3 variantes → 30.866 chars → el árbitro muere a los 150 s. En la
+prueba B, 21 completions y el mismo final.
+
+**Qué se hace:** dos cosas, y las dos son necesarias:
+1. Al árbitro le llega **la variante elegida y la crítica**, no las tres
+   variantes enteras. Arbitrar no es releerlo todo.
+2. El timeout por iteración se calcula desde el tamaño del prompt y el
+   presupuesto restante, en vez de ser la constante `150.0`.
+
+**Se gana:** además de dejar de morir, menos tokens por llamada en el paso más
+caro de la cadena.
+
+## C4. Un encargo de producto se cierra con el producto
+
+**Evidencia:** «haz una réplica de Tetris en un .exe portable» → **0** llamadas
+a `entregar_artefacto`, **1** bloque de código en toda la conversación, y una
+especificación redactada en pasado («se implementó… se empaquetó…») de algo que
+no existía.
+
+**Qué se hace:** cuando la intención es `build`, el turno tiene **contrato de
+entregable**: no puede cerrarse sin (a) código ejecutable, (b) verificación que
+lo arranque de verdad y (c) artefacto entregado. Si falta cualquiera de las
+tres, el estado es `INCOMPLETO` con el motivo, jamás `APPROVED`.
+
+**Cómo se comprueba:** test de extremo a extremo con un encargo `build` cuyo
+agente devuelve solo prosa: debe terminar en `INCOMPLETO`.
+
+## C5. El sistema tiene que usar lo que sabe
+
+**Evidencia:** pregunta de portabilidad PSP→Vita. MAGI tiene `analyze_port`,
+`console_profile` y `compare_consoles` —un analizador subsistema a subsistema
+escrito para justo eso— y los usó **cero veces**. Contestó de memoria.
+
+**Qué se hace:**
+1. La selección de herramientas por enunciado (`registry_for_role(task_hint=)`)
+   se mide: registrar qué herramientas se ofrecieron y cuáles se usaron.
+2. El prompt de Melchior incluye el catálogo disponible **con ejemplos de
+   cuándo usar cada una**, no solo la firma.
+3. Balthasar refuta también por omisión: «había una herramienta que respondía
+   esto y no se consultó» es un defecto, y de los caros.
+
+**Se gana:** la diferencia entre un modelo con acceso a herramientas y un
+sistema que las usa. Es donde está la ventaja real de MAGI sobre un chat.
+
+## C6. Un proveedor que revienta no es un proveedor agotado
+
+**Evidencia:** `familia 'hf' agotada (1 candidatos): HuggingSpace: TypeError:
+argument of type 'NoneType' is not iterable`. Eso no es cuota: es un fallo del
+adaptador, y se está informando como agotamiento.
+
+**Qué se hace:** arreglar el `TypeError` del adaptador de HuggingSpace, y
+separar en la contabilidad **agotado** (cuota, 429) de **roto** (excepción).
+Llevan a decisiones opuestas: uno se espera, el otro se descarta.
+
+## C7. Verificar cero bloques no es verificar
+
+**Evidencia:** `ProposalVerifier.verify` corrió 3 veces en **0,0 s** en la
+prueba del Tetris. No había código, así que verificó el vacío y pasó.
+
+**Qué se hace:** sin bloques ejecutables el resultado es `NO VERIFICADO`, no
+`OK`. Y si el encargo era `build`, `NO VERIFICADO` bloquea el cierre (C4).
+
+## C8. La calidad de la entrega se mide, no se opina
+
+**Qué se hace:** `scripts/auditar_sistema.py` añade cuatro números al informe,
+y Ritsuko los sigue versión a versión:
+
+| Métrica | Prueba A | Prueba B | Objetivo |
+|---|---|---|---|
+| Caracteres entregados / producidos | 252 / 33.388 (0,8 %) | 252 / 13.140 (1,9 %) | ≥ 60 % |
+| Bloques de código con encargo `build` | — | 1 | ≥ 1 y verificado |
+| Artefacto entregado con encargo `build` | — | no | sí |
+| Herramientas propias usadas | 0 | 0 | ≥ 1 cuando existan para el tema |
+
+## C9. El artefacto trae su propia prueba
+
+**De dónde sale:** mi Tetris expone `--autotest N`; el binario se verifica solo
+en un segundo (`AUTOPRUEBA OK: 90 fotogramas` y código 0). Por eso puedo
+afirmar que el `.exe` arranca sin que nadie mire la pantalla.
+
+**Qué se hace:** el contrato de `build` exige que el artefacto generado exponga
+un modo de autoprueba, y la fábrica lo ejecuta sobre el binario **ya
+empaquetado**, no solo sobre el fuente. Verificar el fuente y entregar el
+binario deja fuera justo lo que puede romperse al empaquetar.
+
+## C10. Elegir la dependencia mínima es parte del encargo
+
+**Evidencia:** los tres enfoques de Melchior eligieron **pygame** sin
+discutirlo. Para «ejecutable único portable», tkinter (biblioteca estándar) da
+**9,0 MB** sin SDL ni DLLs externas; pygame da 30-40 MB y más superficie de
+fallo en la máquina destino.
+
+**Qué se hace:** para encargos con `portable`, `exe` o `sin dependencias`, la
+especificación incluye **presupuesto de dependencias**, y Balthasar tiene que
+atacarlo explícitamente: «¿por qué esta biblioteca y no la estándar?». Una
+decisión de dependencia sin justificar es un defecto, no un detalle.
+
+---
+
+## Orden actualizado
+
+1. **C1** — dejar de mentir al aprobar. Todo lo demás depende de esto.
+2. **C2 + C3** — que el trabajo llegue, y que el árbitro deje de morir.
+3. **B1** (unir bloques antes de verificar) y **C7** — la verificación deja de
+   producir falsos positivos por los dos lados.
+4. **C4 + C9** — «hazme un exe» termina en un exe que se prueba solo.
+5. **B4** (hedge en el bucle de herramientas) — el mayor ahorro de tiempo.
+6. **C5 + C6** — usar lo que se sabe y distinguir roto de agotado.
+7. El resto de las fases 1-4, y **C8 + C10** como criterio permanente.

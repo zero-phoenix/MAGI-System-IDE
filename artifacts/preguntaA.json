@@ -1,0 +1,361 @@
+{
+  "tarea": "Explica por que el dynarec de un emulador de PSP (MIPS R4000 con VFPU) no se puede reutilizar tal cual para emular PS Vita (ARM Cortex-A9 con NEON), que partes SI se reutilizan, y cual es el camino tecnico realista para adaptar un emulador de PSP a Vita. Incluye el orden de trabajo y los tres riesgos que hunden ese proyecto.",
+  "task_id": "auditoria-1787206900",
+  "motor": "deep",
+  "rondas": 1,
+  "estado_final": "WAITING_USER_APPROVAL",
+  "tiempos": {
+    "imports_s": 0.11,
+    "arranque_kernel_s": 0.42,
+    "tarea_s": 135.19,
+    "total_s": 136.09
+  },
+  "llamadas": {
+    "total": 2,
+    "ok": 2,
+    "fallidas": 0,
+    "sin_etiqueta": 0,
+    "segundos_modelo": 27.8,
+    "mediana_s": 14.19,
+    "peor_s": 14.19
+  },
+  "por_etapa": {
+    "balthasar": {
+      "llamadas": 2,
+      "segundos": 27.8,
+      "errores": 0
+    }
+  },
+  "etapas_cronometradas": [
+    {
+      "t_rel": 0.96,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 74.77
+    },
+    {
+      "t_rel": 1.42,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 49.55
+    },
+    {
+      "t_rel": 1.43,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 49.53
+    },
+    {
+      "t_rel": 1.43,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 49.51
+    },
+    {
+      "t_rel": 89.96,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "CASPER",
+      "segundos": 45.18
+    },
+    {
+      "t_rel": 89.96,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 45.16
+    },
+    {
+      "t_rel": 1.42,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 40.25
+    },
+    {
+      "t_rel": 1.43,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 40.23
+    },
+    {
+      "t_rel": 50.94,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 24.78
+    },
+    {
+      "t_rel": 75.76,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 14.19
+    },
+    {
+      "t_rel": 75.76,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 14.19
+    },
+    {
+      "t_rel": 75.75,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 13.61
+    },
+    {
+      "t_rel": 75.75,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 13.61
+    },
+    {
+      "t_rel": 75.75,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 10.71
+    },
+    {
+      "t_rel": 75.76,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 10.69
+    },
+    {
+      "t_rel": 75.75,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 8.89
+    },
+    {
+      "t_rel": 75.76,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 8.87
+    },
+    {
+      "t_rel": 75.74,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    },
+    {
+      "t_rel": 75.74,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    },
+    {
+      "t_rel": 75.73,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    }
+  ],
+  "resumen_etapas": {
+    "ProviderRegistry.complete": {
+      "veces": 9,
+      "segundos": 256.57
+    },
+    "SwarmAgentBase._ask_with_tools": {
+      "veces": 6,
+      "segundos": 229.35
+    },
+    "ProposalVerifier.verify": {
+      "veces": 3,
+      "segundos": 0.0
+    },
+    "SwarmAgentBase._ask": {
+      "veces": 2,
+      "segundos": 27.8
+    }
+  },
+  "respuestas": [
+    {
+      "t_rel": 75.75,
+      "tema": "AGENT_POST",
+      "agente": "MELCHIOR",
+      "texto": "Se han generado 3 enfoques alternativos. Compáralos y señala cuál es más sólido y por qué.\n\n===== Enfoque A (hf) =====\n**Tesis Arquitectónica: Viabilidad, Componentes Reutilizables y Hoja de Ruta para la Adaptación de Dynarec de PSP (MIPS R4000/VFPU) a PS Vita (ARM Cortex-A9/NEON)**\n\n---\n\n### 1. Incompatibilidad Fundamental del Recompilador Dinámico (Dynarec)\n\nUn JIT/Dynarec de PSP no se puede reutilizar directamente (\"tal cual\") para PS Vita debido a divergencias estructurales irconciliables en las ISA fuente y los subsistemas de ejecución:\n\n1. **Divergencia de ISA Fuente (MIPS32 Release 2 vs ARMv7-A):**\n   * **Decodificación de Instrucciones:** MIPS R4000 utiliza un set de instrucciones de ancho fijo (32 bits) con un esquema de campos altamente regular (`opcode`, `rs`, `rt`, `rd`, `sa`, `funct`). ARM Cortex-A9 (ARMv7-A) soporta tanto ARM (32-bit) como Thumb-2 (16/32-bit variable). El módulo de decodificación y el pipeline del frontend del JIT son totalmente incompatibles.\n   * **Banco de Registros:** PSP posee 31 registros GPR MIPS de 32 bits (más `$zero`). PS Vita requiere modelar 16 registros ARM de 32 bits (`r0`-`r15`), incluyendo un `r15` que actúa como Program Counter (PC) modificable dinámicamente por instrucciones aritméticas, un `r13` (SP) con restricciones de alineación de pila de 8 bytes, y un registro de estado explícito (`CPSR`) con flags de condición (`N`, `Z`, `C`, `V`).\n   * **Branch Delay Slots:** MIPS R4000 ejecuta implícitamente la instrucción posterior a un salto (`delay slot`). La lógica de emulación de bloques básicos en el JIT de PSP asume esta semántica. ARMv7-A no posee delay slots; la alteración del flujo de control es directa o condicional basada en el `CPSR` o mediante instrucciones Thumb-2 `IT` (If-Then).\n\n2. **Coproc/SIMD: VFPU vs ARM NEON:**\n   * **VFPU (PSP):** Arquitectura vectorial propietaria de Sony basada en matrices (hasta 4x4), vectores (2, 3, 4 elementos) y registros divididos en matrices/filas/columnas (`C000`-`C730`). Incluye operaciones trascendentales por hardware (`sine`, `cosine`, `sincof`) y transformaciones matriciales directas.\n   * **ARM NEON (Vita):** Unidad SIMD de 64/128 bits con banco de registros de 32x64-bit (`d0`-`d31`) o 16x128-bit (`q0`-`q15`). Opera bajo el modelo SIMD empaquetado estándar.\n   * **Incompatibilidad:** No existe equivalencia 1:1 entre las instrucciones matriciales de la VFPU y las vectoriales de NEON. El backend JIT debe rediseñarse por completo para traducir la ISA fuente ARMv7/NEON al IR (Representación Intermedia) o directamente al ensamblador del Host (x86_64/AArch64).\n\n3. **Modelo de Memoria y Paginación:**\n   * **PSP:** Dirección virtual simple con mapeo directo en espacio de usuario (`0x08000000` a `0x0A000000` para RAM principal de 32MB/64MB). Sin MMU compleja expuesta a aplicaciones de usuario.\n   * **PS Vita:** Sistema de memoria virtual gestionado por hardware (MMU ARM de 2 niveles con páginas de 4KB/64KB), espacio de direccionamiento de 32 bits completo con múltiples dominios de memoria (User, Kernel, LPDDR2 de 512MB, VRAM de 128MB) y memoria compartida explícita con el motor gráfico (SGX543MP4+).\n\n---\n\n### 2. Componentes del Emulador que SÍ se Reutilizan\n\nAunque el backend y frontend del Dynarec de CPU deben desecharse o reescribirse, los siguientes subsistemas arquitectónicos son reutilizables:\n\n* **Infraestructura del JIT / JIT Cache Management:** La estructura de datos para gestionar la caché de código traducido (malla de bloques básicos, invidación de páginas de código por auto-modificación, tablas Hash/Trie para mapeo de `PC_fuente` -> `Host_Address`).\n* **Sistemas de Alto Nivel (HLE Core & Scheduler):** El planificador de eventos determinista (Thread Scheduler, asignación de ciclos de reloj simulados), la gestión de colas de interrupción y las primitivas de sincronización (semáforos, mutexes, eventos).\n* **Gestor de Formatos de Archivo (Parcial):** Parser de formatos contenedores (SFO, estructuras de cabeceras de módulos) y la lógica subyacente para el sistema de archivos virtual (VFS).\n* **Capa de Abstracción de E/S y Renderizado (Platform Layer):** Abstracciones de GPU para backend moderno (Vulkan/DirectX12/Metal), manejo de audio PCM, entrada de mandos y la integración con la ventana del sistema operativo host.\n\n---\n\n### 3. Camino Técnico Realista para Adaptar el Emulador (Paso a Paso)\n\nEl enfoque correcto consiste en desacoplar el core del emulador y sustituir la canalización de ejecución mediante un diseño modular guiado por IR.\n\n```\n+-------------------------------------------------------------------+\n|                        PS Vita Binary (ELF)                       |\n+-------------------------------------------------------------------+\n                                  |\n                                  v\n+-------------------------------------------------------------------+\n|       NUEVO Frontend: Decodificador ARMv7-A / Thumb-2 / NEON      |\n+-------------------------------------------------------------------+\n                                  |\n                                  v\n+-------------------------------------------------------------------+\n|               IR (Intermediate Representation) Builder            |\n+-------------------------------------------------------------------+\n                                  |\n                                  v\n+-------------------------------------------------------------------+\n| REUTILIZADO: Motor de Optimización IR y Gestor de Registros Host  |\n+-------------------------------------------------------------------+\n                                  |\n                                  v\n+-------------------------------------------------------------------+\n|      NUEVO/REUTILIZADO Backend: Generador de Código (x86_64)      |\n+-------------------------------------------------------------------+\n```\n\n#### Orden de Trabajo Obligatorio:\n\n1. **Fase 0: Implementación de un Intérprete ARMv7-A Preciso**\n   * Crear o integrar un intérprete puro para ARMv7-A/Thumb-2 y NEON. Desacoplar completamente el core MIPS del emulador de PSP.\n   * Verificar la corrección semántica mediante pruebas de regresión contra hardware real o un emulador de referencia (ej. Unicorn Engine).\n\n2. **Fase 1: Abstracción a Representación Intermedia (IR)**\n   * Implementar un pipeline basado en SSA (Static Single Assignment) IR.\n   * El Frontend convierte opcodes ARM/NEON a micro-operaciones IR neutras (ej. `IR_ADD`, `IR_LOAD`, `IR_VEC_ADD`). Esto aislará el emulador de dependencias con arquitecturas fuente específicas en el futuro.\n\n3. **Fase 2: Generador de Código Host (Backend JIT)**\n   * Adaptar el backend JIT existente para consumir la nueva IR y emitir ensamblador para el Host (x86_64 o AArch64).\n   * Implementar el asignador de registros (Register Allocator) basándose en intervalos de vida lineales o coloreado de grafos para los registros ARM y NEON.\n\n4. **Fase 3: Sustitución de HLE (High Level Emulation) de syscalls de PSP por NID Syscalls de PS Vita**\n   * Rediseñar la capa ABI para soportar las llamadas al sistema (SVC/Syscalls) de PSVita (SNC / Vita OS) basadas en importación por NID (Name Identifier hashes de 32 bits).\n\n5. **Fase 4: Optimización JIT y Recompilación Bloque a Bloque**\n   * Implementar vinculación directa de bloques (Block Linking) sin volver al despachador principal del emulador.\n\n---\n\n### 4. Tres Riesgos Críticos que Hunden el Proyecto\n\n1. **Riesgo 1: Complejidad de Decodificación y Semántica de Thumb-2 e Instrucciones Condicionales ARM**\n   * *Descripción:* A diferencia de MIPS, casi cualquier instrucción ARMv7 de 32 bits puede ser ejecutada condicionalmente evaluando los flags del `CPSR`. Thumb-2 intercala instrucciones de 16 y 32 bits en el mismo flujo de código sin alineación de 4 bytes.\n   * *Impacto:* Intentar reutilizar la lógica de decodificación simple de MIPS provocará una explosión de estados en la traducción JIT, generando código host ineficiente con saltos condicionales masivos para verificar los flags en cada instrucción.\n\n2. **Riesgo 2: Mapeo de la MMU de Vita y Banners de Coherencia de Memoria (Self-Modifying Code / DMA)**\n   * *Descripción:* PS Vita utiliza 4 núcleos Cortex-A9 con caché L1/L2 snooping y memoria compartida heterogénea entre CPU y GPU (SGX543MP4+). Los juegos de Vita dependen fuertemente de barreras de memoria (`DMB`, `DSB`, `ISB`) y mutación de código dinámico.\n   * *Impacto:* La PSP no manejaba coherencia multicore. Un Dynarec de PSP no cuenta con mecanismos de desacoplamiento de caché ni protección fina de páginas para invalidación JIT en entornos multihilo, resultando en race conditions crónicas o crashes por inconsistencia de código emulado.\n\n3. **Riesgo 3: Desproporción entre la Complejidad de la VFPU y el Subsistema ARM NEON/VFPv3**\n   * *Descripción:* La VFPU de PSP operaba sobre un modelo simplificado y aislado con instrucciones dedicadas. NEON en Cortex-A9 comparte espacio de registros con VFPv3 (escalar de doble precisión) y requiere emulación estricta de modos de redondeo IEEE 754, subnormales (flush-to-zero) y tratamiento de excepciones de punto flotante.\n   * *Impacto:* Mapear erróneamente el comportamiento de VFPv3/NEON asumiendo simplificaciones de la VFPU genera desincronización de física, animaciones y lógica matemática en los juegos, fallos imperceptibles en depuración estándar que arruinan la ejecución a largo plazo.\n\n---\n\n### CONCLUSIÓN\n\nEl dynarec de un emulador de PSP no es directamente reutilizable para emular PS Vita debido a las diferencias fundamentales entre las arquitecturas MIPS R4000/VFPU y ARM Cortex-A9/NEON, la presencia de codificación Thumb-2, la ejecución condicional y el modelo de memoria SMP multicore de la Vita. Sin embargo, los componentes de la arquitectura del emulador como el planificador de eventos, la infraestructura de caché JIT y el subsistema de renderizado sí pueden reaprovecharse. El camino técnico realista exige implementar primero un intérprete funcional de ARMv7, transicionar la traducción a una Representación Intermedia (IR) neutra y construir un backend especializado. Los tres riesgos principales que amenazan el proyecto son la complejidad de decodificación de Thumb-2/flags condicionales, la incoherencia de memoria multicore sin un sistema robusto de invalidación de JIT, y la falta de precisión estricta al emular VFPv3/NEON frente a la antigua VFPU.\n\n===== Enfoque B (hf) =====\n**Propuesta técnica para adaptar un dynarec de un emulador de PSP (MIPS R4000 + VFPU) a la PS Vita (ARM Cortex‑A9 + NEON)**  \n\n---\n\n## 1. ¿Por qué el dynarec existente no se puede reutilizar tal cual?\n\n| Aspecto | PSP (MIPS R4000 + VFPU) | PS Vita (ARM Cortex‑A9 + NEON) | Impacto en el dynarec |\n|---------|------------------------|------------------------------|-----------------------|\n| **ISA** | 32‑bit MIPS‑I/II/III, delayed‑branch, load‑delay slot, coprocessor 1 (VFPU) | 32‑bit ARMv7‑A, Thumb‑2, NEON SIMD, sin delay‑slot | El patrón de instrucciones, los tamaños de opcode y la semántica de salto son totalmente distintos; el motor de traducción de bloques básicos debe reescribirse. |\n| **Modelo de registros** | 32 registros de propósito general ($0‑$31), 32 registros de punto flotante (f0‑f31) en VFPU, registro de condición (COP1) | 13 registros generales (r0‑r12, sp, lr, pc) + registro de estado (CPSR), 16 registros de 64‑bit NEON (q0‑q15) vistos como 32‑bit d0‑d31 | No hay correspondencia 1‑a‑1; se necesita un mapa de asignación dinámica y spill/reload sofisticado. |\n| **Endianess** | PSP es **little‑endian** (igual que Vita) → aquí no hay problema, pero el dynarec asume alineación y acceso a memoria poco‑endiana para instrucciones de 32 bits; en ARM la carga de instrucciones también es little‑endian, así que este punto sí se puede reutilizar. |\n| **Unidad de punto flotante / SIMD** | VFPU: operaciones IEEE‑754 simples y dobles, instrucciones de formato *fmt* (add.s, mul.d, etc.) con redondeo por defecto, soporte para *paired‑single* (two‑float) en algunas extensiones. | NEON: operaciones de punto flotante simples y dobles (vadd.f32, vmul.f64) y SIMD de enteros; no tiene instrucciones *paired‑single* ni los mismos modos de redondeo de VFPU. | La traducción de cada instrucción de VFPU a una o más instrucciones NEON requiere emulación de redondeo, manejo de excepciones y, en caso de paired‑single, descomposición en dos operaciones scalar o uso de shuffles. |\n| **Modelo de memoria y excepciones** | MIPS usa *TLB* con *refill* y *exception vectors* (TLB‑mod, address error, etc.) y tiene *load/store* que pueden generar *address error* por alineación. | ARM usa *MMU* con *translation tables* (section/page), *data abort* y *prefetch abort*; la alineación de accesos no es estricta (excepto para ciertas instrucciones LDM/STM). | El manejo de excepciones y la forma de hacer *trap* a código de emulación deben reescribirse. |\n| **Código auto‑modificante / self‑modifying** | Los juegos de PSP a veces modifican su propio código en RAM; el dynarec debe invalidar la caché de traducción cuando detecta escritura en regiones ejecutables. | En Vita la misma técnica existe, pero la coherencia de caches (I‑cache/D‑cache) se gestiona con instrucciones *IC IALLU* y *DC IVAC*; el dynarec debe llamar a las rutinas de mantenimiento de caché de ARM. | La lógica de invalidación es reutilizable, pero las llamadas específicas a la arquitectura cambian. |\n| **Modelo de hilos y sincronización** | PSP tiene un kernel sencillo con *sceKernel* (semaforos, mutex, eventos). | Vita posee un kernel más complejo con soporte SMP (aunque solo un núcleo se usa en modo usuario) y primitivas *sceKernel* similares pero con diferentes números de syscall y estructuras de parámetros. | La capa de *syscall* y *kernel stubs* debe reescribirse; el dynarec en sí no depende de ella, pero el entorno de ejecución sí. |\n\nEn resumen: **el dynarec se basa en una representación intermedia (IR) y en un motor de generación de código; esas capas pueden reaprovecharse, pero todo lo que esté estrechamente ligado a la ISA de MIPS, al modelo de registros de VFPU y a la forma de manejar excepciones y caché debe ser reemplazado o profundamente adaptado**.\n\n---\n\n## 2. Partes que **sí** se pueden reutilizar\n\n| Sub‑sistema | Motivo de reutilización |\n|-------------|------------------------|\n| **Frontend de lectura de ROM / ISO** | Sólo necesita saber el formato de archivo y el mapa de memoria; idéntico para PSP y Vita. |\n| **Administración de memoria virtual** (mapa de 0x0‑0x1FFFFF, 0x2000000‑0x3FFFFFF, etc.) | El espacio de direcciones de la PSP se mapea a la misma zona en la Vita; las funciones de reserva, protección y paginado pueden mantenerse. |\n| **Caché de traducción (translation cache) y gestión de bloques básicos** | El algoritmo de hash, la estructura de datos y la política de reemplazo (LRU, límite de tamaño) son independientes de la ISA. |\n| **Motor de ejecución de bloques (dispatcher, salto indirecto, manejo de PC)** | Sólo cambia la forma de emitir el salto final (branch vs. b/bl), pero el bucle de fetch‑decode‑execute del dynarec permanece. |\n| **Sistema de guardado/carga de estados (save states)** | El estado consiste en registros, memoria y flags; la serialización/deserialización es ISA‑agnóstica. |\n| **Manejo de entradas, sonido y vídeo (API de alto nivel)** | Los plugins de audio (SDL/OpenAL), vídeo (OpenGL ES 2.0) y entrada (touch, botones) se pueden reutilizar tal cual; solo se necesita adaptar la capa de “llamadas al sistema” a los servicios de Vita. |\n| **Cheat engine, depurador, breakpoints, watchpoints** | Operan sobre direcciones y valores; la lógica de inserción/eliminación de breakpoints es portable. |\n| **Herramientas de construcción (CMake, scripts de compilación)** | No dependen de la arquitectura objetivo. |\n| **Documentación y pruebas de regresión** | El conjunto de ROMs de prueba y los scripts de comparación pueden servir como base. |\n\n---\n\n## 3. Camino técnico realista para adaptar el dynarec\n\n### 3.1. Visión de alto nivel\n1. **Definir una IR común** (si no existe ya) que represente las operaciones de la CPU PSP (incluyendo VFPU) de forma independiente del destino.  \n2. **Reutilizar el motor de generación de código** existente (plantillas, registro de asignación, peephole optimizer) pero reescribir los *backends* para ARM/NEON.  \n3. **Implementar mapas de registros y de punto flotante** que traduzcan los 32 registros de propósito general y los 32 de VFPU a los registros ARM + NEON, con spill/reload a pila cuando sea necesario.  \n4. **Añadir pases de lowering específicos** para:\n   - Instrucciones de punto flotante VFPU → secuencias NEON (incluyendo manejo de redondeo y excepciones).  \n   - Instrucciones *paired‑single* → dos operaciones scalar o uso de shuffles NEON.  \n   - Branches con delay slot → equivalente ARM (usando predicación o reordenado).  \n   - Load/Store con alineación forzada → secuencia que respete las restricciones de MIPS (posible ajuste de dirección y uso de ldr/str con offset).  \n5. **Integrar la lógica de mantenimiento de caché** (invalidación de I‑cache cuando se escribe en memoria ejecutable) usando las llamadas del kernel de Vita (`sceKernelDcacheInvalidateRange`, `sceKernelIcacheInvalidateRange`).  \n6. **Adaptar la capa de syscalls** para traducir los llamadas al kernel de PSP a los servicios de Vita (por ejemplo, `sceKernelDelayThread` → `sceKernelDelayThread`, pero con distintos números y estructuras).  \n7. **Ejecutar un plan de pruebas incremental**:\n   - Unit tests de la IR → backend (comparar salida de instrucciones aisladas).  \n   - Test de bloques básicos con juegos homebrew simples (ej. “Hello World” de PSP).  \n   - Ejecución de títulos comerciales populares en modo *interpreter* para validar el estado de la memoria y los registros.  \n   - Habilitar el dynarec y comparar frames por segundo (FPS) y checksums contra la versión interpreter.  \n   - Test de casos edge: self‑modifying code, excepciones de alineación, VFPU edge cases (NaN, infinito, redondeo).  \n\n### 3.2. Orden de trabajo (sprint‑style)\n\n| Sprint | Objetivo principal | Actividades clave |\n|--------|-------------------|-------------------|\n| **0 – Preparación** | Entender el código base y definir la IR (si falta). | - Leer el dynarec existente.<br>- Diseñar o documentar la IR (Árbol de operaciones, SSA opcional).<br>- Crear suite de pruebas unitarias para la IR. |\n| **1 – Backend ARM/NEON básico** | Generar código funcional para un subconjunto reducido de instrucciones MIPS (enteras, sin VFPU). | - Implementar asignación de registros simples (para r0‑r12).<br>- Emitir branch y jump (sin delay slot).<br>- Instrucciones de carga/almacenamiento (lw, sw, lb, sb).<br>- Validar con pruebas de instrucciones aisladas. |\n| **2 – Soporte VFPU → NEON** | Traducir todas las instrucciones de punto flotante y paired‑single. | - Mapear f0‑f31 a registros NEON (d0‑d31) con conversión a scalar cuando sea necesario.<br>- Implementar redondeo y manejo de excepciones (usando `fcvtzs`, `fmaxnm`, etc.).<br>- Añadir pases de lowering para `add.s`, `mul.d`, `cvt.s.w`, etc.<br>- Testear con micro‑benchmarks de ponto flotante. |\n| **3 – Manejo de excepciones y memoria** | Insertar traps a código de emulación para TLB/MMU, alineación y accesos no permitidos. | - Crear stubs que llamen a los manejadores de excepción de la PSP (interpretados).<br>- Implementar validación de alineación y generación de *address error* cuando corresponda.<br>- Integrar invalidación de I‑cache después de escrituras en zona ejecutable. |\n| **4 – Syscalls y kernel stubs** | Traducir las llamadas al sistema de PSP a los servicios de Vita. | - Mapear cada `sceKernel*` y `sceGraphics*` a su equivalente Vita (o a una capa de compatibilidad).<br>- Manejar diferencias en estructuras de parámetros (p.ej., tamaño de buffers).<br>- Testear con homebrew que hace uso de file I/O, timer y audio. |\n| **5 – Optimización y peephole** | Mejorar el rendimiento del código generado. | - Implementar peephole passes: combinación de loads/stores, eliminación de movimientos muertos, uso de instrucciones NEON de acumulación (`vmla.f32`).<br>- Ajustar el asignador de registros (graph‑coloring o linear scan) para reducir spills.<br>- Medir rendimiento en títulos representativos y ajustar. |\n| **6 – Integración y pruebas de regresión** | Ejecutar el emulador completo con dynarec habilitado. | - Correr la batería de pruebas de ROMs (incluyendo títulos comerciales populares).<br>- Verificar guardado/carga de estados, cheats y depurador.<br>- Realizar pruebas de estrés (sesiones largas, cambios de resolución). |\n| **7 – Documentación y entrega** | Preparar manuales, notas de liberación y plan de mantenimiento. | - Documentar el proceso de portado, decisiones de diseño y limitaciones conocidas.<br>- Generar paquetes de distribución (CIA, PKG, o homebrew según el canal de distribución).<br>- Plan de soporte para futuras actualizaciones de SDK de Vita. |\n\nCada sprint debería durar entre 2‑3 semanas, con revisiones de código y pruebas automatizadas al final de cada uno.\n\n---\n\n## 4. Tres riesgos que pueden hundir el proyecto y sus mitigaciones\n\n| Riesgo | Por qué es crítico | Mitigación concreta |\n|--------|-------------------|---------------------|\n| **1. Incorrectitud en la traducción de punto flotante (VFPU ↔ NEON)** | Los juegos de PSP dependen de precisión y comportamiento de redondeo IEEE‑754; cualquier desviación produce gráficos corruptos, físicas erróneas o fallos de sincronización que hacen que el título sea injugable. | - Crear un *test‑suite exhaustivo* de todas las operaciones VFPU (incluyendo redondeo, NaN, infinito, operaciones de paired‑single).<br>- Comparar resultados con un intérprete de referencia (soft‑float) en cada cambio de backend.<br>- Utilizar herramientas de *property‑based testing* (ej. QuickCheck) para generar valores aleatorios y asegurar que el error máximo esté dentro de una ULP aceptable. |\n| **2. Sobrecarga de traducción que anula el beneficio del dynarec** | Si el costo de traducir cada bloque básico supera el ahorro de interpretar, el FPS puede quedar peor que el intérprete puro, haciendo el esfuerzo inútil. | - Implementar un *threshold* de ejecución: sólo traducir bloques que se ejecuten más de N veces (ej. N=1000).<br>- Usar una *translation cache* con hash eficiente y límite de tamaño configurable.<br>- Realizar perfiles tempranos (gprof/perf) para identificar *hot spots* y optimizar primero los backends de esas rutas (por ejemplo, los loops de transformación de vértices).<br>- Considerar un enfoque de *jit de nivel de función* (compilar toda una función MIPS a una función ARM) para reducir overhead de salto entre bloques. |\n| **3. Problemas legales / de licencia con el SDK o binarios de Vita** | El uso indebido de bibliotecas propietarias de Sony (por ejemplo, libgcm, libaudio) puede derivar en ceases‑and‑desist, retirada de distribuciones o imposibilidad de publicar el emulador en canales oficiales. | - Limitar el emulador a usar únicamente APIs públicas y documentadas de Vita (por ejemplo, `sceDisplay`, `sceCtrl`, `sceAudio` mediante el *homebrew SDK* oficial).<br>- Evitar enlazar contra bibliotecas del firmware oficial; re‑implementar cualquiera que sea necesario usando solo funciones expuestas al homebrew.<br>- Incluir una cláusula de exención de responsabilidad y hacer que el proyecto sea de código abierto bajo una licencia permisiva (MIT/Apache 2.0) para facilitar auditorías externas.<br>- Consultar a un experto en propiedad intelectual antes de lanzar cualquier build pública. |\n\n---\n\n## 5. Resumen de la propuesta (para presentar a stakeholders)\n\n- **Objetivo:** Llevar un dynarec existente de PSP (MIPS R4000 + VFPU) a generar código nativo para la PS Vita (ARM Cortex‑A9 + NEON), manteniendo la mayor parte de la infraestructura de traducción, caché y gestión de estado, pero reescribiendo los backends específicos de ISA y punto flotante.  \n- **Alcance:** Frontend de carga de ROM, gestión de memoria, dispatcher, traducción de bloques, manejo de excepciones, syscalls de bajo nivel, integración con los plugins de vídeo/audio/entrada existentes; excluye el desarrollo de nuevos plugins gráficos de alto nivel (se reutilizan los actuales).  \n- **Metodología:** Definir/reescribir una IR común, crear backends ARM/NEON paso a paso (enteros → VFPU → NEON), validar con pruebas unitarias y de integración, optimizar mediante peephole y umbral de traducción, asegurar compatibilidad legal usando solo APIs homebrew de Vita.  \n- **Cronograma estimado:** ~6 meses (7 sprints de 2‑3 semanas cada uno) más 2 semanas de buffer para pruebas finales y documentación.  \n- **Riesgos críticos:** precisión de punto flotante, overhead de traducción y cuestiones legales; cada uno tiene un plan de mitigación concreto (test‑suite exhaustiva, threshold de JIT y uso exclusivo de APIs homebrew).  \n- **Entregables:**  \n  1. Código fuente del dynarec portado (branch `psp-to-vita`).  \n  2. Suite de pruebas de regresión (unitarias + functional).  \n  3. Builds de prueba (PKG/CIA) para hardware Vita y emuladores (Vita3K, etc.).  \n  4. Documentación de diseño, guía de compilación y notas de limitaciones.  \n\nCon este plan, el proyecto cuenta una hoja de ruta clara, riesgos identificados y contragolpes probables, y maximiza la reutilización de la mayor parte del código existente mientras se aborda de forma rigurosa la diferencia fundamental entre las arquitecturas MIPS y ARM. ¡Listo para pasar a la fase de ejecución!\n\n===== Enfoque C (hf) =====\n### ANÁLISIS DE LA INCOMPATIBILIDAD ENTRE DYNAREC DE PSP Y PS VITA\n\n**1. Diferencias Arquitectónicas Fundamentales:**\n- **ISA (Instruction Set Architecture):**  \n  PSP usa MIPS R4000 (32-bit, RISC, endianness big). Vita usa ARM Cortex-A9 (32-bit, RISC, endianness little).  \n  **Incompatibilidad:** El dynarec (traducción dinámica de MIPS a x86/x64) no puede mapear instrucciones ARM directamente.  \n  **Ejemplo:** Instrucciones como `LWC1` (MIPS, carga flotante) no tienen equivalente directo en ARM NEON.\n\n- **Extensiones Vectoriales:**  \n  PSP: VFPU (128-bit SIMD, 32 registros).  \n  Vita: NEON (128-bit SIMD, 32 registros, pero con instrucciones distintas).  \n  **Incompatibilidad:** Los bloques de código traducidos para VFPU no aprovechan NEON.\n\n- **Modelo de Memoria:**  \n  PSP: Espacio de direcciones plano (512 MB).  \n  Vita: Memoria segmentada (512 MB VRAM + 512 MB RAM, caché L2 unificada).  \n  **Impacto:** El dynarec debe manejar mapeos de memoria y cachés de forma diferente.\n\n**2. Partes Reutilizables (Abstracciones de Alto Nivel):**\n- **Frontend del Emulador:**  \n  - Gestión de hilos (GPU, audio, I/O).  \n  - Sistema de plugins (controladores, renderizado).  \n  - Interfaz de usuario y configuración.\n\n- **Subsistemas No Dependientes de CPU:**  \n  - Emulación de GPU (PSP: GE; Vita: SGX543MP4+). Aunque diferentes, comparten conceptos (vertex shaders, texturas).  \n  - Emulación de audio (PSP: PSP_ME; Vita: ARM DSP).\n\n- **Código de Soporte Común:**  \n  - Manejadores de eventos (interrupciones, timers).  \n  - Deserialización de formatos propietarios (archivos .ISO, .CSO).\n\n---\n\n### CAMINO TÉCNICO REALISTA PARA ADAPTAR UN EMULADOR DE PSP A VITA\n\n**Orden de Trabajo:**\n\n1. **Indexar y Aislar Componentes Críticos (2 semanas):**  \n   - Usar `index_emulator` para mapear el dynarec de PSP (ej: PPSSPP).  \n   - Identificar dependencias con MIPS (`locate_subsystem(\"PPSSPP\", \"dynarec\")`).\n\n2. **Portar el Core de Emulación a ARM (4 meses):**  \n   - **Fase 1:** Implementar un intérprete ARM Cortex-A9 (referencia: `capstone-arm`).  \n   - **Fase 2:** Escribir un dynarec ARM desde cero, enfocándose en:  \n     - Reutilizar el framework de bloques de código (`write_file(\"vita_dynarec/block_manager.cpp\", <contenido>)`).  \n     - Mapear VFPU a NEON usando tablas de traducción (ej: `VMUL.S` → `VMUL.F32`).\n\n3. **Adaptar el Modelo de Memoria (3 meses):**  \n   - Modificar el MMU para manejar la segmentación de Vita (`edit_file(\"memory.cpp\", \"flat_memory\", \"segmented_memory\")`).  \n   - Implementar caché L2 simulada para texturas de GPU.\n\n4. **Integrar Subsistemas Específicos de Vita (6 meses):**  \n   - GPU: Portar el emulador de SGX543MP4 (referencia: código de Citra para Adreno).  \n   - Controladores táctiles y giroscopio (usar SDL2 para abstracción).\n\n5. **Optimización y Pruebas (3 meses):**  \n   - Usar `differential_test` para validar el dynarec ARM contra Unicorn.  \n   - Benchmarks con juegos críticos (ej: `run_command(\"./vita_emu.exe -game uncharted.iso\")`).\n\n---\n\n### RIESGOS CRÍTICOS\n\n1. **Complejidad del Dynarec ARM:**  \n   - **Riesgo:** El Cortex-A9 tiene instrucciones condicionales y pipelines profundos, lo que complica la predicción de saltos.  \n   - **Mitigación:** Usar un dynarec híbrido (intérprete + JIT para bucles críticos).\n\n2. **Documentación Insuficiente de Vita:**  \n   - **Riesgo:** Falta de documentación oficial de Sony sobre el hardware de Vita.  \n   - **Mitigación:** Ingeniería inversa de firmwares (usar `binary_strings` para extraer cadenas de binarios de Vita).\n\n3. **Rendimiento de la GPU SGX543MP4:**  \n   - **Riesgo:** La GPU de Vita es significativamente más compleja que la de PSP (soporta OpenGL ES 2.0).  \n   - **Mitigación:** Priorizar la emulación de llamadas de bajo nivel (ej: `glDrawElements`) antes que shaders.\n\n---\n\n### CONCLUSIÓN\n\nEl dynarec de un emulador de PSP no es reutilizable directamente para PS Vita debido a las diferencias en ISA y extensiones vectoriales. Sin embargo, componentes de alto nivel (frontend, gestión de plugins) sí pueden adaptarse. El camino técnico realista implica:  \n1. Reimplementar el dynarec para ARM Cortex-A9.  \n2. Adaptar el modelo de memoria segmentada.  \n3. Integrar subsistemas específicos de Vita (GPU, controladores).  \n\nLos riesgos principales son la complejidad del dynarec ARM, la falta de documentación de Vita, y el rendimiento de la GPU SGX543MP4. Con un enfoque modular y pruebas continuas, el proyecto es viable, aunque requeriría al menos 18 meses de desarrollo por un equipo experimentado.\n\n\n---\n**Ejecutado y verificado en este mismo turno:**\n\n[Enfoque A] Todos los bloques verificados correctamente.\n\n[OK] bloque 1 (text) — skipped\n\n[Enfoque B] Sin bloques de código que verificar.\n\n[Enfoque C] Sin bloques de código que verificar.",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787206900",
+        "agent": "MELCHIOR",
+        "role": "propone",
+        "provider": "g4f-hf",
+        "family": "hf",
+        "family_expected": "hf",
+        "degraded": null,
+        "changes": 0,
+        "stats": "3 enfoque(s) · 3 verificado(s)"
+      }
+    },
+    {
+      "t_rel": 89.96,
+      "tema": "AGENT_POST",
+      "agente": "BALTHASAR",
+      "texto": "### Corrección\nEl Enfoque A es el más sólido. Identifica correctamente la ISA fuente de PSP (MIPS32 Little-Endian), el rol de Vita como host/target en JIT, la alineación de pila de 8 bytes en ARMv7 y el uso de IR para desacoplar el pipeline.\n\n**Defectos de corrección en los enfoques B y C:**\n\n*   **Enfoque B (Línea 7, Tabla 1):** Afirma erróneamente que MIPS R4000 usa *load-delay slots*. La PSP usa arquitectura MIPS32 Release 2 (R4000-based core Allegrex), la cual eliminó la necesidad de *load-delay slots* de MIPS-I mediante *hardware interlocks*.\n*   **Enfoque B (Líneas 7, 18, 64-67):** Confunde los roles de ejecución planteando una traducción directa de VFPU a NEON. En la emulación de Vita, el target de recompilación es x86_64/AArch64 (host) ejecutando la ISA ARMv7-A/NEON de Vita, no una conversión MIPS->NEON.\n*   **Enfoque C (Línea 6):** Afirma que PSP es *big endian*. El procesador Allegrex de PSP opera estrictamente en *little endian*.\n*   **Enfoque C (Líneas 7, 39, 41):** Asume erróneamente que la emulación de Vita requiere implementar un intérprete de la GPU Adreno de Citra o la CPU ARM como software dentro del host, invirtiendo la relación frontend-backend de un JIT.\n\n### Seguridad y reversibilidad\nEn este eje no hay defectos reales: las propuestas son textos descriptivos de análisis técnico de emulación y no ejecutan scripts ni modifican el sistema local.\n\n### Límites de plataforma\nNo hay defectos en los límites de plataforma: las propuestas evalúan conceptos teóricos sin asumir un SO host diferente a Windows, sin usar rutas absolutas, dependencias no instaladas, ni credenciales o modelos locales inexistentes.\n\n### Rendimiento\nEl Enfoque A es el más sólido. Identifica correctamente la ISA fuente real de la PS Vita (ARM Cortex-A9/Thumb-2/NEON), propone una arquitectura limpia basada en Representación Intermedia (IR) para desacoplar el Dynarec y prioriza de forma correcta un intérprete funcional de ARMv7 antes del JIT.\n\nEl Enfoque B comete un error conceptual grave al invertir los roles de las arquitecturas (asume que se busca emular MIPS en una Vita/ARM en lugar de emular ARM de Vita en un Host). El Enfoque C presenta fallos de dominio como afirmar que MIPS es *big-endian* en PSP (es *little-endian*) e inventa llamadas a herramientas inexistentes (`locate_subsystem`, `write_file`).\n\nNo hay defectos de rendimiento ni cuellos de botella asíncronos o de memoria que evaluar en el texto presentado, ya que no contiene código fuente ejecutable.",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787206900",
+        "agent": "BALTHASAR",
+        "role": "critica",
+        "provider": "gemini",
+        "family": "gemini",
+        "changes": 0,
+        "stats": "4 ejes"
+      }
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "AGENT_POST",
+      "agente": "CASPER",
+      "texto": "**Decisión Técnica:** APPROVED\n\n[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt. Error: todos los proveedores fallaron: familia 'hf' agotada (1 candidatos): HuggingSpace: TypeError: argument of type 'NoneType' is not iterable]",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787206900",
+        "agent": "CASPER",
+        "role": "arbitro",
+        "provider": "g4f-gpt",
+        "family": "gpt",
+        "family_expected": "gpt",
+        "degraded": null,
+        "changes": 0,
+        "stats": "Decisión: APPROVED"
+      }
+    }
+  ],
+  "familias_registradas": [],
+  "detalle_llamadas": [
+    {
+      "t_rel": 75.75,
+      "tag": "auditoria-1787206900/r1/balthasar/seguridad",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 32096,
+      "segundos": 13.61,
+      "proveedor": "g4f-gemini:Gemini/gemini-2.5-flash",
+      "ok": true,
+      "chars_respuesta": 160
+    },
+    {
+      "t_rel": 75.76,
+      "tag": "auditoria-1787206900/r1/balthasar/rendimiento",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 32077,
+      "segundos": 14.19,
+      "proveedor": "g4f-gemini:Gemini/gemini-2.5-flash",
+      "ok": true,
+      "chars_respuesta": 825
+    }
+  ],
+  "errores": [],
+  "eventos": [
+    {
+      "t_rel": 0.95,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Lo tomo como pregunta nueva. La tarea auditoria sigue esperando tu aprobación; escribe 'sí' o 'apruebo' cuando quieras cerrarla."
+    },
+    {
+      "t_rel": 0.95,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Iniciando análisis para la tarea: 'Explica por que el dynarec de un emulador de PSP (MIPS R4000 con VFPU) no se puede reutilizar tal cual para emular PS Vita (ARM Cortex-A9 con NEON), que partes SI se reutilizan, y cual es el camino tecnico realista para adaptar un emulador de PSP a Vita. Incluye el orden de trabajo y los tres riesgos que hunden ese proyecto.'"
+    },
+    {
+      "t_rel": 0.96,
+      "tema": "sonda.actualizada",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 1.44,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 9.3,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 58.97,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 75.75,
+      "tema": "AGENT_POST",
+      "agente": "MELCHIOR",
+      "texto": "Se han generado 3 enfoques alternativos. Compáralos y señala cuál es más sólido y por qué.\n\n===== Enfoque A (hf) =====\n**Tesis Arquitectónica: Viabilidad, Componentes Reutilizables y Hoja de Ruta para la Adaptación de Dynarec de PSP (MIPS R4000/VFPU) a PS Vita (ARM Cortex-A9/NEON)**\n\n---\n\n### 1. Incompatibilidad Fundamental del Recompilador Dinámico (Dynarec)\n\nUn JIT/Dynarec de PSP no se puede reu"
+    },
+    {
+      "t_rel": 89.96,
+      "tema": "AGENT_POST",
+      "agente": "BALTHASAR",
+      "texto": "### Corrección\nEl Enfoque A es el más sólido. Identifica correctamente la ISA fuente de PSP (MIPS32 Little-Endian), el rol de Vita como host/target en JIT, la alineación de pila de 8 bytes en ARMv7 y el uso de IR para desacoplar el pipeline.\n\n**Defectos de corrección en los enfoques B y C:**\n\n*   **Enfoque B (Línea 7, Tabla 1):** Afirma erróneamente que MIPS R4000 usa *load-delay slots*. La PSP us"
+    },
+    {
+      "t_rel": 98.11,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 115.73,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 124.4,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 135.12,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 135.12,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[AVISO] CASPER no respondió en 150.0s (proveedor: g4f-gpt). Se devuelve respuesta degradada."
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "APROBACIÓN PEDIDA — tarea auditoria-1787206900\n\n[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt. Error: todos los proveedores fallaron: familia 'hf' agotada (1 candidatos): HuggingSpace: TypeError: argument of type 'NoneType' is not iterable]\n\nNo toca ningún fichero.\n\nTESTS: no se ejecutaron. No hay evidencia de que esto no rompa nada.\nReversible: el journal guarda el estado"
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 135.16,
+      "tema": "AGENT_POST",
+      "agente": "CASPER",
+      "texto": "**Decisión Técnica:** APPROVED\n\n[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt. Error: todos los proveedores fallaron: familia 'hf' agotada (1 candidatos): HuggingSpace: TypeError: argument of type 'NoneType' is not iterable]"
+    }
+  ]
+}

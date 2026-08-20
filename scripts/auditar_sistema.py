@@ -152,6 +152,13 @@ TEMAS = ("AGENT_POST", "TERMINAL_OUT", "swarm.task_completed",
          "sonda.actualizada", "task.cancelled")
 
 
+#: La respuesta final, ENTERA. Los eventos se recortan a 400 caracteres para
+#: que el informe quepa en una pantalla, pero la sintesis de Casper es
+#: justamente lo que hay que poder leer y comparar: recortarla convertiria la
+#: auditoria en un resumen de si misma.
+RESPUESTAS: list[dict] = []
+
+
 def _escuchar(bus, t0: float) -> None:
     for tema in TEMAS:
         def hacer(tema_fijo):
@@ -164,6 +171,15 @@ def _escuchar(bus, t0: float) -> None:
                     "agente": p.get("agent") or p.get("agente"),
                     "texto": texto[:400],
                 })
+                if tema_fijo in ("AGENT_POST", "swarm.artefacto_listo") and texto:
+                    RESPUESTAS.append({
+                        "t_rel": round(time.perf_counter() - t0, 2),
+                        "tema": tema_fijo,
+                        "agente": p.get("agent") or p.get("agente"),
+                        "texto": texto,
+                        "extra": {k: v for k, v in p.items()
+                                  if k not in ("content", "result")},
+                    })
             return oir
         bus.subscribe(tema, hacer(tema))
 
@@ -286,6 +302,7 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float) -> dict:
         "por_etapa": _etapas(),
         "etapas_cronometradas": sorted(ETAPAS, key=lambda e: -e["segundos"])[:40],
         "resumen_etapas": _resumen_etapas(),
+        "respuestas": RESPUESTAS,
         "familias_registradas": familias,
         "detalle_llamadas": LLAMADAS,
         "errores": [c for c in fallidas],
