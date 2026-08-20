@@ -1,9 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMagiStore } from './store';
 
 export function useMagiSocket(port: number = 20128) {
   const ws = useRef<WebSocket | null>(null);
-  const { setConnected, addMessage, appendTerminal } = useMagiStore();
+  // Selectores, no el store entero. `useMagiStore()` sin selector suscribe a
+  // CUALQUIER cambio del store: cada línea de terminal que llega por el socket
+  // volvía a renderizar al que usa este hook —App— aunque solo necesite tres
+  // setters que nunca cambian. Con selector, estas tres referencias son
+  // estables y no provocan renders por su cuenta.
+  const setConnected = useMagiStore((s) => s.setConnected);
+  const addMessage = useMagiStore((s) => s.addMessage);
+  const appendTerminal = useMagiStore((s) => s.appendTerminal);
 
   useEffect(() => {
     const connect = () => {
@@ -374,11 +381,45 @@ export function useMagiSocket(port: number = 20128) {
     }
   };
 
-  return { sendCommand, sendGitClone, cancelTask, stopEverything,
-           fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
-           listImprovements, proposeImprovement, decideImprovement,
-           fetchTelemetry, requestFileContent, sendNaokoChat,
-           sendRitsukoChat, fetchRitsukoInformes,
-           fetchConfig, listArtifacts, readArtifact,
-           fetchTaskList, archiveTask, deleteTask };
+  // v5.8.0 — IDENTIDAD ESTABLE. Esto no es una micro-optimización: es la
+  // causa raíz de que la aplicación quemara un núcleo entero estando parada.
+  //
+  // Hasta aquí, cada render creaba veintidós funciones nuevas y las devolvía
+  // en un objeto nuevo. Cualquier `useEffect` que pusiera una de ellas en sus
+  // dependencias —lo que el linter de React pide hacer— se volvía a lanzar en
+  // CADA render. Y si ese efecto llamaba al kernel y guardaba el resultado con
+  // un `setState`, el ciclo se cerraba solo:
+  //
+  //     efecto -> RPC -> respuesta -> setState -> render
+  //            -> identidad nueva -> efecto -> ...
+  //
+  // Medido el 2026-08-20 sobre MAGI-IDE-v5.exe en reposo, sin ninguna tarea
+  // corriendo: 97 % de un núcleo. El mismo kernel arrancado solo, sin
+  // interfaz y con las mismas 13 tareas rehidratadas: 0 %. El bucle estaba
+  // aquí, no en el enjambre. Y el coste real lo pagaba el usuario: Naoko
+  // respondía en 10,8 s medidos por sonda WebSocket directa, pero la interfaz
+  // no llegaba a pintarlo porque el hilo de render nunca estaba libre. Se
+  // percibía como "Naoko no responde".
+  //
+  // Se arreglaron los cuatro efectos culpables uno por uno, pero eso es jugar
+  // al gato y al ratón: el siguiente componente que se escriba y haga lo que
+  // el linter pide vuelve a abrir el agujero. Congelar el objeto lo cierra de
+  // raíz — ninguna dependencia puede volver a cambiar sola.
+  //
+  // Es correcto congelar la PRIMERA versión: ninguna de estas funciones cierra
+  // sobre estado que cambie. Todas leen `ws.current` (una ref, estable) en el
+  // momento de llamarse, o `useMagiStore.getState()` (módulo). `port` ya está
+  // fijado por el efecto de conexión, que sí lo lleva en sus dependencias.
+  //
+  // Guardado por `tests/test_gui_sin_bucles_de_render.py`.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => ({
+    sendCommand, sendGitClone, cancelTask, stopEverything,
+    fetchHealth, runBenchmark, runSelfImprovement, fetchRunningTasks,
+    listImprovements, proposeImprovement, decideImprovement,
+    fetchTelemetry, requestFileContent, sendNaokoChat,
+    sendRitsukoChat, fetchRitsukoInformes,
+    fetchConfig, listArtifacts, readArtifact,
+    fetchTaskList, archiveTask, deleteTask,
+  }), []);
 }

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 from typing import Any
 
 from .base import CompletionRequest, Message, ProviderError
@@ -127,6 +128,11 @@ class FreeCloudLLM:
             messages=[Message("system", system_prompt), Message("user", user_prompt)],
             timeout_s=150.0, temperature=temperature, seed=seed,
             hedge=hedge, tag=tag,
+            # §E1 — el presupuesto de la CADENA vale lo mismo que un intento.
+            # Elegido así a propósito: ningún candidato pierde ni un segundo
+            # respecto a antes; lo que se acaba es la multiplicación por tres
+            # del failover. Techo de pared: 450 s -> 150 s.
+            presupuesto_s=150.0,
         )
         try:
             resp = await reg.complete(req, prefer=prefer)
@@ -138,7 +144,12 @@ class FreeCloudLLM:
         if any(h in content.lower() for h in _REFUSAL_HINTS):
             logger.info("[cloud] %s rechazó; reintento en otra familia", resp.provider_id)
             try:
-                alt = await reg.complete(req, use_cache=False)
+                # Con presupuesto CORTO, y no por tacañería: aquí YA hay una
+                # respuesta en la mano. Esta segunda cadena solo intenta
+                # mejorarla, así que no puede costar lo mismo que conseguirla
+                # — sin esto, una negativa duplicaba el techo de pared a 300 s.
+                reintento = replace(req, presupuesto_s=45.0, timeout_s=45.0)
+                alt = await reg.complete(reintento, use_cache=False)
                 if alt.provider_id != resp.provider_id and alt.content.strip():
                     return (alt.content, f"{alt.provider_id}:{alt.model}")
             except ProviderError:

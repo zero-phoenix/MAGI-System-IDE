@@ -39,6 +39,7 @@ correcto y además señala algo real, aunque la acción no sea borrarlos.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -145,8 +146,23 @@ def test_el_script_explica_que_hacer_y_no_solo_que_pasa():
     esta no va a ser una más. El informe tiene que decir qué son las tres
     salidas posibles.
     """
+    # CODIFICACIÓN FIJADA EN LOS DOS EXTREMOS, y no por manía.
+    #
+    # Con `text=True` a secas, Python descodifica la salida del hijo con
+    # `locale.getpreferredencoding()` — cp1252 en este equipo, UTF-8 en el CI
+    # de Ubuntu. El hijo, por su parte, escribe en lo que le diga el entorno.
+    # Si los dos no coinciden, «CONÉCTALA» llega convertida en ruido y este
+    # test falla por una razón que no tiene NADA que ver con lo que comprueba.
+    #
+    # Pasó tal cual el 2026-08-20: bastó lanzar la suite con
+    # PYTHONIOENCODING=utf-8 en el shell para que fallara, mientras el código
+    # que audita estaba perfectamente. Un test que depende del entorno de quien
+    # lo lanza no es una red de seguridad: es una fuente de ruido que enseña a
+    # ignorar los fallos rojos.
+    entorno = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     r = subprocess.run([sys.executable, str(SCRIPT)],
-                       capture_output=True, text=True, timeout=600, cwd=str(RAIZ))
+                       capture_output=True, timeout=600, cwd=str(RAIZ),
+                       env=entorno, encoding="utf-8", errors="replace")
     assert r.returncode == 0
     for pista in ("CONÉCTALA", "BÓRRALO", "_attic", "ENTRADAS"):
         assert pista in r.stdout, f"el informe debería explicar «{pista}»"

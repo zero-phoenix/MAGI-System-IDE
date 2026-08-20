@@ -100,7 +100,14 @@ export function ProveedoresEnCabecera({ fetchConfig }: {
 
     leer();
     return () => { vivo = false; clearTimeout(timer); };
-  }, [fetchConfig]);
+    // `fetchConfig` FUERA de las dependencias. Este componente vive en la
+    // cabecera, o sea que está montado SIEMPRE, y `useMagiSocket` devuelve una
+    // función nueva en cada render: con ella aquí, el efecto se desmontaba y
+    // se volvía a montar en cada render, relanzando el sondeo y programando un
+    // `setTimeout` nuevo cada vez. Medido el 2026-08-20 sobre la app parada:
+    // 97 % de un núcleo permanente, con el kernel a 0 %.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (error && !nodos.length) {
     return <span style={{ color: "#f87171" }}

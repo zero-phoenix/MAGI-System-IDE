@@ -374,6 +374,50 @@ class TaskStore:
             c.execute("DELETE FROM task_state WHERE task_id=?", (task_id,))
             c.execute("DELETE FROM task_event WHERE task_id=?", (task_id,))
 
+    #: Lo que crean los arneses de medida, no el usuario. `auditar_sistema.py`
+    #: abre una tarea `auditoria-<epoch>` por pasada; el banco de evaluación,
+    #: una `eval-<epoch>`. Ver `purgar_sinteticas`.
+    PREFIJOS_SINTETICOS = ("auditoria", "eval-", "t-techo", "bench-")
+
+    def purgar_sinteticas(self, prefijos: tuple[str, ...] | None = None) -> list[str]:
+        """
+        Borra las tareas que creó una herramienta de medida, no una persona.
+
+        POR QUÉ HACE FALTA
+        ==================
+        Estado real de la base el 2026-08-20, tras una tarde de auditorías:
+
+            total: 23   WAITING_USER_APPROVAL: 14   interrumpida: 7
+
+        De esas 23, **trece** eran `auditoria-<epoch>`: una por cada pasada de
+        `scripts/auditar_sistema.py`. El arnés abre la tarea, mide, y se va sin
+        recogerla. Cada una queda esperando una aprobación que nadie va a dar,
+        el kernel la rehidrata en cada arranque y la interfaz la lista como una
+        conversación pendiente del usuario. La herramienta que existe para
+        diagnosticar el sistema estaba ensuciando lo que mide.
+
+        Se borra en vez de archivar a propósito: archivar la deja fuera de la
+        vista pero dentro de la tabla, y estas filas no tienen ningún valor
+        histórico — la medición vive en `artifacts/auditoria.json`, que es
+        donde debe vivir.
+
+        Nunca toca una tarea con `bifurcada_de`: si alguien ramificó trabajo
+        real desde una auditoría, ese trabajo es del usuario.
+        """
+        prefijos = prefijos or self.PREFIJOS_SINTETICOS
+        with self._conn() as c:
+            filas = c.execute(
+                "SELECT task_id FROM task_state WHERE bifurcada_de IS NULL"
+            ).fetchall()
+        ids = [r[0] for r in filas
+               if any(str(r[0]).startswith(p) for p in prefijos)]
+        for tid in ids:
+            self.delete(tid)
+        if ids:
+            logger.info("[store] purgadas %d tarea(s) de instrumentación: %s",
+                        len(ids), ", ".join(ids))
+        return ids
+
     # --------------------------------------------------------------- eventos
 
     def append_event(self, task_id: str, topic: str, payload: Any = None) -> None:

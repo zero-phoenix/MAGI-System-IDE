@@ -216,8 +216,32 @@ class RitsukoAgent:
         ev["nodos"] = {"aportaciones": por_nodo, "total": len(posts)}
         # Un nodo callado es la señal más barata de que algo se rompió, y la
         # que nadie mira: el sistema sigue "funcionando" con dos de tres.
-        ev["nodos"]["mudos"] = [n for n in ("MELCHIOR", "BALTHASAR", "CASPER")
-                                if not por_nodo.get(n)]
+        #
+        # PERO «ninguno ha hablado» NO ES LO MISMO QUE «los tres están rotos»
+        # (§E4). Ocurrió tal cual el 2026-08-20: recién arrancado el binario
+        # nuevo, sin una sola tarea lanzada todavía, se le preguntó a Ritsuko
+        # si el sistema estaba sano y contestó:
+        #
+        #     **Veredicto:** EMPEORA
+        #     1. Todos los nodos están mudos: MELCHIOR, BALTHASAR y CASPER…
+        #
+        # Los tres estaban perfectamente. Lo que pasaba es que nadie les había
+        # pedido nada. Con cero actividad, los tres salen «mudos» por
+        # aritmética, no por avería, y el auditor firma una alarma falsa sobre
+        # un sistema intacto.
+        #
+        # Un auditor que grita en vacío enseña a no hacerle caso, y entonces
+        # deja de servir el día que tenga razón. Es el mismo criterio que ya
+        # rige el canario de deriva de Naoko (C13): 0 de N no es «falla el
+        # 100 %», es «no hay medición».
+        #
+        # Así que con cero aportaciones no se acusa a nadie: se dice que no hay
+        # actividad que auditar, que es la verdad.
+        ev["nodos"]["sin_actividad"] = not posts
+        ev["nodos"]["mudos"] = (
+            [] if not posts
+            else [n for n in ("MELCHIOR", "BALTHASAR", "CASPER")
+                  if not por_nodo.get(n)])
 
         # D7 — LO QUE MÁS IMPORTA TIENE QUE ESTAR EN LA EVIDENCIA.
         #
@@ -303,7 +327,15 @@ class RitsukoAgent:
         "si un encargo de producto acabo con `artefactos_listos: 0`, o si hay "
         "algo en `entrega.sin_contestar`, eso YA es un hallazgo: nombralo. "
         "'Sin datos' es para cuando no hay datos, no para cuando los datos son "
-        "incomodos.\n\n"
+        "incomodos.\n"
+        "7. Y AL REVES: SIN ACTIVIDAD NO HAY AVERIA. Si "
+        "`nodos.sin_actividad` es cierto, o `nodos.total` es 0, nadie le ha "
+        "pedido nada al enjambre todavia y el veredicto es 'SIN DATOS "
+        "SUFICIENTES'. Nunca 'EMPEORA'. No se acusa a MELCHIOR, BALTHASAR ni "
+        "CASPER de estar mudos por no haber hablado cuando no se les pregunto: "
+        "un sistema recien arrancado esta intacto, no roto. Una alarma falsa "
+        "sobre un sistema sano ensena a no hacerte caso, y entonces dejas de "
+        "servir el dia que tengas razon.\n\n"
         "FORMATO: un veredicto de una linea (MEJORA / IGUAL / EMPEORA / SIN "
         "DATOS SUFICIENTES), despues los hallazgos con su evidencia, y al "
         "final lo que recomiendas que NAOKO haga distinto."

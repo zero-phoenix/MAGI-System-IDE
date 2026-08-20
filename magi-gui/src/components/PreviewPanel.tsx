@@ -84,7 +84,11 @@ export function PreviewPanel({ listArtifacts, readArtifact }: {
       .catch((e) => { if (vivo) setCont({ path: sel, nombre: sel, tipo: "texto",
                                           bytes: 0, error: e?.message }); });
     return () => { vivo = false; };
-  }, [sel, readArtifact]);
+    // Solo `sel`: `readArtifact` es una función nueva en cada render y ponerla
+    // aquí relanzaba la lectura del artefacto sin parar. Ver
+    // `tests/test_gui_sin_bucles_de_render.py`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
 
   const visibles = useMemo(() => {
     const f = filtro.trim().toLowerCase();

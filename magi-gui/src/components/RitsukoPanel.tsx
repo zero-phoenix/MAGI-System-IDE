@@ -38,7 +38,14 @@ export default function RitsukoPanel({ ritsukoMessages, ritsukoStatus, informes,
                                        renderCode }: Props) {
   const [texto, setTexto] = useState("");
 
-  useEffect(() => { fetchRitsukoInformes(); }, [fetchRitsukoInformes]);
+  // Se pide UNA vez al abrir la pestaña. `fetchRitsukoInformes` no va en las
+  // dependencias porque `useMagiSocket` devuelve funciones nuevas en cada
+  // render: ponerla ahí convertía este efecto en un bucle infinito —efecto ->
+  // RPC -> respuesta -> setRitsukoInformes -> render -> identidad nueva ->
+  // efecto— que inundaba el kernel de peticiones y se comía un núcleo.
+  // La lista se refresca sola con cada `ritsuko.informe`, y hay botón.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRitsukoInformes(); }, []);
 
   const enviar = () => {
     if (!texto.trim()) return;

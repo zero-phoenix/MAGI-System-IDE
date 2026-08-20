@@ -326,13 +326,39 @@ class ProviderRegistry:
         if not candidates:
             raise ProviderError("no hay proveedores sanos que cumplan los requisitos")
 
+        # §E1 — el reloj corre para la CADENA, no para cada intento. Ver
+        # `CompletionRequest.presupuesto_s`: sin esto, tres candidatos a 150 s
+        # cada uno daban 450 s de pared para una sola llamada lógica, y el
+        # máximo real medido en este equipo fue de 390 s.
+        arranque_cadena = time.monotonic()
+        presupuesto = req.presupuesto_s if not req.probe else None
+
         last_err: Exception | None = None
-        for reg in candidates[:max_attempts]:
+        for intento, reg in enumerate(candidates[:max_attempts]):
+            restante = None
+            if presupuesto is not None:
+                restante = presupuesto - (time.monotonic() - arranque_cadena)
+                # Menos de un segundo no da para nada: gastarlo solo sirve
+                # para devolver un timeout más tarde.
+                if restante < 1.0:
+                    logger.warning(
+                        "[registry] presupuesto agotado (%.0fs) tras %d "
+                        "intento(s); no se prueban los %d restantes%s",
+                        presupuesto, intento,
+                        len(candidates[:max_attempts]) - intento,
+                        f" [{req.tag}]" if req.tag else "")
+                    last_err = last_err or ProviderTimeout(
+                        f"la cadena excedió {presupuesto:.0f}s sin respuesta")
+                    break
+
             started = time.monotonic()
             espera = _techo_dinamico_s(reg.provider, req.timeout_s, req.probe)
+            espera = espera or req.timeout_s
+            if restante is not None:
+                espera = min(espera, restante)
             try:
                 resp = await asyncio.wait_for(
-                    reg.provider.complete(req), timeout=espera or req.timeout_s)
+                    reg.provider.complete(req), timeout=espera)
             except asyncio.TimeoutError:
                 # Una SONDA que falla es un dato («este candidato está caído
                 # ahora mismo»), no una razón para cerrarle el paso al tráfico
@@ -343,9 +369,12 @@ class ProviderRegistry:
                     reg.breaker.record_failure()
                     if self.metrics is not None:
                         self.metrics.record_provider(reg.id, 0.0, ok=False)
-                last_err = ProviderTimeout(f"{reg.id} excedió {req.timeout_s}s")
+                # El techo que se aplicó de verdad, no el nominal: con
+                # presupuesto de cadena, `espera` puede ser bastante menor que
+                # `req.timeout_s`, y decir el nominal haría el log mentiroso.
+                last_err = ProviderTimeout(f"{reg.id} excedió {espera:.0f}s")
                 logger.warning("[registry] %s TIMEOUT (%.0fs)%s", reg.id,
-                               req.timeout_s, " (sonda, no penaliza)" if req.probe else "")
+                               espera, " (sonda, no penaliza)" if req.probe else "")
                 continue
             except Exception as e:
                 if not req.probe:

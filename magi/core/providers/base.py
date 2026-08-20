@@ -82,6 +82,25 @@ class CompletionRequest:
     #: backends no permite saber de qué petición salió cada llamada — el log
     #: del 16-ago era ininteligible: 50 líneas sin tarea ni ronda.
     tag: str = ""
+    #: TECHO DE RELOJ PARA LA CADENA ENTERA (v5.8.0 §E1), no para un intento.
+    #:
+    #: `timeout_s` acota UN candidato. El failover prueba hasta `max_attempts`
+    #: (3), y cada uno estrenaba su propio techo: 3 × 150 s = 450 s de pared
+    #: para una sola llamada lógica, sin que nadie lo acotara ni lo dijera.
+    #:
+    #: No es teórico. `token_ledger` de este equipo, 2026-08-20:
+    #:
+    #:     CASPER   / gemini   n=10   mediana  44 726 ms   máx  390 391 ms
+    #:     MELCHIOR / gemini   n=35   mediana  25 000 ms   máx  355 078 ms
+    #:     MELCHIOR / gpt      n=33   mediana  50 906 ms   máx  138 641 ms
+    #:
+    #: 390 segundos —seis minutos y medio— en una sola llamada. El usuario ve
+    #: la ventana quieta y concluye, con razón, que el sistema no responde.
+    #:
+    #: El presupuesto se reparte: cada intento recibe lo que QUEDA, nunca más.
+    #: Con el valor por defecto igual a `timeout_s`, ningún candidato pierde
+    #: tiempo respecto a hoy — lo que desaparece es la multiplicación.
+    presupuesto_s: float | None = None
 
 
 @dataclass

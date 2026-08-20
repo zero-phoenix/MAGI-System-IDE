@@ -105,7 +105,21 @@ export default function App() {
     if (activeTab === "Estado de Motores IA") {
       fetchTelemetry();
     }
-  }, [terminalOutput, messages, activeTab, fetchTelemetry]);
+    // `fetchTelemetry` NO va en las dependencias, y esto no es un descuido.
+    //
+    // `useMagiSocket` devuelve funciones nuevas en cada render (son arrow
+    // functions, no `useCallback`), así que ponerla aquí hacía que este efecto
+    // se ejecutara en CADA render. Con la pestaña «Estado de Motores IA»
+    // abierta el ciclo se cerraba solo: efecto -> fetchTelemetry ->
+    // setTelemetry -> render -> identidad nueva -> efecto...
+    //
+    // Medido el 2026-08-20 sobre la aplicación en marcha: **97 % de un núcleo
+    // de forma permanente estando parada**, mientras el mismo kernel arrancado
+    // solo, sin interfaz, gastaba 0 %. De ahí salía la sensación de que el
+    // sistema «va lento» y de que Naoko no contesta: contestaba, pero la
+    // ventana estaba ahogada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalOutput, messages, activeTab]);
 
   // §7.4 — el evento estructurado manda. El raspado de texto de abajo queda
   // como respaldo para backends antiguos, pero ya no es la vía principal.
@@ -224,7 +238,11 @@ export default function App() {
       .then((c: any) => { if (vivo) setReparto(c?.enjambre?.familias || {}); })
       .catch(() => { /* la cabecera ya avisa; aquí se calla y usa "—" */ });
     return () => { vivo = false; };
-  }, [fetchConfig, connected]);
+    // Solo `connected`: `fetchConfig` cambia de identidad en cada render y
+    // arrastraba este efecto con él. Ver el comentario largo del efecto de
+    // auto-scroll y `tests/test_gui_sin_bucles_de_render.py`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   const getAgentData = (agentName: string) => {
     const msgs = messages.filter(m => m.agent === agentName);

@@ -346,6 +346,23 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float,
             "evidencia": informes[-1].evidencia if informes else None,
         }
 
+    # RECOGER LA HUELLA. El arnes abre una tarea real para medir, y hasta
+    # v5.8.0 la dejaba ahi: trece filas `auditoria-<epoch>` en
+    # WAITING_USER_APPROVAL despues de una tarde de pruebas, todas esperando
+    # una aprobacion que nadie iba a dar, todas rehidratadas en cada arranque
+    # y todas listadas en la interfaz como conversaciones del usuario. La
+    # herramienta de diagnostico estaba ensuciando lo que mide.
+    #
+    # Se hace ANTES de cerrar el kernel: despues, el store puede estar cerrado.
+    # Y se hace en `try`, porque una purga fallida no puede tumbar la medicion:
+    # el informe ya esta calculado y vale igual.
+    purgadas: list[str] = []
+    try:
+        purgadas = kernel.swarm.store.purgar_sinteticas()
+        kernel.swarm.active_tasks.pop(tid, None)
+    except Exception as e:
+        print(f"[auditoria] no se pudo purgar la huella: {e}")
+
     # Cierre a mano: el Kernel no expone `stop()`. Se apagan las tres cosas
     # que dejan el proceso vivo â€” la sonda periodica, el servidor RPC y los
     # workers del busâ€” en ese orden.
@@ -368,6 +385,7 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float,
     return {
         "tarea": tarea, "task_id": tid, "motor": motor, "rondas": rondas,
         "estado_final": fin or "SIN TERMINAR (limite de espera)",
+        "huella_purgada": purgadas,
         "tiempos": {
             "imports_s": imports_s, "arranque_kernel_s": arranque_s,
             "tarea_s": tarea_s, "total_s": round(time.perf_counter() - t0, 2),
