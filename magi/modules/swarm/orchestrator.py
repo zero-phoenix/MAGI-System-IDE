@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 
 from magi.core.blackboard import Blackboard
@@ -34,9 +35,19 @@ def _n_variantes(engine: str | None, route: str, en_rebuild: bool) -> int:
     """
     if en_rebuild:
         return 1
+    # D6 — MENOS ENFOQUES, MÁS CICLOS DE VERIFICACIÓN.
+    #
+    # Medido el 20-ago en el encargo del ping pong: 3 enfoques, 27.753
+    # caracteres producidos, 24,7 % entregado y ningún artefacto. La calidad no
+    # salía de tener tres textos.
+    #
+    # El contraste es mi propio procedimiento para el mismo encargo: UNA
+    # propuesta y tres ciclos de «probar y arreglar». Tres propuestas que nadie
+    # ejecuta valen menos que una que sí. La cuota liberada aquí se gasta en
+    # verificar y construir (D3), que es donde se nota.
     por_motor = {
-        "fast": {"build": 3, "task": 2},
-        "deep": {"build": 4, "task": 3},
+        "fast": {"build": 2, "task": 2},
+        "deep": {"build": 2, "task": 2},
     }
     return por_motor.get(engine or "fast", por_motor["fast"]).get(route, 1)
 
@@ -166,6 +177,203 @@ class SwarmOrchestrator:
                 "generado ni verificación en verde. Trátalo como una propuesta, "
                 "no como una entrega: no hay fichero que buscar.")
 
+    #: Consolas que el analizador de portabilidad conoce. Se comparan como
+    #: palabra entera contra el enunciado.
+    _CONSOLAS = ("psp", "vita", "nds", "ds", "n64", "gba", "snes", "ps2",
+                 "dreamcast", "wii", "3ds", "gamecube", "megadrive")
+
+    def evidencia_previa(self, command: str) -> str:
+        """
+        D4 — EJECUTAR la herramienta propia, no pedirle al modelo que se acuerde.
+
+        C5 puso en el prompt «usa tus herramientas» con ejemplo. El contador
+        siguió en **cero** durante dos pruebas más. Pedirlo no funciona.
+
+        Así que aquí se ejecuta: si el enunciado nombra dos consolas conocidas,
+        se corre `analyze_port` y su resultado entra en el prompt como
+        evidencia ya obtenida. El modelo no tiene que acordarse de nada: se lo
+        encuentra puesto, y a partir de ahí puede discutirlo, que es para lo
+        que sirve un modelo.
+
+        Es barato y local: no gasta ni una llamada de red.
+        """
+        from magi.modules.swarm.intencion import _plano
+
+        t = _plano(command)
+        palabras = {p.strip(".,;:!?¿¡()") for p in t.split()}
+        halladas = [c for c in self._CONSOLAS if c in palabras]
+        if len(halladas) < 2:
+            return ""
+        try:
+            from magi.modules.reverse.matrix import analyze_port
+            analisis = analyze_port(halladas[0], halladas[1])
+        except Exception as e:                              # pragma: no cover
+            logger.debug("[SWARM] analyze_port no aplicable: %s", e)
+            return ""
+        return ("\n\nEVIDENCIA YA OBTENIDA (herramienta `analyze_port` del "
+                f"propio sistema, {halladas[0]} -> {halladas[1]}). Úsala o "
+                f"refútala, pero no la ignores:\n{analisis.render()}")
+
+    async def _cerrar_el_lazo(self, task_id: str, state: dict) -> None:
+        """
+        D3 — construir y entregar el artefacto, en vez de esperar a que alguien
+        se acuerde.
+
+        POR QUÉ LO HACE EL ORQUESTADOR Y NO EL MODELO
+        =============================================
+        En cinco pruebas medidas (16-ago a 20-ago) el sistema escribió hasta
+        ocho bloques de código para encargos de `.exe` y llamó **cero veces** a
+        `build_project_exe` o a `entregar_artefacto`. Se le puso en el prompt
+        con ejemplo; el contador siguió en cero.
+
+        Un LLM que a veces se acuerda no es un mecanismo. La máquina sí: si el
+        contrato pide artefacto y hay código, se construye. El modelo aporta el
+        contenido; la garantía la pone el código.
+
+        NO SE INTERPONE SI YA HAY ARTEFACTO. Si el agente lo construyó por su
+        cuenta —que es lo deseable— aquí no se toca nada.
+        """
+        from magi.modules.swarm.intencion import pide_artefacto
+
+        if state.get("artefactos"):
+            return
+        if not pide_artefacto(state.get("command", "")):
+            return
+        contenido = (state.get("last_proposal") or {}).get("content", "") or ""
+
+        # D10 — SI EL AGENTE YA LO CONSTRUYÓ, RECONÓCELO (Y COMPRUÉBALO).
+        #
+        # Medido el 20-ago, y es el fallo más irónico de la serie: Melchior
+        # construyó DOS ejecutables de verdad —tkinter, 9 MB, con `--formato` y
+        # `--autotest`, citando las reglas C10 y C16 del prompt— y el sistema
+        # los ignoró, intentó fabricar otro desde bloques que no existían, y
+        # cerró la entrega como `[INCOMPLETO]`. El trabajo estaba hecho y el
+        # propio sistema decía que no.
+        #
+        # La causa: el estado de la tarea no se enteraba de lo que hacían las
+        # herramientas del agente. Aquí se mira lo que la propuesta AFIRMA y se
+        # comprueba contra el disco — que es lo mismo que hace C12, pero al
+        # revés: allí para no creerse un éxito falso, aquí para no perderse uno
+        # verdadero. Una ruta que existe es evidencia; una que no, es prosa.
+        if await self._registrar_artefactos_del_agente(task_id, state, contenido):
+            return
+        if "```" not in contenido:
+            return          # sin código no hay nada que construir (lo dirá C4)
+
+        nombre = self._nombre_de_artefacto(state.get("command", ""), task_id)
+        await self.bus.publish(BusEvent(
+            topic="TERMINAL_OUT",
+            payload={"content": f"[FÁBRICA] Construyendo «{nombre}» desde la "
+                                "propuesta verificada..."}))
+        try:
+            from magi.modules.studio.entrega import fabricar_y_entregar
+            # `fabricar_y_entregar` ES una corrutina: se espera, no se manda a
+            # un hilo.
+            #
+            # La primera versión de esto la envolvía en `asyncio.to_thread`,
+            # que es para funciones síncronas. `to_thread` la llamó, obtuvo el
+            # objeto corrutina y lo devolvió sin ejecutarlo: la fábrica no
+            # corría y Python solo cantaba «coroutine ... was never awaited».
+            #
+            # Y lo importante: los tests unitarios pasaban, porque mi doble de
+            # prueba era síncrono y no se parecía a la función real. Lo cazó la
+            # primera ejecución contra el sistema de verdad. Un doble que no
+            # respeta la firma del original prueba otra cosa.
+            informe = await fabricar_y_entregar(
+                contenido, nombre=nombre, task_id=task_id, bus=self.bus)
+        except Exception as e:                              # pragma: no cover
+            logger.warning("[SWARM] la fábrica falló: %s", e)
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content": f"[FÁBRICA] No pude construirlo: {e}"}))
+            return
+
+        if getattr(informe, "ok", False) and getattr(informe, "ruta", None):
+            state.setdefault("artefactos", []).append(str(informe.ruta))
+            state["exe_path"] = str(informe.ruta)
+            self._persist(task_id)
+            await self.bus.publish(BusEvent(
+                topic="swarm.artefacto_listo",
+                payload={"task_id": task_id, "ruta": str(informe.ruta),
+                         "sha256": getattr(informe, "sha256", ""),
+                         "bytes": getattr(informe, "bytes_", 0)}))
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content": f"[FÁBRICA] Listo: {informe.ruta} "
+                                    f"({getattr(informe, 'bytes_', 0)} bytes)"}))
+        else:
+            # Decirlo entero: por qué no salió. Un fallo de fábrica explicado
+            # es accionable; un silencio, no.
+            motivo = getattr(informe, "motivo", None) or "sin motivo registrado"
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content": f"[FÁBRICA] No se pudo entregar: {motivo}"}))
+
+    #: Rutas absolutas a un ejecutable dentro del texto de una propuesta.
+    _RUTA_EXE = re.compile(r"[A-Za-z]:[\\/][^\s\"'`)*\]]+?\.exe")
+
+    async def _registrar_artefactos_del_agente(self, task_id: str, state: dict,
+                                               contenido: str) -> bool:
+        """
+        Artefactos que construyó el propio agente y que existen en disco (D10).
+
+        Devuelve True si encontró alguno. La comprobación contra el sistema de
+        ficheros no es desconfianza gratuita: una ruta mencionada en un texto
+        generado es una afirmación, y este proyecto ya pagó caro tratar una
+        afirmación como un hecho («se compiló exitosamente el binario», sin
+        binario). Un fichero que existe es otra cosa.
+        """
+        from pathlib import Path
+
+        vistos: list[str] = []
+        for m in self._RUTA_EXE.finditer(contenido or ""):
+            ruta = m.group(0)
+            try:
+                p = Path(ruta)
+                if p.is_file() and p.stat().st_size > 0 and str(p) not in vistos:
+                    vistos.append(str(p))
+            except OSError:                                  # pragma: no cover
+                continue
+        if not vistos:
+            return False
+
+        state.setdefault("artefactos", []).extend(vistos)
+        state["exe_path"] = vistos[0]
+        self._persist(task_id)
+        for ruta in vistos:
+            tam = Path(ruta).stat().st_size
+            # Se AWAITA, no se lanza y se olvida. La guarda de `test_cancel`
+            # —que prohíbe tirar el handle de un `create_task`— cazó aquí la
+            # primera versión, y tenía razón: una tarea sin handle es una tarea
+            # que el botón de parada no puede parar.
+            await self.bus.publish(BusEvent(
+                topic="swarm.artefacto_listo",
+                payload={"task_id": task_id, "ruta": ruta, "bytes": tam,
+                         "origen": "agente"}))
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content": f"[FÁBRICA] El agente ya lo construyó y el "
+                                    f"fichero existe: {ruta} ({tam} bytes)"}))
+        return True
+
+    @staticmethod
+    def _nombre_de_artefacto(command: str, task_id: str) -> str:
+        """
+        Un nombre de fichero sacado del encargo, no un identificador opaco.
+
+        `pong.exe` en el Escritorio se entiende; `auditoria-1787209.exe` no. Se
+        cogen las palabras con letras del enunciado, se descartan las de
+        relleno y se usa la primera que parezca el nombre de la cosa.
+        """
+        relleno = {"crea", "haz", "hazme", "un", "una", "el", "la", "de", "en",
+                   "juego", "programa", "script", "con", "para", "que", "y",
+                   "unico", "único", "ejecutable", "exe", "portable", "bits",
+                   "todo", "color", "formato", "replica", "réplica", "del"}
+        palabras = [p.strip(".,;:!?¿¡()\"'").lower()
+                    for p in (command or "").split()]
+        utiles = [p for p in palabras if p.isalpha() and p not in relleno]
+        return (utiles[0] if utiles else f"artefacto-{task_id}")[:40]
+
     def _contrato_de_entregable(self, state: dict) -> str | None:
         """
         Si el encargo pedía un fichero, ¿hay fichero? (C4)
@@ -219,11 +427,39 @@ class SwarmOrchestrator:
             await self.bus.publish(BusEvent(
                 topic="TERMINAL_OUT", payload={"content": aviso}))
 
+        # D5 — COBERTURA DEL ENUNCIADO: ninguna promesa se pierde en silencio.
+        #
+        # La prueba D pedía «el orden de trabajo que minimiza el riesgo de
+        # abandono». La respuesta fue buena en todo lo demás y no mencionó el
+        # abandono ni una vez; nadie lo notó porque nadie llevaba la lista.
+        # Ahora se lleva, y lo que falte se dice — decirlo es peor que
+        # cumplirlo y muchísimo mejor que ocultarlo.
+        try:
+            from magi.modules.swarm import contrato as _contrato
+            pendientes = _contrato.sin_cubrir(
+                verdict.get("feedback", ""), state.get("contrato") or [])
+            if pendientes:
+                await self.bus.publish(BusEvent(
+                    topic="TERMINAL_OUT",
+                    payload={"content":
+                             "[SIN CONTESTAR] El encargo pedía esto y no lo "
+                             "veo en la respuesta: " + ", ".join(pendientes)}))
+        except Exception as e:                              # pragma: no cover
+            logger.debug("[SWARM] cobertura del enunciado: %s", e)
+
         # C4 — contrato de entregable: si pediste un fichero, esto no se cierra
         # con un texto sobre el fichero.
         falta = self._contrato_de_entregable(state)
         if falta:
             state["entrega_incompleta"] = falta
+            # D2 — Y EL VEREDICTO BAJA CON ÉL.
+            #
+            # La prueba E del 20-ago entregó «**Decisión Técnica:** APPROVED» y
+            # «[INCOMPLETO] no se ha generado ningún artefacto» en el MISMO
+            # mensaje. El contrato avisaba y el veredicto seguía diciendo que
+            # todo bien: dos mecanismos que no se hablan dejan al usuario
+            # eligiendo a cuál de los dos creer, y va a creer al que le gusta.
+            verdict["decision"] = "INCOMPLETO"
             await self.bus.publish(BusEvent(
                 topic="TERMINAL_OUT",
                 payload={"content":
@@ -847,6 +1083,13 @@ class SwarmOrchestrator:
                 history = memory.render_for_prompt()
                 command_with_memory = (
                     f"{state['command']}\n\n{history}" if history else state["command"])
+                # D1 + D4 — el encargo llega con su contrato y con la evidencia
+                # que el propio sistema ya sabe producir, sin gastar una
+                # llamada de red en ninguna de las dos cosas.
+                from magi.modules.swarm import contrato as _contrato
+                command_with_memory += _contrato.para_el_prompt(
+                    _contrato.compromisos(state.get("command", "")))
+                command_with_memory += self.evidencia_previa(state.get("command", ""))
 
                 variants = await generate_variants(
                     self.melchior, task_id=task_id, command=command_with_memory,
@@ -947,8 +1190,30 @@ class SwarmOrchestrator:
                     await self._trigger_emergency_stop(task_id, state)
                     break
 
+                # D1 — el contrato, enseñado una vez y guardado para el final.
+                if not state.get("contrato"):
+                    from magi.modules.swarm import contrato as _contrato
+                    lista = _contrato.compromisos(state.get("command", ""))
+                    state["contrato"] = lista
+                    if lista:
+                        await self.bus.publish(BusEvent(
+                            topic="TERMINAL_OUT",
+                            payload={"content": _contrato.render(lista)}))
+
+                # D3 — SE CONSTRUYE AQUÍ, ANTES DE CRITICAR Y DE ARBITRAR.
+                #
+                # Y el orden importa más de lo que parece: si el artefacto se
+                # fabrica antes, Balthasar puede refutar sobre el binario que
+                # existe y Casper arbitra sabiendo que existe. Construir después
+                # del veredicto convertiría la entrega en una nota al pie de una
+                # decisión que ya se tomó sin ella.
+                await self._cerrar_el_lazo(task_id, state)
+
                 evidence = "\n\n".join(
                     f"[{v.label}] {v.verification}" for v in chosen if v.verification)
+                if state.get("artefactos"):
+                    evidence += ("\n\n[ARTEFACTO ENTREGADO] "
+                                 + ", ".join(state["artefactos"]))
 
                 # ---- LA ÚNICA INTERVENCIÓN DE MELCHIOR EN ESTA RONDA -------
                 #

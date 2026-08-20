@@ -37,14 +37,24 @@ from magi.modules.swarm.orchestrator import _n_variantes
 # ---------------------------------------------------------------- §A3 fan-out
 
 
-def test_fast_no_explora_mas_de_lo_medido():
-    assert _n_variantes("fast", "build", False) == 3
+def test_el_fan_out_es_de_dos_en_los_dos_motores():
+    """
+    Este test cambió de números el 2026-08-20, y el motivo es una medida.
+
+    Antes: `fast` exploraba 3 enfoques en un build y `deep` hasta 4, con la
+    idea de que más enfoques dan mejor resultado. La auditoría del encargo del
+    ping pong dice otra cosa: **3 enfoques, 27.753 caracteres producidos,
+    24,7 % entregado y ningún artefacto.** La calidad no salía de tener tres
+    textos; se iba en escribirlos.
+
+    Dos basta para que Balthasar tenga algo que contrastar, y la cuota que
+    sobra se gasta en verificar y construir de verdad (D3), que es donde el
+    usuario nota la diferencia.
+    """
+    assert _n_variantes("fast", "build", False) == 2
     assert _n_variantes("fast", "task", False) == 2
-
-
-def test_deep_explora_mas_porque_su_presupuesto_lo_permite():
-    assert _n_variantes("deep", "build", False) == 4
-    assert _n_variantes("deep", "task", False) == 3
+    assert _n_variantes("deep", "build", False) == 2
+    assert _n_variantes("deep", "task", False) == 2
 
 
 def test_un_rebuild_nunca_reabre_el_fan_out_entero():

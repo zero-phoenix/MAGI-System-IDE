@@ -1,3 +1,82 @@
+# v5.7.0 — el lazo se cierra: de proponer un .exe a entregarlo
+
+La v5.6.0 consiguió que el sistema dejara de mentir. Esta consigue que
+**entregue**. Y está verificado contra el sistema real, no contra tests:
+
+```
+[FÁBRICA] Construyendo «ping» desde la propuesta verificada...
+[fábrica] ping.exe entregado en Escritorio: C:\Users\D\Desktop\ping.exe
+          (14370685 bytes, sha256 03d515a99b72fd2e…)
+```
+
+El fichero existe, arranca y sale con código 0. Comprobado a mano después.
+
+| Métrica | v5.5.2 | v5.6.0 | **v5.7.0** |
+|---|---|---|---|
+| Ratio entregado/producido | 0,8 % | 12-25 % | **49,9 %** |
+| Artefacto en encargo de producto | no | no (avisado) | **sí, en el Escritorio con hash** |
+| `APPROVED` sobre un turno degradado | 3/3 | 0/2 | **0** |
+
+## Lo que cambia
+
+**El modelo propone; la máquina construye (D3).** En cinco pruebas medidas, el
+sistema escribió hasta ocho bloques de código para encargos de `.exe` y llamó
+**cero veces** a la cadena de fábrica que tenía escrita. Se le pidió en el
+prompt, con ejemplo, y el contador siguió en cero. Ahora lo hace el
+orquestador: si el encargo pide un fichero y hay código verificado, se
+construye y se entrega, sin depender de que nadie se acuerde.
+
+**Si el agente ya lo construyó, se reconoce — y se comprueba (D10).** El fallo
+más irónico de la serie: Melchior fabricó dos ejecutables de verdad (tkinter,
+9 MB, con `--formato` y `--autotest`) y el sistema los ignoró, intentó
+construir otro desde bloques inexistentes y cerró la tarea como `INCOMPLETO`.
+El trabajo estaba hecho y el propio sistema decía que no. Ahora las rutas que
+aparecen en la propuesta **se comprueban contra el disco**: una ruta que existe
+es evidencia; una que no, es prosa.
+
+**El encargo se lee como contrato (D1).** «Un ping pong de 32 bits a todo color
+en un exe portable» son cuatro promesas comprobables, no un tema. Se enseñan al
+empezar, con cómo se va a comprobar cada una, y viajan al prompt.
+
+**Ninguna parte del enunciado se pierde en silencio (D5).** La prueba anterior
+pedía «el orden de trabajo que minimiza el riesgo de abandono» y la respuesta
+—buena en todo lo demás— no mencionó el abandono ni una vez. Ahora lo que no se
+conteste sale dicho: `[SIN CONTESTAR] El encargo pedía esto y no lo veo…`.
+
+**`APPROVED` no sobrevive a un contrato incumplido (D2).** Antes convivían
+«Decisión Técnica: APPROVED» y «[INCOMPLETO] no se ha generado ningún
+artefacto» en el mismo mensaje. Dos mecanismos que no se hablan dejan al
+usuario eligiendo a cuál creer.
+
+**Un bloque de Python sin etiqueta sigue siendo Python.** De 18 bloques que
+escribió el modelo, 11 venían sin etiquetar: el verificador no los ejecutaba y
+la fábrica decía «no hay código Python» teniendo diez delante.
+
+**Se ejecutan las herramientas propias en vez de pedirlas (D4).** Ante una
+pregunta de portabilidad entre consolas, el sistema tenía `analyze_port`
+escrito para exactamente eso y lo usó cero veces en cinco pruebas. Ahora el
+orquestador lo ejecuta y pone el resultado en el prompt como evidencia ya
+obtenida.
+
+**Dos enfoques en vez de tres o cuatro (D6).** Medido: tres enfoques, 27.753
+caracteres producidos, 24,7 % entregado y ningún artefacto. La calidad no salía
+de tener tres textos. La cuota liberada se gasta en verificar y construir.
+
+**Y Ritsuko ve lo que importa (D7).** Su evidencia incluye ahora las métricas
+de entrega, y su prompt tiene una regla nueva: con un incumplimiento delante,
+el veredicto no puede ser «sin datos suficientes».
+
+## De dónde sale este plan
+
+De hacer ingeniería inversa a un procedimiento externo y aplicarlo aquí: leer
+el encargo como contrato, decidir qué significa «hecho» antes de empezar y
+hacerlo comprobable por máquina, buscar en la propia caja de herramientas antes
+de razonar de memoria, y desconfiar del propio informe de éxito. Está escrito
+entero en `docs/MEGAPLAN-v7-ingenieria-inversa.md`, con las diferencias
+observables y la evidencia de cada una.
+
+---
+
 # v5.6.0 — el sistema deja de firmar lo que no ha leído
 
 Esta versión sale de tres pruebas contra el sistema real, contrastadas con lo

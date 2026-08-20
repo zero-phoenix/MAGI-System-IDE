@@ -229,13 +229,53 @@ class VerificationReport:
                 + self.render())
 
 
+#: Alias de lenguaje que significan Python. `py` y `python3` los escribe
+#: cualquiera; tratarlos como lenguajes distintos deja el bloque sin verificar
+#: y sin empaquetar, que es peor que un nombre feo.
+_ALIAS_PYTHON = {"py", "python", "python3", "py3"}
+
+#: Primeras palabras que delatan Python en un bloque SIN etiqueta.
+_HUELLAS_PYTHON = ("import ", "from ", "def ", "class ", "print(", "async def",
+                   "#!/usr/bin/env python", "if __name__")
+
+
+def _adivinar_lenguaje(code: str) -> str:
+    """
+    Qué lenguaje es un bloque que no se etiquetó.
+
+    POR QUÉ HACE FALTA ADIVINAR
+    ===========================
+    Medido el 2026-08-20 en el encargo del ping pong: de 18 bloques de código
+    que escribió Melchior, **11 venían sin etiqueta**, 6 como `bash` y 1 como
+    `c`. Ni uno como `python`.
+
+    Con la etiqueta vacía, `extract_blocks` los marcaba como `text`, así que
+    el verificador no los ejecutaba y la fábrica respondía «la propuesta no
+    contiene bloques de código Python» teniendo diez delante. El prompt pide
+    ```python desde hace versiones y el modelo no obedece: pedirlo no es un
+    mecanismo, mirarlo sí.
+
+    La heurística es deliberadamente conservadora —solo dice «python» si el
+    bloque empieza como Python— porque equivocarse hacia python significa
+    intentar ejecutar algo que no lo es, y eso ya lo cubre el verificador con
+    un fallo limpio.
+    """
+    cabeza = "\n".join(code.strip().splitlines()[:6]).lstrip()
+    return "python" if cabeza.startswith(_HUELLAS_PYTHON) else "text"
+
+
 def extract_blocks(text: str) -> list[tuple[str, str]]:
     out = []
     for m in _BLOCK.finditer(text or ""):
         lang = (m.group(1) or "").lower().strip()
         code = m.group(2)
-        if code.strip():
-            out.append((lang or "text", code))
+        if not code.strip():
+            continue
+        if lang in _ALIAS_PYTHON:
+            lang = "python"
+        elif not lang:
+            lang = _adivinar_lenguaje(code)
+        out.append((lang, code))
     return out
 
 

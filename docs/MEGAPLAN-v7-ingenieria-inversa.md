@@ -62,11 +62,9 @@ seis meses.
 Dos veces en esta sesión, con recibo:
 
 - Mi test de alfa falló (99 frente a 100 esperado). **Sospeché de mi
-  expectativa, no del código** — y tenía razón el código: alfa 128 pesa
-  127/255. Lo dejé escrito en el fichero.
+  expectativa, no del código** — y tenía razón el código: alfa 128 pesa 127/255. Lo dejé escrito en el fichero.
 - El primer informe de Ritsuko traía como veredicto el mensaje de error del
-  proveedor. Era **exactamente el fallo que Ritsuko existe para denunciar**,
-  cometido por mí. Lo dije y lo arreglé con dos tests.
+  proveedor. Era **exactamente el fallo que Ritsuko existe para denunciar**, cometido por mí. Lo dije y lo arreglé con dos tests.
 
 MAGI firmaba `APPROVED` sobre sus propios timeouts. Ya no; pero sigue sin
 contrastar sus afirmaciones contra su registro salvo en el caso de C12.
@@ -95,7 +93,7 @@ ni una vez**. Yo enumero las sub-preguntas y las tacho.
 
 ## Parte II — Los bloques
 
-### D1. Contrato del encargo, extraído y comprobado  ⟵ **empezar por aquí**
+### D1. Contrato del encargo, extraído y comprobado ⟵ **empezar por aquí**
 
 **Qué se hace:** al admitir la petición, se extraen sus compromisos a una lista
 explícita (`contrato = [...]`), se le enseña al usuario en una línea, y **antes

@@ -79,7 +79,17 @@ TECHOS: dict[str, int] = {
     # piezas que impiden anunciar un .exe que no existe. Van aquí y no en un
     # módulo aparte porque las dos leen el `state` de la tarea, que es de esta
     # clase: sacarlas obligaría a exportar el estado entero, que es peor.
-    "magi/modules/swarm/orchestrator.py": 1160,
+    # +185 más al ejecutar el megaplan v7: cerrar el lazo de entrega (D3 —el
+    # orquestador construye el artefacto en vez de esperar a que el modelo se
+    # acuerde), la evidencia previa ejecutada (D4) y la cobertura del enunciado
+    # (D5). Las tres leen o escriben el `state` de la tarea, que vive aquí;
+    # sacarlas a un módulo obligaría a exportar el estado entero, que es peor
+    # que un fichero grande.
+    # +30 más por D10: reconocer el .exe que construyó el propio agente y
+    # comprobarlo contra el disco. Nació de la ironía de la prueba F —Melchior
+    # entregó dos ejecutables que funcionan y el sistema cerró la tarea como
+    # INCOMPLETO porque el estado no se enteró.
+    "magi/modules/swarm/orchestrator.py": 1460,
 }
 
 #: Para todo lo demás. 800 líneas es mucho para un módulo de Python, y ninguno

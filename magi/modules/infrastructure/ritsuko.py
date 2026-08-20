@@ -219,6 +219,26 @@ class RitsukoAgent:
         ev["nodos"]["mudos"] = [n for n in ("MELCHIOR", "BALTHASAR", "CASPER")
                                 if not por_nodo.get(n)]
 
+        # D7 — LO QUE MÁS IMPORTA TIENE QUE ESTAR EN LA EVIDENCIA.
+        #
+        # En la prueba del 20-ago Ritsuko dijo «SIN DATOS SUFICIENTES» teniendo
+        # delante el hallazgo más importante de la sesión: un encargo de
+        # producto cerrado sin artefacto y marcado `[INCOMPLETO]`. No lo vio
+        # porque su evidencia no incluía nada sobre la entrega. Un auditor solo
+        # puede ver lo que le pones en la mesa.
+        entregas = [e for e in self._eventos
+                    if "[INCOMPLETO]" in e["texto"] or "[FÁBRICA]" in e["texto"]
+                    or e["tema"] == "swarm.artefacto_listo"]
+        ev["entrega"] = {
+            "artefactos_listos": sum(1 for e in self._eventos
+                                     if e["tema"] == "swarm.artefacto_listo"),
+            "marcada_incompleta": any("[INCOMPLETO]" in e["texto"]
+                                      for e in self._eventos),
+            "sin_contestar": [e["texto"][:200] for e in self._eventos
+                              if "[SIN CONTESTAR]" in e["texto"]],
+            "mensajes": [e["texto"][:200] for e in entregas[-5:]],
+        }
+
         ev["incidencias"] = {
             "alertas": sum(1 for e in self._eventos if e["tema"] == "obs.alert"),
             "errores": sum(1 for e in self._eventos if e["tema"] == "error.critical"),
@@ -277,7 +297,13 @@ class RitsukoAgent:
         "4. Distingues SIEMPRE entre 'el modelo falla' y 'la cuota se agoto'. "
         "Confundirlos es el error mas caro de este sistema.\n"
         "5. Respondes en el idioma del usuario si es espanol o ingles. Nunca "
-        "en otro idioma.\n\n"
+        "en otro idioma.\n"
+        "6. CON EVIDENCIA DE UN INCUMPLIMIENTO, EL VEREDICTO NO PUEDE SER "
+        "'SIN DATOS SUFICIENTES'. Si `entrega.marcada_incompleta` es cierto, o "
+        "si un encargo de producto acabo con `artefactos_listos: 0`, o si hay "
+        "algo en `entrega.sin_contestar`, eso YA es un hallazgo: nombralo. "
+        "'Sin datos' es para cuando no hay datos, no para cuando los datos son "
+        "incomodos.\n\n"
         "FORMATO: un veredicto de una linea (MEJORA / IGUAL / EMPEORA / SIN "
         "DATOS SUFICIENTES), despues los hallazgos con su evidencia, y al "
         "final lo que recomiendas que NAOKO haga distinto."
