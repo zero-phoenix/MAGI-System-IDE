@@ -1,0 +1,568 @@
+{
+  "tarea": "Disena el plan tecnico completo para que un emulador de Nintendo DS ya existente (ARM9 + ARM7, dos pantallas, GPU de funcion fija) pueda ejecutar juegos de PSP (MIPS Allegrex con VFPU, Media Engine, GPU con listas de display) reutilizando su nucleo. Di exactamente que se reutiliza, que se tira y que hay que escribir de cero; como se valida cada etapa con pruebas diferenciales contra hardware; y cual es el orden de trabajo que minimiza el riesgo de abandono. Justifica cada decision.",
+  "task_id": "auditoria-1787213010",
+  "motor": "deep",
+  "rondas": 1,
+  "estado_final": "WAITING_USER_APPROVAL",
+  "tiempos": {
+    "imports_s": 0.11,
+    "arranque_kernel_s": 0.46,
+    "tarea_s": 162.07,
+    "total_s": 189.93
+  },
+  "llamadas": {
+    "total": 3,
+    "ok": 3,
+    "fallidas": 0,
+    "sin_etiqueta": 1,
+    "segundos_modelo": 52.23,
+    "mediana_s": 13.11,
+    "peor_s": 26.42
+  },
+  "por_etapa": {
+    "balthasar": {
+      "llamadas": 2,
+      "segundos": 25.81,
+      "errores": 0
+    },
+    "SIN ETIQUETA (fuera del presupuesto)": {
+      "llamadas": 1,
+      "segundos": 26.42,
+      "errores": 0
+    }
+  },
+  "etapas_cronometradas": [
+    {
+      "t_rel": 1.39,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 91.83
+    },
+    {
+      "t_rel": 1.4,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 91.81
+    },
+    {
+      "t_rel": 118.38,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "CASPER",
+      "segundos": 44.52
+    },
+    {
+      "t_rel": 118.38,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 44.5
+    },
+    {
+      "t_rel": 162.93,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 26.42
+    },
+    {
+      "t_rel": 93.24,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 25.12
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 25.1
+    },
+    {
+      "t_rel": 1.39,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 21.46
+    },
+    {
+      "t_rel": 1.4,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 21.44
+    },
+    {
+      "t_rel": 0.92,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "MELCHIOR",
+      "segundos": 21.04
+    },
+    {
+      "t_rel": 1.4,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 20.55
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "SwarmAgentBase._ask_with_tools",
+      "quien": "BALTHASAR",
+      "segundos": 13.91
+    },
+    {
+      "t_rel": 93.26,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 13.89
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 13.11
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 13.11
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 12.7
+    },
+    {
+      "t_rel": 93.25,
+      "etapa": "SwarmAgentBase._ask",
+      "quien": "BALTHASAR",
+      "segundos": 12.7
+    },
+    {
+      "t_rel": 180.85,
+      "etapa": "ProviderRegistry.complete",
+      "quien": "ProviderRegistry",
+      "segundos": 7.94
+    },
+    {
+      "t_rel": 93.23,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    },
+    {
+      "t_rel": 93.23,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    },
+    {
+      "t_rel": 93.23,
+      "etapa": "ProposalVerifier.verify",
+      "quien": "ProposalVerifier",
+      "segundos": 0.0
+    }
+  ],
+  "resumen_etapas": {
+    "ProviderRegistry.complete": {
+      "veces": 10,
+      "segundos": 277.46
+    },
+    "SwarmAgentBase._ask_with_tools": {
+      "veces": 6,
+      "segundos": 217.88
+    },
+    "ProposalVerifier.verify": {
+      "veces": 3,
+      "segundos": 0.0
+    },
+    "SwarmAgentBase._ask": {
+      "veces": 2,
+      "segundos": 25.81
+    }
+  },
+  "respuestas": [
+    {
+      "t_rel": 93.24,
+      "tema": "AGENT_POST",
+      "agente": "MELCHIOR",
+      "texto": "Se han generado 3 enfoques alternativos. Compáralos y señala cuál es más sólido y por qué.\n\n===== Enfoque A (hf) =====\n### PLAN TÉCNICO PARA PORTAR UN EMULADOR DE NINTENDO DS A PSP\n\n**Objetivo:** Adaptar un emulador existente de Nintendo DS (ARM9 + ARM7, GPU de función fija) para ejecutar juegos de PSP (MIPS Allegrex con VFPU, Media Engine, GPU con listas de display), reutilizando su núcleo cuando sea posible.\n\n---\n\n### **1. ANÁLISIS DE COMPONENTES EXISTENTES Y REUTILIZACIÓN**\n\n#### **Reutilizable del núcleo DS:**\n- **Gestión de memoria:** La estructura de memoria del emulador DS (ARM9 y ARM7) puede reutilizarse parcialmente para mapear la memoria de la PSP. Sin embargo, la PSP tiene una arquitectura de memoria diferente (MIPS vs. ARM), por lo que se necesitarán adaptaciones.\n- **Sistema de archivos:** El manejo de ROMs y archivos de guardado puede reutilizarse, pero se debe adaptar para el formato de discos UMD/ISO de la PSP.\n- **Entrada/Salida:** El manejo de controles y pantallas táctiles puede reutilizarse parcialmente, pero la PSP tiene un esquema de botones diferente y una sola pantalla.\n- **GPU (parcial):** La GPU de función fija del DS no es directamente compatible con la GPU de la PSP, pero algunos componentes de renderizado (como la gestión de texturas y shaders básicos) pueden reutilizarse como base.\n\n#### **Componentes a descartar:**\n- **CPU:** Las CPUs ARM9 y ARM7 del DS no son compatibles con el MIPS Allegrex de la PSP. Se debe implementar un nuevo núcleo de emulación MIPS.\n- **Media Engine:** El DS no tiene un equivalente al Media Engine de la PSP, por lo que se debe implementar desde cero.\n- **GPU (parcial):** La GPU de la PSP utiliza listas de display, lo que requiere una reimplementación significativa.\n\n#### **Componentes a escribir de cero:**\n- **Núcleo MIPS Allegrex:** Emulación de la CPU MIPS con soporte para VFPU.\n- **Media Engine:** Decodificación de vídeo y audio específica de la PSP.\n- **GPU de la PSP:** Implementación de la GPU con soporte para listas de display y efectos específicos.\n- **Interfaz de pantalla única:** Adaptación de la salida gráfica para una sola pantalla.\n\n---\n\n### **2. ORDEN DE TRABAJO PARA MINIMIZAR RIESGOS**\n\n**Fase 1: Emulación de la CPU MIPS Allegrex**\n1. **Implementar el núcleo MIPS:** Utilizar una biblioteca como QEMU o Unicorn para acelerar el desarrollo.\n2. **Validación diferencial:** Comparar el estado de registros y memoria con un emulador de referencia (e.g., PPSSPP) usando pruebas diferenciales.\n\n**Fase 2: Implementación del Media Engine**\n1. **Decodificación de audio/vídeo:** Implementar los códecs específicos de la PSP (ATRAC3, MPEG-4).\n2. **Validación:** Comparar la salida de audio/vídeo con hardware real o un emulador de referencia.\n\n**Fase 3: Emulación de la GPU**\n1. **Listas de display:** Implementar la gestión de listas de display y efectos gráficos específicos.\n2. **Validación:** Renderizar escenas simples y compararlas con capturas de hardware real.\n\n**Fase 4: Integración y adaptaciones**\n1. **Adaptar la gestión de memoria y E/S:** Ajustar el mapeo de memoria y la entrada de controles para la PSP.\n2. **Pruebas integrales:** Ejecutar juegos simples y validar la compatibilidad general.\n\n---\n\n### **3. VALIDACIÓN DIFERENCIAL**\n\n- **CPU:** Usar `differential_test` para comparar el estado de registros y memoria entre el nuevo núcleo MIPS y un emulador de referencia.\n- **GPU:** Comparar capturas de pantalla de escenas renderizadas con hardware real o PPSSPP.\n- **Media Engine:** Validar la salida de audio/vídeo con herramientas como FFmpeg o comparaciones directas.\n\n---\n\n### **4. JUSTIFICACIÓN DE DECISIONES**\n\n- **Reutilización parcial:** Aprovechar componentes existentes reduce el tiempo de desarrollo, pero la incompatibilidad arquitectónica (ARM vs. MIPS) obliga a reimplementar la CPU.\n- **Orden de trabajo:** Comenzar por la CPU minimiza riesgos, ya que es el componente crítico. La GPU y el Media Engine se implementan después, aprovechando una base estable.\n- **Validación diferencial:** Garantiza que cada componente funcione correctamente antes de integrarlo, reduciendo errores acumulativos.\n\n---\n\n### **CONCLUSIÓN**\n\nEl plan propone reutilizar parcialmente el núcleo del emulador de DS, enfocándose en reimplementar la CPU MIPS, el Media Engine y la GPU de la PSP. El orden de trabajo prioriza la emulación de la CPU, seguida de los componentes multimedia y gráficos, con validación diferencial en cada etapa. Este enfoque minimiza el riesgo de abandono y asegura una base sólida para la compatibilidad con juegos de PSP.\n\n===== Enfoque B (hf) =====\n**Propuesta de adaptación de un emulador de Nintendo DS existente para ejecutar juegos de PSP**  \n*(ARM9 + ARM7, dos pantallas, GPU de función fija → MIPS Allegrex + VFPU, Media Engine, GPU con listas de display)*  \n\n---  \n\n## 1. Resumen ejecutivo  \n\n| Área | Qué se **reutiliza** | Qué se **tira** | Qué se **escribe de cero** | Comentario clave |\n|------|----------------------|----------------|----------------------------|------------------|\n| Núcleo de simulación (scheduler, eventos, temporizadores) | ✔ Scheduler basado en ciclos, sistema de interrupciones genérico, mecanismo de guardado/restaurado de estado | – | – | El modelo de tiempo del DS es suficientemente genérico para volverlo a usar con el reloj del PSP (≈ 333 MHz). |\n| Sistema de buses y mapeo de memoria | ✔ Framework de buses (address decoder, latency model, access counters) | – | – | Sólo hay que redefinir los rangos y los periféricos del PSP. |\n| Depurador, UI, cheat‑engine, archivo de configuración, soporte de savestates | ✔ UI basada en Qt/SDL, consola de comandos, formato de savestate genérico | – | – | Se reutilizan sin cambios salvo la adición de nuevos registros (MIPS, VFPU, GPU). |\n| Entrada/salida de audio (mezclador, resampler) | ✔ Mezclador de PCM, resampler polyphase, salida vía SDL/OpenAL | – | – | Sólo hay que cambiar las fuentes de datos (ATRAC3plus, VAG, etc.). |\n| Entrada de teclado / mando (mapping) | ✔ Sistema de mapeo de botones configurable | – | – | Se añaden los botones específicos de PSP (analog stick, L/R, etc.). |\n| Núcleo de CPU (ARM9/ARM7) | ✖ | ✖ Todo el decodificador ARM, pipeline, coprocesadores, modo Thumb | – | Se reemplaza por un núcleo MIPS Allegrex con VFPU. |\n| GPU de DS (2D engine, 3D fixed‑function, dual‑screen) | ✖ | ✖ Todo el motor 2D/3D de DS, control de pantallas, paletas, modos de ventana | – | Se escribe un intérprete de listas de display de PSP + rasterizador 3D (T&L, texturizado, Z‑buffer, niebla, alpha test). |\n| Peripherals DS específicos (touchscreen, mic, Wi‑Fi, cartucho, firmware) | ✖ | ✖ Todos los periféricos exclusivos de DS | – | No necesarios para PSP; se dejan desactivados. |\n| Media Engine (decode de audio/video, código ATRAC3plus, H.264, etc.) | ✖ | ✖ Ningún bloque de media del DS | – | Se implementa usando bibliotecas existentes (FFmpeg, libavcodec, libatrac3plus) o se escribe un wrapper ligero. |\n| Sistema de control (SysCon, power, timers, interrupts) | ✖ (solo el modelo de interrupciones genérico se mantiene) | ✖ Registro‑mapa específico del DS | – | Se escribe el mapa de registros del PSP SysCon y sus timers. |\n\n---  \n\n## 2. Detalle de lo que se reutiliza  \n\n| Componente | Qué se reutiliza | Por qué es válido |\n|------------|------------------|-------------------|\n| **Scheduler basado en ciclos** | El bucle principal que avanza el tiempo en pasos de ciclo y dispara eventos (timers, DMA, VBlank). | El PSP también funciona con un reloj maestro (≈ 333 MHz) y necesita disparar eventos en puntos determinados (VBlank, HBlank, timers). Sólo hay que cambiar la frecuencia base y los periodos de los temporizadores. |\n| **Modelo de bus y control de latencia** | Clase genérica `BusDevice` con métodos `read32/16/8`, `write32/16/8`, gestión de wait‑states y acceso simultáneo a varios slaves. | La arquitectura de memoria del PSP (bus de 32 bits, varios slaves: RAM, VRAM, SRAM, registre‑mapa de GPU, Media Engine) encaja exactamente en este modelo. Sólo se rellenan las tablas de mapeo. |\n| **Framework de depuración** | Consola de comandos, breakpoints, watchpoints, inspección de memoria, logging de instrucciones. | El depurador es independiente de la ISA; basta con agregar los nuevos registros (MIPS PC, GPR, COP0, VFPU registers, GPU command buffer). |\n| **Sistema de savestates** | Serialización/deserialización de todo el estado del emulador (registro, memoria, timers). | Se amplía el bloque de estado con los nuevos componentes (MIPS core, VFPU, GPU, Media Engine). El algoritmo de compresión (zlib) ya está probado. |\n| **UI / configuración** | Ventana principal, menús, mapeo de controles, selección de ROM, cheat‑engine. | No depende de la consola emulada; sólo hay que añadir perfiles específicos de PSP (resolución, aspect ratio, botones). |\n| **Mezclador de audio PCM** | Mezclador de varios canales, resampler de alta calidad, salida vía SDL/OpenAL. | El PSP produce PCM (VAG, ATRAC3plus decoded a PCM) y ocasionalmente streams de audio ADPCM; el mezclador ya soporta esos formatos tras un pequeño adaptador. |\n| **Sistema de entrada** | Mapeo de teclas/gamepad a eventos internos, configuración por perfil. | Se añaden los ejes analógicos y los botones L/R, SELECT, START, Home, etc. El mismo motor de eventos sirve. |\n\n---  \n\n## 3. Qué se tira (se descarta por completo)  \n\n| Componente | Motivo de eliminación |\n|------------|-----------------------|\n| Núcleo ARM9/ARM7 (decodificador de instrucciones, pipeline de 5 etapas, modo ARM/Thumb, coprocesador CP15) | ISA completamente diferente; reutilizarlo implicaría un “traductor” de ARM→MIPS que agregaría complejidad y riesgo de errores de ciclo. |\n| GPU 2D/3D de DS (motor de sprites, motor de fondos, motor de polígonos fijos, dual‑screen output) | La PSP usa un pipeline de transformación y iluminación (T&L) con listas de display, texturizado, Z‑buffer, niebla, alpha test, etc. No hay superposición funcional útil. |\n| Control de pantallas duales (registro de posición, modo de ventana, doble buffers) | PSP tiene una única pantalla 480×272; el código de manejo de doble pantalla sería muerto peso. |\n| Periféricos DS exclusivos (touchscreen, micrófono, Wi‑Fi, cartucho NDS, firmware de arranque) | No existen en el PSP; su presencia solo consumiría memoria y podría interferir con el mapeo de direcciones. |\n| Motor de audio DS (captura de mic, mezcla de canales 16‑bit, generador de tonalidades) | El PSP usa ATRAC3plus/VAG y tiene su propio motor de mezcla; el de DS no aporta nada útil. |\n| Sistema de arranque y BIOS de DS | El PSP tiene su propio bootloader (IPL) y llamadas al kernel; se reemplazan por la emulación del IPL de PSP. |\n\n---  \n\n## 4. Qué se escribe de cero (o se adapta significativamente)  \n\n| Módulo | Descripción del trabajo | Bibliotecas / código externo reutilizable (si procede) |\n|--------|------------------------|--------------------------------------------------------|\n| **CPU MIPS Allegrex** | Intérprete de instrucciones MIPS III con extensiones MIPS32 Release 2, incluyendo instrucciones de carga/store alineadas, branch likely, sync, y el coprocesador CP0 (excepciones, temporizadores, contexto). Se implementará también un modo *JIT* básico (block‑translation) para acelerar después de la fase de validación. | Se puede partir de un núcleo MIPS existente de bajo mantenimiento (ej. *simple-mips* de QEMU user‑mode o *mipsel* de gem5) y adaptarlo al modelo de ciclos del emulator. |\n| **VFPU (Vector Floating‑Point Unit)** | Implementación de los 32 registros de 32‑bit, operaciones SIMD (add, sub, mul, div, sqrt, min/max, convert, etc.) según el documento *“PSP VFPU Specification”*. Se modelará como una unidad paralela al núcleo MIPS que consume ciclos según latencias publicadas. | No hay biblioteca directa; se escribe desde cero siguiendo los pseudocódigos del manual. |\n| **System Control (SysCon) & Timers** | Mapeo de registros de power control, reset, timers (0‑3), interrupt controller, y el *ME* (Media Engine) control. Se implementará la lógica de generación de interrupciones (VBlank, HBlank, timer, DMA, GE, etc.). | Se reutiliza el framework de interrupciones genérico; solo se llena el mapa de registros y las rutinas de servicio. |\n| **Memory Map** | Definición de los rangos: Main RAM (64 MB), VRAM (4 MB), SRAM (128 KB), Media Engine RAM, GPU register space, BIOS (0xBFC00000), etc. Incluye modelos de latencia (e.g., VRAM 1‑cycle, SRAM 2‑cycle). | Se usa el `BusDevice` existente; se crea una tabla de dispositivos. |\n| **GPU de PSP (GE – Graphics Engine)** | Intérprete de listas de display (comandos: `CALL`, `JUMP`, `RET`, `STRIP`, `FAN`, `SET`, `TEX`, `COLOR`, `DEPTH`, `ALPHA`, `FOG`, `SCISSOR`, etc.). Implementación de las etapas: transformé de vértices (T&L), setup, rasterizado, texturizado (incl. filtros bilineal/trilinear, mipmap), pruebas de profundidad, alpha test, stencil, mezclado, y escritura al framebuffer (480×272, 16‑bit color + Z). Se añadirá soporte para el *framebuffer* y *depth buffer* en VRAM. | Se pueden reutilizar algoritmos de rasterizado de proyectos open‑source como *PPSSPP* (bajo licencia GPLv2) únicamente como referencia; el código será escrito limpio para evitar problemas de licencia. |\n| **Media Engine** | Decodificadores de audio: ATRAC3plus (main, VAG), ADPCM, y de video: H.264 Baseline (para películas UMD). Se integrará mediante llamadas a libavcodec (FFmpeg) o libatrac3plus (si se dispone). El motor también gestiona el *sound output* (reloj de audio, buffers de PCM). | Se reutiliza FFmpeg (LGPL) para ATRAC3plus/H.264; se escribe una capa de adaptación que convierta los frames decodificados en PCM o en texturas de video para el GPU. |\n| **Entrada** | Mapeo de analógico (X/Y), botones (△,○,×,□,L,R,START,SELECT,HOME), y el *hold* switch. Se genera eventos de tipo `PSP_BUTTON_DOWN/UP` y se alimenta al núcleo mediante el mismo sistema de eventos que ya usa el DS. | Ninguno nuevo; solo se extiende la tabla de mapeo. |\n| **Salida de vídeo** | Escalado del framebuffer 480×272 a la ventana de la UI (opcionalmente a doble pantalla para aprovechar el layout DS: pantalla superior muestra el juego, inferior muestra debug o se deja negra). Se proveen filtros de escalado (bilinear, HQ2x, etc.) y opción de rotación. | Se reutiliza el módulo de renderizado de SDL/OpenGL ya presente en el emulador DS (para escalar la salida de la GPU). |\n| **Estado de guardado (savestate)** | Extensión del bloque de estado para incluir: PC MIPS, GPR[32], LO/HI, CP0 registers, VFPU[32] registers, GPU command buffer, FIFO de GE, estado del Media Engine, timers. Se asegura endianness‑independencia y versionado. | Se reutiliza la infraestructura de serialización; solo se añaden los nuevos campos. |\n| **Depurador y trazado** | Añadir vistas de registros MIPS, VFPU, comando de GE, y un logger de instrucciones que pueda volcar un *trace* comparable al que se obtiene de un PSP real mediante su puerto UART (usando homebrew que imprime `sceKernelPrintf`). | Se reutiliza el sistema de breakpoints/watchpoints; solo se agregan nuevos tipos de puntos de interrupción. |\n\n---  \n\n## 5. Estrategia de validación (pruebas diferenciales contra hardware)\n\n### 5.1. Nivel de pruebas\n\n| Nivel | Objetivo | Herramienta / Método |\n|-------|----------|----------------------|\n| **Unit‑test de ISA** | Verificar que cada instrucción MIPS y VFPU produzca el mismo resultado que un modelo de referencia (ej. *spike* o *QEMU* user‑mode) para valores aleatorios y casos límite. | Scripts de prueba que comparan el estado de registro y memoria después de ejecutar una instrucción aislada. |\n| **Pruebas de cronometraje** | Validar latencias de instrucciones, accesos a memoria y eventos de temporizador contra mediciones reales obtenidas con un PSP‑1000 (mediante ciclo‑counter del hardware). | Ejecutar micro‑benchmarks homebrew que miden ciclos de instrucciones (ej. `addiu`, `lw`, `mtc0`) y comparar con el valor reportado por el emulador (±1 ciclo tolerable por variaciones de bus). |\n| **Pruebas de periféricos** | Comprobar que los registros de SysCon, timers y control de interrupciones generan las mismas interrupciones que el hardware. | Homebrew que habilita cada interrupción, cuenta cuántas veces se dispara en un segundo y compara con el número esperado. |\n| **Pruebas de Media Engine** | Verificar la decodificación correcta de flujos ATRAC3plus y VAG a PCM, y la reproducción de vídeo H.264 (frames de referencia). | Comparar el PCM de salida (muestreo 48 kHz, 16‑bit) con el obtenido por `ffmpeg -i sample.atrac3 -f s16le -` usando métricas SNR > 60 dB; para vídeo comparar cada frame decodificado con un hash MD5 contra la salida de `ffmpeg`. |\n| **Pruebas de GPU (render)** | Asegurar que la interpretación de listas de display y el rasterizado producen la misma imagen que el hardware. | Ejecutar *homebrew test suites* (por ejemplo, la suite “GPU‑tests” de *pspsdk*) que dibujan primitivas conocidas (triángulos, texturizado, blending, niebla). Capturar el framebuffer después de N frames y comparar pixel‑a‑pixel (o mediante SSIM > 0.99) con la captura de un PSP real (mediante captura de TV o grabadora de HDMI). |\n| **Pruebas de juego completo** | Validar la compatibilidad con juegos comerciales (homebrew y títulos de prueba libres) mediante comparación de *checksums de frame* y logs de comando de GPU. | Ejecutar el juego durante, por ejemplo, 5000 frames y generar un hash acumulativo (framewise XOR o SHA‑256). Comparar con el hash obtenido en hardware (grabado con una captura de video y reducción a mismo número de frames). También comparar logs de comandos de GE (direcciones, tamaños, estados de textura) para detectar divergencias tempranas. |\n| **Pruebas de savestate** | Garantizar que guardar y cargar estado no altera la ejecución. | Guardar estado en un punto aleatorio, cargarlo y ejecutar otros 10 000 frames; comparar el hash de frames con una ejecución continua sin interrupciones. |\n\n### 5.2. Infraestructura de pruebas\n\n- **Harness de pruebas**: Un pequeño ejecutable que carga una ROM, aplica una serie de *checkpoints* (cada X millones de ciclos) y escribe a disco: registro dump, memory dump, GPU command log, audio PCM buffer.  \n- **Comparador automático**: Script Python que lee los dumps del emulador y los del hardware (previamente grabados) y reporta diferencias con tolerancia (ej. ±1 ciclo, ±1 LSB de color).  \n- **Integración continua**: Cada pull request ejecuta el conjunto de unit‑tests y los micro‑benchmarks; los tests de render y de juego se ejecutan nightly en una máquina con un PSP-1000 conectado mediante captura de video.  \n- **Cobertura**: Se busca > 90 % de cobertura de líneas en el núcleo MIPS/VFPU y > 80 % en la GPU.  \n\n---  \n\n## 6. Orden de trabajo que minimiza el riesgo de abandono  \n\nLa idea es entregar **valor tangible** lo antes posible (para mantener la motivación) y ir añadiendo complejidad gradualmente. Cada fase termina con un hito verificable mediante las pruebas descritas.\n\n| Fase | Objetivo principal | Qué se implementa (reuso + nuevo) | Hito de validación | Riesgo mitigado |\n|------|--------------------|-----------------------------------|--------------------|-----------------|\n| **0 – Preparación** | Establecer repositorio, documentación, entorno de build. | Reuso: UI, build system (CMake), framework de bus/scheduler, savestate. Nuevo: nada. | Compilación limpia del emulador DS existente sin cambios. | Evita problemas de entorno que puedan detener el proyecto temprano. |\n| **1 – Núcleo CPU MIPS (intérprete)** | Tener un procesador capaz de ejecutar código MIPS básico. | Nuevo: intérprete MIPS (instrucciones de carga/store, ALU, branch, system call). Reuso: scheduler, bus, depurador, savestate (añade registros MIPS). | Paso de todos los test unitarios de ISA (incluyendo excepciones básicos). | Si falla aquí, el proyecto se detiene temprano pero con bajo esfuerzo invertido. |\n| **2 – VFPU** | Añadir soporte de punto flotante vectorial. | Nuevo: unidad VFPU (registros, operaciones SIMD, latencias). Reuso: mismo bus/scheduler; se conecta como otro slave que consume ciclos. | Test de operaciones VFPU comparado con referencia *spike* (valores aleatorios, redondeo, denormals). | Evita que más tarde tengamos que rehacer el núcleo para soportar VFPU. |\n| **3 – Memory Map y SysCon** | Definir el mapa de memoria del PSP y los registros de control. | Nuevo: tablas de mapeo (RAM, VRAM, SRAM, Media Engine, GPU regs, BIOS). Nuevo: modelo de SysCon (power, timers, intc). Reuso: bus framework, scheduler. | Test de lectura/escritura de todos los registros de SysCon y de timers (valor leído = valor escrito). Test de generación de interrupciones de timer. | Evita que los accesos a memoria provoquen fallos silenciosos que serían difíciles de rastrear más adelante. |\n| **4 – Interrupts y Excepciones** | Que el emulador responda correctamente a interrupciones y excepciones MIPS. | Nuevo: lógica de priorización de interrupciones (VBlank, HBlank, GPU, timers, DMA, GE, etc.) y manejo de excepciones (TLB miss, syscall, break, etc.). Reuso: scheduler (para marcar eventos) y depurador (para mostrar causa). | Test que dispara cada fuente de interrupción y verifica que el vector correcto se ejecute y que el contador de ciclos avance como en hardware. | Garantiza que el flujo de control sea fiel, necesario antes de intentar cualquier juego. |\n| **5 – Entrada básica** | Que los botones y el sticks sean leídos por el software. | Nuevo: mapeo de hardware de entrada a memoria mapeada (0x0B000000‑0x0B000010). Reuso: sistema de eventos de entrada ya existente. | Homebrew sencillo que lee los botones y muestra su estado en pantalla (se compara con captura de hardware). | Permite interactuar con los tests posteriores sin necesidad de hardware de entrada complejo. |\n| **6 – Media Engine (audio)** | Reproducir correctamente flujos de audio ATRAC3plus/VAG. | Nuevo: wrapper que llama a FFmpeg/libatrac3plus para decodificar a PCM y alimenta el mezclador de audio existente. Reuso: mezclador, salida de audio. | Test de reproducción de un archivo de audio conocido; comparar PCM de salida (RMS, espectro) con referencia de hardware (grabación de línea de salida). | El audio es a menudo el primer síntoma visible de fallos; validarlo temprano aumenta la confianza. |\n| **7 – GPU – intérprete de listas de display** | Que la GPU pueda ejecutar comandos básicos de dibujo (clear, draw triangles, set texture). | Nuevo: parser de listas de display, implementación de etapas tempranas (setup de atributos, transformación de vértices simples sin textura). Reuso: marco de rendering (OpenGL) para presentar el framebuffer en pantalla. | Test de “clear screen” y “draw single colored triangle” comparado con captura de hardware (imagen idéntica). | Obtener una imagen en pantalla early mantiene la motivación y permite depurar la pipeline de comandos. |\n| **8 – GPU – texturizado y blending** | Añadir texturas, filtrado, alpha test, blending y niebla. | Nuevo: unidad de textura (fetch, filtro bilineal/trilinear, mipmap), unidad de alpha test, blender, niebla. Reuso: mismos buffers de frame/depth. | Test de cuadrícula de texturas con mipmap, alpha blending y niebla, comparado frame‑a‑frame con hardware (SSIM>0.99). | Complejidad media; si pasa, la mayoría de los efectos usados en juegos estarán cubiertos. |\n| **9 – GPU – Z‑buffer y stencil** | Precisez de profundidad y operaciones de stencil. | Nuevo: profundidad de 16‑/24‑bit, operaciones de stencil (keep, zero, replace, increment, decrement). Reuso: mismo rasterizador. | Test de escenas con objetos que se ocluyen y stencil shadows (homebrew de prueba). Comparar buffer de profundidad y stencil con captura de hardware (lectura directa mediante debug del PSP). | Evita errores de orden de dibujo que son difíciles de notar solo mirando la imagen. |\n| **10 – Media Engine (video)** | Decodificar y mostrar vídeo H.264 (para cinemáticas). | Nuevo: llamada a FFmpeg para decodificar frames a YUV420, conversion a RGB y subida como textura al GPU (como hace el PSP en su “Mpeg” decoder). Reuso: texturizador ya existente. | Test de reproducción de un clip de vídeo conocido (ej. *intro* de un UMD); comparar cada frame con referencia de hardware (PSP capturando salida de video). | El vídeo es opcional para muchos juegos; hacerlo después asegura que no bloqueemos el progreso si surge algún problema de licencia o complejidad. |\n| **11 – JIT básico (opcional)** | Mejorar velocidad para jugar a velocidad completa. | Nuevo: bloque de traducción simple (basic‑block caching) que genera código nativo para secuencias de instrucciones frecuentes. Reuso: motor de intérprete como fallback. | Benchmark de un título ligero (ej. *Lumines* demo) alcanzando ≥ 55 fps en hardware de prueba (PC medio). | Si el intérprete ya es suficientemente rápido (≈ 30‑40 fps en CPU moderna), esta fase puede posponerse o descartarse sin afectar la viabilidad. |\n| **12 – Pulido y pruebas de regresión** | Ejecutar el conjunto completo de pruebas de juegos y generar reporte de compatibilidad. | Nuevo: ninguno (solo scripts de prueba). Reuso: todo lo anterior. | Ejecutar la batería de 20 homebrews y 5 títulos comerciales libres (ej. *OpenTyrian*, *Quake II PSP*) y validar que ≥ 80 % pasan los tests de frame‑hash dentro de 5 % de tolerancia. | Confirma que el proyecto está listo para liberación pública y reduce riesgo de abandono al demostrar progreso concreto. |\n| **13 – Documentación y release** | Preparar manual de usuario, guía de compilación y notas de lanzamiento. | Nuevo: documentación. Reuso: ninguno. | Release público en GitHub con binarios para Windows/Linux/macOS. | Cierra el ciclo y garantiza que el trabajo quede disponible para la comunidad. |\n\n**Por qué este orden reduce el riesgo de abandono**\n\n1. **Incremental y verificable** – Cada fase entrega un binario que puede ejecutar algo nuevo (instrucciones, audio, triangle, textura). Ver el progreso en pantalla mantiene la motivación.  \n2. **Dependencias claras** – Las fases posteriores solo dependen de lo ya construido (ej. GPU necesita memoria y timers, pero no necesita VFPU para dibujar triángulos sin color).  \n3. **Pruebas tempranas de los puntos más frágiles** – La ISA y el VFPU son los componentes más propicios a errores sutiles; se validan antes de invertir tiempo en la compleja GPU.  \n4. **Evita “big bang”** – No intentamos emular todo el PSP de golpe; en su lugar se van cerrando “cuellos de botella” uno a uno.  \n5. **Feedback de la comunidad** – Después de la fase 6‑7 ya podemos lanzar una versión “alpha” que reproduzca audio y muestre triángulos; usuarios pueden reportar problemas y ayudar a probar.  \n6. **Plan B explícito** – Si el JIT resulta demasiado complejo, podemos quedarnos con el intérprete y seguir teniendo un emulador jugable (muchos títulos de PSP corren a 30‑40 fps en un intérprete moderno en PC de hoy).  \n\n---  \n\n## 7. Justificación de decisiones clave  \n\n| Decisión | Razón técnica | Impacto en riesgo / esfuerzo |\n|----------|---------------|------------------------------|\n| **Reusar el scheduler y el bus** | El modelo de tiempo basado en ciclos y los dispositivos de bus son independientes de la ISA; sólo cambian los periodos y los slaves. | Reduce drásticamente el código de bajo nivel (menos de 2 000 líneas) y elimina una fuente clásica de errores de sincronización. |\n| **Descartar el núcleo ARM** | Intentar traducir ARM→MIPS o reutilizar el decodificador ARM añadiría una capa de traducción que sería tanto menos precisa como más difícil de mantener. | Evita un esfuerzo potencialmente enorme y riesgoso; escribir un MIPS limpio es más sencillo y bien documentado. |\n| **Escribir el VFPU desde cero** | No existe una implementación libre completa y ciclatamente exacta del VFPU de PSP; adaptar uno de otro proyecto (ej. VFP de ARM) requeriría mapeo de instrucciones y latencias diferentes. | Garantiza fidelidad numérica (requisito para muchos efectos de shaders y cálculos de física). El esfuerzo es moderado (~1 500 líneas) y altamente testeable. |\n| **Aprovechar FFmpeg para audio/vídeo** | Los codecs ATRAC3plus y H.264 están bien soportados y probados; reescribirlos sería un esfuerzo desproporcionado y introduciría riesgos de patentabilidad. | Reduce el trabajo a una capa de adaptación (~500 líneas) y gana calidad de salida inmediatamente. |\n| **Escribir la GPU de PSP pero reutilizar el marco de render OpenGL** | El emulador DS ya tiene un contexto OpenGL para presentar el framebuffer; sólo necesitamos llenar el buffer con los píxeles correctos. | Evita escribir un rasterizador de software completo desde cero; se centra en la precisión de la interpretación de listas de display y las unidades de textura/Z‑buffer. |\n| **Implementar JIT opcional después de la fase de validación** | El intérprete baseline ya llega a ~30‑40 fps en una CPU de escritorio medio; el JIT es una mejora de rendimiento, no un requisito de corrección. | Permite lanzar una versión jugable temprano y posponer la complejidad del JIT hasta que la corrección esté garantizada. |\n| **Validar cada etapa con pruebas diferenciales contra hardware** | La única forma segura de asegurar la corrección de un emulador de ciclo exacto es comparar con el comportamiento real del hardware en una gran variedad de condiciones. | Detecta desviaciones temprano, evita que errores se acumulen y hacen imposible el diagnóstico posterior. |\n| **Orden de trabajo basado en “hitos visibles”** | Los desarrolladores tienden a abandonar cuando no ven resultados rápidamente. Mostrar triángulos, texto o sonido pronto mantiene el engagement. | Incrementa la probabilidad de que el proyecto llegue a la fase de liberación. |\n\n---  \n\n## 8. Estimación de esfuerzo (aproximado)  \n\n| Fase | Líneas de código estimadas (nuevo) | Duración estimada (tiempo completo) |\n|------|-----------------------------------|--------------------------------------|\n| 0 – Preparación | 0 | 1 semana |\n| 1 – Núcleo MIPS (intérprete) | 2 500 | 3 semanas |\n| 2 – VFPU | 1 500 | 2 semanas |\n| 3 – Memory Map & SysCon | 1 200 | 2 semanas |\n| 4 – Interrupts / Excepciones | 1 000 | 1 semana |\n| 5 – Entrada básica | 400 | 3 días |\n| 6 – Media Engine (audio) | 800 | 1 semana |\n| 7 – GPU – listas & color | 2 000 | 3 semanas |\n| 8 – GPU – texturizado/blending | 2 500 | 4 semanas |\n| 9 – GPU – Z‑buffer / stencil | 1 200 | 2 semanas |\n|10 – Media Engine (vídeo) | 1 000 | 2 semanas |\n|11 – JIT básico (opcional) | 3 000 | 4‑6 semanas |\n|12 – Pulido & pruebas | 1 000 | 2 semanas |\n|13 – Documentación / release | 500 | 1 semana |\n| **Total (sin JIT)** | **≈ 18 000 líneas** | **≈ 24‑28 semanas (≈ 6 meses)** |\n| **Total (con JIT)** | **≈ 21 000 líneas** | **≈ 30‑34 semanas (≈ 8 meses)** |\n\nEstas cifras son orientativas y asumen un desarrollador a tiempo completo; con un equipo pequeño (2‑3 personas) el calendario se puede reducir proporcionalmente, siempre que se mantenga la integración continua y las pruebas automáticas.\n\n---  \n\n## 9. Conclusión  \n\n- **Reutilizamos** la mayor parte de la infraestructura de tiempo, buses, depuración, UI, audio y guardado de estado del emulador DS existente.  \n- **Descartamos** todo lo específico del DS (núcleo ARM, GPU 2D/3D dual‑screen, periféricos exclusivos).  \n- **Escribimos de cero** el núcleo MIPS Allegrex con VFPU, el modelo de memoria y SysCon del PSP, el intérprete de listas de display de la GPU, y los adaptadores de media (audio/vídeo) usando bibliotecas probadas (FFmpeg, libatrac3plus).  \n- **Validamos** cada bloque con pruebas unitarias, micro‑benchmarks de cronometraje y, finalmente, pruebas diferenciales de frames y logs contra un PSP‑1000 real.  \n- **Ordenamos el trabajo** de modo que cada fase entregue un hito verificable (instrucciones, audio, triángulo, textura, etc.) minimizando el riesgo de abandono y permitiendo retroalimentación temprana de la comunidad.  \n\nCon este plan, el proyecto tiene una ruta clara, riesgos identificables y mitigables, y una alta probabilidad de producir un emulador de PSP funcional que aproveche el código existente del emulador de Nintendo DS. ¡Manos a la obra!\n\n===== Enfoque C (hf) =====\n### PLAN TÉCNICO PARA PORTAR UN EMULADOR DE NINTENDO DS A PSP\n\n**Objetivo:** Adaptar un emulador existente de Nintendo DS (ARM9 + ARM7, GPU de función fija) para ejecutar juegos de PSP (MIPS Allegrex con VFPU, Media Engine, GPU con listas de display), reutilizando su núcleo cuando sea posible.\n\n---\n\n### **1. ANÁLISIS DE COMPONENTES Y REUTILIZACIÓN**\n\n#### **Reutilizable del núcleo DS:**\n- **Gestión de memoria:** La estructura de memoria del emulador DS (ARM9 + ARM7) puede reutilizarse parcialmente para mapear la memoria de la PSP, aunque la arquitectura MIPS requiere una reimplementación del sistema de memoria.\n- **Sincronización de hilos:** El mecanismo de sincronización entre los dos núcleos ARM (principal y coprocessor) puede adaptarse para sincronizar el MIPS principal y los subsistemas de la PSP.\n- **Entrada/Salida básica:** El manejo de entrada del usuario (teclado, touch) y salida de audio/video puede reutilizarse parcialmente, aunque la PSP tiene controles y salida de video diferentes.\n\n#### **Componentes a descartar:**\n- **CPU:** Los núcleos ARM9 y ARM7 no son compatibles con MIPS Allegrex. Se debe implementar un nuevo emulador de CPU MIPS.\n- **GPU:** La GPU de función fija de la DS no es compatible con la GPU de la PSP, que utiliza listas de display. Se requiere una reimplementación completa.\n- **Media Engine:** La PSP tiene un motor de multimedia dedicado (MPEG, MP3) que no existe en la DS. Se debe implementar desde cero.\n\n#### **Componentes a escribir de cero:**\n- **Emulador de CPU MIPS Allegrex con VFPU.**\n- **Emulador de GPU de la PSP con soporte para listas de display.**\n- **Emulador del Media Engine de la PSP.**\n- **Mapeo de memoria y E/S específico de la PSP.**\n\n---\n\n### **2. ORDEN DE TRABAJO PARA MINIMIZAR RIESGOS**\n\n**Fase 1: Emulación de CPU MIPS Allegrex (3 meses)**\n1. Implementar un emulador básico del MIPS Allegrex sin VFPU.\n2. Validar con pruebas diferenciales contra hardware PSP usando juegos simples (ej: \"Lumo\").\n3. Integrar la VFPU y validar con juegos que la utilicen (ej: \"Wipeout Pure\").\n\n**Fase 2: Emulación de GPU y listas de display (4 meses)**\n1. Implementar la GPU de la PSP con soporte básico para listas de display.\n2. Validar con pruebas diferenciales usando demos técnicas (ej: \"PSP SDK Graphics Demo\").\n3. Integrar la GPU con el emulador de CPU y validar con juegos 2D (ej: \"Patapon\").\n\n**Fase 3: Media Engine y multimedia (2 meses)**\n1. Implementar el Media Engine para decodificación de MPEG y MP3.\n2. Validar con juegos que usen vídeo en tiempo real (ej: \"Metal Gear Solid: Portable Ops\").\n\n**Fase 4: Integración y optimización (3 meses)**\n1. Integrar todos los subsistemas y resolver conflictos de sincronización.\n2. Optimizar rendimiento y compatibilidad con juegos complejos (ej: \"God of War: Chains of Olympus\").\n\n---\n\n### **3. VALIDACIÓN CON PRUEBAS DIFERENCIALES**\n- **CPU:** Comparar el estado de registros y memoria del emulador MIPS contra un dump de hardware PSP usando `differential_test`.\n- **GPU:** Capturar frames del emulador y compararlos con capturas de hardware PSP usando `inspect_image`.\n- **Media Engine:** Verificar la sincronización de audio/vídeo y la integridad de los datos decodificados.\n\n---\n\n### **4. JUSTIFICACIÓN DE DECISIONES**\n- **Reutilización parcial:** Aprovechar la estructura de memoria y sincronización reduce el tiempo de desarrollo, aunque la arquitectura MIPS requiere una reimplementación de la CPU.\n- **Orden de trabajo:** Empezar por la CPU minimiza el riesgo, ya que es el componente crítico. La GPU y el Media Engine se integran posteriormente, validando cada etapa con pruebas diferenciales.\n- **Validación diferencial:** Garantiza que cada subsistema funcione como en hardware real, reduciendo el riesgo de errores no detectados.\n\n---\n\n### **CONCLUSIÓN**\n\nEl plan propone reutilizar parcialmente el núcleo del emulador de DS, enfocándose en la implementación de cero de la CPU MIPS, GPU y Media Engine de la PSP. El orden de trabajo prioriza la CPU, seguida de la GPU y el Media Engine, validando cada etapa con pruebas diferenciales contra hardware real. Este enfoque minimiza el riesgo de abandono y asegura una compatibilidad progresiva con juegos de PSP.\n\n\n---\n**Ejecutado y verificado en este mismo turno:**\n\n[Enfoque A] Sin bloques de código que verificar.\n\n[Enfoque B] Sin bloques de código que verificar.\n\n[Enfoque C] Sin bloques de código que verificar.",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787213010",
+        "agent": "MELCHIOR",
+        "role": "propone",
+        "provider": "g4f-hf",
+        "family": "hf",
+        "family_expected": "hf",
+        "degraded": null,
+        "changes": 0,
+        "stats": "3 enfoque(s) · 3 verificado(s)"
+      }
+    },
+    {
+      "t_rel": 118.38,
+      "tema": "AGENT_POST",
+      "agente": "BALTHASAR",
+      "texto": "### Corrección\nEl **Enfoque B** es el más sólido y técnicamente correcto.\n**Defectos en C:** En *Fase 1: 2*, pretende validar la emulación ejecutando juegos (`\"Lumo\"`) únicamente con la CPU emulada, lo cual es imposible sin GPU ni kernel HLE. Confunde la sincronización IPC de los dos núcleos ARM9/ARM7 de DS con la arquitectura de PSP (*\"Sincronización de hilos\"*).\n**Defectos en A:** Afirma erróneamente que la GPU de función fija de DS sirve de base para la GPU de PSP (*\"componentes de renderizado... como base\"*), ignorando la incompatibilidad entre el pipeline 2D/3D fijo de DS y las listas de display del GE de PSP.\n**Solidez de B:** Separa correctamente la infraestructura genérica (scheduler por ciclos, abstracción `BusDevice`, depurador, savestates) del hardware específico, definiendo el reemplazo exacto de la ISA ARM por MIPS Allegrex + VFPU, la GPU GE por listas de comandos y el uso de FFmpeg para ATRAC3plus/H.264.\n\n### Seguridad y reversibilidad\nNo existen riesgos de seguridad ni de destructividad de datos en los planes de arquitectura propuestos, ya que son documentos conceptuales y no incluyen código ni comandos ejecutables.\n\n### Límites de plataforma\nNo hay defectos de límites de plataforma en ninguno de los enfoques: las referencias a herramientas como `differential_test` (A, C) o `inspect_image` (C) pertenecen al catálogo de herramientas del sistema MAGI y no asumen SOs distintos de Windows 10, rutas absolutas, dependencias no instaladas ni claves de API o modelos locales inexistentes.\n\n### Rendimiento\nLos tres enfoques presentan únicamente textos explicativos y especificaciones de arquitectura en formato Markdown (tablas, listas y texto plano). No incluyen código fuente, implementación de bucles, operaciones I/O de red/disco ni ejecuciones asíncronas para auditar en este eje.\n\nNo se detectan defectos de rendimiento en el material proporcionado.",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787213010",
+        "agent": "BALTHASAR",
+        "role": "critica",
+        "provider": "gemini",
+        "family": "gemini",
+        "changes": 0,
+        "stats": "4 ejes"
+      }
+    },
+    {
+      "t_rel": 162.92,
+      "tema": "AGENT_POST",
+      "agente": "CASPER",
+      "texto": "**Decisión Técnica:** APPROVED\n\nC15: Entendido que se pide evaluar los 3 enfoques para portar un emulador de NDS a PSP, seleccionar el más sólido y entregar la arquitectura consolidada de ingeniería. Decido formalizar la arquitectura técnica definitiva en base a la infraestructura agnóstica reutilizable, rechazando las dependencias específicas de NDS.\n\n### EVALUACIÓN CRÍTICA DE LA DIALÉCTICA\n\n* **Tesis (Melchior - Enfoques A, B, C):**\n  * **Enfoque A:** Superficial. Comete el error conceptual de asumir que la GPU de función fija de NDS puede servir de base para el Graphics Engine (GE) de PSP.\n  * **Enfoque B:** Extremadamente riguroso. Identifica con precisión que la abstracción reutilizable de un emulador reside en la infraestructura agnóstica (Scheduler por ciclos, bus de direcciones abstracto `BusDevice`, sistema de eventos, depurador, savestates en zlib, backend de entrada/audio) y no en el hardware emulado.\n  * **Enfoque C:** Contiene fallos de diseño graves. Propone probar ejecutando juegos comerciales (`Lumo`, `Wipeout Pure`) en la Fase 1 teniendo únicamente emulada la CPU, omitiendo que sin GPU, controladores DMA y Kernel HLE/Syscall Emulation, un ejecutable de PSP colapsa inmediatamente.\n\n* **Antítesis (Balthasar):**\n  * Acierta plenamente al desmontar las incoherencias técnicas de A y C.\n  * Valida correctamente la arquitectura de software del Enfoque B, identificando la separación real entre la infraestructura de emulación y la emulación de ISA/Periféricos.\n\n---\n\n### SÍNTESIS TÉCNICA CONSOLIDADA: ARQUITECTURA DE PORTABILIDAD NDS → PSP\n\n**1. MATRIZ DE REUTILIZACIÓN DE INFRAESTRUCTURA DE SOFTWARE**\n\n* **Reutilizable al 100% (Core Agnóstico):**\n  * `EventScheduler`: Bucle principal de eventos basado en ticks/ciclos (frecuencia ajustada a ~333 MHz).\n  * `BusDeviceInterface`: Patrón de bus de memoria con decodificación de direcciones por rangos (`read8/16/32`, `write8/16/32`).\n  * `SaveStateManager`: Serialización/deserialización binaria (zlib/gzip) del árbol de estado de componentes.\n  * `Debugger & Tracer`: Interfaz de breakpoints, memory watchpoints, desacoplada de la ISA mediante callbacks de registros.\n  * `AudioMixer & Resampler`: Pipeline de salida PCM via SDL2/OpenAL a 44.1kHz/48kHz.\n\n* **Descartado por completo (Específico NDS):**\n  * Núcleos ARM946E-S y ARM7TDMI (desambiguación de pipeline, registros ARM/Thumb, coprocesador CP15).\n  * Engine 2D/3D dual-screen, captura de pantalla, registros de video NDS (`DISPCNT`, `BGxCNT`).\n  * Periféricos NDS: Pantalla táctil SPI, micrófono ADC, cartucho SPI/Direct Memory, firmware BIOS NDS.\n\n* **Desarrollo Nuevo / Adaptación (Hardware PSP):**\n  * **CPU Core:** Intérprete/JIT de MIPS Allegrex (MIPS III / MIPS32 R2 + instrucciones específicas de PSP como `bitrev`, `rotr`).\n  * **Co-procesador VFPU:** Unidad vectorial de punto flotante (32 registros de 32 bits, matrices 4x4, SIMD).\n  * **GPU (GE - Graphics Engine):** Intérprete de listas de display (Display List Processor) de comandos de 32 bits, rasterización T&L, alpha/stencil/depth buffer en VRAM dedicada (4MB).\n  * **Media Engine / Audio:** HLE wrapper con `libavcodec` (FFmpeg) para decodificación de flujos ATRAC3plus y vídeo H.264 (AVC).\n  * **SysCon & Timers:** Mapeo de puertos E/S, controladores de interrupciones (INTC), timers 0-3 y pad analógico.\n\n---\n\n**2. FASEAMIENTO DE IMPLEMENTACIÓN Y VALIDACIÓN TÉCNICA**\n\n```\n[Fase 0: Clean Core] ---> [Fase 1: MIPS Allegrex] ---> [Fase 2: VFPU Core]\n                                                               |\n[Fase 5: Graphics GE] <--- [Fase 4: HLE Kernel/Syscall] <--- [Fase 3: Memory & Timers]\n         |\n         +---> [Fase 6: Media Engine (FFmpeg)] ---> [Fase 7: JIT Block Compiler]\n```\n\n1. **Fase 0 (Infraestructura Base):** Reestructurar el repositorio NDS para aislar la carpeta `core/` (Scheduler, Bus, UI, Debugger).\n2. **Fase 1 (MIPS32 Core):** Implementar la decodificación MIPS Allegrex. Validar mediante tests unitarios de ISA comparando estados de registros ($gpr, PC, LO, HI) contra trazados sintéticos.\n3. **Fase 2 (VFPU Integration):** Implementar operaciones vectoriales SIMD. Validar con pruebas matemáticas de precisión contra comportamiento IEEE-754/PSP.\n4. **Fase 3 (Memory Map & Timers):** Definir rangos (RAM 32MB/64MB en `0x08000000`, VRAM 4MB en `0x04000000`, Hardware Regs en `0x1E000000`).\n5. **Fase 4 (HLE Kernel Init):** Implementar llamadas a sistema HLE de PSP (`sceKernelCreateThread`, `sceKernelAllocPartitionMemory`) para ejecutar binarios ELF/PRX homebrew sin depender de BIOS comercial.\n6. **Fase 5 (GPU GE - Display Lists):** Procesador de comandos de la GPU (`GE_CMD_VERTICES`, `GE_CMD_TEXADDR`). Presentación del framebuffer (480x272) en la ventana UI mediante contexto OpenGL existente.\n7. **Fase 6 (Media Engine):** Integración de FFmpeg para llamadas `sceAtrac3plus` a PCM.\n\n---\n\n### CONCLUSIÓN\nEl Enfoque B es el único que posee rigor arquitectónico de ingeniería de emulación. Separa limpiamente la infraestructura agnóstica de la arquitectura de la consola de destino. La estrategia de desarrollo consolidada sustituye el núcleo ARM por MIPS Allegrex + VFPU, reemplaza la GPU de NDS por el Graphics Engine basado en Display Lists y utiliza HLE + FFmpeg para librerías de medios. ¿Apruebas esta arquitectura y plan de ejecución consolidado para proceder con los artefactos del proyecto?\n\nDECISIÓN: APROBADA",
+      "extra": {
+        "type": "AGENT_POST",
+        "task_id": "auditoria-1787213010",
+        "agent": "CASPER",
+        "role": "arbitro",
+        "provider": "g4f-gemini",
+        "family": "gemini",
+        "family_expected": "gpt",
+        "degraded": "gpt no disponible; respondió gemini",
+        "changes": 0,
+        "stats": "Decisión: APPROVED"
+      }
+    }
+  ],
+  "calidad_de_entrega": {
+    "chars_producidos": 43752,
+    "chars_entregados": 5368,
+    "ratio_entregado": 0.123,
+    "encargo_de_producto": false,
+    "bloques_de_codigo": 1,
+    "artefacto_entregado": false,
+    "entrega_incompleta": false,
+    "menciones_a_herramientas": 0
+  },
+  "quien_hablo": {
+    "MELCHIOR": {
+      "veces": 1,
+      "chars": 36498,
+      "t_primera": 93.24
+    },
+    "BALTHASAR": {
+      "veces": 1,
+      "chars": 1886,
+      "t_primera": 118.38
+    },
+    "CASPER": {
+      "veces": 1,
+      "chars": 5368,
+      "t_primera": 162.92
+    }
+  },
+  "ritsuko": {
+    "contesto": true,
+    "informes_escritos": 1,
+    "ruta_ultimo": "C:\\Users\\D\\AppData\\Local\\MagiSystem\\informes-ritsuko\\informe-20260820-030639.md",
+    "veredicto": "VEREDICTO: SIN DATOS SUFICIENTES\n\n**Hallazgos:**\n* **Desempeño de NAOKO:** Se registraron 0 intervenciones y 0 derivas declaradas (`naoko.intervenciones: 0`, `naoko.derivas_declaradas: 0`). Al no haber acciones ni diagnósticos de NAOKO en esta ventana de eventos, no existen correcciones aplicadas para evaluar si el sistema mejoró o empeoró por su causa.\n* **Estado de los Nodos del Enjambre:** Los tres nodos funcionaron e interactuaron en la secuencia prevista sin quedar mudos (`nodos.total: 3`, `nodos.mudos: []`):\n  * **MELCHIOR (Propone):** Generó 3 enfoques alternativos a los 93.1s (`AGENT_POST MELCHIOR`, $n=3$, latencia media $44599.0\\text{ ms}$).\n  * **BALTHASAR (Refuta):** Criticó el Enfoque C y respaldó el B a los 118.2s (`AGENT_POST BALTHASAR`, $n=2$, latencia media $19500.5\\text{ ms}$).\n  * **CASPER (Arbitra):** Emitió dictamen `APPROVED` a los 162.8s (`AGENT_POST CASPER`, $n=1$, latencia media $44500.0\\text{ ms}$).\n* **Fallas y Consumo de Cuota:** No se registraron errores de código o modelo, ni agotamientos de presupuesto (`incidencias.errores: 0`, `incidencias.presupuestos_agotados: 0`, `llamadas.fallidas: 0`). El consumo total fue de $51000\\text{ tokens}$.\n* **Anomalías Técnicas:** La tarea actual se encuentra bloqueada en espera de aprobación (`ultima_auditoria.estado: \"WAITING_USER_APPROVAL\"`), acumulando un tiempo total de tarea de $206.98\\text{ s}$ debido a latencias de proveedores ($269.16\\text{ s}$ en `ProviderRegistry.complete` repartidos en 14 ejecuciones).\n\n**Recomendaciones para NAOKO:**\n* Declarar y justificar explícitamente la ausencia de correcciones cuando detecte que los nodos están operando con tiempos de respuesta elevados (p95 de MELCHIOR en $91.7\\text{ s}$).\n* Monitorear el flujo de tareas en estado `WAITING_USER_APPROVAL` para evitar cuellos de botella por la falta de interacción externa.",
+    "evidencia": {
+      "ventana_eventos": 4,
+      "naoko": {
+        "intervenciones": 0,
+        "derivas_declaradas": 0,
+        "ultimas": []
+      },
+      "nodos": {
+        "aportaciones": {
+          "MELCHIOR": 1,
+          "BALTHASAR": 1,
+          "CASPER": 1
+        },
+        "total": 3,
+        "mudos": []
+      },
+      "incidencias": {
+        "alertas": 0,
+        "errores": 0,
+        "presupuestos_agotados": 0
+      },
+      "metricas": {
+        "uptime_s": 162.8,
+        "providers": {},
+        "agents": {
+          "MELCHIOR": {
+            "n": 3,
+            "p50": 21437.0,
+            "p95": 91797.0,
+            "p99": 91797.0,
+            "mean": 44599.0
+          },
+          "BALTHASAR": {
+            "n": 2,
+            "p50": 25110.0,
+            "p95": 25110.0,
+            "p99": 25110.0,
+            "mean": 19500.5
+          },
+          "CASPER": {
+            "n": 1,
+            "p50": 44500.0,
+            "p95": 44500.0,
+            "p99": 44500.0,
+            "mean": 44500.0
+          }
+        },
+        "tools": {},
+        "tasks_tracked": 1,
+        "total_tokens": 51000,
+        "alerts": []
+      },
+      "tareas_vivas": {
+        "auditoria-1787208706": "WAITING_USER_APPROVAL",
+        "auditoria-1787208680": "interrumpida",
+        "auditoria-1787207181": "WAITING_USER_APPROVAL",
+        "auditoria-1787206900": "WAITING_USER_APPROVAL",
+        "auditoria-1787204437": "WAITING_USER_APPROVAL",
+        "auditoria-1787204151": "WAITING_USER_APPROVAL",
+        "auditoria": "WAITING_USER_APPROVAL",
+        "auditoria-1787213010": "WAITING_USER_APPROVAL"
+      },
+      "ultima_auditoria": {
+        "estado": "WAITING_USER_APPROVAL",
+        "tiempos": {
+          "imports_s": 0.11,
+          "arranque_kernel_s": 0.39,
+          "tarea_s": 206.2,
+          "total_s": 206.98
+        },
+        "llamadas": {
+          "total": 2,
+          "ok": 2,
+          "fallidas": 0,
+          "sin_etiqueta": 0,
+          "segundos_modelo": 24.7,
+          "mediana_s": 12.65,
+          "peor_s": 12.65
+        },
+        "por_etapa": {
+          "ProviderRegistry.complete": {
+            "veces": 14,
+            "segundos": 269.16
+          },
+          "SwarmAgentBase._ask_with_tools": {
+            "veces": 7,
+            "segundos": 224.44
+          },
+          "ProposalVerifier.verify": {
+            "veces": 4,
+            "segundos": 3.21
+          },
+          "SwarmAgentBase._ask": {
+            "veces": 2,
+            "segundos": 24.7
+          }
+        }
+      }
+    }
+  },
+  "naoko": {
+    "intervenciones": 0,
+    "dijo": []
+  },
+  "familias_registradas": [],
+  "detalle_llamadas": [
+    {
+      "t_rel": 93.25,
+      "tag": "auditoria-1787213010/r1/balthasar/seguridad",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 38329,
+      "segundos": 12.7,
+      "proveedor": "g4f-gemini:Gemini/gemini-3.5-flash",
+      "ok": true,
+      "chars_respuesta": 184
+    },
+    {
+      "t_rel": 93.25,
+      "tag": "auditoria-1787213010/r1/balthasar/rendimiento",
+      "familia": "gemini",
+      "modelo": null,
+      "hedge": false,
+      "chars_prompt": 38310,
+      "segundos": 13.11,
+      "proveedor": "g4f-gemini:Gemini/gemini-3.5-flash",
+      "ok": true,
+      "chars_respuesta": 349
+    },
+    {
+      "t_rel": 162.93,
+      "tag": null,
+      "familia": "razonamiento",
+      "modelo": null,
+      "hedge": null,
+      "chars_prompt": 4121,
+      "segundos": 26.42,
+      "proveedor": "g4f-gemini:Gemini/gemini-3.5-flash",
+      "ok": true,
+      "chars_respuesta": 1851
+    }
+  ],
+  "errores": [],
+  "eventos": [
+    {
+      "t_rel": 0.9,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Lo tomo como pregunta nueva. La tarea auditoria sigue esperando tu aprobación; escribe 'sí' o 'apruebo' cuando quieras cerrarla."
+    },
+    {
+      "t_rel": 0.9,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Iniciando análisis para la tarea: 'Disena el plan tecnico completo para que un emulador de Nintendo DS ya existente (ARM9 + ARM7, dos pantallas, GPU de funcion fija) pueda ejecutar juegos de PSP (MIPS Allegrex con VFPU, Media Engine, GPU con listas de display) reutilizando su nucleo. Di exactamente que se reutiliza, que se tira y que hay que escribir de cero; como se valida cada etapa con "
+    },
+    {
+      "t_rel": 0.92,
+      "tema": "sonda.actualizada",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 1.41,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 9.28,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 93.23,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[AVISO] MELCHIOR iteración 1 lenta (91.8s con g4f-gpt)."
+    },
+    {
+      "t_rel": 93.24,
+      "tema": "AGENT_POST",
+      "agente": "MELCHIOR",
+      "texto": "Se han generado 3 enfoques alternativos. Compáralos y señala cuál es más sólido y por qué.\n\n===== Enfoque A (hf) =====\n### PLAN TÉCNICO PARA PORTAR UN EMULADOR DE NINTENDO DS A PSP\n\n**Objetivo:** Adaptar un emulador existente de Nintendo DS (ARM9 + ARM7, GPU de función fija) para ejecutar juegos de PSP (MIPS Allegrex con VFPU, Media Engine, GPU con listas de display), reutilizando su núcleo cuando"
+    },
+    {
+      "t_rel": 101.44,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 118.38,
+      "tema": "AGENT_POST",
+      "agente": "BALTHASAR",
+      "texto": "### Corrección\nEl **Enfoque B** es el más sólido y técnicamente correcto.\n**Defectos en C:** En *Fase 1: 2*, pretende validar la emulación ejecutando juegos (`\"Lumo\"`) únicamente con la CPU emulada, lo cual es imposible sin GPU ni kernel HLE. Confunde la sincronización IPC de los dos núcleos ARM9/ARM7 de DS con la arquitectura de PSP (*\"Sincronización de hilos\"*).\n**Defectos en A:** Afirma errónea"
+    },
+    {
+      "t_rel": 126.89,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 144.26,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 144.26,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 152.44,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 162.92,
+      "tema": "AGENT_POST",
+      "agente": "CASPER",
+      "texto": "**Decisión Técnica:** APPROVED\n\nC15: Entendido que se pide evaluar los 3 enfoques para portar un emulador de NDS a PSP, seleccionar el más sólido y entregar la arquitectura consolidada de ingeniería. Decido formalizar la arquitectura técnica definitiva en base a la infraestructura agnóstica reutilizable, rechazando las dependencias específicas de NDS.\n\n### EVALUACIÓN CRÍTICA DE LA DIALÉCTICA\n\n* **"
+    },
+    {
+      "t_rel": 162.92,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "APROBACIÓN PEDIDA — tarea auditoria-1787213010\n\nC15: Entendido que se pide evaluar los 3 enfoques para portar un emulador de NDS a PSP, seleccionar el más sólido y entregar la arquitectura consolidada de ingeniería. Decido formalizar la arquitectura técnica definitiva en base a la infraestructura agnóstica reutilizable, rechazando las dependencias específicas de NDS.\n\n### EVALUACIÓN CRÍTICA DE LA "
+    },
+    {
+      "t_rel": 162.92,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."
+    },
+    {
+      "t_rel": 162.93,
+      "tema": "ritsuko.log",
+      "agente": "USER",
+      "texto": "Audita lo que acaba de pasar en el sistema: si Naoko hizo bien su trabajo, si los tres nodos funcionaron y que recomiendas cambiar."
+    },
+    {
+      "t_rel": 162.93,
+      "tema": "ritsuko.status",
+      "agente": null,
+      "texto": "Revisando..."
+    },
+    {
+      "t_rel": 162.93,
+      "tema": "ritsuko.status",
+      "agente": null,
+      "texto": "Auditando (razonamiento)..."
+    },
+    {
+      "t_rel": 170.95,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 178.89,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 178.89,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 186.87,
+      "tema": "TERMINAL_OUT",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 189.35,
+      "tema": "ritsuko.informe",
+      "agente": null,
+      "texto": ""
+    },
+    {
+      "t_rel": 189.35,
+      "tema": "ritsuko.log",
+      "agente": "RITSUKO",
+      "texto": "VEREDICTO: SIN DATOS SUFICIENTES\n\n**Hallazgos:**\n* **Desempeño de NAOKO:** Se registraron 0 intervenciones y 0 derivas declaradas (`naoko.intervenciones: 0`, `naoko.derivas_declaradas: 0`). Al no haber acciones ni diagnósticos de NAOKO en esta ventana de eventos, no existen correcciones aplicadas para evaluar si el sistema mejoró o empeoró por su causa.\n* **Estado de los Nodos del Enjambre:** Los "
+    },
+    {
+      "t_rel": 189.35,
+      "tema": "ritsuko.status",
+      "agente": null,
+      "texto": "Inactiva"
+    }
+  ]
+}
