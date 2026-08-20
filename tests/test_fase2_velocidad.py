@@ -20,6 +20,7 @@ import time
 
 import pytest
 
+from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.base import (
     BaseProvider,
     CompletionRequest,
@@ -27,7 +28,6 @@ from magi.core.providers.base import (
     Message,
     ProviderError,
 )
-from magi.core.providers.backends.echo import EchoProvider
 from magi.core.providers.registry import (
     ProviderRegistry,
     _techo_dinamico_s,

@@ -913,7 +913,7 @@ class Kernel:
                 break
             except Exception as e:
                 logger.warning("[sonda] no se pudo refrescar: %s", e)
-            
+
             # Revisar cada hora (3600s). El verdadero freno (24h) lo pone refrescar_si_toca.
             await asyncio.sleep(3600)
 

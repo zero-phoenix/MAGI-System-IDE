@@ -681,7 +681,7 @@ class G4FProvider(BaseProvider):
         cls = _resolve(name)
         if cls is None:
             raise ProviderError(f"{name}: no existe en g4f")
-            
+
         # Yqcloud es rápido pero suele contestar en chino. Forzamos el idioma
         # inyectando la directiva a nivel de sistema.
         if name == "Yqcloud":
@@ -739,7 +739,6 @@ class G4FProvider(BaseProvider):
         seguidas a un endpoint gratuito; con esto, las primeras `capacity`
         pasan y el resto entra a ritmo `rate`.
         """
-        from magi.core.providers.rate_limit import RateLimiterManager
         bucket = _tasa_manager.get_bucket(name, TASA_RATE, TASA_CAPACITY)
         if bucket.consume(1.0):
             return

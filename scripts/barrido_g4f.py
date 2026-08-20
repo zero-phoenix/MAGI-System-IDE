@@ -19,10 +19,10 @@ async def medir_proveedor(provider_name):
     cls = getattr(g4f.Provider, provider_name, None)
     if cls is None:
         return provider_name, None, False, "No class"
-    
+
     if getattr(cls, 'use_nodriver', False) or getattr(cls, 'webdriver', False):
         return provider_name, None, False, "Browser"
-        
+
     try:
         t0 = time.monotonic()
         response = await asyncio.wait_for(
@@ -43,18 +43,18 @@ async def main():
     providers = [p.__name__ for p in g4f.Provider.__providers__ if p.working and not p.needs_auth]
     print(f"Probando {len(providers)} proveedores trabajando sin auth...")
     sys.stdout.flush()
-    
+
     sem = asyncio.Semaphore(15)
-    
+
     async def worker(p):
         async with sem:
             res = await medir_proveedor(p)
             print(f"Completado {p}: {res[3][:30]}")
             sys.stdout.flush()
             return res
-            
+
     results = await asyncio.gather(*(worker(p) for p in providers))
-    
+
     print("\n--- RESULTADOS ---")
     sys.stdout.flush()
     exitos = [r for r in results if r[1] is not None and r[2]]

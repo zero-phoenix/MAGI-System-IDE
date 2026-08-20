@@ -84,8 +84,9 @@ def cargar() -> None:
         return
     _cargado = True
     try:
-        import yaml
         from pathlib import Path
+
+        import yaml
 
         from .paths import project_root
         f = Path(project_root()) / "magi" / "config" / "factory.yaml"

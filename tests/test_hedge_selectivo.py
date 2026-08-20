@@ -22,8 +22,8 @@ import pytest
 
 from magi.core.blackboard import Blackboard
 from magi.core.bus import MagiBus
-from magi.core.providers.base import CompletionRequest, Message
 from magi.core.providers.backends.g4f_backend import HEDGE_MAX, G4FProvider
+from magi.core.providers.base import CompletionRequest, Message
 from magi.core.providers.cloud import FreeCloudLLM
 from magi.modules.swarm.agents import BalthasarAgent, CasperAgent, MelchiorAgent
 from magi.modules.swarm.parallel import critique_multi_axis, generate_variants

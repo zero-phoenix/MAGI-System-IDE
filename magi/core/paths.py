@@ -268,7 +268,6 @@ def escritorio() -> Path | None:
         return Path(override).expanduser().resolve()
     if sys.platform == "win32":
         try:
-            import ctypes
             from ctypes import byref, c_wchar_p, windll, wintypes
 
             # FOLDERID_Desktop = {B4BFCC3A-DB2C-424C-B029-7FE99FA87E641}

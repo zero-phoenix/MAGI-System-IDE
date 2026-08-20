@@ -12,8 +12,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from .tools.registry import ToolRegistry, ToolResult
 from .tools.journal import WriteJournal
+from .tools.registry import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class ToolCircuitBreaker:
     async def execute_with_hedge(self, calls: list[tuple[str, dict]], ctx: Any = None) -> CircuitResult:
         """Ejecuta herramientas con Parada y Hedge (rollback en fallo crítico)."""
         journal: WriteJournal | None = getattr(ctx, "journal", None) if ctx else None
-        
+
         # Guardar el ID de la última operación antes de ejecutar
         # para saber hasta dónde revertir si algo sale mal (Cubre).
         last_op = None
@@ -38,14 +38,14 @@ class ToolCircuitBreaker:
             entries = journal.all_entries()
             if entries:
                 last_op = entries[-1].op_id
-                
+
         try:
             # Parada: timeout duro general
             results = await asyncio.wait_for(
                 self.registry.execute_many(calls, ctx),
                 timeout=self.max_timeout
             )
-            
+
             # Comprobar si hubo un fallo que requiera rollback
             # Un error de "timeout" interno (e.g. en run_command) activa el Hedge
             fallback_needed = False
@@ -53,7 +53,7 @@ class ToolCircuitBreaker:
                 if not r.ok and r.error and "timeout" in str(r.error).lower():
                     fallback_needed = True
                     break
-                    
+
             if fallback_needed:
                 self._rollback(journal, last_op)
                 # Modificamos los errores para indicar que se hizo rollback
@@ -61,13 +61,13 @@ class ToolCircuitBreaker:
                     if not r.ok:
                         r.error = f"{r.error} (Hedge aplicado: cambios revertidos. Busca ruta alternativa)"
                 return CircuitResult(results, fallback_invoked=True)
-                
+
             return CircuitResult(results, fallback_invoked=False)
-            
+
         except asyncio.TimeoutError:
             logger.warning("[CircuitBreaker] Timeout duro de %ss ejecutando %s", self.max_timeout, calls)
             self._rollback(journal, last_op)
-            
+
             results = [
                 ToolResult(
                     False, "", c[0],
@@ -75,7 +75,7 @@ class ToolCircuitBreaker:
                 ) for c in calls
             ]
             return CircuitResult(results, fallback_invoked=True)
-            
+
         except Exception as e:
             logger.exception("[CircuitBreaker] Excepción inesperada")
             self._rollback(journal, last_op)
