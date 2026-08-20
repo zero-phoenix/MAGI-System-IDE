@@ -121,9 +121,25 @@ def test_el_json_antiguo_devuelve_su_feedback_y_no_el_json_crudo():
     assert t == "el texto"
 
 
-def test_un_texto_vacio_no_revienta():
-    assert _leer_decision("", 1)[0] == "APPROVED"
-    assert _leer_decision(None, 1)[0] == "APPROVED"
+def test_un_texto_vacio_no_revienta_y_TAMPOCO_aprueba():
+    """
+    Este test cambió de contrato el 2026-08-20, y el motivo importa.
+
+    Antes exigía `APPROVED` para un texto vacío: la idea era «un veredicto
+    ausente no puede bloquear la entrega». Suena razonable y resultó ser la
+    puerta por la que salieron tres entregas mintiendo: cuando Casper se caía
+    por timeout, el texto que llegaba aquí era un mensaje de error sin marcador
+    de decisión, caía en este respaldo y el usuario recibía
+
+        **Decisión Técnica:** APPROVED
+        [Tiempo de espera agotado tras 150s...]
+
+    No reventar sigue siendo obligatorio. Aprobar, no: sin árbitro el estado es
+    `SIN_ARBITRAJE`, y el orquestador entrega igualmente la tesis y la crítica
+    (C1/C2). La entrega no se bloquea; lo que se deja de hacer es firmarla.
+    """
+    assert _leer_decision("", 1)[0] == "SIN_ARBITRAJE"
+    assert _leer_decision(None, 1)[0] == "SIN_ARBITRAJE"
 
 
 # ------------------------------------------------------- las herramientas

@@ -48,13 +48,26 @@ class AASLoader:
 
     def load(self):
         """Descubre e indexa los skills disponibles."""
+        # B10 — NO ES UN ERROR NO TENER UN REPOSITORIO OPCIONAL.
+        #
+        # Esto gritaba en WARNING en CADA arranque: «Repositorio ...
+        # agentic-awesome-skills no encontrado». El catálogo de skills es
+        # opcional y nadie lo clona, así que el aviso no describe un problema:
+        # describe la instalación por defecto.
+        #
+        # Y el coste no es estético. Un log lleno de avisos que no significan
+        # nada entrena a saltarse los avisos, y el día que salga uno de verdad
+        # —el cortafuegos bloqueando un navegador, una invariante rota— pasará
+        # desapercibido entre el ruido. Se degrada a debug, que es donde vive
+        # lo que solo importa si lo vas buscando.
         if not self.repo_path.exists():
-            logger.warning(f"[AASLoader] Repositorio {self.repo_path} no encontrado.")
+            logger.debug("[AASLoader] sin catálogo de skills en %s (opcional)",
+                         self.repo_path)
             return 0
 
         plugins_dir = self.repo_path / "plugins"
         if not plugins_dir.exists():
-            logger.warning("[AASLoader] Directorio 'plugins' no encontrado.")
+            logger.debug("[AASLoader] el catálogo existe pero no tiene 'plugins'")
             return 0
 
         count = 0

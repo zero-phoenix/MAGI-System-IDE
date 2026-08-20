@@ -167,7 +167,33 @@ class VerificationReport:
 
     @property
     def ok(self) -> bool:
+        """
+        ¿Ha fallado algo de lo que se ejecutó?
+
+        Sin código, nada falló: una respuesta en prosa NO se bloquea, y eso es
+        deliberado (`test_prose_without_code_is_not_blocked`).
+        """
         return all(b.ok for b in self.blocks)
+
+    @property
+    def verificado(self) -> bool:
+        """
+        C7 — ¿se ha comprobado algo DE VERDAD?
+
+        `ok` y `verificado` no son lo mismo, y confundirlos es lo que dejó
+        pasar dos entregas vacías el 2026-08-20: en los encargos del Tetris y
+        del ping pong, `verify` corrió tres veces en **0,0 s** —no había ni un
+        bloque de código— y `ok` valía True porque `all([])` es True. El vacío
+        pasaba la verificación con nota.
+        """
+        return self.had_code and self.ok
+
+    @property
+    def estado(self) -> str:
+        """VERIFICADO / NO VERIFICADO / FALLA, que son tres cosas distintas."""
+        if not self.had_code:
+            return "NO VERIFICADO"
+        return "VERIFICADO" if self.ok else "FALLA"
 
     @property
     def failures(self) -> list[BlockResult]:
@@ -277,12 +303,56 @@ class ProposalVerifier:
             prefix="magi-verify-"))
         tmp.mkdir(parents=True, exist_ok=True)
 
-        results = await asyncio.gather(*[
-            self._verify_block(i, lang, code, tmp)
-            for i, (lang, code) in enumerate(blocks)
-        ])
-        report.blocks = list(results)
+        # B1 — LOS BLOQUES DE UN MISMO LENGUAJE SE VERIFICAN JUNTOS PRIMERO.
+        #
+        # El modelo hace lo natural: la función en un bloque y su test en otro.
+        # Verificar cada bloque como un fichero suelto hace que el test no
+        # encuentre a la función y devuelve `ModuleNotFoundError: No module
+        # named 'suma'`, que NO es un fallo del modelo: es que se le está
+        # ejecutando algo distinto de lo que escribió.
+        #
+        # Medido el 2026-08-20: eso forzó un ciclo de reconstrucción entero
+        # —unas cuatro llamadas, 60-80 s— en la tarea más simple posible.
+        #
+        # Se prueba primero el conjunto unido; solo si el conjunto falla se cae
+        # al modo por bloque, que sigue siendo útil para localizar CUÁL rompe.
+        unido = self._unir_por_lenguaje(blocks)
+        for lang, codigo in unido.items():
+            junto = await self._verify_block(0, lang, codigo, tmp)
+            if junto.ok:
+                report.blocks.append(junto)
+            else:
+                sueltos = await asyncio.gather(*[
+                    self._verify_block(i, lg, code, tmp)
+                    for i, (lg, code) in enumerate(blocks) if lg == lang
+                ])
+                report.blocks.extend(sueltos)
+
+        # Lo que no se pudo unir (un solo bloque por lenguaje ya va arriba;
+        # aquí quedan los lenguajes que no se unen) se verifica como siempre.
+        resto = [(i, lg, code) for i, (lg, code) in enumerate(blocks)
+                 if lg not in unido]
+        if resto:
+            report.blocks.extend(await asyncio.gather(*[
+                self._verify_block(i, lg, code, tmp) for i, lg, code in resto]))
         return report
+
+    @staticmethod
+    def _unir_por_lenguaje(blocks) -> dict[str, str]:
+        """
+        Junta los bloques del mismo lenguaje en un único fuente, en orden.
+
+        Solo para lenguajes donde concatenar significa algo (Python): pegar dos
+        bloques de JSON produce basura, y pegar dos de bash puede ejecutar el
+        segundo con el estado del primero, que es justo lo que no se quiere en
+        una verificación.
+        """
+        unibles: dict[str, list[str]] = {}
+        for lang, code in blocks:
+            if lang == "python":
+                unibles.setdefault(lang, []).append(code)
+        return {lang: "\n\n".join(trozos)
+                for lang, trozos in unibles.items() if len(trozos) > 1}
 
     async def _verify_block(self, i: int, lang: str, code: str,
                             tmp: Path) -> BlockResult:

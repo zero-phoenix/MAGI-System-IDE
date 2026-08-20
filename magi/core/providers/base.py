@@ -198,3 +198,55 @@ class BaseProvider:
             tool_calls=tool_calls or [],
             latency_ms=(time.monotonic() - started) * 1000.0,
         )
+
+
+# ---------------------------------------------------------------------------
+# C11 — UN FALLO QUE VIENE COMO TEXTO SIGUE SIENDO UN FALLO
+# ---------------------------------------------------------------------------
+#
+# El sistema tiene dos formas de devolver un error DISFRAZADO de respuesta
+# normal, y las dos son cadenas de texto corrientes:
+#
+#   · `cloud.py` -> "[Inferencia no disponible: ...]" con provider_id
+#     "SYSTEM_ERROR".
+#   · `agent_loop.py` -> "[Tiempo de espera agotado tras 150s...]" con
+#     `AgentTurn.degraded` puesto.
+#
+# Quien no mire el proveedor se las traga como contenido bueno. Eso es
+# EXACTAMENTE lo que produjo, en las tres pruebas del 2026-08-20, un
+# «**Decisión Técnica:** APPROVED» seguido del mensaje de error: el árbitro no
+# recibió nada, el texto no tenía marcador de decisión y el respaldo aprobaba
+# por defecto. También fue lo que dejó a Ritsuko firmando un veredicto que era
+# el error del proveedor.
+#
+# Por eso la comprobación vive AQUÍ, en un solo sitio, y no repartida en cada
+# consumidor: una regla que hay que acordarse de aplicar en cinco ficheros es
+# una regla que se aplica en cuatro.
+
+#: Proveedores sintéticos que en realidad significan «no hubo respuesta».
+PROVEEDORES_DE_FALLO = ("SYSTEM_ERROR", "TIMEOUT")
+
+#: Cómo empieza el texto de una respuesta degradada.
+MARCAS_DEGRADADAS = (
+    "[Inferencia no disponible",
+    "[Tiempo de espera agotado",
+    "[RITSUKO] No he podido emitir veredicto",
+    "todos los proveedores fallaron",
+)
+
+
+def es_degradada(texto: str | None, provider_id: str | None = None) -> bool:
+    """
+    ¿Esto es un fallo con forma de respuesta?
+
+    Se mira primero el `provider_id`, que es la señal de máquina y no depende
+    de cómo esté redactado el mensaje; el texto es la red por si la respuesta
+    viene de un camino que aún no marca el proveedor.
+    """
+    if provider_id and provider_id in PROVEEDORES_DE_FALLO:
+        return True
+    t = (texto or "").strip()
+    if not t:
+        return True
+    cabeza = t[:240]
+    return any(m in cabeza for m in MARCAS_DEGRADADAS)

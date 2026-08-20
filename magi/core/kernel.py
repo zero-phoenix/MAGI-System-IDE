@@ -881,6 +881,20 @@ class Kernel:
         # pero el freno real está en `sonda.refrescar_si_toca`.
         while True:
             try:
+                # B8 — la sonda espera a que el enjambre esté quieto.
+                #
+                # Sondear cuesta entre veinte segundos y un minuto de llamadas
+                # a los mismos proveedores gratuitos que la tarea está usando.
+                # Hacerlo a la vez no solo enlentece la tarea: contamina la
+                # medición, porque lo que mide es la cuota que ella misma
+                # acaba de gastar. En la auditoría del 20-ago se vio
+                # `sonda.actualizada` a mitad de una tarea, y cuatro «derivas»
+                # detectadas justo después.
+                if any((st or {}).get("status") in ("in_progress", "running")
+                       for st in getattr(self.swarm, "active_tasks", {}).values()):
+                    await asyncio.sleep(60)
+                    continue
+
                 from magi.core.providers import sonda
                 from magi.core.providers.backends.g4f_backend import (
                     LlmDeSonda,

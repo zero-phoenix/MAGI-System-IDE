@@ -124,6 +124,83 @@ class SwarmOrchestrator:
         except Exception as e:
             logger.warning("[SWARM] no se pudo rehidratar el estado: %s", e)
 
+    #: Verbos con los que una síntesis se atribuye un hecho comprobable. Se
+    #: comparan en minúsculas y sin acentos, y solo importan si el registro
+    #: dice que ese hecho no ocurrió.
+    _AFIRMACIONES = ("se compilo", "se compiló", "compilado exitosamente",
+                     "se empaqueto", "se empaquetó", "se genero el ejecutable",
+                     "se generó el ejecutable", "binario generado",
+                     "ejecutable creado", "se creo el .exe", "se creó el .exe")
+
+    def _contraste_con_el_registro(self, state: dict, verdict: dict) -> str | None:
+        """
+        ¿La síntesis se está atribuyendo algo que no pasó? (C12)
+
+        LA PRUEBA QUE OBLIGÓ A ESCRIBIR ESTO
+        ====================================
+        20-ago, encargo «ping pong a color de 16 bits en un .exe portable».
+        Casper cerró con:
+
+            **Decisión Técnica:** APPROVED
+            Empaquetado Portable Final (PyInstaller): Se compiló exitosamente
+            el binario ejecutable único portable (onefile)…
+
+        Cero bloques de código en toda la conversación, cero llamadas a la
+        herramienta de entrega, cero artefactos. El informe parecía perfecto y
+        el usuario se habría ido a buscar un fichero que no existe.
+
+        Es peor que fallar: fallar se ve. Por eso el contraste no es contra
+        otro modelo —volveríamos a preguntar a quien ya se equivocó— sino
+        contra el registro de lo que el sistema HIZO.
+        """
+        texto = (verdict.get("feedback") or "")
+        bajo = texto.lower()
+        if not any(a in bajo for a in self._AFIRMACIONES):
+            return None
+        hubo_artefacto = bool(state.get("artefactos") or state.get("exe_path"))
+        verificacion = state.get("verification") or {}
+        if hubo_artefacto or verificacion.get("passed"):
+            return None
+        return ("[AVISO] La síntesis dice haber compilado o empaquetado algo, y "
+                "en el registro de esta tarea NO consta ningún artefacto "
+                "generado ni verificación en verde. Trátalo como una propuesta, "
+                "no como una entrega: no hay fichero que buscar.")
+
+    def _contrato_de_entregable(self, state: dict) -> str | None:
+        """
+        Si el encargo pedía un fichero, ¿hay fichero? (C4)
+
+        Devuelve qué falta, o None si el contrato se cumple. Tres requisitos, y
+        los tres salen de fallos medidos, no de teoría:
+
+          · código ejecutable — el encargo del ping pong terminó con CERO
+            bloques de código y una especificación en pasado;
+          · verificación en verde — `verify` corrió en 0,0 s sobre el vacío y
+            lo dio por bueno (eso lo cierra C7);
+          · artefacto entregado — cero llamadas a `entregar_artefacto` en las
+            dos pruebas de producto.
+
+        No bloquea la conversación: marca la entrega como incompleta y lo dice.
+        Bloquear dejaría al usuario sin la propuesta, que sí vale algo.
+        """
+        from magi.modules.swarm.intencion import pide_artefacto
+
+        if not pide_artefacto(state.get("command", "")):
+            return None
+        propuesta = (state.get("last_proposal") or {}).get("content", "") or ""
+        tiene_codigo = "```" in propuesta
+        verificacion = state.get("verification") or {}
+        hay_artefacto = bool(state.get("artefactos") or state.get("exe_path"))
+
+        faltan = []
+        if not tiene_codigo:
+            faltan.append("no hay ni un bloque de código")
+        if not verificacion.get("passed"):
+            faltan.append("nada se ha ejecutado con éxito")
+        if not hay_artefacto:
+            faltan.append("no se ha generado ningún artefacto")
+        return ", ".join(faltan) if faltan else None
+
     async def _publish_approval(self, task_id: str, state: dict,
                                 verdict: dict) -> None:
         """
@@ -136,6 +213,27 @@ class SwarmOrchestrator:
         que se queda colgada porque el panel de revisión reventó es peor que
         una revisión incompleta.
         """
+        # C12 — la síntesis no puede afirmar hechos que el registro desmiente.
+        aviso = self._contraste_con_el_registro(state, verdict)
+        if aviso:
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT", payload={"content": aviso}))
+
+        # C4 — contrato de entregable: si pediste un fichero, esto no se cierra
+        # con un texto sobre el fichero.
+        falta = self._contrato_de_entregable(state)
+        if falta:
+            state["entrega_incompleta"] = falta
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content":
+                         "[INCOMPLETO] Pediste algo construido y esto no lo "
+                         f"está: {falta}. Lo que sigue es una propuesta, no "
+                         "una entrega."}))
+            await self.bus.publish(BusEvent(
+                topic="swarm.entrega_incompleta",
+                payload={"task_id": task_id, "falta": falta}))
+
         try:
             from magi.core.approval import build_approval_request
             from magi.core.tools.journal import WriteJournal
@@ -205,8 +303,16 @@ class SwarmOrchestrator:
                 return
             st["calls_used"] = int(st.get("calls_used", 0)) + int(n)
 
+        # C3 — y también se les da acceso de LECTURA al estado de la tarea,
+        # para que el techo por iteración salga del presupuesto que queda en
+        # vez de una constante. Es una función, no el diccionario: el agente
+        # consulta, no muta.
+        def estado_de(tid: str) -> dict | None:
+            return self.active_tasks.get(tid)
+
         for agente in (self.melchior, self.balthasar, self.casper):
             agente.cobrar = cobrar
+            agente._estado_de_tarea = estado_de
 
     async def _cerrar_por_presupuesto(self, task_id: str, state, p,
                                       usadas: int, pared: float) -> None:
@@ -671,6 +777,28 @@ class SwarmOrchestrator:
         state = self.active_tasks[task_id]
         self._amarrar_presupuesto(task_id)
 
+        # B9 — UNA TAREA REANUDADA SIN RONDAS NO SE QUEDA MUDA.
+        #
+        # Reproducido sin querer el 2026-08-20: al reanudar una tarea que ya
+        # estaba en su última ronda, el sistema anunciaba «Feedback recibido.
+        # Reanudando debate» y después pasaban 300 segundos sin UNA sola
+        # llamada al modelo. El bucle arrancaba con `round > max_rounds`, no
+        # entraba en ninguna iteración y terminaba en silencio.
+        #
+        # Para el usuario eso es lo peor que puede pasar: escribe, el sistema
+        # dice que sigue, y no vuelve a hablar nunca. Se le amplía el margen y
+        # se le dice; callarse no es una opción.
+        if state["status"] == "in_progress" and \
+                int(state.get("round", 1)) > int(state.get("max_rounds", 3)):
+            state["max_rounds"] = int(state.get("round", 1)) + 1
+            self._persist(task_id)
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content":
+                         "[SWARM] Esta tarea ya había agotado sus rondas. "
+                         f"Amplío el margen a {state['max_rounds']} para poder "
+                         "atender lo que me acabas de escribir."}))
+
         while state["status"] == "in_progress":
             try:
                 # ---- PRESUPUESTO: el techo de esta tarea (v6.0 §A1) --------
@@ -746,6 +874,16 @@ class SwarmOrchestrator:
                 for v, rep in zip(variants, reports, strict=True):
                     v.verified = rep.ok
                     v.verification = rep.render()
+
+                # C7 — se deja escrito si algo se comprobó DE VERDAD, no solo
+                # si nada falló. El contrato de entregable (C4) lee esto, y con
+                # `ok` a secas una propuesta sin una línea de código contaba
+                # como verificada.
+                state["verification"] = {
+                    "ran": any(r.had_code for r in reports),
+                    "passed": any(r.verificado for r in reports),
+                    "detail": reports[0].estado if reports else "NO VERIFICADO",
+                }
 
                 good = [v for v in variants if v.verified]
                 if not good and any(r.had_code for r in reports):
@@ -895,7 +1033,17 @@ class SwarmOrchestrator:
             feedback_text = verdict.get("feedback", "").upper()
             is_asking_approval = "¿APRUEBAS" in feedback_text or "APRUEBAS" in feedback_text or verdict["decision"] == "APPROVED"
 
-            if is_asking_approval or current_round >= state.get("max_rounds", 3):
+            # C1/C2 — SIN_ARBITRAJE entra por la misma puerta que una
+            # aprobación, y a propósito.
+            #
+            # Sin esto caía al `else` final —«Tarea fallida tras N rondas»— y
+            # el usuario perdía la tesis y la crítica, que estaban hechas. Una
+            # tarea sin árbitro NO es una tarea fallida: es una tarea con dos
+            # tercios del trabajo terminados y sin quien los cierre. Se entrega
+            # lo que hay, se dice que falta el arbitraje, y decide el usuario.
+            sin_arbitro = verdict["decision"] == "SIN_ARBITRAJE"
+
+            if is_asking_approval or sin_arbitro or current_round >= state.get("max_rounds", 3):
                 # Antes de pedir aprobación, mirar si escribiste algo mientras
                 # trabajábamos. Si lo hay, se atiende AHORA en vez de pedirte
                 # el visto bueno a una propuesta que ya has comentado.

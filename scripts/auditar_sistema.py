@@ -220,6 +220,40 @@ def _resumen_etapas() -> dict:
     return d
 
 
+def _calidad_de_entrega(tarea: str) -> dict:
+    """
+    C8 — cuatro numeros que convierten «la respuesta fue mala» en una medida.
+
+    Salen de las tres pruebas del 2026-08-20, donde el sistema produjo 33.000
+    caracteres de trabajo bueno y entrego 252 de mensaje de error, y donde dos
+    encargos de `.exe` terminaron sin un solo bloque de codigo. Sin numero no
+    hay forma de saber si una version mejora: las opiniones sobre calidad se
+    empatan solas.
+    """
+    from magi.modules.swarm.intencion import pide_artefacto
+
+    producido = sum(len(r["texto"]) for r in RESPUESTAS)
+    final = [r for r in RESPUESTAS if str(r.get("agente")) == "CASPER"]
+    entregado = len(final[-1]["texto"]) if final else 0
+    texto_todo = "\n".join(r["texto"] for r in RESPUESTAS)
+    era_build = pide_artefacto(tarea)
+    herramientas = sum(1 for e in EVENTOS
+                       if e["tema"] == "TERMINAL_OUT" and "tool" in e["texto"].lower())
+    return {
+        "chars_producidos": producido,
+        "chars_entregados": entregado,
+        "ratio_entregado": round(entregado / producido, 3) if producido else None,
+        "encargo_de_producto": era_build,
+        "bloques_de_codigo": texto_todo.count("```") // 2,
+        "artefacto_entregado": any(e["tema"] == "swarm.artefacto_listo"
+                                   for e in EVENTOS),
+        "entrega_incompleta": any(e["tema"] == "TERMINAL_OUT"
+                                  and "[INCOMPLETO]" in e["texto"]
+                                  for e in EVENTOS),
+        "menciones_a_herramientas": herramientas,
+    }
+
+
 def _quien_hablo() -> dict:
     """
     Quien aporto y cuanto. La pregunta que contesta es «¿funcionaron los tres?»,
@@ -349,6 +383,7 @@ async def auditar(tarea: str, motor: str, rondas: int, espera_s: float,
         "etapas_cronometradas": sorted(ETAPAS, key=lambda e: -e["segundos"])[:40],
         "resumen_etapas": _resumen_etapas(),
         "respuestas": RESPUESTAS,
+        "calidad_de_entrega": _calidad_de_entrega(tarea),
         "quien_hablo": _quien_hablo(),
         "ritsuko": informe_ritsuko,
         "naoko": {

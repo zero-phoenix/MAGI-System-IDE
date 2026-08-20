@@ -15,6 +15,7 @@ import pytest
 from magi.core.bus import BusEvent, MagiBus
 from magi.modules.infrastructure.ritsuko import (
     FAMILIAS_AUDITADAS,
+    FAMILIAS_RITSUKO,
     MODELOS_RITSUKO,
     RitsukoAgent,
 )
@@ -179,19 +180,28 @@ async def test_un_fallo_disfrazado_de_texto_no_es_un_veredicto(monkeypatch):
     agente = RitsukoAgent(bus)
     intentos: list[str] = []
 
+    familias: list[str] = []
+
     async def degradada(system_prompt, user_prompt, **kw):
         intentos.append(kw.get("model"))
+        familias.append(kw.get("family"))
         return "[Inferencia no disponible: todos los proveedores fallaron]", "SYSTEM_ERROR"
 
     monkeypatch.setattr(agente.llm, "generate", degradada)
     texto = await agente._pensar("audita esto", "es")
 
+    # C14 — y se pide por FAMILIA, que es el eje que garantiza independencia.
+    assert intentos and all(f is None for f in intentos), (
+        "Ritsuko debe pedir por familia, no por alias de modelo")
+
     assert "no he podido emitir veredicto" in texto.lower()
     # El veredicto es SUYO y dice que no puede opinar. Puede citar el error
     # como causa —eso es informar—, pero el error no puede SER el veredicto.
     assert texto.startswith("[RITSUKO]")
-    # Y se prueban TODOS sus modelos antes de rendirse, no solo el primero.
-    assert len(intentos) == len(MODELOS_RITSUKO)
+    # Y se prueba TODA su cadena antes de rendirse, no solo el primero.
+    assert familias == list(FAMILIAS_RITSUKO)
+    assert not (set(familias) & set(FAMILIAS_AUDITADAS)), (
+        "ni como último recurso puede caer en una familia que audita")
 
 
 async def test_un_timeout_del_bucle_de_herramientas_tampoco_cuela(monkeypatch):

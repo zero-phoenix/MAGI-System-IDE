@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 from magi.core.blackboard import Blackboard  # type: ignore
 from magi.core.bus import BusEvent, MagiBus  # type: ignore
+from magi.core.providers.base import es_degradada  # type: ignore
 from magi.core.providers.cloud import FreeCloudLLM  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ class SwarmAgentBase:
         self.blackboard = blackboard
         self.bus = bus
         self.llm = FreeCloudLLM()
+        #: Motivo por el que el último turno con herramientas salió degradado,
+        #: o None. Lo lee el árbitro para no firmar sobre un error (C11).
+        self._ultima_degradacion: str | None = None
         # Rama en la que trabaja este agente ahora mismo. La pone el
         # orquestador antes de lanzar cada variante o cada eje.
         self.rama: str | None = None
@@ -391,8 +395,21 @@ class SwarmAgentBase:
             tools=registry_for_role(self.tool_role, task_hint=user_prompt),
             system_prompt=full_sys, user_prompt=user_prompt, ctx=ctx,
             prefer_provider=f"g4f-{self.family}",
-            max_iters=max_iters,
+            # B2 — el motivo por el que `fast` no necesita diez iteraciones.
+            #
+            # Cada iteración es una llamada de red de ~19 s. `fast` existe para
+            # contestar pronto; darle el mismo techo que a `deep` lo convierte
+            # en «deep que además promete rapidez». Medido: la mayoría de los
+            # turnos cierran en 2-4 iteraciones.
+            max_iters=(4 if engine == "fast" else max_iters),
             temperature=0.4 if engine == "fast" else 0.2,
+            # C3 — el timeout sale del presupuesto que queda, no de una
+            # constante. Con 150 s fijos, UNA iteración podía comerse tres
+            # cuartas partes del tiempo de pared de la tarea entera.
+            iteration_timeout_s=self._techo_de_iteracion(task_id),
+            # B4 — se cubre salvo que esta rama ya tenga redundancia
+            # estructural (variantes y ejes en paralelo ponen hedge=False).
+            hedge=self.hedge,
             seed=self.seed, on_event=on_event, agent_name=self.role_name)
 
         # Cada iteración del bucle de herramientas es una llamada de modelo.
@@ -482,7 +499,48 @@ class SwarmAgentBase:
         # datos: el esquema existe, los métodos existen, y el panel de coste
         # no tiene nada que enseñar porque nadie escribió jamás una fila.
         await self._record_usage(task_id, turn)
+        # C11 — el motivo de la degradación NO se tira aquí.
+        #
+        # `AgentTurn.degraded` ya existía y decía «esto es un timeout», pero
+        # esta función devolvía solo (texto, proveedor, familia) y la marca se
+        # perdía justo en la frontera. Quien recibía el texto no tenía forma de
+        # distinguir una respuesta de un mensaje de error, y de ahí salía el
+        # `APPROVED` firmado sobre un timeout. Se guarda en la instancia porque
+        # cambiar la firma rompería cinco llamadas por una señal que casi
+        # siempre es None.
+        self._ultima_degradacion = turn.degraded or (
+            "respuesta degradada" if es_degradada(turn.text, turn.provider_id)
+            else None)
         return turn.text, turn.provider_id, self._family_of(turn.provider_id)
+
+    def _techo_de_iteracion(self, task_id: str) -> float:
+        """
+        Cuánto puede tardar UNA llamada, sacado de lo que queda de presupuesto.
+
+        Antes era la constante `150.0`. Con un presupuesto de pared de 240 s
+        para el motor `fast`, una sola iteración podía consumir el 62 % de la
+        tarea y dejar sin tiempo al arbitraje — que es justo lo que se vio en
+        las pruebas del 20-ago, con Casper muriendo por timeout tres veces.
+
+        Se reparte lo que queda entre las llamadas que razonablemente faltan
+        (tres: propuesta, crítica y arbitraje), con un suelo de 45 s para no
+        estrangular una llamada legítimamente lenta y un techo de 150 s para no
+        empeorar nunca lo que había.
+        """
+        estado = getattr(self, "_estado_de_tarea", None)
+        if callable(estado):
+            estado = estado(task_id)
+        if not isinstance(estado, dict):
+            return 150.0
+        try:
+            from magi.core.presupuesto import para
+            presupuesto = para(estado.get("engine", "fast"))
+            import time as _t
+            gastado = _t.monotonic() - float(estado.get("inicio_pared", _t.monotonic()))
+            queda = max(0.0, float(presupuesto.pared_s) - gastado)
+        except Exception:                                   # pragma: no cover
+            return 150.0
+        return max(45.0, min(150.0, queda / 3.0))
 
     async def _record_usage(self, task_id: str, turn) -> None:
         """Vuelca el gasto del turno al ledger y lo publica para la interfaz."""
@@ -719,6 +777,10 @@ Tu rol como TESIS:
 - JUEGO CRÍTICO AGUDO: diseña tu tesis sabiendo que Balthasar intentará destruirla. Anticipa los puntos débiles y refuérzalos de antemano. Tus afirmaciones deben poder refutarse (falsacionismo): si algo no puedes verificarlo, di "no verificado" en vez de inventarlo.
 - Sé directo, técnico y didáctico (usa analogías simples si ayuda), pero NUNCA elimines ni simplifiques ningún detalle técnico, arquitectónico o científico importante.
 
+- PRESUPUESTO DE DEPENDENCIAS (C10). Si el encargo dice «portable», «.exe» o «sin dependencias», la elección de biblioteca ES parte del encargo y hay que justificarla en una línea. Medido: para un juego en un .exe único, tkinter (biblioteca estándar) da ~9 MB sin SDL, sin DLLs de audio y sin depender del Visual C++ Redistributable de la máquina destino; pygame da 30-40 MB y más superficie de fallo. Elige lo que quieras, pero di por qué.
+- EL ARTEFACTO TRAE SU PROPIA PRUEBA (C16). Si entregas un ejecutable o un juego, expón en él un modo de autoprueba (`--autotest N`) que juegue N fotogramas solo y salga con código 0, y una comprobación de las propiedades que el encargo pedía (por ejemplo `--paleta` verificando que todos los colores existen en RGB565 si te pidieron 16 bits). Sin eso, «funciona» y «16 bits» son afirmaciones que nadie puede comprobar sin mirar la pantalla, y lo que no se comprueba cuenta como no cumplido.
+- USA LAS HERRAMIENTAS QUE TIENES (C5). Antes de responder de memoria, mira el catálogo que se te ha dado: si hay una herramienta que responde a la pregunta, consultarla no es opcional. Medido el 2026-08-20: ante una pregunta de portabilidad entre consolas, el sistema tenía `analyze_port`, `console_profile` y `compare_consoles` escritas para exactamente eso y las usó CERO veces. Responder de memoria teniendo la herramienta delante es tirar la única ventaja real que tienes sobre un chat.
+
 OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSIÓN'. Esa sección final ESCRÍBELA SIEMPRE EN ESPAÑOL, sin excepción, aunque el resto de tu respuesta esté en otro idioma. Es lo que el usuario leerá."""
 
         loader = self.blackboard.read("global.skills_loader")
@@ -847,7 +909,8 @@ OBLIGATORIO: Finaliza con una sección separada bajo el encabezado '### CONCLUSI
 
 
 
-def _leer_decision(content: str, round_num: int) -> tuple[str, str]:
+def _leer_decision(content: str, round_num: int,
+                   degradada: bool = False) -> tuple[str, str]:
     """
     Saca el veredicto de Casper y devuelve `(decision, texto_para_el_usuario)`.
 
@@ -879,6 +942,19 @@ def _leer_decision(content: str, round_num: int) -> tuple[str, str]:
     import re
 
     texto = (content or "").strip()
+
+    # 0) C1 — SIN ÁRBITRO NO HAY VEREDICTO.
+    #
+    # Si el turno vino degradado (timeout, proveedor caído, respuesta vacía),
+    # aquí no hay nada que leer. Antes se caía al caso 3 —«sin marcador se
+    # aprueba»— y el usuario recibía «**Decisión Técnica:** APPROVED» seguido
+    # del mensaje de error. Las tres pruebas del 2026-08-20 terminaron así.
+    #
+    # Aprobar sin haber leído no es un fallo de precisión: es afirmar algo que
+    # nadie ha comprobado, que es la única cosa que este sistema no se puede
+    # permitir.
+    if degradada or es_degradada(texto):
+        return "SIN_ARBITRAJE", texto
 
     # 1) Formato antiguo, por si viene de una tarea vieja.
     limpio = texto
@@ -958,6 +1034,8 @@ ENTREGA, NO SOLO DICTAMINES. La síntesis dialéctica no es elegir entre la tesi
 
 IDIOMA: como tú eres quien le habla al usuario, RESPONDE SIEMPRE EN ESPAÑOL, en todo tu mensaje.
 
+EMPIEZA POR CÓMO LO HAS ENTENDIDO (C15). Dos líneas, antes de nada: qué has entendido que se pide y qué has decidido en lo que era ambiguo. En la prueba del ping pong el debate resolvió BIEN dos ambigüedades reales —16 bits de color (65.536) frente a paleta retro, y binario de 16 bits frente a color de 16 bits— y esa decisión se quedó dentro del debate: el usuario no vio ninguna de las dos. Una entrega que no dice cómo interpretó el encargo es una sorpresa esperando a ocurrir.
+
 FORMATO DE LA RESPUESTA
 Escribe con normalidad: prosa, listas y bloques de código markdown, todo lo extenso que haga falta. NO uses JSON.
 Termina con estas dos líneas, exactamente así y en este orden:
@@ -975,6 +1053,7 @@ DECISIÓN: APROBADA
             f"ejecuta la solución consolidada, y entrégala. Termina con la "
             f"línea de DECISIÓN.")
 
+        self._ultima_degradacion = None
         if use_tools:
             content, actual_provider, actual_family = await self._ask_with_tools(
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
@@ -984,10 +1063,30 @@ DECISIÓN: APROBADA
                 sys_prompt, user_prompt, task_id=task_id, engine=engine,
                 narrative_style=narrative_style)
 
-        decision, feedback = _leer_decision(content, round_num)
+        decision, feedback = _leer_decision(
+            content, round_num,
+            degradada=bool(self._ultima_degradacion)
+            or es_degradada(content, actual_provider))
 
-        # Formatear bonito para la GUI en lugar del raw JSON
-        formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"
+        # C1/C2 — lo que se le enseña al usuario cuando NO hubo arbitraje.
+        #
+        # Antes salía «**Decisión Técnica:** APPROVED» y debajo el mensaje de
+        # error. Ahora se dice lo que pasó y se entrega el trabajo que SÍ
+        # existe: la tesis y la crítica estaban hechas y pagadas, y tirarlas
+        # porque el tercer nodo no contestó es el desperdicio más caro del
+        # sistema.
+        if decision == "SIN_ARBITRAJE":
+            formatted_content = (
+                "**Sin arbitraje final.** "
+                f"{self.role_name} no pudo responder ({self._ultima_degradacion or 'proveedor caído'}). "
+                "No apruebo lo que no he leído, así que te entrego lo que sí "
+                "está hecho y verificado hasta aquí.\n\n"
+                "---\n\n## Propuesta de Melchior\n\n"
+                f"{(proposal or {}).get('content', '(no disponible)')}\n\n"
+                "---\n\n## Crítica de Balthasar\n\n"
+                f"{(critique or {}).get('content', '(no disponible)')}")
+        else:
+            formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"
 
         await self.bus.publish(BusEvent(
             topic="AGENT_POST",

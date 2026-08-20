@@ -66,6 +66,7 @@ async def run_agent(
     degraded: str | None = None,
     iteration_timeout_s: float = 150.0,
     soft_timeout_s: float = 60.0,
+    hedge: bool | None = None,
 ) -> AgentTurn:
     """
     Ciclo: pedir -> ¿pide herramientas? -> ejecutarlas -> devolver resultados
@@ -94,9 +95,22 @@ async def run_agent(
 
     for i in range(1, max_iters + 1):
         iter_started = time.monotonic()
+        # B4 — LA PUERTA DE LAS HERRAMIENTAS TAMBIÉN SE CUBRE.
+        #
+        # El hedge —cubrir una llamada lenta lanzando el siguiente candidato—
+        # existía solo en `FreeCloudLLM.generate`. Este bucle llama a
+        # `registry.complete` directamente, así que las llamadas MÁS LENTAS del
+        # sistema iban sin cubrir: medido el 2026-08-20, 19,2 s de media por
+        # completion, con candidatos sanos entre 2 y 6 s, y un timeout duro de
+        # 150 s que se comió turnos enteros.
+        #
+        # `hedge` se deja en None —auto— cuando el llamante no dice nada: es el
+        # backend quien decide con las latencias medidas. Y en False cuando la
+        # rama ya tiene redundancia estructural (las tres variantes en
+        # paralelo), porque ahí cubrir multiplicaría la cuota por nada.
         req = CompletionRequest(
             messages=messages, temperature=temperature, seed=seed,
-            timeout_s=iteration_timeout_s)
+            timeout_s=iteration_timeout_s, hedge=hedge)
 
         try:
             resp = await asyncio.wait_for(

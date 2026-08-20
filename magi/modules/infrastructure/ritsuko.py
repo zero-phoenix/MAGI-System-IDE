@@ -77,6 +77,15 @@ FAMILIAS_AUDITADAS = ("hf", "gemini", "gpt", "claude", "command")
 #: que sacarlos de aquí — y el test `test_ritsuko_no_comparte_familia` lo exige.
 MODELOS_RITSUKO = ("o3", "o4mini", "pplx_reasoning", "grok4")
 
+#: C14 — la cadena que SE USA, por familia y no por alias de modelo.
+#:
+#: El eje que garantiza la independencia es la familia. Los alias se resuelven
+#: a familia por una tabla que Ritsuko no controla, y la prueba del 20-ago la
+#: dejó fallando con «familia 'deepseek' agotada» —que no es ninguna de las
+#: suyas—, así que su independencia dependía de un mapeo que puede cambiar sin
+#: que nadie se entere. Pidiendo por familia, no puede pasar.
+FAMILIAS_RITSUKO = ("razonamiento", "grok", "perplexity")
+
 #: Idiomas que Ritsuko puede hablar. No es configurable.
 IDIOMAS_PERMITIDOS = ("es", "en")
 
@@ -294,16 +303,16 @@ class RitsukoAgent:
                        else "Answer in English.")
         sistema = f"{self.PROMPT}\n\nIDIOMA: {instruccion}"
         ultimo_error = "sin proveedores"
-        for modelo in MODELOS_RITSUKO:
+        for familia in FAMILIAS_RITSUKO:
             await self.bus.publish(BusEvent(
                 topic="ritsuko.status",
-                payload={"status": f"Auditando ({modelo})..."}))
+                payload={"status": f"Auditando ({familia})..."}))
             try:
                 texto, proveedor = await self.llm.generate(sistema, user_prompt,
-                                                           model=modelo)
+                                                           family=familia)
             except Exception as e:
                 ultimo_error = f"{type(e).__name__}: {e}"
-                logger.debug("[ritsuko] %s fallo: %s", modelo, e)
+                logger.debug("[ritsuko] %s fallo: %s", familia, e)
                 continue
             # UN FALLO QUE VIENE COMO TEXTO SIGUE SIENDO UN FALLO.
             #
@@ -316,14 +325,14 @@ class RitsukoAgent:
             # literalmente el mensaje de error— y es exactamente el mismo fallo
             # que el enjambre comete al firmar APPROVED sobre un timeout.
             if proveedor == "SYSTEM_ERROR" or _es_degradada(texto):
-                ultimo_error = f"{modelo}: respuesta degradada ({(texto or '')[:80]})"
+                ultimo_error = f"{familia}: respuesta degradada ({(texto or '')[:80]})"
                 logger.warning("[ritsuko] %s", ultimo_error)
                 continue
             if not (texto or "").strip():
-                ultimo_error = f"{modelo} devolvio vacio"
+                ultimo_error = f"{familia} devolvio vacio"
                 continue
             if not idioma.coincide(texto, lang):
-                ultimo_error = f"{modelo} contesto fuera de idioma"
+                ultimo_error = f"{familia} contesto fuera de idioma"
                 logger.warning("[ritsuko] %s", ultimo_error)
                 continue
             return texto

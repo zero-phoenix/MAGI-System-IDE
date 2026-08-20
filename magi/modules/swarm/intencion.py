@@ -38,7 +38,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
-__all__ = ["es_respuesta_a_aprobacion", "aprueba", "APROBACION", "RECHAZO"]
+__all__ = ["es_respuesta_a_aprobacion", "aprueba", "pide_artefacto",
+           "APROBACION", "RECHAZO"]
 
 
 def _plano(s: str) -> str:
@@ -171,3 +172,59 @@ def es_respuesta_a_aprobacion(texto: str) -> bool:
 
     # 6. Todo lo demás —una frase larga y autónoma— se trata como nuevo.
     return False
+
+
+# ---------------------------------------------------------------------------
+# C4 — ¿ME ESTÁN PIDIENDO UN PRODUCTO O UNA EXPLICACIÓN?
+# ---------------------------------------------------------------------------
+#
+# Distinguirlo cambia lo que significa «terminado». Si me piden un .exe, una
+# descripción del .exe no es una entrega parcial: es no haber entregado.
+#
+# Medido el 2026-08-20, dos veces: «haz una réplica de Tetris en un .exe
+# portable» y «crea un ping pong a color de 16 bits en un .exe portable»
+# terminaron con cero bloques de código, cero artefactos y el árbitro diciendo
+# «se compiló exitosamente el binario». Nada lo detectó porque nada sabía que
+# se había pedido un binario.
+
+#: Sustantivos que nombran un ENTREGABLE, no un tema.
+_COSAS = ("exe", ".exe", "ejecutable", "binario", "instalador", "portable",
+          "aplicacion", "app", "programa", "juego", "script", "fichero",
+          "archivo", "libreria", "paquete")
+
+#: Verbos de construir. Sin uno de estos, hablar de un .exe es hablar de un
+#: .exe, no pedirlo.
+_CONSTRUIR = ("crea", "crear", "haz", "hazme", "hacer", "construye", "construir",
+              "genera", "generar", "compila", "compilar", "empaqueta",
+              "empaquetar", "programa", "programame", "desarrolla", "escribe",
+              "escribeme", "implementa", "build", "make", "create")
+
+#: Y estos mandan por encima: si la frase empieza pidiendo entender, no pide
+#: producto por mucho que nombre un .exe. «Explica cómo se hace un exe» es una
+#: pregunta, y tratarla como encargo de producto la respondería con un binario
+#: que nadie pidió.
+_EXPLICAR = ("explica", "explicame", "describe", "compara", "analiza",
+             "por que", "porque", "como funciona", "que es", "diferencia",
+             "ventajas", "resume", "opina")
+
+
+def pide_artefacto(texto: str) -> bool:
+    """
+    True si el encargo espera un fichero al final, no un texto.
+
+    Se exigen las dos cosas —verbo de construir Y sustantivo de entregable—
+    porque cada una por separado se dispara sola: «escribe un resumen» tiene
+    verbo y no pide binario; «el ejecutable de PPSSPP» nombra uno y no pide
+    nada. Y `_EXPLICAR` gana siempre: preguntar cómo se hace algo no es
+    pedirlo.
+    """
+    t = _plano(texto)
+    if not t.strip():
+        return False
+    cabeza = t[:60]
+    if any(v in cabeza for v in _EXPLICAR):
+        return False
+    palabras = {p.strip(".,;:!?¿¡()\"'") for p in t.split()}
+    hay_verbo = bool(palabras & set(_CONSTRUIR))
+    hay_cosa = bool(palabras & set(_COSAS)) or ".exe" in t
+    return hay_verbo and hay_cosa

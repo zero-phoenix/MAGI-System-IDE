@@ -803,6 +803,21 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
                                f"Lo que veo: {i['detalle']}"}))
         return report
 
+    def _hay_tareas_vivas(self) -> bool:
+        """
+        ¿Está el enjambre trabajando ahora mismo?
+
+        Se pregunta al orquestador, que es quien lo sabe. Si no hay orquestador
+        —Naoko puede vivir sin él— se responde que no: bloquear la vigilancia
+        por no poder preguntar sería peor que vigilar de más.
+        """
+        activas = getattr(self.swarm, "active_tasks", None) if self.swarm else None
+        if not activas:
+            return False
+        return any((st or {}).get("status") in ("in_progress", "running",
+                                                "WAITING_VERIFICATION")
+                   for st in activas.values())
+
     async def _check_drift(self):
         """
         Sonda canaria (§I.8 del documento de arquitectura, nunca implementada).
@@ -813,9 +828,36 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
         from magi.core.obs.metrics import canary_probe
         from magi.core.providers.cloud import get_registry
 
+        # C13 — NO SE DIAGNOSTICA CON LA CUOTA QUE UNO MISMO ESTÁ GASTANDO.
+        #
+        # Medido el 2026-08-20, encargo del ping pong: 12 intervenciones de
+        # Naoko y cuatro «deriva detectada» —gpt, gemini dos veces, llama—
+        # DURANTE una tarea que estaba haciendo 50 llamadas contra esos mismos
+        # proveedores. Los canarios no fallaban porque el modelo hubiera
+        # cambiado: fallaban porque la cuota estaba agotada por la tarea en
+        # curso. El corrector estaba midiendo su propia interferencia y
+        # llamándola deriva del modelo.
+        #
+        # Y «deriva» no es una anotación inocente: invalida comparaciones y
+        # puede reordenar el reparto del enjambre. Un diagnóstico contaminado
+        # mueve el sistema en la dirección equivocada con toda la autoridad.
+        if self._hay_tareas_vivas():
+            logger.debug("[naoko] hay tareas en vuelo: la sonda canaria espera")
+            return
+
         registry = await get_registry()
         for reg in registry.healthy()[:3]:
             report = await canary_probe(registry, reg.id)
+            # UN CANARIO QUE NO CONTESTA NO DICE NADA DEL MODELO.
+            #
+            # Deriva es que el proveedor conteste BIEN y DISTINTO. Que no
+            # conteste —429, timeout, respuesta trunca— es no concluyente, y
+            # tratarlo como deriva es exactamente el error de la v5.5.1 por
+            # otra puerta: medir la salud enfermando al paciente.
+            if report.drifted and report.matched == 0:
+                logger.info("[naoko] %s: 0/%d canarios; lo trato como NO "
+                            "concluyente, no como deriva", reg.id, report.total)
+                continue
             if report.drifted:
                 await self.bus.publish(BusEvent(
                     topic="provider.model_drift", payload=report.to_dict(),

@@ -51,9 +51,21 @@ HOLGURA = 40
 #: Tamaño máximo por fichero, medido el 2026-08-13 y redondeado con holgura.
 #: Solo se listan los que superan `TECHO_GENERAL`; el resto se rige por él.
 TECHOS: dict[str, int] = {
-    "magi/modules/infrastructure/naoko.py": 1560,
-    "magi/modules/swarm/agents.py": 1090,
-    "magi/core/kernel.py": 1000,
+    # +40 en la ejecución del megaplan: C13 —Naoko no diagnostica con la cuota
+    # que ella misma está gastando— y la distinción entre «no concluyente» y
+    # «deriva». Cuarenta líneas contra cuatro falsos positivos medidos que
+    # reordenaban el reparto del enjambre.
+    "magi/modules/infrastructure/naoko.py": 1600,
+    # +45 en la ejecución del megaplan: la guarda C1 —que el árbitro no firme
+    # lo que no ha leído— y el mensaje de entrega sin arbitraje (C2), que trae
+    # la tesis y la crítica en vez de tirarlas. Son las líneas que separan
+    # «aprobado» de «aprobado sin haber recibido nada».
+    # (y +45 más por C3 —techo de iteración desde el presupuesto—, C10
+    # —presupuesto de dependencias— y C15 —decir cómo se entendió el encargo—.)
+    "magi/modules/swarm/agents.py": 1230,
+    # +15 en la ejecución del megaplan: B8, la sonda espera a que el enjambre
+    # esté quieto en vez de medir la cuota que la tarea acaba de gastar.
+    "magi/core/kernel.py": 1020,
     # +48 en la v5.5.2: el filtro de idioma que se le inyecta a Yqcloud por
     # API (responde en chino cuando le apetece) y el catálogo de la familia
     # `gpt` con WeWordle de vuelta, cada entrada con el motivo escrito.
@@ -62,7 +74,12 @@ TECHOS: dict[str, int] = {
     # +68 en la v5.5.2: presupuesto por tarea (contador, cierre por techo y
     # rehidratación), fan-out por motor y el candado que serializa el
     # despacho. Tres frenos que solo tienen sentido donde se decide gastar.
-    "magi/modules/swarm/orchestrator.py": 1050,
+    # +95 más en la ejecución del megaplan: el contraste de la síntesis contra
+    # el registro (C12) y el contrato de entregable (C4), que son las dos
+    # piezas que impiden anunciar un .exe que no existe. Van aquí y no en un
+    # módulo aparte porque las dos leen el `state` de la tarea, que es de esta
+    # clase: sacarlas obligaría a exportar el estado entero, que es peor.
+    "magi/modules/swarm/orchestrator.py": 1160,
 }
 
 #: Para todo lo demás. 800 líneas es mucho para un módulo de Python, y ninguno
