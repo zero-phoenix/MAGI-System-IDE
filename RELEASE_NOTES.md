@@ -1,3 +1,95 @@
+# v5.6.0 — el sistema deja de firmar lo que no ha leído
+
+Esta versión sale de tres pruebas contra el sistema real, contrastadas con lo
+que entregaría un modelo externo: una pregunta compleja (dynarec PSP→Vita), un
+Tetris en `.exe` portable y un ping pong a color de 16 bits. Las tres
+terminaron igual, y el resultado es el motivo de todo lo que hay aquí.
+
+## Lo que pasaba
+
+El usuario recibía esto, tres veces de tres:
+
+```
+**Decisión Técnica:** APPROVED
+
+[Tiempo de espera agotado tras 150s en iteración 1. Proveedor: g4f-gpt...]
+```
+
+252 caracteres. Un aviso de error firmado como aprobado, con **33.000
+caracteres de tesis y crítica ya producidos y pagados** que nadie llegó a ver.
+Y en el encargo del ping pong, un escalón peor: cero bloques de código, cero
+artefactos, y el árbitro escribiendo «se compiló exitosamente el binario
+ejecutable único portable». El informe parecía perfecto. El fichero no existía.
+
+Lo demás son consecuencias de lo mismo: nada distinguía una respuesta de un
+mensaje de error.
+
+## Lo que cambia
+
+**El árbitro no firma lo que no ha leído.** Un turno degradado —timeout,
+proveedor caído, respuesta vacía— produce `SIN_ARBITRAJE`, nunca `APPROVED`. Y
+entonces se entrega la tesis y la crítica con una cabecera honesta, en vez de
+tirar el trabajo: *«No apruebo lo que no he leído, así que te entrego lo que sí
+está hecho»*.
+
+**Un fallo que viene como texto sigue siendo un fallo.** El sistema tenía dos
+formas de devolver un error disfrazado de respuesta normal —`[Inferencia no
+disponible...]` con proveedor `SYSTEM_ERROR`, y `[Tiempo de espera agotado...]`
+del bucle de herramientas—, y ningún consumidor miraba la marca. Ahora hay una
+sola función que lo decide, usada en los tres sitios que importan.
+
+**Si pediste un `.exe`, un texto sobre el `.exe` sale marcado.** El sistema
+reconoce cuándo el encargo espera un fichero y exige tres cosas para cerrarlo:
+código, verificación que lo ejecute y artefacto entregado. Si falta alguna, la
+entrega sale como `[INCOMPLETO]` diciendo qué falta. Y una síntesis que afirme
+haber compilado algo se contrasta contra el registro de la tarea: si no consta
+artefacto, sale el aviso.
+
+**Verificar cero bloques ya no es verificar.** `all([])` es `True`, así que una
+propuesta sin una línea de código pasaba la verificación con nota — medido:
+tres pasadas en **0,0 s** dando el vacío por bueno.
+
+**Los bloques de Python se verifican unidos.** El modelo pone la función en un
+bloque y su test en otro; ejecutarlos por separado daba `ModuleNotFoundError` y
+forzaba un ciclo de reconstrucción entero (~4 llamadas, 60-80 s) por un fallo
+que no era del modelo.
+
+**Medir deja de envenenar lo medido.** Naoko declaró cuatro veces «deriva
+detectada» durante una tarea que estaba haciendo 50 llamadas contra esos mismos
+proveedores: medía su propia interferencia. Ahora la sonda espera a que el
+enjambre esté quieto, y un canario que no contesta es *no concluyente*, no
+deriva.
+
+**Velocidad.** El hedge llega por fin a la puerta de las herramientas —las 14
+llamadas más lentas del sistema iban sin cubrir—, el motor `fast` usa 4
+iteraciones en vez de 10, y el timeout por iteración sale del presupuesto
+restante en vez de una constante de 150 s que se comía turnos enteros.
+
+**Y una tarea reanudada sin rondas ya no se queda muda.** Antes decía
+«reanudando debate» y no volvía a hablar nunca.
+
+## Ritsuko, la quinta IA
+
+Naoko corrige al enjambre y hasta ahora nadie la comprobaba a ella. Ritsuko
+audita esa relación: mira la evidencia del bus, dice si el sistema mejora o
+empeora, señala si un nodo se ha quedado mudo, y deja cada informe escrito en
+disco para descargar. **Solo informa** —no escribe código, no ejecuta nada, no
+toca configuración— porque un auditor con permiso para arreglar acaba
+revisándose a sí mismo. Usa una familia de modelo que no comparte con ninguna
+de las otras cuatro, con un test que lo impide. Habla español o inglés, nunca
+otro idioma. Tiene su propia pestaña, separada de la de Naoko.
+
+## Además
+
+`scripts/auditar_sistema.py`: arranca el kernel de verdad, lanza una petición
+real y cronometra las dos puertas al modelo. Es lo que produjo todos los
+números de arriba, y lo que permite comprobar si la próxima versión mejora.
+
+Detalle completo en `docs/MEGAPLAN-ESTADO.md`, incluidos los cuatro bloques que
+se quedan fuera y por qué.
+
+---
+
 # v5.5.2 — la fábrica entrega de verdad, y el enjambre deja de quemar cuota
 
 Cuatro frentes, todos con medida detrás. Dos de ellos eran fallos que **no
