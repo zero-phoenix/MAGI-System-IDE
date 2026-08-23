@@ -112,6 +112,61 @@ además **decide el estilo** de cada respuesta:
 
 ---
 
+## Ritsuko: quien revisa a la revisora
+
+Naoko corrige a los tres nodos. Nadie corregía a Naoko — y eso no es teórico:
+la auditoría del 20 de agosto la encontró declarando «deriva del modelo» en dos
+familias enteras justo después de una tarea que había agotado la cuota de esos
+mismos proveedores. Estaba midiendo su propia interferencia y llamándola avería.
+
+Ritsuko es ese revisor. Corre en una familia de modelos **distinta** de las que
+audita, tiene su propio chat y su propia pestaña, y habla solo español o inglés.
+
+- **Solo informa.** No escribe código, no cancela tareas, no toca el reparto del
+  enjambre. Su valor entero está en ser independiente de lo que juzga; un
+  auditor que también ejecuta acaba auditándose a sí mismo.
+- **Revisa los diagnósticos de Naoko** y puede anularlos. Si la muestra de
+  canarios no da para afirmar nada, o si el enjambre estaba gastando cuota en
+  los dos minutos previos, el veredicto de deriva se anula y se dice por qué.
+  Cuando se sostiene, lo confirma — «nadie lo miró» y «lo miré y está bien» son
+  cosas distintas.
+- **Escribe informes descargables** con la evidencia que los sostiene, en
+  `%LOCALAPPDATA%\MagiSystem\informes-ritsuko`.
+
+---
+
+## Cómo trabaja el enjambre
+
+Ocho reglas, sacadas de contrastar lo que hacía MAGI contra lo que hace un
+agente que sí entrega. Cada una es un mecanismo con su prueba, no un consejo.
+
+1. **El encargo es un contrato, no un tema.** «Un ping pong de 32 bits a todo
+   color en un exe portable» son cuatro promesas separables. MAGI las enumera al
+   empezar y comprueba al final cuáles quedaron sin cubrir.
+2. **«Hecho» se define antes de empezar, y lo comprueba una máquina.** Nadie de
+   este sistema ve la pantalla. Si el encargo es un juego, el artefacto tiene
+   que nacer con `--autotest`; si pide un formato de color, con `--formato`. Se
+   exigen al escribir, no al terminar.
+3. **Mirar la caja antes de razonar de memoria.** Se le señalan por su nombre
+   las herramientas que responden a ESE encargo, y para las que se pueden
+   ejecutar solas —`analyze_port` entre dos consolas— el resultado ya viene
+   puesto en el prompt.
+4. **El porqué va pegado al arreglo.** Cada cambio de este repositorio lleva al
+   lado la medición que lo forzó, para que quien venga a simplificarlo lea
+   primero por qué existe.
+5. **Desconfiar del propio informe de éxito.** Toda afirmación comprobable
+   —«se compiló», «las pruebas pasan», «según analyze_port»— se contrasta contra
+   el registro de lo que el sistema hizo de verdad.
+6. **Si el último paso falla, el trabajo se conserva.** Lo hecho no se tira
+   porque lo siguiente falle.
+7. **Pocas pasadas, bien dirigidas.** Tres propuestas que nadie ejecuta valen
+   menos que una que sí: menos enfoques en paralelo, más ciclos de verificación.
+8. **Se contestan todas las partes del enunciado.** Un encargo que pide «el
+   orden que minimiza el riesgo de abandono» y recibe una respuesta que no
+   menciona el abandono está a medias, aunque lo demás sea bueno.
+
+---
+
 ## La columna izquierda: tus conversaciones
 
 - **Títulos generados por IA**: cada conversación se nombra con un resumen corto

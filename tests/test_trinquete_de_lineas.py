@@ -101,7 +101,16 @@ TECHOS: dict[str, int] = {
     # comprobarlo contra el disco. Nació de la ironía de la prueba F —Melchior
     # entregó dos ejecutables que funcionan y el sistema cerró la tarea como
     # INCOMPLETO porque el estado no se enteró.
-    "magi/modules/swarm/orchestrator.py": 1460,
+    # +90 en la v5.10.0, al llevar al enjambre los principios que saqué de mi
+    # propio procedimiento: P2 —los criterios de aceptación viajan con el
+    # encargo y se contrastan al cerrar—, P3 —señalar por su nombre las
+    # herramientas que responden a ESTE encargo, tras medir
+    # `menciones_a_herramientas: 0` en cinco pruebas— y P5 —el contraste con el
+    # registro deja de cubrir solo «se compiló».
+    #
+    # La lógica pesada vive en `aceptacion.py` y `caja_de_herramientas.py`,
+    # que son módulos nuevos; lo que se queda aquí es el cableado y el porqué.
+    "magi/modules/swarm/orchestrator.py": 1550,
 }
 
 #: Para todo lo demás. 800 líneas es mucho para un módulo de Python, y ninguno

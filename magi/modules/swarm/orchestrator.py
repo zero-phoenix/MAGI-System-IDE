@@ -166,16 +166,70 @@ class SwarmOrchestrator:
         """
         texto = (verdict.get("feedback") or "")
         bajo = texto.lower()
-        if not any(a in bajo for a in self._AFIRMACIONES):
-            return None
         hubo_artefacto = bool(state.get("artefactos") or state.get("exe_path"))
         verificacion = state.get("verification") or {}
-        if hubo_artefacto or verificacion.get("passed"):
-            return None
-        return ("[AVISO] La síntesis dice haber compilado o empaquetado algo, y "
-                "en el registro de esta tarea NO consta ningún artefacto "
-                "generado ni verificación en verde. Trátalo como una propuesta, "
-                "no como una entrega: no hay fichero que buscar.")
+
+        if any(a in bajo for a in self._AFIRMACIONES):
+            if not (hubo_artefacto or verificacion.get("passed")):
+                return ("[AVISO] La síntesis dice haber compilado o empaquetado "
+                        "algo, y en el registro de esta tarea NO consta ningún "
+                        "artefacto generado ni verificación en verde. Trátalo "
+                        "como una propuesta, no como una entrega: no hay "
+                        "fichero que buscar.")
+
+        # P5 — EL CONTRASTE NO PUEDE CUBRIR SOLO «SE COMPILÓ».
+        #
+        # C12 nació de un caso concreto —una síntesis que decía haber
+        # empaquetado un .exe inexistente— y se quedó ahí. Pero la forma del
+        # fallo no tiene nada que ver con compilar: es **atribuirse un hecho
+        # comprobable que el registro no sostiene**, y eso se puede decir de
+        # muchas maneras.
+        #
+        # Es el principio que yo aplico sobre mi propio trabajo: desconfiar del
+        # informe de éxito. Dos veces en la sesión del 20-ago me cazó a mí:
+        # una prueba de alfa que fallaba porque mi expectativa estaba mal, y un
+        # primer informe de Ritsuko cuyo veredicto era el mensaje de error del
+        # proveedor — exactamente el fallo que Ritsuko existe para denunciar,
+        # cometido por mí.
+        #
+        # Un sistema que solo se revisa en el caso que ya le pillaron aprende
+        # a esquivar ese caso, no a ser honesto.
+        for señales, sostiene, aviso in self._AFIRMACIONES_EXTRA:
+            if any(s in bajo for s in señales):
+                if not sostiene(state, verificacion, hubo_artefacto):
+                    return aviso
+        return None
+
+    #: (señales, ¿lo sostiene el registro?, qué se avisa si no).
+    #:
+    #: Cada entrada nombra una familia de afirmaciones que el sistema puede
+    #: comprobar sobre sí mismo. Si no se puede comprobar, NO se pone aquí:
+    #: avisar sobre lo que no se sabe es ruido, y el ruido enseña a ignorar
+    #: los avisos.
+    _AFIRMACIONES_EXTRA: tuple[tuple[tuple[str, ...], object, str], ...] = (
+        (("las pruebas pasan", "los tests pasan", "tests en verde",
+          "pruebas en verde", "se ejecutaron los tests",
+          "se ejecutaron las pruebas", "suite en verde"),
+         lambda st, ver, art: bool(ver.get("passed")),
+         "[AVISO] La síntesis dice que las pruebas pasan, y en el registro de "
+         "esta tarea NO consta ninguna verificación ejecutada en verde. Nadie "
+         "ha corrido nada: es una previsión, no un resultado."),
+
+        (("he escrito el fichero", "se escribio el fichero",
+          "se escribió el fichero", "fichero creado", "archivo creado",
+          "guardado en disco"),
+         lambda st, ver, art: art or bool(st.get("ficheros_escritos")),
+         "[AVISO] La síntesis dice haber escrito un fichero y en el registro "
+         "no consta ninguno. Comprueba la ruta antes de darla por buena."),
+
+        (("segun analyze_port", "según analyze_port", "el analizador indica",
+          "la herramienta devuelve", "segun compare_consoles",
+          "según compare_consoles"),
+         lambda st, ver, art: bool(st.get("evidencia_previa")),
+         "[AVISO] La síntesis cita el resultado de una herramienta que no se "
+         "llegó a ejecutar en esta tarea. Es una cita de memoria, no un dato: "
+         "trátala como tal."),
+    )
 
     #: Consolas que el analizador de portabilidad conoce. Se comparan como
     #: palabra entera contra el enunciado.
@@ -454,6 +508,31 @@ class SwarmOrchestrator:
                              "veo en la respuesta: " + ", ".join(pendientes)}))
         except Exception as e:                              # pragma: no cover
             logger.debug("[SWARM] cobertura del enunciado: %s", e)
+
+        # P2 — LOS CRITERIOS DE ACEPTACIÓN, CONTRASTADOS CONTRA LO ENTREGADO.
+        #
+        # Fijarlos al empezar no vale de nada si al terminar nadie los mira:
+        # sería exactamente el mismo teatro que declarar «se compiló
+        # exitosamente» sin binario, con un paso más.
+        #
+        # Se mira en el veredicto Y en la propuesta, porque el modo de prueba
+        # vive en el código, no en el resumen. Y se dice lo que falta: un
+        # criterio que se fijó y no se construyó es información que el usuario
+        # necesita antes de fiarse del resultado.
+        try:
+            from magi.modules.swarm import aceptacion as _acept
+            entregado = (verdict.get("feedback", "") + "\n"
+                         + str((state.get("last_proposal") or {}).get("content", "")))
+            faltan = _acept.sin_comprobar(entregado, state.get("aceptacion") or [])
+            if faltan:
+                await self.bus.publish(BusEvent(
+                    topic="TERMINAL_OUT",
+                    payload={"content":
+                             "[SIN COMPROBAR] Esto se fijó como criterio de "
+                             "aceptación al empezar y no lo veo construido: "
+                             + ", ".join(faltan)}))
+        except Exception as e:                              # pragma: no cover
+            logger.debug("[SWARM] criterios de aceptación: %s", e)
 
         # C4 — contrato de entregable: si pediste un fichero, esto no se cierra
         # con un texto sobre el fichero.
@@ -1097,7 +1176,35 @@ class SwarmOrchestrator:
                 from magi.modules.swarm import contrato as _contrato
                 command_with_memory += _contrato.para_el_prompt(
                     _contrato.compromisos(state.get("command", "")))
-                command_with_memory += self.evidencia_previa(state.get("command", ""))
+                # P2 — QUÉ SIGNIFICA «HECHO», ANTES DE ESCRIBIR NADA.
+                #
+                # El orden es lo importante: los criterios llegan con el
+                # encargo, no al final. Pedir un modo `--autotest` a un
+                # programa ya escrito es pedir que alguien vuelva sobre él, y
+                # eso casi nunca ocurre; exigirlo al empezar hace que el
+                # programa NAZCA pudiendo comprobarse.
+                #
+                # Nadie de este sistema ve la pantalla —ni el enjambre, ni
+                # Naoko, ni yo—, así que un programa que solo se puede juzgar
+                # mirándolo es un programa que no se puede juzgar.
+                from magi.modules.swarm import aceptacion as _acept
+                command_with_memory += _acept.para_el_prompt(
+                    _acept.criterios(state.get("command", "")))
+                # P3 — mirar la caja antes de razonar de memoria. El catálogo
+                # entero ya viajaba al prompt y se ignoraba
+                # (`menciones_a_herramientas: 0` en cinco pruebas); esto
+                # señala por su nombre las que responden A ESTE encargo.
+                from magi.modules.swarm import caja_de_herramientas as _caja
+                command_with_memory += _caja.para_el_prompt(
+                    state.get("command", ""))
+                # Se anota si la herramienta llegó a correr de verdad. Sin
+                # esta marca, el contraste de P5 avisaría de «cita de memoria»
+                # también cuando la cita es legítima — y una alarma falsa
+                # sobre trabajo bien hecho enseña a ignorar las alarmas.
+                _evid = self.evidencia_previa(state.get("command", ""))
+                if _evid:
+                    state["evidencia_previa"] = True
+                command_with_memory += _evid
 
                 variants = await generate_variants(
                     self.melchior, task_id=task_id, command=command_with_memory,
@@ -1207,6 +1314,17 @@ class SwarmOrchestrator:
                         await self.bus.publish(BusEvent(
                             topic="TERMINAL_OUT",
                             payload={"content": _contrato.render(lista)}))
+                    # P2 — y al lado, qué se va a considerar «hecho». Se
+                    # enseña al empezar, no al terminar: el usuario tiene
+                    # derecho a discutir el criterio ANTES de que se gaste
+                    # media hora cumpliéndolo.
+                    from magi.modules.swarm import aceptacion as _acept
+                    crit = _acept.criterios(state.get("command", ""))
+                    state["aceptacion"] = crit
+                    if crit:
+                        await self.bus.publish(BusEvent(
+                            topic="TERMINAL_OUT",
+                            payload={"content": _acept.render(crit)}))
 
                 # D3 — SE CONSTRUYE AQUÍ, ANTES DE CRITICAR Y DE ARBITRAR.
                 #
