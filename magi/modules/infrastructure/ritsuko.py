@@ -173,8 +173,108 @@ class RitsukoAgent:
                      "sonda.actualizada"):
             self.bus.subscribe(tema, self._anotar)
         self.bus.subscribe("ritsuko.user_message", self._handle_user_message)
+        # R1 — de observadora a control de calidad. Ver `_revisar_deriva`.
+        self.bus.subscribe("provider.model_drift", self._revisar_deriva)
         self.activa = True
         logger.info("[ritsuko] auditora en linea (familia razonamiento)")
+
+    #: Cuántos segundos hacia atrás mira Ritsuko para decidir si el sistema
+    #: estaba ocupado cuando Naoko midió. Un canario que falla mientras el
+    #: enjambre quema cuota no dice nada del modelo.
+    VENTANA_DE_INTERFERENCIA_S = 120.0
+
+    async def _revisar_deriva(self, event: BusEvent) -> None:
+        """
+        Segunda firma sobre los diagnósticos de deriva de Naoko (§R1).
+
+        POR QUÉ RITSUKO EXISTÍA Y NO SERVÍA DE NADA
+        ===========================================
+        Hasta aquí Ritsuko era una observadora pura: miraba, escribía informes
+        preciosos, y el sistema seguía exactamente igual. El encargo original
+        fue «que verifique que Naoko corrige adecuadamente a las 3 IA … y
+        redireccione su funcionamiento». La primera mitad estaba hecha; la
+        segunda, no: nada de lo que Ritsuko concluía tocaba nunca una decisión.
+
+        Un auditor cuyas conclusiones no cambian nada no es un auditor: es
+        documentación.
+
+        EL CASO QUE LO JUSTIFICA, MEDIDO
+        ================================
+        2026-08-23, sistema del usuario PARADO, sin ninguna tarea, doscientos
+        segundos de observación:
+
+            Deriva detectada en g4f-gpt: solo 1/3 respuestas canarias correctas
+            Deriva detectada en g4f-gemini: solo 1/3 respuestas canarias correctas
+
+        Dos veredictos críticos sobre proveedores intactos. Naoko no estaba
+        midiendo el modelo: estaba midiendo proveedores gratuitos que ese día
+        devolvían basura —«tud.», cuatro caracteres, tres veces seguidas—.
+
+        Y «deriva» no es una nota al margen: se publica como crítica, invalida
+        las comparaciones y puede reordenar el reparto del enjambre. Un
+        diagnóstico contaminado mueve el sistema con toda la autoridad.
+
+        QUÉ HACE ESTA REVISIÓN, Y QUÉ NO
+        ================================
+        NO arregla nada, NO cambia el reparto y NO toca a los tres nodos.
+        Sigue sin poder hacer más que informar — pero ahora informa SOBRE una
+        conclusión concreta y a tiempo de que se tenga en cuenta:
+
+          · Muestra insuficiente (la mayoría de canarios no contestó bien)
+            -> el veredicto se anula y se dice por qué.
+          · Había trabajo del enjambre en la ventana anterior
+            -> se estaba midiendo la propia interferencia: se anula.
+          · En cualquier otro caso -> se confirma, y queda dicho que se revisó.
+
+        La anulación viaja como `ritsuko.veto_de_deriva`, que es un hecho
+        auditable más, no una orden. Quien lea el bus decide.
+        """
+        r = event.payload if isinstance(event.payload, dict) else {}
+        proveedor = str(r.get("provider") or r.get("provider_id") or "?")
+        acertados = int(r.get("matched") or 0)
+        total = int(r.get("total") or 0)
+
+        motivo = None
+        if total and acertados * 2 < total:
+            motivo = (f"muestra insuficiente: solo {acertados} de {total} "
+                      f"canarios contestaron bien. Para afirmar que un modelo "
+                      f"responde DISTINTO hace falta antes que responda.")
+        elif self._hubo_trabajo_reciente():
+            motivo = ("el enjambre estaba trabajando contra esos mismos "
+                      "proveedores gratuitos en los dos minutos anteriores: "
+                      "lo que se midio fue la cuota gastada, no el modelo.")
+
+        if motivo is None:
+            self._anotado_por_ritsuko(
+                f"Deriva en {proveedor} REVISADA y sostenida "
+                f"({acertados}/{total} canarios, sistema en reposo).")
+            return
+
+        logger.info("[ritsuko] anulo la deriva de %s: %s", proveedor, motivo)
+        await self.bus.publish(BusEvent(
+            topic="ritsuko.veto_de_deriva",
+            payload={"provider": proveedor, "matched": acertados,
+                     "total": total, "motivo": motivo}))
+        await self.bus.publish(BusEvent(topic="ritsuko.log", payload={
+            "agent": "RITSUKO",
+            "content": (f"**Reviso el diagnostico de Naoko sobre {proveedor}.**\n\n"
+                        f"Naoko ha declarado deriva del modelo. No se sostiene: "
+                        f"{motivo}\n\nDejo constancia de que ese veredicto no "
+                        f"debe invalidar comparaciones.")}))
+
+    def _hubo_trabajo_reciente(self) -> bool:
+        """¿Estaba el enjambre gastando cuota justo antes de la medicion?"""
+        ahora = time.monotonic() - self._t0
+        return any(
+            e["tema"] in ("AGENT_POST", "swarm.task_completed")
+            and ahora - float(e["t"]) <= self.VENTANA_DE_INTERFERENCIA_S
+            for e in self._eventos)
+
+    def _anotado_por_ritsuko(self, texto: str) -> None:
+        """Deja la revision en la ventana, sin ruido en la interfaz."""
+        self._eventos.append({
+            "t": round(time.monotonic() - self._t0, 1),
+            "tema": "ritsuko.revision", "quien": "RITSUKO", "texto": texto})
 
     async def _anotar(self, event: BusEvent) -> None:
         p = event.payload if isinstance(event.payload, dict) else {"raw": str(event.payload)}

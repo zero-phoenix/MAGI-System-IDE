@@ -55,7 +55,11 @@ TECHOS: dict[str, int] = {
     # que ella misma está gastando— y la distinción entre «no concluyente» y
     # «deriva». Cuarenta líneas contra cuatro falsos positivos medidos que
     # reordenaban el reparto del enjambre.
-    "magi/modules/infrastructure/naoko.py": 1600,
+    # +30 en la v5.9.0: `deriva_es_concluyente` y su porqué. C13 solo cubría
+    # el «0 de N»; el caso intermedio se coló y produjo dos alarmas críticas
+    # —1/3 canarios en gpt y en gemini— sobre un sistema PARADO e intacto.
+    # Treinta líneas, casi todas explicando por qué 1 de 3 es ruido y no señal.
+    "magi/modules/infrastructure/naoko.py": 1630,
     # +45 en la ejecución del megaplan: la guarda C1 —que el árbitro no firme
     # lo que no ha leído— y el mensaje de entrega sin arbitraje (C2), que trae
     # la tesis y la crítica en vez de tirarlas. Son las líneas que separan
@@ -65,7 +69,15 @@ TECHOS: dict[str, int] = {
     "magi/modules/swarm/agents.py": 1230,
     # +15 en la ejecución del megaplan: B8, la sonda espera a que el enjambre
     # esté quieto en vez de medir la cuota que la tarea acaba de gastar.
-    "magi/core/kernel.py": 1020,
+    # +50 en la v5.9.0 (§G4): B8 comprobaba UNA vez y luego se iba a medir un
+    # minuto — un comprobar-y-actuar con una ventana enorme en medio, y que se
+    # abría en el peor momento posible. Registro del usuario: escribe «crea un
+    # juego de tetris…» y lo siguiente son 32 mediciones de sonda más canarios
+    # con cobertura x3, sesenta y pico llamadas a proveedores gratuitos ANTES
+    # de atenderle. Ahora hay tregua de arranque, `_enjambre_ocupado()` cuenta
+    # también lo encolado y lo que espera en admisión, y se vuelve a mirar
+    # justo antes de gastar.
+    "magi/core/kernel.py": 1070,
     # +48 en la v5.5.2: el filtro de idioma que se le inyecta a Yqcloud por
     # API (responde en chino cuando le apetece) y el catálogo de la familia
     # `gpt` con WeWordle de vuelta, cada entrada con el motivo escrito.

@@ -29,6 +29,33 @@ logger = logging.getLogger(__name__)
 # Heurístico primero (0 ms, 0 tokens): cubre los casos claros. Solo cae a la IA
 # cuando hay ambigüedad real, igual que hace el router de rutas.
 
+
+def deriva_es_concluyente(acertados: int, total: int) -> bool:
+    """
+    ¿Da la muestra de canarios para afirmar que un modelo ha cambiado? (§G3)
+
+    Deriva significa una cosa concreta: el proveedor responde **bien y
+    distinto** a como respondía. Si la mayoría de los canarios ni siquiera
+    llega a contestar bien, lo que se está midiendo es la salud del proveedor
+    —cuota, cortes, respuestas basura— y no la identidad del modelo.
+
+    Medido el 2026-08-23 sobre el sistema del usuario PARADO, en 200 s:
+
+        Deriva detectada en g4f-gpt:    solo 1/3 canarias correctas
+        Deriva detectada en g4f-gemini: solo 1/3 canarias correctas
+
+    Dos alarmas críticas sobre proveedores intactos. Ese mismo día, Perplexity
+    devolvió «tud.» —cuatro caracteres— tres veces seguidas: con proveedores
+    gratuitos, acertar 1 de 3 es ruido normal.
+
+    Se exige mayoría estricta de aciertos. Con tres canarios eso significa 2,
+    que sigue siendo poca muestra; el guardián no pretende ser un test
+    estadístico, sino impedir que el ruido se publique como hecho crítico.
+    """
+    if total <= 0:
+        return False
+    return acertados * 2 > total
+
 # PATRONES — cada estilo se asocia a verbos/sustantivos típicos del usuario.
 _ESTILO_PATRONES = {
     # Analítico: el usuario quiere entender el porqué, desmenuzar.
@@ -857,6 +884,35 @@ planes de pago ni soporte técnico: eso es de otro sistema, no del mío."""
             if report.drifted and report.matched == 0:
                 logger.info("[naoko] %s: 0/%d canarios; lo trato como NO "
                             "concluyente, no como deriva", reg.id, report.total)
+                continue
+            # G3 — CON TRES CANARIOS NO SE DISTINGUE DERIVA DE RUIDO.
+            #
+            # El guardián de arriba (C13) solo cubría el 0 de N. Medido en
+            # caliente el 2026-08-23, sobre el sistema del usuario PARADO y
+            # sin ninguna tarea, en doscientos segundos:
+            #
+            #     Deriva detectada en g4f-gpt: solo 1/3 canarias correctas
+            #     Deriva detectada en g4f-gemini: solo 1/3 canarias correctas
+            #
+            # Dos alarmas en un sistema intacto. Con proveedores gratuitos que
+            # de vez en cuando devuelven basura —ese mismo día, Perplexity
+            # contestó cuatro caracteres, «tud.», tres veces seguidas— acertar
+            # 1 de 3 es lo normal, no una señal.
+            #
+            # Deriva significa una cosa concreta: el proveedor responde BIEN y
+            # DISTINTO a como respondía. Si la mayoría de los canarios ni
+            # siquiera llega a contestar bien, lo que se está midiendo es la
+            # salud del proveedor, no la identidad del modelo. Y «deriva» no es
+            # una nota al margen: se publica como crítica e invalida las
+            # comparaciones del sistema.
+            #
+            # Regla: hace falta que la MAYORÍA conteste correctamente para
+            # poder afirmar nada sobre lo que contestan.
+            if report.drifted and not deriva_es_concluyente(report.matched,
+                                                            report.total):
+                logger.info("[naoko] %s: solo %d/%d canarios correctos; muestra "
+                            "insuficiente para hablar de deriva",
+                            reg.id, report.matched, report.total)
                 continue
             if report.drifted:
                 await self.bus.publish(BusEvent(

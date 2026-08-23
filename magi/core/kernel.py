@@ -851,6 +851,35 @@ class Kernel:
 
         logger.info("Kernel listo.")
 
+    #: Cuánto espera la sonda desde el arranque antes de gastar un solo
+    #: token. Ver el comentario largo de §G4 en `_refrescar_sonda`: el
+    #: primer minuto de una sesión es cuando la persona escribe su primera
+    #: petición, y es exactamente cuando el freno de 24 h dispara el sondeo.
+    _TREGUA_DE_ARRANQUE_S = 120.0
+
+    def _enjambre_ocupado(self) -> bool:
+        """
+        ¿Hay alguien esperando una respuesta ahora mismo?
+
+        Cuenta las tareas en curso Y las que están a punto de arrancar. Mirar
+        solo `in_progress` dejaba fuera el instante que más importa: el que va
+        entre «el usuario pulsa Ejecutar» y «el orquestador marca la tarea en
+        curso». Justo ahí caía el sondeo.
+        """
+        vivas = getattr(self.swarm, "active_tasks", {}) or {}
+        if any((st or {}).get("status") in ("in_progress", "running", "queued")
+               for st in vivas.values()):
+            return True
+        # La cola de admisión: lo que el usuario ya ha escrito y todavía no ha
+        # llegado al orquestador. Si hay algo ahí, hay alguien esperando.
+        try:
+            admision = getattr(self.swarm, "admision", None)
+            if admision is not None and getattr(admision, "pendientes", None):
+                return bool(admision.pendientes())
+        except Exception:                                   # pragma: no cover
+            pass
+        return False
+
     async def _refrescar_sonda(self) -> None:
         """
         Mide los proveedores si toca, y hace que el reparto obedezca al dato.
@@ -879,6 +908,30 @@ class Kernel:
         """
         # Bucle periódico (Fase 1.2) - comprueba periódicamente sin bloquear,
         # pero el freno real está en `sonda.refrescar_si_toca`.
+        # G4 — TREGUA DE ARRANQUE. Medido el 2026-08-23 en el registro del
+        # usuario: abre MAGI, escribe «crea un juego de tetris en un unico
+        # ejecutable exe portable», y lo siguiente que sale por el terminal es
+        #
+        #     [sonda] 32 candidatos medidos, 0 saltados por tope diario
+        #     [sonda] 32 mediciones (la ultima medicion fue hace 84.1 h)
+        #
+        # seguido de los canarios de deriva con cobertura x3 en gpt, gemini y
+        # command. Sesenta y pico llamadas HTTP a proveedores gratuitos
+        # —limitados por cuota— ANTES de atender lo que la persona acababa de
+        # pedir. La familia `razonamiento` acabó agotada devolviendo cuatro
+        # caracteres («tud.») tres veces seguidas.
+        #
+        # B8 ya existía y no bastó, porque comprueba UNA vez y luego se va a
+        # medir durante un minuto: es un comprobar-y-actuar con una ventana
+        # enorme en medio. Y el momento en que se abre esa ventana es
+        # exactamente el peor posible —el arranque—, porque el freno de 24 h
+        # garantiza que la primera sesión del día dispare el sondeo justo
+        # cuando la persona está escribiendo su primera petición.
+        #
+        # La tregua no cuesta nada: la sonda no es urgente. MAGI arranca con
+        # la última medida conocida, que es lo que hace de todas formas.
+        await asyncio.sleep(self._TREGUA_DE_ARRANQUE_S)
+
         while True:
             try:
                 # B8 — la sonda espera a que el enjambre esté quieto.
@@ -890,8 +943,7 @@ class Kernel:
                 # acaba de gastar. En la auditoría del 20-ago se vio
                 # `sonda.actualizada` a mitad de una tarea, y cuatro «derivas»
                 # detectadas justo después.
-                if any((st or {}).get("status") in ("in_progress", "running")
-                       for st in getattr(self.swarm, "active_tasks", {}).values()):
+                if self._enjambre_ocupado():
                     await asyncio.sleep(60)
                     continue
 
@@ -910,6 +962,15 @@ class Kernel:
                 from magi.core.providers.cloud import get_registry
 
                 store = self.swarm.store
+                # Segunda comprobación, pegada al gasto. Entre el `if` de
+                # arriba y esta línea hay imports y una llamada a registro:
+                # poco tiempo, pero suficiente para que entre una petición.
+                # La comprobación barata se hace las veces que haga falta;
+                # el sondeo, una sola vez y solo si sigue sin haber nadie.
+                if self._enjambre_ocupado():
+                    await asyncio.sleep(60)
+                    continue
+
                 hechas, motivo = await sonda.refrescar_si_toca(
                     LlmDeSonda(), candidatos_para_sondear(), store)
                 logger.info("[sonda] %s", motivo)

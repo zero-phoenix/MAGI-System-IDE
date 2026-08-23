@@ -12,6 +12,23 @@ class BusEvent(BaseModel):
     payload: Any
     critical: bool = False
 
+
+#: Temas que se pueden perder sin que el usuario se quede sin saber nada.
+#:
+#: `TERMINAL_OUT` es el volcado del registro: útil para depurar, prescindible
+#: cuando hay que elegir. Una tarea con cobertura x3 genera cientos de líneas
+#: en segundos, y son justo las que llenaban la cola de la interfaz.
+#:
+#: Todo lo demás —lo que dicen Naoko y Ritsuko, lo que aportan los tres nodos,
+#: el estado del enjambre, los errores— se considera irrenunciable. Ante la
+#: duda, un tema NUEVO no entra aquí: es mejor perder una línea de log de más
+#: que perder en silencio algo que la persona estaba esperando.
+_TEMAS_PRESCINDIBLES = ("TERMINAL_OUT", "obs.metric", "sonda.actualizada")
+
+
+def _es_prescindible(topic: str) -> bool:
+    return topic in _TEMAS_PRESCINDIBLES
+
 class MagiBus:
     """
     Bus de eventos en memoria (Pub/Sub).
@@ -180,20 +197,42 @@ class MagiBus:
         del usuario no lo es. Y se lleva la cuenta de lo descartado para
         poder decirlo, en vez de perderlo en silencio.
         """
+        # QUÉ SE TIRA CUANDO NO CABE TODO (v5.9.0 §G2)
+        #
+        # «El más viejo» era una política ciega, y la ceguera se paga con lo
+        # que más duele. La cola de la interfaz —ws_server se suscribe a `"*"`,
+        # así que TODO pasa por ella— se llena de `TERMINAL_OUT`: cada línea de
+        # log de cada proveedor. Durante una tarea con cobertura x3 son cientos
+        # en segundos. Y al llenarse, lo primero que salía por la puerta era lo
+        # más antiguo, que podía ser perfectamente la respuesta de Naoko
+        # esperando su turno detrás de trescientas líneas de registro.
+        #
+        # Ahora, cuando no cabe: si lo que ENTRA es prescindible, se queda
+        # fuera lo que entra. Solo se desaloja a un veterano cuando lo nuevo
+        # es algo que el usuario necesita ver.
+        #
+        # Perder una línea de terminal es un inconveniente. Perder la respuesta
+        # que la persona está esperando delante de la pantalla no lo es.
+        if _es_prescindible(event.topic):
+            self._contar_descarte(event.topic)
+            return
         try:
             q.get_nowait()                  # fuera el más viejo
             q.put_nowait(event)
         except (asyncio.QueueEmpty, asyncio.QueueFull):
             pass                            # otra corrutina se nos adelantó
-        n = self.dropped_counts.get(event.topic, 0) + 1
-        self.dropped_counts[event.topic] = n
+        self._contar_descarte(event.topic)
+
+    def _contar_descarte(self, topic: str) -> None:
+        n = self.dropped_counts.get(topic, 0) + 1
+        self.dropped_counts[topic] = n
         # Se avisa en progresión geométrica (1, 10, 100, 1000...). Registrar
         # cada descarte volvería a generar un evento por descarte, que es
         # justo el bucle que se está cerrando aquí. Y `logger.debug` no pasa
         # por BusLogHandler en el nivel por defecto.
         if n == 1 or (n % 100 == 0):
             logger.debug("[bus] cola llena en '%s': %d evento(s) descartado(s)",
-                         event.topic, n)
+                         topic, n)
 
     def dropped_report(self) -> dict[str, int]:
         """Qué se ha descartado y cuánto. Lo enseña el panel de sistema."""

@@ -54,7 +54,29 @@ _GUI_MARKERS = re.compile(
 # Tope de ejecución para un bloque GUI: no hace falta 45s para saber si un
 # juego arranca; con un par de segundos alcanza para levantar la ventana,
 # renderizar algún frame y detectar un traceback si lo hay.
-_GUI_TIMEOUT_S = 8.0
+#
+# 8 s ERA DEMASIADO POCO, y la forma de fallar era la peor posible (§G5).
+# Medido en este equipo el 2026-08-23, con `SDL_VIDEODRIVER=dummy`:
+#
+#     import pygame   1,61 s
+#     pygame.init()   0,31 s
+#     ------------------------
+#     total           1,91 s   ANTES de ejecutar una sola línea del usuario
+#
+# Más el arranque del intérprete y con la máquina ocupada, el margen que
+# quedaba para ejecutar el código no daba. Y al agotarse el plazo, un bloque
+# GUI salía como `skipped` con `ok=True`: **un Tetris roto se aprobaba**. Se
+# reprodujo con un script de tres líneas cuya tercera es `x = no_existe`; con
+# 20 s se detecta el NameError, con 6 s se aprueba.
+#
+# Un plazo que al agotarse APRUEBA es un plazo peligroso. Se sube el tope, y
+# —más importante— la ausencia de fotogramas deja de ser un aprobado: ver
+# `_MARCA_PRIMER_FOTOGRAMA`.
+_GUI_TIMEOUT_S = 25.0
+
+#: El guardián lo imprime en cuanto el bloque pinta su primer fotograma. Es la
+#: única prueba de que el código llegó de verdad al bucle de dibujo.
+_MARCA_PRIMER_FOTOGRAMA = "[MAGI-GUI] primer fotograma"
 
 
 def _es_bloque_gui(code: str) -> bool:
@@ -91,13 +113,18 @@ try:
         def _magi_stop():
             _magi_pg.quit()
             raise SystemExit(0)
+        def _magi_marca():
+            if _magi_n["f"] == 1:
+                print("[MAGI-GUI] primer fotograma", flush=True)
         def _magi_flip_wrap(*a, **k):
             _magi_n["f"] += 1
+            _magi_marca()
             if _magi_n["f"] >= 30:
                 _magi_stop()
             return _magi_flip(*a, **k)
         def _magi_upd_wrap(*a, **k):
             _magi_n["f"] += 1
+            _magi_marca()
             if _magi_n["f"] >= 30:
                 _magi_stop()
             return _magi_upd(*a, **k)
@@ -475,12 +502,40 @@ class ProposalVerifier:
         # distinta): se dice que requiere GUI en vez de FALLA, porque el
         # código puede ser correcto y solo no verificable headless.
         if rc == 124 and es_gui:
+            # §G5 — UN PLAZO QUE AL AGOTARSE APRUEBA ES UN PLAZO PELIGROSO.
+            #
+            # Antes, cualquier bloque GUI que llegara al tiempo límite salía
+            # `skipped` con `ok=True`. La intención era buena: un juego pygame
+            # correcto no termina solo, y marcarlo como fallo era injusto.
+            #
+            # Pero eso convertía «no me dio tiempo a comprobarlo» en «está
+            # bien», y las dos cosas no se parecen en nada. Reproducido el
+            # 2026-08-23 con tres líneas —`import pygame`, `pygame.init()`,
+            # `x = no_existe`—: con plazo corto el NameError nunca llega a
+            # verse y el bloque se aprueba. En una máquina lenta, un Tetris
+            # roto pasaba la verificación.
+            #
+            # La diferencia la da la prueba de que el código llegó a dibujar.
+            # El guardián imprime una marca en su primer fotograma:
+            #
+            #   · con marca -> llegó al bucle de dibujo y no termina solo.
+            #                  Eso SÍ es un juego que arranca: `skipped`.
+            #   · sin marca -> no sabemos nada. No se aprueba.
+            if _MARCA_PRIMER_FOTOGRAMA in out:
+                return BlockResult(
+                    lang, i, True, "skipped",
+                    "bloque con interfaz gráfica (GUI): arrancó, pintó "
+                    "fotogramas y no termina por sí solo, que es lo normal en "
+                    "un juego. Sintaxis, imports y bucle de dibujo "
+                    "verificados; la comprobación visual requiere abrirlo a "
+                    "mano. NO se marca como fallo.")
             return BlockResult(
-                lang, i, True, "skipped",
-                "bloque con interfaz gráfica (GUI): arrancó pero no terminó "
-                "en modo headless. Verifica la sintaxis y los imports; la "
-                "ejecución visual requiere abrirlo a mano. NO se marca como "
-                "fallo: un juego pygame correcto no termina por sí solo.")
+                lang, i, False, "run",
+                "NO VERIFICADO: el bloque con interfaz gráfica agotó el plazo "
+                f"de {timeout:.0f} s sin llegar a pintar un solo fotograma. No "
+                "se sabe si arranca —puede ser lento, puede estar colgado antes "
+                "del bucle, puede reventar—, así que no se da por bueno. "
+                f"Salida:\n{out[-1200:]}")
         # Fallo por falta de display (tkinter en Linux sin X): el código puede
         # ser correcto, solo no se puede verificar gráficamente aquí.
         if rc != 0 and es_gui and _FALTA_DISPLAY.search(out):

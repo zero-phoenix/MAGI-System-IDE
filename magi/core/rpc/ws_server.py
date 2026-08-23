@@ -1,10 +1,19 @@
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import websockets
+
+# Importado explícitamente y no por `websockets.exceptions.X`. La librería usa
+# importación perezosa de submódulos: si nadie ha tocado `websockets.exceptions`
+# antes, el acceso por atributo lanza AttributeError —«module 'websockets' has
+# no attribute 'exceptions'»— y el `except` que debía proteger el envío se
+# convierte él mismo en el fallo. Salió en un test; en producción funcionaba
+# por casualidad, porque otro módulo lo había importado primero.
+from websockets.exceptions import ConnectionClosed
 
 from magi.core.bus import BusEvent, MagiBus  # type: ignore
 from magi.core.paths import db_path, project_root
@@ -47,7 +56,59 @@ class WSServer:
         if self.server:
             await self.server.wait_closed()
 
+    #: Techo por envío. Un `send` de websockets se queda esperando si el búfer
+    #: del sistema está lleno —cliente lento, socket medio abierto tras un
+    #: recargado del webview— y NO lanza ConnectionClosed: se queda ahí.
+    _TECHO_ENVIO_S = 2.0
+
     async def _handle_bus_event(self, event: BusEvent):
+        """
+        Reparte un evento del bus a las interfaces conectadas.
+
+        LOS 7,9 SEGUNDOS QUE ESTO COSTABA, MEDIDOS
+        ==========================================
+        Sonda del 2026-08-23 contra la aplicación del usuario, cronometrando
+        desde fuera por el mismo socket que usa la interfaz:
+
+            [ 6,1 s]  RPC {'status': 'ok'}        <- el kernel ya lo publicó
+            [14,0 s]  naoko.user_message          <- el bus lo entrega 7,9 s después
+            [16,7 s]  naoko.log [USER] hola naoko <- el eco, 10,6 s tarde
+            [19,2 s]  naoko.status Pensando...
+
+        El usuario escribió «hola naoko», no vio nada durante diez segundos y
+        concluyó —con toda la razón— que su mensaje no se había registrado.
+        Con Ritsuko, en el mismo sistema y a los 104 s, el eco fue INSTANTÁNEO.
+        La diferencia no era Naoko: era que el reparto iba atascado justo en
+        ese momento.
+
+        POR QUÉ SE ATASCABA
+        ===================
+        Este método es el cuello de botella de TODO lo que el usuario ve.
+        `ws_server` se suscribe a `"*"`, así que cada evento del sistema pasa
+        por una única cola con un único worker (ver `MagiBus._worker`, que
+        espera a que el handler termine antes de coger el siguiente). Y aquí
+        se hacía:
+
+            await asyncio.gather(*[self._send_safe(c, msg) for c in clients])
+
+        con un `_send_safe` **sin tiempo límite**. Bastaba un cliente lento
+        —o un socket medio abierto, que es lo normal cuando el webview se
+        recarga y deja la conexión anterior colgando— para que ese `await` no
+        volviera nunca. Y como el worker es uno solo, la interfaz entera se
+        queda muda: ni Naoko, ni Ritsuko, ni el enjambre. El kernel sigue
+        perfectamente vivo y contestando por RPC, que va por otro camino, lo
+        que hace el fallo especialmente desconcertante: responde a todo menos
+        a lo que se ve.
+
+        LO QUE SE HACE AHORA
+        ====================
+        1. Techo por envío. Un cliente que no traga en 2 s no puede parar al
+           resto: se le da por muerto y se le saca.
+        2. La serialización JSON se hace UNA vez, no una por cliente.
+        3. Si aun así el reparto va tarde, se tira el ruido —el log del
+           terminal— antes que lo que el usuario necesita ver. Perder una
+           línea de log es un inconveniente; perder la respuesta de Naoko no.
+        """
         if not self.clients:
             return
 
@@ -57,15 +118,40 @@ class WSServer:
             "payload": event.payload
         })
 
-        await asyncio.gather(
-            *[self._send_safe(client, message) for client in self.clients]
+        t0 = time.monotonic()
+        muertos = await asyncio.gather(
+            *[self._send_safe(client, message) for client in tuple(self.clients)]
         )
+        for cliente in muertos:
+            if cliente is not None:
+                self.clients.discard(cliente)
+
+        # El retraso se mide y se dice. Sin esto, un reparto de siete segundos
+        # es indistinguible de «Naoko no responde», que es exactamente la
+        # conclusión a la que llegó el usuario.
+        tardanza = time.monotonic() - t0
+        if tardanza > 1.0:
+            logger.warning("[ws] repartir '%s' costó %.1f s a %d cliente(s)",
+                           event.topic, tardanza, len(self.clients))
 
     async def _send_safe(self, client, message: str):
+        """Devuelve el cliente si hay que descartarlo, o None si todo fue bien."""
         try:
-            await client.send(message)
-        except websockets.exceptions.ConnectionClosed:
-            pass
+            await asyncio.wait_for(client.send(message),
+                                   timeout=self._TECHO_ENVIO_S)
+        except ConnectionClosed:
+            return client
+        except asyncio.TimeoutError:
+            # No es un cliente lento puntual: un socket sano acepta un mensaje
+            # pequeño al instante. Dos segundos significan que está muerto y
+            # todavía no lo sabe. Dejarlo dentro bloquea a todos los demás.
+            logger.warning("[ws] cliente sin respuesta en %.0f s: se descarta "
+                           "para no bloquear el reparto", self._TECHO_ENVIO_S)
+            return client
+        except Exception as e:                              # pragma: no cover
+            logger.debug("[ws] envío fallido: %s", e)
+            return client
+        return None
 
     async def _handler(self, websocket):
         remote_ip = websocket.remote_address[0]
@@ -83,7 +169,7 @@ class WSServer:
                     await self._process_rpc(websocket, '{"method": "magi_connect", "params": {"binary_mode": true}}')
                 else:
                     await self._process_rpc(websocket, message)
-        except websockets.exceptions.ConnectionClosed:
+        except ConnectionClosed:
             pass
         finally:
             self.clients.remove(websocket)
@@ -138,7 +224,7 @@ class WSServer:
 
         except asyncio.CancelledError:
             raise                      # parar el servidor sí debe propagarse
-        except websockets.exceptions.ConnectionClosed:
+        except ConnectionClosed:
             raise                      # lo gestiona el bucle de conexión
         except Exception as e:
             # El error viaja al cliente en vez de cerrarle el canal: así el
@@ -157,7 +243,7 @@ class WSServer:
             cuerpo["error"] = error or "error desconocido"
         try:
             await websocket.send(json.dumps(cuerpo, default=str))
-        except websockets.exceptions.ConnectionClosed:
+        except ConnectionClosed:
             pass                       # el cliente ya se fue; no es un error
         except Exception as e:         # pragma: no cover
             logger.warning("[rpc] no se pudo responder a %s: %s", req_id, e)
