@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """ronda_emulador — la Ronda 2 de YabauseVita como procedimiento ejecutable.
 
 Ingeniería inversa de la metodología de la ronda 1: lo que el supervisor
@@ -87,29 +86,36 @@ def exp_nights(ctl) -> dict:
 
 
 def exp_input(ctl) -> dict:
-    """2. Input: en pantalla con imagen, ENTER (START del Saturn) debe mover
-    píxeles más que el parpadeo de un cursor (umbral 1,5 %)."""
+    """2. Input. OJO con el diseño (v5.11.0 se equivocó aquí): medir diff
+    antes/después en un attract QUE YA SE MUEVE no aísla la pulsación — el
+    delta salió negativo con el juego vivo y el veredicto mintió. Protocolo
+    corregido: capturas a 1 s, se mide el PICO de transición (un cambio de
+    escena es un salto en UNA captura), y se compara contra un CONTROL de
+    6 s sin pulsar: el input cruza si el pico tras la pulsación supera
+    holgadamente el máximo que da el juego solo."""
     ctl.set_config({"rom_path": GAMES["sonicr"], "autostart": 1, "cpu_mode": 0,
                     "show_fps": 1, "auto_bios": 1, "bios_path": ""})
     off = ctl.log_size()
     ctl.launch(ctl.APP_DIR)
-    time.sleep(70)  # título/attract con imagen
-    pre = ctl.monitor(seconds=9, interval=3, tag="r2-input-pre")
+    time.sleep(70)  # attract con imagen
+
+    control = ctl.monitor(seconds=6, interval=1, tag="r2-input-control")
     ctl.press_key("ENTER", hold=0.3)
-    time.sleep(2.5)
-    post = ctl.monitor(seconds=9, interval=3, tag="r2-input-post")
+    tras = ctl.monitor(seconds=6, interval=1, tag="r2-input-tras")
     txt = ctl.read_new_text(off)
     ctl.kill()
-    delta = (post["diff_pct_mediana"] or 0) - (pre["diff_pct_mediana"] or 0)
-    cruzo = delta >= 1.5 and pre["has_image"]
+
+    pico_control = max(control.get("diffs_por_captura") or [0])
+    pico_tras = max(tras.get("diffs_por_captura") or [0])
+    cruzo = pico_tras >= max(8.0, 2.0 * pico_control)
     return {"experimento": "input_al_juego",
-            "pre": {k: pre[k] for k in ("has_image", "diff_pct_mediana")},
-            "post": {"diff_pct_mediana": post["diff_pct_mediana"]},
-            "delta_diff_pct": round(delta, 2),
+            "pico_diff_control_pct": round(pico_control, 2),
+            "pico_diff_tras_pct": round(pico_tras, 2),
+            "imagen_previa": control["has_image"],
             "errors": ctl.scan_errors(txt),
             "veredicto": "EL INPUT CRUZA" if cruzo else
-            "INCONCLUSO (sin imagen previa)" if not pre["has_image"] else
-            "EL INPUT NO CRUZA"}
+            "INCONCLUSO (sin imagen previa)" if not control["has_image"] else
+            "EL INPUT NO CRUZA (picos parejos)"}
 
 
 def exp_dynarec(ctl) -> dict:

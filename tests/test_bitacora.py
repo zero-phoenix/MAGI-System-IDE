@@ -15,7 +15,6 @@ import pytest
 
 from magi.modules.swarm import bitacora
 
-
 BITACORA_FALSA = """# Bitácora de prueba
 
 ## 1. Introducción
@@ -189,5 +188,5 @@ def test_el_orquestador_inyecta_la_bitacora():
     m = re.search(r"import\s+bitacora\s+as\s+(\w+)", iny)
     assert m, "las inyecciones no importan la bitácora"
     # La LLAMADA, no cómo se llame el alias.
-    assert "%s.para_el_prompt" % m.group(1) in iny, (
+    assert f"{m.group(1)}.para_el_prompt" in iny, (
         "la bitácora se importa pero no se inyecta en el prompt")

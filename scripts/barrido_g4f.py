@@ -15,6 +15,7 @@ instalar_cortafuegos()
 
 import g4f  # noqa: E402  — después del cortafuegos, a propósito
 
+
 async def medir_proveedor(provider_name):
     cls = getattr(g4f.Provider, provider_name, None)
     if cls is None:

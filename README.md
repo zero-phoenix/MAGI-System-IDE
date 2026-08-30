@@ -12,34 +12,32 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.11.0: corridas con ojos
+## Qué hay de nuevo en la v5.12.0: la Ronda 2, ejecutada y supervisada
 
-El 30 de agosto de 2026, midiendo el emulador YabauseVita, el log dijo
-durante media hora: `FPS: 59.9, drawn=296, presented=296` — números perfectos.
-La pantalla era **negra**: un intérprete SH2 roto que ejecutaba el 2 % del
-trabajo también «hace 60 FPS». El contador contaba vueltas de bucle, no juego.
+La v5.11.0 dio al sistema el protocolo de corridas con ojos (R9). La v5.12.0
+lo puso a trabajar: **la Ronda 2 de YabauseVita se ejecutó con el
+procedimiento del propio sistema** y la supervisión encontró —y corrigió— dos
+fallos en el procedimiento mismo:
 
-Esa tarde nacieron tres mecanismos que ahora viven en el sistema:
+- El experimento de input medía mal (diff antes/después en una escena que ya
+  se mueve no aísla la pulsación). Ahora usa picos de transición con control
+  sin pulsar, y todo veredicto declara en qué pantalla se midió.
+- El release v5.11.0 destapó un `bitacora.py` que existía en el disco de
+  desarrollo y no en git: suite local verde, CI roto. Ahora hay trinquete de
+  versionado — un módulo sin versionar es un fallo con nombre.
+
+Los tres mecanismos de la v5.11.0 siguen ahí:
 
 - **Bitácora inyectada** — cuando el encargo trata de optimizar el emulador,
-  el enjambre recibe ARRIBA de su prompt el conocimiento acumulado de las
-  rondas anteriores: lo ya medido (hallazgos A1-A18) y lo que no hay que
-  volver a intentar (reglas R1-R11). Nadie vuelve a proponer lo que ya perdió
-  con evidencia.
-- **Protocolo de corrida verificada (R9)** — una corrida de emulador sin
-  capturas de pantalla con veredicto de **imagen** (% de píxel negro) y
-  **movimiento** (% de píxeles que cambian) no se acepta como evidencia.
-  El protocolo se inyecta solo cuando aplica, distingue los DOS contadores
-  de FPS que existen (el de la app anfitriona y el del ROM emulado), y
-  enseña a capturar la ventana correcta — el anfitrión abre dos.
-- **Ronda ejecutable** — `scripts/ronda_emulador.py` convierte la
-  metodología del supervisor en procedimiento: lanza, espera, captura,
-  pulsa, juzga, y devuelve el veredicto en el formato R9. El enjambre lo
-  corre con sus herramientas; el veredicto no depende de quien mire.
-
-Con esto el ciclo de optimización del emulador queda cerrado de punta a
-punta: el enjambre propone, ejecuta corridas **con ojos**, y la bitácora
-acumula lo aprendido para la ronda siguiente.
+  el enjambre recibe ARRIBA de su prompt lo ya medido (hallazgos A1-A22) y lo
+  que no hay que volver a intentar (reglas R1-R13), junto con las **tres
+  filosofías ortogonales** (hacer menos → composite, mover menos → upload,
+  repartir mejor → dropped): cada propuesta declara su métrica.
+- **Protocolo de corrida verificada (R9)** — sin capturas con veredicto de
+  imagen y movimiento, la corrida no existe. Con los DOS contadores de FPS
+  citados por separado (app anfitriona vs ROM emulado).
+- **Ronda ejecutable** — `scripts/ronda_emulador.py`: lanza, espera, captura,
+  pulsa, juzga. Veredicto JSON en formato R9, independiente de quien mire.
 
 ---
 
