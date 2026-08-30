@@ -1,13 +1,45 @@
 # MAGI System IDE
 
 Un entorno de desarrollo con un **enjambre de tres inteligencias que aplican el
-método dialéctico** (tesis → antítesis → síntesis) y **herramientas reales sobre
-tu máquina** para ejecutar lo que deciden.
+método dialéctico** (tesis → antítesis → síntesis), **herramientas reales sobre
+tu máquina** para ejecutar lo que deciden, y una regla que lo atraviesa todo:
+**una afirmación sin evidencia verificada no es una afirmación**.
 
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
 **[⬇ Descargar la última versión para Windows](https://github.com/zero-phoenix/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta. Sin instalador.
+
+---
+
+## Qué hay de nuevo en la v5.11.0: corridas con ojos
+
+El 30 de agosto de 2026, midiendo el emulador YabauseVita, el log dijo
+durante media hora: `FPS: 59.9, drawn=296, presented=296` — números perfectos.
+La pantalla era **negra**: un intérprete SH2 roto que ejecutaba el 2 % del
+trabajo también «hace 60 FPS». El contador contaba vueltas de bucle, no juego.
+
+Esa tarde nacieron tres mecanismos que ahora viven en el sistema:
+
+- **Bitácora inyectada** — cuando el encargo trata de optimizar el emulador,
+  el enjambre recibe ARRIBA de su prompt el conocimiento acumulado de las
+  rondas anteriores: lo ya medido (hallazgos A1-A18) y lo que no hay que
+  volver a intentar (reglas R1-R11). Nadie vuelve a proponer lo que ya perdió
+  con evidencia.
+- **Protocolo de corrida verificada (R9)** — una corrida de emulador sin
+  capturas de pantalla con veredicto de **imagen** (% de píxel negro) y
+  **movimiento** (% de píxeles que cambian) no se acepta como evidencia.
+  El protocolo se inyecta solo cuando aplica, distingue los DOS contadores
+  de FPS que existen (el de la app anfitriona y el del ROM emulado), y
+  enseña a capturar la ventana correcta — el anfitrión abre dos.
+- **Ronda ejecutable** — `scripts/ronda_emulador.py` convierte la
+  metodología del supervisor en procedimiento: lanza, espera, captura,
+  pulsa, juzga, y devuelve el veredicto en el formato R9. El enjambre lo
+  corre con sus herramientas; el veredicto no depende de quien mire.
+
+Con esto el ciclo de optimización del emulador queda cerrado de punta a
+punta: el enjambre propone, ejecuta corridas **con ojos**, y la bitácora
+acumula lo aprendido para la ronda siguiente.
 
 ---
 
@@ -39,6 +71,9 @@ NAOKO elige el estilo
     ▼
 MELCHIOR  ──TESIS────▶  BALTHASAR  ──ANTÍTESIS────▶  CASPER
 (construye)            (refuta con evidencia)       (SÍNTESIS al usuario)
+     ▲                        ▲                          │
+     └──── BITÁCORA + PROTOCOLO R9 + HERRAMIENTAS ───────┘
+     (lo ya aprendido y lo que la corrida exige, inyectados ARRIBA)
                                                          │
                                                          ▼
                                               RESPUESTA DEFINITIVA (en español)
@@ -91,7 +126,6 @@ La barra superior tiene un único selector con dos opciones:
 - **⚡ Súper rapidez** — temperatura normal, menos vueltas. Rápida.
 
 El estilo de redacción lo decide **Naoko automáticamente** según tu pregunta.
-Ya no hay que elegir un estilo a mano antes de cada petición.
 
 ---
 
@@ -101,9 +135,8 @@ Naoko es externa al enjambre de tres. **Supervisa, diagnostica y repara**, y
 además **decide el estilo** de cada respuesta:
 
 - **Clasifica tu petición** (técnica, sintética, creativa, analítica) y propaga
-  ese estilo a los tres agentes. Es la que mejor entiende qué tipo de respuesta
-  conviene a lo que preguntaste.
-- **Repara sola** cuando hay un fallo con tests que lo demuestran. Sin
+  ese estilo a los tres agentes.
+- **Repara sola** cuando hay un fallo con tests que lo demuestren. Sin
   consultar: el usuario no debe ser el cuello de botella de su propio sistema.
 - **Mejora contigo** cuando el cambio es de criterio (no de corrección). Ahí va
   con compuertas: tú apruebas cada paso, y publicar es siempre tu decisión.
@@ -123,13 +156,10 @@ Ritsuko es ese revisor. Corre en una familia de modelos **distinta** de las que
 audita, tiene su propio chat y su propia pestaña, y habla solo español o inglés.
 
 - **Solo informa.** No escribe código, no cancela tareas, no toca el reparto del
-  enjambre. Su valor entero está en ser independiente de lo que juzga; un
-  auditor que también ejecuta acaba auditándose a sí mismo.
-- **Revisa los diagnósticos de Naoko** y puede anularlos. Si la muestra de
-  canarios no da para afirmar nada, o si el enjambre estaba gastando cuota en
-  los dos minutos previos, el veredicto de deriva se anula y se dice por qué.
-  Cuando se sostiene, lo confirma — «nadie lo miró» y «lo miré y está bien» son
-  cosas distintas.
+  enjambre.
+- **Revisa los diagnósticos de Naoko** y puede anularlos. Cuando la evidencia
+  se sostiene, lo confirma — «nadie lo miró» y «lo miré y está bien» son cosas
+  distintas.
 - **Escribe informes descargables** con la evidencia que los sostiene, en
   `%LOCALAPPDATA%\MagiSystem\informes-ritsuko`.
 
@@ -149,53 +179,65 @@ agente que sí entrega. Cada una es un mecanismo con su prueba, no un consejo.
    exigen al escribir, no al terminar.
 3. **Mirar la caja antes de razonar de memoria.** Se le señalan por su nombre
    las herramientas que responden a ESE encargo, y para las que se pueden
-   ejecutar solas —`analyze_port` entre dos consolas— el resultado ya viene
-   puesto en el prompt.
+   ejecutar solas el resultado ya viene puesto en el prompt.
 4. **El porqué va pegado al arreglo.** Cada cambio de este repositorio lleva al
    lado la medición que lo forzó, para que quien venga a simplificarlo lea
    primero por qué existe.
 5. **Desconfiar del propio informe de éxito.** Toda afirmación comprobable
    —«se compiló», «las pruebas pasan», «según analyze_port»— se contrasta contra
    el registro de lo que el sistema hizo de verdad.
-6. **Si el último paso falla, el trabajo se conserva.** Lo hecho no se tira
-   porque lo siguiente falle.
+6. **Si el último paso falla, el trabajo se conserva.**
 7. **Pocas pasadas, bien dirigidas.** Tres propuestas que nadie ejecuta valen
-   menos que una que sí: menos enfoques en paralelo, más ciclos de verificación.
-8. **Se contestan todas las partes del enunciado.** Un encargo que pide «el
-   orden que minimiza el riesgo de abandono» y recibe una respuesta que no
-   menciona el abandono está a medias, aunque lo demás sea bueno.
+   menos que una que sí.
+8. **Se contestan todas las partes del enunciado.**
+
+Y desde la v5.11.0, una más que ya no es opcional donde hay una pantalla de por
+medio: **una corrida sin ojos no es evidencia**. Ver «Rondas verificadas» abajo.
 
 ---
 
 ## La columna izquierda: tus conversaciones
 
 - **Títulos generados por IA**: cada conversación se nombra con un resumen corto
-  de tu petición («Juego Tetris portable»), no con un identificador críptico.
-- **Archivar (📦)**: guarda la conversación fuera de la vista sin perderla.
-- **Borrar (🗑)**: la elimina de la lista, con confirmación inline.
-- **Persistencia**: al cerrar y reabrir, tus conversaciones siguen ahí con sus
-  títulos. No se pierden tras un reinicio.
+  de tu petición, no con un identificador críptico.
+- **Archivar (📦)** y **borrar (🗑)** con confirmación inline.
+- **Persistencia**: al cerrar y reabrir, tus conversaciones siguen ahí.
 
 ---
 
 ## Qué sabe hacer
 
 Más allá de debatir, el enjambre tiene **50 herramientas** reales sobre tu
-máquina, repartidas por rol y acotadas por dominio antes de entrar en el prompt.
+máquina, repartidas por rol y acotadas por dominio antes de entrar al prompt.
 
 - **Ingeniería de software**: crear, modificar y ejecutar código, construir
   proyectos, empaquetar a `.exe` portable.
 - **Ingeniería inversa y emuladores**: desensamblado (Capstone), emulación
   (Unicorn), entropía de Shannon por regiones.
+- **Rondas de optimización verificadas**: bitácora acumulativa inyectada al
+  prompt, protocolo de corrida con capturas (imagen + movimiento), dos
+  contadores de FPS distinguibles y un harness (`vita3k_ctl.py`) que lanza el
+  emulador sin manos. El caso piloto es YabauseVita (Sega Saturn para PS
+  Vita): la ronda 1 encontró y arregló cinco bloqueos que el log daba por
+  buenos.
 - **Fábrica de artefactos que se mira a sí misma**: especificar → generar →
-  ejecutar/renderizar → **observar** → criticar → iterar. Un juego se arranca
-  headless y se captura un fotograma para comprobar que el jugador se distingue
-  del fondo.
+  ejecutar/renderizar → **observar** → criticar → iterar.
 - **Vídeo programático**: animática Ken Burns, manga → vídeo en vertical, con
   detección de fotogramas en negro o congelados.
 - **Mundo real**: macro, geopolítica y finanzas con fuentes gratuitas y sin
   clave (FRED, BCE, Banco Mundial, SEC EDGAR). Un dato no se construye sin
   fuente y fecha.
+
+### Rondas verificadas: el caso YabauseVita
+
+El repositorio del emulador lleva una bitácora (`docs/BITACORA-OPTIMIZACION.md`)
+donde cada ronda deja lo medido y las reglas derivadas — nunca se borra nada.
+MAGI la lee entera al empezar cada ronda y rechaza propuestas que choquen con
+una regla pagada con evidencia. En la ronda 1, ese ciclo encontró: la CI rota
+desde tres semanas, los flags agresivos, dos núcleos de emulación rotos que
+reportaban 60 FPS fantasma, la cadena de vídeo incompatible y la BIOS de región
+equivocada. Panzer Dragoon quedó a velocidad completa y Sonic R jugable —
+verificado con capturas, no con log.
 
 ---
 
@@ -206,11 +248,11 @@ El acceso sin restricciones a tu máquina se sostiene sobre dos salidas:
 - **Deshacer.** Antes de tocar un fichero se copia. `undo` lo devuelve, por
   operación o por tarea entera.
 - **Parar.** `PARAR ESTA` cancela una conversación; `PARAR TODO` es la parada de
-  emergencia. Manda `SIGTERM` primero y solo `SIGKILL` si no atienden, y devuelve
-  un informe de lo que paró **de verdad**.
+  emergencia. `SIGTERM` primero, `SIGKILL` solo si no atienden, con informe de
+  lo que paró **de verdad**.
 
-La misma copia que da la reversibilidad alimenta el **panel de aprobación**: qué
-ficheros toca el cambio, su contenido antes y después con un diff real, las
+La misma copia que da la reversibilidad alimenta el **panel de aprobación**:
+qué ficheros toca el cambio, su contenido antes y después con un diff real, las
 órdenes que se ejecutarán y si los tests pasaron.
 
 ---
@@ -227,13 +269,10 @@ ficheros toca el cambio, su contenido antes y después con un diff real, las
   y auto-mejora medible.
 - **Dónde se va el tiempo**: los agentes, familias y herramientas más lentos,
   ordenados por **p95**, no por media.
-- **Salud por día** *(nuevo en v5.5.0)*: chispa con la latencia diaria de cada
-  candidato (14 días) y su tendencia. La media histórica esconde que un
-  proveedor pasó de 3 s a 9 s esta semana; la pendiente no.
-- **Por qué faltan proveedores** *(nuevo en v5.5.0)*: los que exigen tu cuenta
-  o abren navegador («no van a volver») separados de los caídos («HTTP 429,
-  puede volver»), cada uno con su motivo medido — no un «sin verificar»
-  eterno.
+- **Salud por día** *(v5.5.0)*: chispa con la latencia diaria de cada candidato
+  (14 días) y su tendencia.
+- **Por qué faltan proveedores** *(v5.5.0)*: los que exigen tu cuenta separados
+  de los caídos, cada uno con su motivo medido.
 
 ---
 
@@ -271,9 +310,19 @@ python -m magi.main
 ```
 
 Opcionales, detectados si están: `capstone` y `unicorn` (ingeniería inversa),
-`pygame` y `pillow` (observar juegos e imágenes), `ffmpeg` (vídeo), ComfyUI en
-`127.0.0.1:8188` (dibujo). Sin ellos el sistema funciona y **avisa de lo que no
-puede hacer**, en vez de fingir.
+`pygame` y `pillow` (observar juegos e imágenes — las capturas verificadas de
+las rondas usan Pillow), `ffmpeg` (vídeo), ComfyUI en `127.0.0.1:8188` (dibujo).
+Sin ellos el sistema funciona y **avisa de lo que no puede hacer**, en vez de
+fingir.
+
+### Ejecutar una ronda del emulador desde el código
+
+```bash
+python scripts/ronda_emulador.py --repo C:\ruta\al\yabausevita-zp
+```
+
+Cada experimento (NiGHTS largo, input, dynarec, perfil SH2) sale como JSON con
+veredicto en formato R9: imagen + movimiento + ambos FPS + errores.
 
 ---
 
@@ -281,27 +330,20 @@ puede hacer**, en vez de fingir.
 
 Siete reglas, cada una nacida de un fallo real:
 
-1. **Todo cambio se conecta o se borra.** Nunca se añade sin conectar. Tres
-   veces se escribió la pieza correcta, con sus tests en verde, y no la llamaba
-   nadie.
+1. **Todo cambio se conecta o se borra.** Nunca se añade sin conectar.
 2. **Un test sobre una pieza aislada no prueba que el sistema la use.** Por eso
-   hay una auditoría del grafo de llamadas con AST y un trinquete que solo puede
-   bajar.
+   hay una auditoría del grafo de llamadas con AST y un trinquete de tamaños
+   que solo puede bajar.
 3. **Cada capacidad del backend tiene que poder invocarse desde la interfaz.**
-4. **Arrancar encuentra fallos que leer no encuentra.** El botón de parada de
-   emergencia escribía una línea de log y devolvía una cadena con aspecto de
-   éxito; el visor de diffs recibía el original vacío y pintaba todo en verde.
-5. **«No he podido comprobarlo» no es «está bien».** Sin Pillow, el observador de
-   imágenes devolvía «correcto» sobre una captura que nunca llegó a abrir.
-6. **El binario publicado no es el mismo programa que el de desarrollo.** Dentro
-   del `.exe`, `sys.executable` es el propio `.exe`: seis sitios lanzaban Python
-   con él y relanzaban MAGI en vez de ejecutar los tests.
-7. **Arreglar algo no es lo mismo que arreglarlo donde importa.** La guarda de
-   idioma se puso en `_ask` y el enjambre usa `_ask_stream`. Un cambio no está
-   hecho hasta que se comprueba **en el camino por el que pasa el sistema de
-   verdad**.
+4. **Arrancar encuentra fallos que leer no encuentra.**
+5. **«No he podido comprobarlo» no es «está bien».** Sin Pillow, el observador
+   de imágenes devolvía «correcto» sobre una captura que nunca llegó a abrir.
+6. **El binario publicado no es el mismo programa que el de desarrollo.**
+7. **Arreglar algo no es lo mismo que arreglarlo donde importa.** Un cambio no
+   está hecho hasta que se comprueba **en el camino por el que pasa el sistema
+   de verdad**.
 
-**1260 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
+**1472 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:
@@ -312,8 +354,6 @@ python scripts/verificar.py --todo     # + los que compilan un .exe (~10 min)
 ```
 
 Existe porque el CI se paró en seco el 13-ago: repositorio privado, minutos de
-Actions agotados, seis jobs fallando en dos segundos sin llegar a asignar
-runner. Una regla que depende de un servicio de pago no es una regla, es una
-suscripción.
-
-<!-- naoko:mejoras -->
+Actions agotados. Una regla que depende de un servicio de pago no es una regla,
+es una suscripción. (El repositorio es público desde el 30-ago: los minutos ya
+no se agotan, pero la regla se queda.)

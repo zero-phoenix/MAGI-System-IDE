@@ -1187,16 +1187,12 @@ class SwarmOrchestrator:
                 # Nadie de este sistema ve la pantalla —ni el enjambre, ni
                 # Naoko, ni yo—, así que un programa que solo se puede juzgar
                 # mirándolo es un programa que no se puede juzgar.
-                from magi.modules.swarm import aceptacion as _acept
-                command_with_memory += _acept.para_el_prompt(
-                    _acept.criterios(state.get("command", "")))
-                # P3 — mirar la caja antes de razonar de memoria. El catálogo
-                # entero ya viajaba al prompt y se ignoraba
-                # (`menciones_a_herramientas: 0` en cinco pruebas); esto
-                # señala por su nombre las que responden A ESTE encargo.
-                from magi.modules.swarm import caja_de_herramientas as _caja
-                command_with_memory += _caja.para_el_prompt(
-                    state.get("command", ""))
+                #
+                # Las inyecciones (aceptación, caja, bitácora, protocolo de
+                # corrida) viven en `inyecciones.acumuladas`: un solo sitio
+                # con la secuencia entera y su porqué.
+                from magi.modules.swarm import inyecciones as _iny
+                command_with_memory += _iny.acumuladas(state.get("command", ""))
                 # Se anota si la herramienta llegó a correr de verdad. Sin
                 # esta marca, el contraste de P5 avisaría de «cita de memoria»
                 # también cuando la cita es legítima — y una alarma falsa
