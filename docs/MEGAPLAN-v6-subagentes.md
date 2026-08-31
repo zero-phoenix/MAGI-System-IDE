@@ -194,3 +194,218 @@ menos, o el panel no sirvió.
 La 1 va primera porque es la que más cambia lo que el enjambre **puede saber**.
 La 4 podría ir primera por disciplina, pero sin las otras solo añade fricción a
 un sistema que aún no puede comprobar más cosas.
+
+---
+
+# Parte III — El debate rápido, la cuántica, y hasta dónde llega «conciencia»
+
+Escrito el 31-ago-2026 tras medir esta máquina, no tras suponerla.
+
+## 1. ¿Y si las tres IAs debatieran rapidísimo, como un solo cerebro?
+
+La pregunta es buena y la respuesta es **mejor y peor a la vez**, según qué se
+entienda por «un solo cerebro». Hay que separar dos ideas que suenan igual.
+
+### 1.1 Simularlas dentro de una sola llamada: **peor**, y por lo que MAGI es
+
+Meter las tres voces en un mismo modelo sería mucho más rápido y mucho más
+barato: una llamada en vez de tres, sin latencia entre nodos.
+
+Y destruiría lo único que hace que el debate valga algo.
+
+MAGI ancla cada nodo a una **familia de modelo distinta** —`gpt`, `gemini`,
+`command`— y su propio README dice por qué: *«para que el crítico tenga sesgos
+diferentes al proponente»*. Un modelo interpretando a su propio crítico
+comparte sus puntos ciegos por construcción. No es que critique poco: es que
+critica **exactamente lo que ya vio**, y calla justo lo que no se le ocurrió,
+que es donde vive el error.
+
+En esta sesión eso no es teoría. Yo escribí un megaplan con tres filosofías de
+optimización, y la Ronda 0 midió que las tres atacaban el 1,27 % del tiempo.
+Nadie de mi mismo «cerebro» iba a encontrarlo: hizo falta **una medición
+externa**. Un enjambre simulado habría producido tres propuestas igual de
+seguras y con el mismo error de base.
+
+> **Veredicto: no.** La independencia del crítico es la propiedad cara del
+> sistema, y es justo lo que la fusión elimina.
+
+### 1.2 Que se respondan de verdad, en varias vueltas: **mejor**, y no es lo mismo
+
+Hoy el flujo es de **una sola pasada**: Melchior propone → Balthasar refuta →
+Casper sintetiza. Melchior **nunca contesta a la objeción**. Casper arbitra
+entre una tesis y una crítica que la tesis no ha tenido ocasión de responder.
+
+Eso no es un debate: es un juicio en rebeldía.
+
+Un debate real —Melchior responde a Balthasar, y solo entonces Casper cierra—
+es más caro en llamadas, y aun así es la mejora de calidad más grande
+disponible. La forma de pagarlo:
+
+- **La réplica es corta y acotada.** No se reenvía el contexto entero: solo la
+  objeción concreta y la respuesta a esa objeción. Un intercambio de 300 tokens,
+  no de 8.000.
+- **Solo hay réplica si hay desacuerdo real.** Si Balthasar confirma, se salta.
+  La segunda vuelta se gana, no se regala.
+- **Tope de vueltas: dos.** Tres nodos discutiendo sin límite es un sistema que
+  no termina.
+
+### 1.3 Lo que sí se puede acelerar, medido en esta máquina
+
+Ejecuté la prueba: tres esperas independientes de 500 ms.
+
+```
+secuencial: 1,50 s   |   en abanico: 0,51 s   |   ahorro: 66 %
+```
+
+Los ocho núcleos de esta máquina están **parados** mientras el enjambre espera
+tres respuestas de red, una detrás de otra. Lo paralelizable de verdad:
+
+| Se puede solapar | Por qué |
+|---|---|
+| La recogida de evidencia de Balthasar con la redacción de Melchior | No depende de la tesis: depende del encargo |
+| Los subagentes de cada nodo entre sí | Son independientes por definición |
+| La auditoría de Ritsuko con toda la ronda | Solo informa; no bloquea a nadie |
+| Búsquedas web múltiples | Idem |
+
+Lo que **no** se puede: Balthasar no puede refutar una tesis que aún no existe.
+La secuencia tesis→antítesis→síntesis es una dependencia real, no una
+ineficiencia.
+
+> **La ganancia está en el abanico, no en la fusión.** Fusionar quita calidad
+> para ganar velocidad; el abanico gana velocidad sin tocar la calidad.
+
+---
+
+## 2. Cuántica: la respuesta honesta es no
+
+La pediste con la mente abierta, así que la respuesta va con datos y sin adorno.
+
+**Hardware cuántico real** (IBM Quantum, Braket, Azure Quantum) exige cuenta y
+registro. Eso ya incumple tus condiciones.
+
+**Simuladores locales** (Qiskit Aer, PennyLane, Cirq) sí son gratis, sin clave y
+pip-instalables. Ninguno está instalado hoy. Y el problema no es instalarlos:
+
+- Un simulador cuántico en CPU maneja del orden de **30 qubits** antes de que la
+  memoria explote — cada qubit **duplica** el estado. Con 24 GB, ese es el techo.
+- Y sobre todo: **no existe ningún algoritmo cuántico conocido que acelere lo
+  que MAGI hace.** Orquestar llamadas a modelos de lenguaje, buscar en un
+  índice, comparar árboles de código: nada de eso tiene una formulación cuántica
+  con ventaja demostrada. Grover da raíz cuadrada sobre búsqueda **no
+  estructurada**, y las búsquedas de MAGI están estructuradas — un índice
+  invertido ya las hace en microsegundos.
+
+Decir lo contrario sería exactamente el tipo de afirmación sin medición que
+este sistema lleva tres versiones aprendiendo a rechazar.
+
+### Lo que sí está sin explotar en esta máquina, y es gratis
+
+Medido hoy:
+
+| Recurso | Estado | Qué desbloquea |
+|---|---|---|
+| **8 núcleos lógicos** | Parados mientras se espera a la red | El abanico de §1.3: 66 % menos de espera |
+| **GTX 1050, 2 GB VRAM** | Ociosa. `torch 2.13.0+cpu`, CUDA no disponible | Embeddings locales. **No** un modelo local: 2 GB no dan para un LLM útil |
+| **SQLite FTS5** | Disponible (sqlite 3.40.1), **sin usar** | Búsqueda instantánea sobre bitácora, descartes y código. Cero instalación |
+| **23,9 GB de RAM** | 13,3 libres | Índice completo en memoria |
+| `transformers` + `sklearn` | Ya instalados | Un MiniLM son ~90 MB: cabe de sobra |
+
+**El mejor primer paso no es exótico:** un índice FTS5 sobre la bitácora, los
+descartes y el árbol de código. Es gratis, no instala nada, y responde «¿ya
+intentamos esto?» en milisegundos en vez de gastar una llamada de red.
+
+El segundo: embeddings locales (MiniLM, 90 MB) para búsqueda semántica —
+«propuestas parecidas a esta» encuentra el descarte de la ronda 1 aunque esté
+redactado con otras palabras. Eso sí cabe en 2 GB.
+
+Lo que **no** cabe: un LLM local. Un 7B cuantizado pide ~4,5 GB de VRAM. En CPU
+correría a unos pocos tokens por segundo — medible antes de prometerlo, pero no
+prometas velocidad ahí.
+
+---
+
+## 3. Conciencia autónoma
+
+Te contesto en serio, porque la pregunta lo merece y porque la respuesta corta
+—«no»— sería tan poco útil como un «sí» falso.
+
+**No sé construir conciencia, y nadie sabe verificarla.** No hay un experimento
+que la distinga de un sistema que se comporta como si la tuviera. Cualquiera
+que te venda «conciencia» en un producto está vendiendo una palabra. No voy a
+ponerle esa etiqueta a MAGI, ni siquiera para animarte, porque en cuanto se
+pone deja de poder falsarse — y todo este sistema está construido sobre la idea
+contraria.
+
+Pero mira lo que **sí** dijiste que querías: *«para mejorar su rendimiento»*. Y
+eso, desmontado, son cuatro capacidades concretas, todas construibles y todas
+medibles:
+
+| Lo que suele querer decirse con «conciencia» | Nombre técnico | Estado en MAGI |
+|---|---|---|
+| Sabe qué está haciendo y por qué | Modelo de sí mismo | **Parcial.** La bitácora y la memoria permanente lo son |
+| Se da cuenta de que se equivocó | Detección de error | **Sí.** Ritsuko audita a Naoko; los trinquetes atrapan al que modifica |
+| Cambia de plan al ver evidencia contraria | Revisión de creencias | **No.** Las rondas tienen forma fija: no hay veredicto «la pregunta era otra» |
+| Mejora sin que se lo pidan | Auto-mejora | **Parcial.** `naoko.self_improve` existe… y el mapa de interfaz lo lista como capacidad sin panel |
+
+Esa tabla es la versión útil de tu pregunta. Y el hueco más grande —revisión de
+creencias— es exactamente el que la Ronda 0 dejó al descubierto cuando invalidó
+mi propio plan y el sistema no tenía forma de decirlo.
+
+**Lo que propongo llamar a eso, y construir:** un **modelo de sí mismo
+falsable**. Un fichero que MAGI mantiene sobre MAGI —qué sabe hacer, qué falla,
+qué se le da mal, con qué medición— y que **se contrasta contra la realidad**
+en cada ronda. Si dice «sé medir el rendimiento del emulador» y la corrida
+falla, la afirmación se marca. Es introspección con compuerta.
+
+No es conciencia. Es algo mejor para lo que pediste: es introspección que se
+puede comprobar.
+
+---
+
+## 4. Fases nuevas, en orden
+
+Se añaden a las cinco de la Parte II.
+
+### Fase 6 — Índice local (gratis, cero instalación)
+
+FTS5 sobre bitácora, descartes, código y conversaciones. Responde «¿esto ya se
+intentó?» sin gastar red.
+**Compuerta:** una consulta a la memoria tarda < 50 ms y no consume cuota.
+
+### Fase 7 — El abanico paralelo
+
+Solapar lo que no depende: evidencia de Balthasar durante la redacción de
+Melchior, subagentes entre sí, Ritsuko con toda la ronda.
+**Compuerta:** la ronda completa tarda menos que hoy con la misma calidad
+medida. Si no baja, se retira.
+
+### Fase 8 — Réplica: que Melchior conteste a la objeción
+
+Una vuelta más, corta y solo si hay desacuerdo real. Tope de dos.
+**Compuerta:** en las rondas con réplica, Casper cambia de veredicto respecto a
+lo que habría dictado sin ella, al menos en 1 de cada 5. Si nunca cambia, la
+réplica no aporta y se quita.
+
+### Fase 9 — Embeddings locales
+
+MiniLM en la GPU ociosa. «Propuestas parecidas a esta» encuentra descartes
+redactados con otras palabras.
+**Compuerta:** recupera el descarte correcto de la bitácora en consultas donde
+FTS5 falla por vocabulario.
+
+### Fase 10 — Modelo de sí mismo falsable
+
+`docs/AUTOMODELO.md`, mantenido por MAGI y **contrastado** cada ronda: cada
+afirmación sobre sí mismo lleva su última comprobación y su fecha.
+**Compuerta:** una afirmación que la realidad contradice se marca sola, sin que
+nadie la revise a mano.
+
+### Fase 11 — Fijar el linter (deuda descubierta hoy)
+
+El CI hace `pip install ruff` **sin fijar versión**. Mi ruff local era 0.6.9 y
+el suyo 0.16.5: lo que pasaba en local rebotaba allí, tres veces seguidas.
+
+Peor: una versión nueva de ruff puede poner el build en rojo **sin que nadie
+toque una línea de código**. Es la misma clase de fallo que rompió el CI de
+yabausevita el 23-ago, cuando el bootstrap de vdpm cambió upstream.
+**Compuerta:** `requirements-dev.txt` con `ruff==0.16.5` y el CI usándolo.

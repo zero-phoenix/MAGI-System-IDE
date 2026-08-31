@@ -1,0 +1,4 @@
+# Fijado el 31-ago-2026: el CI hacia pip install ruff sin version y
+# lo que pasaba en local rebotaba alli. Una version nueva puede poner
+# el build en rojo sin que nadie toque una linea de codigo.
+ruff==0.16.5

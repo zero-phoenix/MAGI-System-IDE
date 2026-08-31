@@ -159,7 +159,11 @@ jobs:
         python-version: '3.11'
 
     - name: Install ruff
-      run: pip install ruff
+      # Version FIJA en requirements-dev.txt. Sin fijarla, una release nueva de
+      # ruff pone el build en rojo sin que nadie toque una linea de codigo, y
+      # lo que pasa en local rebota aqui: asi se perdieron tres intentos el
+      # 31-ago (local 0.6.9 vs CI 0.16.5).
+      run: pip install -r requirements-dev.txt
 
     - name: Syntax and undefined names (bloqueante)
       run: ruff check magi/ tests/ --select E9,F63,F7,F82
