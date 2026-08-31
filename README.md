@@ -12,34 +12,38 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.12.0: la Ronda 2, ejecutada y supervisada
+## Qué hay de nuevo en la v5.13.0: memoria que sobrevive a la tarea
 
-La v5.11.0 dio al sistema el protocolo de corridas con ojos (R9). La v5.12.0
-lo puso a trabajar: **la Ronda 2 de YabauseVita se ejecutó con el
-procedimiento del propio sistema** y la supervisión encontró —y corrigió— dos
-fallos en el procedimiento mismo:
+`EpisodicMemory` ya respondía «no repitas esto» — pero dentro de un `task_id`,
+y moría con él. Faltaba el otro lado, que es el que vale más:
+**qué se salvó de cada enfoque descartado.**
 
-- El experimento de input medía mal (diff antes/después en una escena que ya
-  se mueve no aísla la pulsación). Ahora usa picos de transición con control
-  sin pulsar, y todo veredicto declara en qué pantalla se midió.
-- El release v5.11.0 destapó un `bitacora.py` que existía en el disco de
-  desarrollo y no en git: suite local verde, CI roto. Ahora hay trinquete de
-  versionado — un módulo sin versionar es un fallo con nombre.
+Un enfoque que pierde deja conocimiento igual que uno que gana, y suele dejar
+más. Revertir `-Ofast -flto -ffast-math` no arregló el cuelgue del dynarec de
+YabauseVita — pero dejó **falsado** que los flags fueran la causa. Sin ese
+registro, el siguiente que los vea en el historial pierde un ciclo entero
+sospechando de ellos primero.
 
-Los tres mecanismos de la v5.11.0 siguen ahí:
-
-- **Bitácora inyectada** — cuando el encargo trata de optimizar el emulador,
-  el enjambre recibe ARRIBA de su prompt lo ya medido (hallazgos A1-A22) y lo
-  que no hay que volver a intentar (reglas R1-R13), junto con las **tres
-  filosofías ortogonales** (hacer menos → composite, mover menos → upload,
-  repartir mejor → dropped): cada propuesta declara su métrica.
-- **Protocolo de corrida verificada (R9)** — sin capturas con veredicto de
-  imagen y movimiento, la corrida no existe. Con los DOS contadores de FPS
-  citados por separado (app anfitriona vs ROM emulado).
-- **Ronda ejecutable** — `scripts/ronda_emulador.py`: lanza, espera, captura,
-  pulsa, juzga. Veredicto JSON en formato R9, independiente de quien mire.
-
----
+- **`magi/data/memoria/`, versionado en git.** No en `%APPDATA%`: la memoria
+  que vive fuera del control de versiones no viaja con el sistema, no se revisa
+  en un diff y se pierde al reinstalar. Así se perdieron los scripts de la
+  sesión del 30-ago.
+- **`descartes.jsonl` con campo `rescatable`** — sembrado con los siete
+  descartes reales de las rondas 1 a 3, cada uno con su medición y con lo que
+  sobrevive. JSONL y no JSON porque se añade con un append: un formato que
+  obliga a reescribir el fichero entero acaba con entradas que nadie añade.
+  Una línea corrupta se salta, no invalida el histórico.
+- **`controles.json` deja de ser huérfano.** Existía en disco desde el 30-ago y
+  no lo leía ningún prompt — tercer caso de la misma clase tras `bitacora.py`
+  (v5.11.0) y el trinquete de versionado (v5.12.0). Ahora entra por
+  `inyecciones.acumuladas()` y hay un test que se pone rojo si se desconecta.
+- **La quinta inyección.** La secuencia del prompt es aceptación → caja →
+  bitácora → ronda → memoria. Su test exige la lista **exacta**, no un `>=`:
+  sumar contexto al prompt del enjambre no puede ser un cambio silencioso.
+  Cuando esta versión añadió la quinta, el test se puso rojo, que es
+  exactamente lo que tenía que hacer.
+- **Un test lee la memoria real del repositorio**, no una de mentira: un
+  `descartes.jsonl` malformado en un commit se caza antes del release.
 
 ## Cómo funciona
 
