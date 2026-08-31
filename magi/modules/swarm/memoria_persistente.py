@@ -167,10 +167,10 @@ def _bloque_controles(encargo: str, datos: dict) -> str:
         if isinstance(v, dict):
             botones = v.get("botones") or v.get("mando") or ""
             notas = v.get("notas") or v.get("nota") or ""
-            filas.append("- **%s**: %s%s" % (k, botones,
-                                             (" — %s" % notas) if notas else ""))
+            nota = f" — {notas}" if notas else ""
+            filas.append(f"- **{k}**: {botones}{nota}")
         else:
-            filas.append("- **%s**: %s" % (k, v))
+            filas.append(f"- **{k}**: {v}")
     return ("\nMANDOS QUE YA CONOCES (memoria permanente):\n"
             + "\n".join(filas) + "\n")
 
@@ -183,17 +183,17 @@ def _bloque_descartes(encargo: str, descartes: list[dict]) -> str:
                if _plano(str(d.get("proyecto", ""))) in t] or descartes
     filas = []
     for d in propios[-TOPE_DESCARTES:]:
-        cabecera = "- [%s · %s] %s" % (d.get("proyecto", "?"),
-                                       d.get("ronda", "?"),
-                                       d.get("enfoque", "?"))
+        cabecera = ("- [{} · {}] {}".format(
+            d.get("proyecto", "?"), d.get("ronda", "?"),
+            d.get("enfoque", "?")))
         if d.get("filosofia"):
-            cabecera += "  (filosofía: %s)" % d["filosofia"]
+            cabecera += f"  (filosofía: {d['filosofia']})"
         filas.append(cabecera)
-        filas.append("    descartado porque: %s" % d.get("motivo", "?"))
+        filas.append("    descartado porque: " + str(d.get("motivo", "?")))
         if d.get("medicion"):
-            filas.append("    medición: %s" % d["medicion"])
+            filas.append("    medición: " + str(d["medicion"]))
         if d.get("rescatable"):
-            filas.append("    SE RESCATA: %s" % d["rescatable"])
+            filas.append("    SE RESCATA: " + str(d["rescatable"]))
     return ("\nENFOQUES YA DESCARTADOS, Y QUÉ SE SALVÓ DE CADA UNO:\n"
             + "\n".join(filas) + "\n")
 

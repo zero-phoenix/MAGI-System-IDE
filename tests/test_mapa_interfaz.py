@@ -25,7 +25,6 @@ import pytest
 
 from magi.modules.gui import mapa as M
 
-
 #: Techos actuales, medidos el 31-ago-2026. Bajan cuando alguien conecte algo;
 #: subirlos exige justificarlo en el diff, que es todo el propósito.
 TECHO_SIN_NADIE = 0
@@ -42,15 +41,13 @@ def m():
 def test_ningun_topic_de_la_ui_se_queda_sin_destinatario(m):
     """Un hueco en pantalla que no se llenará nunca."""
     assert len(m.paneles_muertos) <= TECHO_SIN_NADIE, (
-        "topics que la UI nombra y el backend ni emite ni atiende: %s"
-        % sorted(m.paneles_muertos))
+        f"topics sin destinatario: {sorted(m.paneles_muertos)}")
 
 
 def test_las_capacidades_invisibles_no_crecen(m):
     """Trabajo que se hace y ningún panel muestra. Hoy 25; que no suba."""
     assert len(m.capacidades_invisibles) <= TECHO_INVISIBLES, (
-        "capacidades invisibles nuevas: %s"
-        % sorted(m.capacidades_invisibles))
+        f"capacidades invisibles nuevas: {sorted(m.capacidades_invisibles)}")
 
 
 def test_el_cable_existe_en_los_dos_sentidos(m):

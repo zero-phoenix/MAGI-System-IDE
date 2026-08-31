@@ -179,7 +179,7 @@ def veredicto(muestras: list[float], sr: int,
         rms.append((sum(v * v for v in trozo) / len(trozo)) ** 0.5)
     sonando = [r > UMBRAL_RMS for r in rms]
     frac = sum(sonando) / len(sonando)
-    cortes = sum(1 for a, b in zip(sonando, sonando[1:]) if a and not b)
+    cortes = sum(1 for a, b in zip(sonando, sonando[1:], strict=False) if a and not b)
     hay = frac >= FRAC_MINIMA
     return {
         "tramos": len(rms),
@@ -196,6 +196,6 @@ def escuchar(segundos: float = 15.0) -> dict[str, Any]:
     o = Oidos()
     if not o.empezar():
         return {"has_sound": None, "choppy": None,
-                "error": "oidos no disponibles: %s" % motivo_no_disponible()}
+                "error": f"oidos no disponibles: {motivo_no_disponible()}"}
     time.sleep(segundos)
     return o.parar()

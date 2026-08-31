@@ -12,7 +12,6 @@ import pytest
 
 from magi.modules.percepcion import oidos
 
-
 SR = 8000          # suficiente para el análisis; no se reproduce nada
 TRAMO = oidos.TRAMO_MS
 

@@ -13,7 +13,6 @@ import pytest
 
 from magi.modules.swarm import memoria_persistente as mem
 
-
 CONTROLES = {
     "consolas": {
         "Sega Saturn": {
@@ -147,4 +146,4 @@ def test_la_memoria_real_del_repo_es_legible():
     assert isinstance(ds, list) and isinstance(ctrl, dict)
     for d in ds:
         assert d.get("enfoque") and d.get("motivo"), (
-            "todo descarte necesita enfoque y motivo: %r" % d)
+            f"todo descarte necesita enfoque y motivo: {d!r}")

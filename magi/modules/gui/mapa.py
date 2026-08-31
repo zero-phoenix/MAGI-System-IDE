@@ -38,7 +38,10 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-__all__ = ["_topics_interfaz", "topics_backend", "mapa", "Mapa", "_raiz_repo"]
+#: La API del modulo es esta y solo esta. Lo demas es COMO se
+#: calcula, y exponerlo lo convertia en cinco definiciones publicas
+#: que nadie llamaba — justo lo que el trinquete de huerfanos vigila.
+__all__ = ["mapa", "Mapa"]
 
 #: Un topic es `familia.accion`, en minúsculas y con puntos. El formato lo
 #: fija el bus, no este módulo: si algún día cambia, esto deja de encontrar

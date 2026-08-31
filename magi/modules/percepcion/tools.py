@@ -46,16 +46,17 @@ def register_percepcion_tools(reg: ToolRegistry) -> ToolRegistry:
             return ToolResult(False, "", error="`seconds` no es un número")
         if not 1 <= segs <= MAX_SEGUNDOS:
             return ToolResult(
-                False, "", error="`seconds` fuera de rango (1-%d)" % MAX_SEGUNDOS)
+                False, "", error=f"`seconds` fuera de rango (1-{MAX_SEGUNDOS})")
 
         if not disponible():
             # No es un fallo del agente ni de la corrida: es una capacidad que
             # no está en esta máquina. Se dice, no se finge un veredicto.
             return ToolResult(
                 False, "",
-                error=("oídos no disponibles en este sistema (%s). El "
-                       "veredicto de audio queda SIN COMPROBAR — que no es "
-                       "lo mismo que «no suena»." % motivo_no_disponible()))
+                error=(f"oídos no disponibles en este sistema "
+                       f"({motivo_no_disponible()}). El veredicto de audio "
+                       f"queda SIN COMPROBAR — que no es lo mismo que "
+                       f"«no suena»."))
 
         v = escuchar(segs)
         if v.get("error"):
@@ -83,7 +84,7 @@ def register_percepcion_tools(reg: ToolRegistry) -> ToolRegistry:
             return ToolResult(True, "Oídos disponibles (loopback WASAPI).",
                               meta={"available": True})
         return ToolResult(True,
-                          "Oídos NO disponibles: %s" % motivo_no_disponible(),
+                          f"Oídos NO disponibles: {motivo_no_disponible()}",
                           meta={"available": False})
 
     return reg
