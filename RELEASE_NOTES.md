@@ -1,3 +1,66 @@
+# v5.17.1 — dos cosas que dije y no eran ciertas
+
+Ninguna de las dos era del mecanismo. Las dos eran de cómo lo estaba midiendo,
+que es peor: un instrumento que miente no avisa de que miente.
+
+## 1. Un test de tiempos que medía el runner, no el código
+
+`test_el_recon_cabe_en_la_ventana_de_melchior` afirmaba `t_melchior_ms < 900`.
+El runner de `windows-latest / 3.10` midió **4531** y tumbó el CI.
+
+El arreglo no era subir el umbral. Un umbral absoluto **no distingue** «el
+recon se absorbió» de «la máquina va cargada», así que no puede decidir nada.
+
+Y la prueba de que el mecanismo estaba bien la di yo al medirlo otra vez en
+esta misma máquina, donde había pasado: **1218 ms**. Por encima de los 900 que
+el test exigía. O sea que el umbral tampoco valía aquí — las veces que pasó
+fue por suerte, no porque midiera algo. Los dos jobs de Ubuntu pasaron, y el
+`lint` y el `gui` también; cayó solo `windows-latest / 3.10`, que es el runner
+más caro y más cargado de la matriz. El número que cambiaba era el de la
+máquina, no el del código.
+
+Reescrito contra un **control medido en la misma corrida**: el mismo montaje
+con el recon a 5,0 s en vez de 0,3 s. Si el recon corriera dentro de la
+ventana de Melchior, la fase crecería ~4,7 s. Medido: **decrece 578 ms**, que
+es la firma de un recon cancelado por llegar tarde. Un runner lento escala los
+dos lados igual, así que la comparación sigue diciendo lo mismo.
+
+Y buscando hermanos apareció otro con el mismo defecto en la misma fase —
+`pared_con < 3.0`— que habría caído en el push siguiente. Retirado: la
+comparación relativa de la línea de al lado ya cubría el caso entero, así que
+la constante solo aportaba fragilidad.
+
+Es la regla **R12**, la que se aprendió midiendo input en el emulador: *se mide
+contra un control, no contra una constante*. La tenía escrita y la incumplí.
+Está anotada en el automodelo como afirmación **refutada**, con su evidencia.
+
+## 2. El registro de la compuerta estaba sucio, y yo dije que estaba vacío
+
+Las notas de la v5.17.0 decían que `replica.jsonl` estaba «vacío a propósito».
+No lo estaba: llevaba **10 filas** con `task_id: "t-r"`.
+
+Yo mismo había quitado dos a mano días antes, y volvieron. Esa era la señal y
+no la leí: quitar el síntoma sin cerrar la fuente no arregla nada. La fuente
+era que `_ronda` solo aislaba `MAGI_MEMORIA` **cuando el test quería leer el
+registro**; las otras tres rondas escribían en el fichero del repo, dos filas
+por cada corrida de la suite.
+
+Importa porque ese fichero es la única evidencia que puede **retirar** la
+réplica. Medido sobre datos de prueba, mide la prueba — que es literalmente lo
+que la propia cabecera del fichero prohíbe.
+
+Ahora el aislamiento es el valor **por defecto**, no una opción, y hay una
+prueba que falla si el fichero vuelve a ensuciarse. Comprobado como se
+comprueba una compuerta: ensuciándolo a propósito para ver que salta, y
+corriendo la suite entera después para ver que ya no entra nada.
+
+---
+
+**1632 pruebas, cero fallos**, ruff limpio, huérfanos en 80. Sin cambios de
+comportamiento: las dos fases hacen lo mismo que en la v5.17.0.
+
+---
+
 # v5.17.0 — el enjambre deja de esperar en fila, y Melchior contesta
 
 **Qué cambia:** las dos fases que quedaban del plan de rendimiento y calidad.
@@ -25,6 +88,10 @@
   de cada 5, la réplica se retira. El registro está **vacío a propósito**: aún
   no ha corrido ninguna ronda real, y una compuerta medida sobre datos de
   prueba mide la prueba.
+  > **Errata (v5.17.1).** Esa última frase era falsa cuando se escribió: el
+  > fichero llevaba dentro 10 filas de prueba. Corregido en la v5.17.1, con la
+  > fuente cerrada y un guardián que lo impide.
+
 - **El techo de líneas obligó a mejorar el diseño.** `orchestrator.py` estaba a
   7 líneas de su tope: se extrajo `contraste.py` y la mecánica del cierre pasó a
   `replica.py`. Quedó más corto que antes con más funcionalidad.

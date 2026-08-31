@@ -11,6 +11,8 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
       la realidad dijo: el attract ya se mueve solo: el delta de medianas no aisla la pulsacion. Redisenado con pico de transicion y control, pero sin confirmar en pantalla que responda
 - [REFUTADA] NiGHTS into Dreams llega a la pantalla de titulo  (0/1)
       la realidad dijo: se queda en la licencia de SEGA; lee 3 sectores del IP.BIN y abandona, con el disco llegando byte-perfecto
+- [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
+      la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
 
 ## Frágiles (se caen a menudo)
 
@@ -20,7 +22,9 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
       la realidad dijo: el attract ya se mueve solo: el delta de medianas no aisla la pulsacion. Redisenado con pico de transicion y control, pero sin confirmar en pantalla que responda
 - [REFUTADA] NiGHTS into Dreams llega a la pantalla de titulo  (0/1)
       la realidad dijo: se queda en la licencia de SEGA; lee 3 sectores del IP.BIN y abandona, con el disco llegando byte-perfecto
-- [OK] Corro la compuerta completa antes de publicar  (1/2)
+- [OK] Corro la compuerta completa antes de publicar  (2/3)
+- [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
+      la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
 
 ## Sin comprobar todavía
 
@@ -39,4 +43,7 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
       la realidad dijo: se queda en la licencia de SEGA; lee 3 sectores del IP.BIN y abandona, con el disco llegando byte-perfecto
 - [SIN COMPROBAR] Se clasificar que hay en la pantalla de un juego
 - [SIN COMPROBAR] Se oir si el audio del juego sale entero
-- [OK] Corro la compuerta completa antes de publicar  (1/2)
+- [OK] Corro la compuerta completa antes de publicar  (2/3)
+- [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
+      la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
+

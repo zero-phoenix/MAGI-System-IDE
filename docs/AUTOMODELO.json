@@ -66,9 +66,18 @@
   "texto": "Corro la compuerta completa antes de publicar",
   "prueba": "verificar_antes_de_publicar",
   "estado": "sostenida",
-  "ultima": "2026-08-31 01:38",
-  "evidencia": "suite completa al 100% sin FAILED antes de publicar v5.16.0; y el trinquete de wiring cazo indice.py sin conectar, que ningun subconjunto veia",
-  "veces_ok": 1,
+  "ultima": "2026-08-31 07:21",
+  "evidencia": "suite completa al 100% antes de publicar v5.17.0. La compuerta se corrio; lo que no valia era el umbral de uno de sus tests, anotado aparte en ci_multiplataforma",
+  "veces_ok": 2,
+  "veces_mal": 1
+ },
+ {
+  "texto": "Mis pruebas de tiempos distinguen una regresion del ruido de la maquina",
+  "prueba": "ci_multiplataforma",
+  "estado": "refutada",
+  "ultima": "2026-08-31 07:21",
+  "evidencia": "test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u",
+  "veces_ok": 0,
   "veces_mal": 1
  }
 ]

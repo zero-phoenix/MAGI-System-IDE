@@ -183,11 +183,48 @@ async def test_el_recon_cabe_en_la_ventana_de_melchior(captura, monkeypatch):
     assert any("DOSIER" in v for v in ejes), (
         "el dossier del recon no llegó a los ejes de crítica")
     assert fases and fases[-1].get("recon") is True
-    # La fase de Melchior NO creció por el recon: 0,6 s de guion; en serie
-    # habría sido 0,6 + 0,3 del recon.
-    assert fases[-1]["t_melchior_ms"] < 900, (
-        f"la fase de Melchior absorbió al recon: "
-        f"{fases[-1]['t_melchior_ms']} ms")
+
+    # Y que NO alargó la fase de Melchior. Esto se mide contra un CONTROL,
+    # no contra un umbral absoluto.
+    #
+    # La primera versión afirmaba `t_melchior_ms < 900` — 0,6 s de guion más
+    # 0,3 del recon si fueran en serie. Pasaba aquí y **reventó en el runner
+    # de Windows con 4531 ms**: en una máquina cargada la sobrecarga sola se
+    # come el umbral, y entonces el test no distingue «el recon se absorbió»
+    # de «el runner va lento». Es la regla R12 del proyecto, aprendida
+    # midiendo input en el emulador: se mide contra un control, no contra
+    # una constante.
+    #
+    # El control es el mismo escenario con el recon MUCHO más lento (0,3 s
+    # -> 5,0 s). La propiedad que se prueba es que el recon nunca alarga la
+    # fase de Melchior, termine a tiempo (se absorbe) o no (se cancela). Si
+    # corriera dentro de su ventana, la fase crecería ~4,7 s; en paralelo no
+    # crece. El margen es amplio a propósito: separa una regresión de 4,7 s
+    # del ruido de un runner cargado, sin volver a atarse a un reloj.
+    t_recon_corto = fases[-1]["t_melchior_ms"]
+
+    balthasar_lento = GuionProvider(
+        f"g4f-{FAM_BALTHASAR}", FAM_BALTHASAR,
+        reglas=[("RECONOCIMIENTO", "DOSIER: idem, pero tarde.", 5.0)],
+        por_defecto=("sin defectos en este eje. OBJECIONES: 0", 0.0))
+    reg2 = _montar(melchior, balthasar_lento, casper)
+    await reg2.probe_all()
+    set_registry(reg2)
+    # Limpiar AMBAS listas: `_correr_ronda` da la ronda por terminada
+    # cuando ve a los tres agentes en `posts`, y los de la ronda anterior
+    # siguen ahí. Sin esto la segunda carrera «acaba» antes de empezar.
+    posts.clear()
+    fases.clear()
+    await _correr_ronda(captura, "t-recon-control", use_tools=True)
+    assert fases, "la ronda de control no publicó swarm.fases"
+    t_recon_largo = fases[-1]["t_melchior_ms"]
+
+    crecimiento = t_recon_largo - t_recon_corto
+    assert crecimiento < 2500, (
+        "la fase de Melchior creció con el recon: "
+        f"{t_recon_corto} ms -> {t_recon_largo} ms (+{crecimiento} ms) al "
+        "pasar el recon de 0,3 s a 5,0 s. Si fuera paralelo no cambiaría; "
+        "esto dice que corre dentro de su ventana.")
 
 
 @pytest.mark.asyncio
@@ -220,6 +257,14 @@ async def test_el_recon_tardio_se_cancela_y_no_alarga_la_ronda(captura,
     pared_con, fases_con = await una_carrera(True)
     pared_sin, _ = await una_carrera(False)
     assert fases_con.get("recon") is False
-    assert pared_con < 3.0, (f"la ronda esperó al recon tardío: "
-                             f"{pared_con:.2f}s")
-    assert pared_con < pared_sin + 1.0
+
+    # Solo la comparación CONTRA EL CONTROL. Aquí había además un
+    # `pared_con < 3.0` que no aportaba nada: el recon tardío dura 5 s, así
+    # que una ronda que lo esperase rompería igualmente la línea de abajo —
+    # pero el umbral absoluto sí podía romperse en un runner cargado sin que
+    # nada estuviera mal. Una constante que no distingue el fallo del ruido
+    # solo añade fragilidad.
+    assert pared_con < pared_sin + 1.0, (
+        f"la ronda esperó al recon tardío: {pared_con:.2f}s con abanico "
+        f"frente a {pared_sin:.2f}s sin él. El recon dura 5 s; si la pared "
+        f"lo acusa, es que no se canceló.")

@@ -112,8 +112,17 @@ async def _ronda(captura, *, objeciones, respuesta_replica, sombra=False,
     if monkeypatch is not None:
         monkeypatch.delenv("MAGI_ABANICO", raising=False)
         monkeypatch.setenv("MAGI_REPLICA_SOMBRA", "1" if sombra else "0")
-        if memoria is not None:
-            monkeypatch.setenv("MAGI_MEMORIA", str(memoria))
+        # El aislamiento es el POR DEFECTO, no una opción. Antes solo se
+        # redirigía cuando el test quería leer el registro, así que las
+        # demás rondas escribían en `magi/data/memoria/replica.jsonl` — el
+        # fichero del repo, el que decide si la réplica sobrevive. Iban ya
+        # 12 filas con `task_id: "t-r"`, dos por cada corrida de la suite.
+        # Su propia cabecera lo prohíbe: «solo entran rondas REALES». Una
+        # compuerta medida sobre las pruebas mide las pruebas.
+        monkeypatch.setenv(
+            "MAGI_MEMORIA",
+            str(memoria if memoria is not None
+                else tempfile.mkdtemp(prefix="magi-memoria-")))
     bus, posts, fases = captura
     melchior = GuionProvider(
         f"g4f-{FAM_MELCHIOR}", FAM_MELCHIOR,
@@ -217,3 +226,36 @@ async def test_la_sombra_mide_el_contrafactual(captura, monkeypatch,
     assert lineas and lineas[-1]["sombra"]["cambia"] is True
     assert lineas[-1]["sombra"] == {"sin": "REJECTED_NEEDS_WORK",
                                     "con": "APPROVED", "cambia": True}
+
+
+# --------------------------------------------------- EL REGISTRO NO SE ENSUCIA
+
+def test_el_registro_de_la_compuerta_no_tiene_rondas_de_prueba():
+    """
+    La compuerta de la Fase 8 se decide contando `replica.jsonl`. Si los
+    tests escriben ahí, la compuerta mide los tests.
+
+    Ya pasó dos veces: primero con las entradas de depuración de zcode, y
+    después porque `_ronda` solo redirigía `MAGI_MEMORIA` cuando el test
+    quería leer el registro — las otras tres rondas escribían en el fichero
+    del repo, dos filas por cada corrida de la suite. Limpiar las filas sin
+    cerrar la fuente no sirvió de nada: volvieron.
+
+    Esta prueba es la fuente cerrada. Va la última del fichero a propósito:
+    para cuando corre, las rondas de arriba ya han tenido su oportunidad de
+    ensuciar. Si falla, no subas el umbral ni borres la línea — mira qué
+    ronda perdió el aislamiento.
+    """
+    p = Path(__file__).resolve().parents[1] / "magi/data/memoria/replica.jsonl"
+    if not p.is_file():
+        return                       # aún sin registro: nada que ensuciar
+    for n, linea in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+        if not linea.strip() or linea.startswith("#"):
+            continue
+        fila = json.loads(linea)
+        tid = str(fila.get("task_id", ""))
+        assert not tid.startswith("t-"), (
+            f"{p.name}:{n} tiene una ronda de PRUEBA ({tid!r}). El fichero "
+            f"solo admite rondas reales: es la única evidencia que puede "
+            f"retirar la réplica, y medida sobre los tests mide los tests. "
+            f"Alguna ronda perdió el aislamiento de MAGI_MEMORIA.")
