@@ -65,10 +65,9 @@ def register_percepcion_tools(reg: ToolRegistry) -> ToolRegistry:
         estado = ("SIN SONIDO" if not v["has_sound"]
                   else "ENTRECORTADO" if v["choppy"] else "SONIDO CONTINUO")
         cuerpo = (
-            "%s — sonando el %.1f%% del tiempo, %d corte(s) a silencio, "
-            "RMS mediana %.5f sobre %d tramos de 100 ms."
-            % (estado, v["sonando_pct"], v["cortes"], v["rms_mediana"],
-               v["tramos"]))
+            f"{estado} — sonando el {v['sonando_pct']:.1f}% del tiempo, "
+            f"{v['cortes']} corte(s) a silencio, RMS mediana "
+            f"{v['rms_mediana']:.5f} sobre {v['tramos']} tramos de 100 ms.")
         if v["choppy"]:
             cuerpo += (" Hay señal pero con caídas repetidas: mira underruns "
                        "del backend de audio antes que el mezclador.")
