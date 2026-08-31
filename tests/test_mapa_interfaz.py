@@ -104,8 +104,8 @@ def test_el_documento_esta_al_dia(m):
     if not doc.is_file():
         pytest.skip("todavía no generado")
     texto = doc.read_text(encoding="utf-8")
-    assert ("| Comandos conectados (UI → handler) | %d |"
-            % len(m.comandos_conectados)) in texto, (
+    esperado = f"| Comandos conectados (UI → handler) | {len(m.comandos_conectados)} |"
+    assert esperado in texto, (
         "el mapa del repo está desfasado: regenéralo con "
         "`python -m magi.modules.gui.mapa > docs/MAPA-INTERFAZ.md`")
 

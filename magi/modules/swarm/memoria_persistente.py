@@ -183,9 +183,8 @@ def _bloque_descartes(encargo: str, descartes: list[dict]) -> str:
                if _plano(str(d.get("proyecto", ""))) in t] or descartes
     filas = []
     for d in propios[-TOPE_DESCARTES:]:
-        cabecera = ("- [{} · {}] {}".format(
-            d.get("proyecto", "?"), d.get("ronda", "?"),
-            d.get("enfoque", "?")))
+        cabecera = (f"- [{d.get('proyecto', '?')} · {d.get('ronda', '?')}] "
+                    f"{d.get('enfoque', '?')}")
         if d.get("filosofia"):
             cabecera += f"  (filosofía: {d['filosofia']})"
         filas.append(cabecera)
