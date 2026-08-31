@@ -12,38 +12,26 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.13.0: memoria que sobrevive a la tarea
+## Qué hay de nuevo en la v5.14.0: oídos, y el mapa del cable
 
-`EpisodicMemory` ya respondía «no repitas esto» — pero dentro de un `task_id`,
-y moría con él. Faltaba el otro lado, que es el que vale más:
-**qué se salvó de cada enfoque descartado.**
+R9 puso ojos a las corridas —sin imagen y sin movimiento no hay evidencia—.
+Faltaban dos sentidos más.
 
-Un enfoque que pierde deja conocimiento igual que uno que gana, y suele dejar
-más. Revertir `-Ofast -flto -ffast-math` no arregló el cuelgue del dynarec de
-YabauseVita — pero dejó **falsado** que los flags fueran la causa. Sin ese
-registro, el siguiente que los vea en el historial pierde un ciclo entero
-sospechando de ellos primero.
+**Oír.** `listen_audio` captura lo que suena y distingue tres cosas que no son
+la misma: si **hubo** audio, si salió **entero**, y cuánto del tiempo hubo
+señal. El log no puede distinguirlas: en YabauseVita el hilo de sonido quema
+los mismos 1,1-1,4 s por ventana tanto si el audio sale limpio como si sale a
+trompicones. Y si la máquina no tiene oídos, el veredicto es **SIN
+COMPROBAR** — que no es «no suena».
 
-- **`magi/data/memoria/`, versionado en git.** No en `%APPDATA%`: la memoria
-  que vive fuera del control de versiones no viaja con el sistema, no se revisa
-  en un diff y se pierde al reinstalar. Así se perdieron los scripts de la
-  sesión del 30-ago.
-- **`descartes.jsonl` con campo `rescatable`** — sembrado con los siete
-  descartes reales de las rondas 1 a 3, cada uno con su medición y con lo que
-  sobrevive. JSONL y no JSON porque se añade con un append: un formato que
-  obliga a reescribir el fichero entero acaba con entradas que nadie añade.
-  Una línea corrupta se salta, no invalida el histórico.
-- **`controles.json` deja de ser huérfano.** Existía en disco desde el 30-ago y
-  no lo leía ningún prompt — tercer caso de la misma clase tras `bitacora.py`
-  (v5.11.0) y el trinquete de versionado (v5.12.0). Ahora entra por
-  `inyecciones.acumuladas()` y hay un test que se pone rojo si se desconecta.
-- **La quinta inyección.** La secuencia del prompt es aceptación → caja →
-  bitácora → ronda → memoria. Su test exige la lista **exacta**, no un `>=`:
-  sumar contexto al prompt del enjambre no puede ser un cambio silencioso.
-  Cuando esta versión añadió la quinta, el test se puso rojo, que es
-  exactamente lo que tenía que hacer.
-- **Un test lee la memoria real del repositorio**, no una de mentira: un
-  `descartes.jsonl` malformado en un commit se caza antes del release.
+**Saber qué está cableado.** `docs/MAPA-INTERFAZ.md` se genera del código: qué
+topics manda la interfaz y quién los atiende, qué eventos emite el núcleo y
+qué panel los pinta. Hoy: 19 comandos conectados, 23 eventos conectados, **0
+topics sin destinatario**, y 25 capacidades que se ejecutan sin que ningún
+panel las muestre. Esas 25 tienen trinquete: pueden bajar, no subir.
+
+El mapa mapea el **cable**, no que el botón haga lo correcto. Decir lo
+contrario sería justo la clase de afirmación que R9 prohíbe.
 
 ## Cómo funciona
 

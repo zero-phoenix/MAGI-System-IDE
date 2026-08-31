@@ -1,3 +1,41 @@
+# v5.14.0 — oídos, y el mapa del cable entre la pantalla y el núcleo
+
+**Qué cambia:** R9 puso ojos a las corridas. Faltaban dos cosas: **oír** si el
+audio sale entero, y saber qué partes de la interfaz están **realmente
+cableadas** al núcleo.
+
+**Lo concreto:**
+
+- **`magi/modules/percepcion/`** — los oídos, con `listen_audio` y
+  `audio_available` registradas en el enjambre (52 herramientas). Capturan el
+  loopback WASAPI y distinguen tres cosas: `has_sound` (¿salió audio?),
+  `choppy` (¿salió entero?) y `sonando_pct`. El log no puede: en YabauseVita
+  `scsp_th` gasta los mismos 1,1-1,4 s por ventana con audio limpio que con
+  audio a trompicones.
+- **«Sin oídos» ≠ «no suena».** Si la máquina no tiene backend (medio CI corre
+  en Linux), la herramienta devuelve **SIN COMPROBAR** y lo dice. Inventar un
+  veredicto negativo era el fallo que R9 corrigió del lado de la imagen.
+- **El veredicto se prueba sin tarjeta de sonido** — vive separado de la
+  captura y se le pasan señales sintéticas: continua, silencio, y troceada.
+  Un juicio que solo se puede probar con el hardware delante es un juicio que
+  nadie prueba, y miente el día que importa.
+- **R16 en el protocolo de corrida** — `ronda_verificada` ahora exige el
+  veredicto de sonido junto a los de imagen y movimiento.
+- **`magi/modules/gui/mapa.py` + `docs/MAPA-INTERFAZ.md`** — el mapa del
+  cableado por topics entre `magi-gui/src` y `magi/`, generado y no escrito a
+  mano. Resultado medido: **19 comandos conectados, 23 eventos conectados, 0
+  topics sin destinatario** y 25 capacidades que el backend emite y ningún
+  panel pinta.
+- **La primera versión del mapa mentía y por eso hay test.** Contaba un solo
+  sentido y declaró 21 «paneles muertos», entre ellos `task.archive`, que
+  tiene handler en `kernel.py:72` — la UI lo **manda**, no lo escucha. Un mapa
+  que confunde las direcciones manda al enjambre a arreglar 19 fallos
+  inexistentes. Ahora comandos y eventos se cuentan aparte, con trinquete.
+
+**34 pruebas nuevas** (18 de oídos, 16 del mapa).
+
+---
+
 # v5.13.0 — memoria permanente: lo descartado deja de perderse
 
 **Qué cambia:** MAGI gana memoria que sobrevive a la tarea, a la sesión y a la

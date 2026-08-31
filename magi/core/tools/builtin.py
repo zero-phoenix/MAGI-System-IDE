@@ -521,6 +521,19 @@ def build_registry() -> ToolRegistry:
         logging.getLogger(__name__).warning(
             "[tools] fábrica de artefactos no disponible: %s", e)
 
+    # R16 — los oídos. R9 puso ojos a las corridas; el sonido es la otra
+    # mitad y el log no lo ve: `scsp_th` gasta lo mismo con audio limpio que
+    # con audio a trompicones. El backend solo existe en Windows, así que el
+    # registro va en try como el resto: en Linux la herramienta no está y se
+    # dice, en vez de fingir un veredicto.
+    try:
+        from magi.modules.percepcion.tools import register_percepcion_tools
+        register_percepcion_tools(reg)
+    except Exception as e:            # pragma: no cover
+        import logging
+        logging.getLogger(__name__).warning(
+            "[tools] oídos no disponibles: %s", e)
+
     return reg
 
 
