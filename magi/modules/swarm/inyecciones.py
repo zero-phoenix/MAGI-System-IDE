@@ -34,6 +34,7 @@ def acumuladas(encargo: str) -> str:
     from magi.modules.swarm import aceptacion as _acept
     from magi.modules.swarm import bitacora as _bit
     from magi.modules.swarm import caja_de_herramientas as _caja
+    from magi.modules.swarm import memoria_persistente as _mem
     from magi.modules.swarm import ronda_verificada as _ronda
 
     return (
@@ -41,4 +42,5 @@ def acumuladas(encargo: str) -> str:
         + _caja.para_el_prompt(encargo)
         + _bit.para_el_prompt(encargo)
         + _ronda.para_el_prompt(encargo)
+        + _mem.para_el_prompt(encargo)
     )

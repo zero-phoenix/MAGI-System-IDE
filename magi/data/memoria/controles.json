@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "actualizado": "2026-08-30",
+  "proposito": "Memoria permanente de MAGI: como se usan los controles de las consolas y como se cablean a los emuladores. Incluye versiones descartadas: lo que se probo y no funcionO queda, para no repetirlo.",
+  "metodo_para_cualquier_emulador": {
+    "pasos": [
+      "identificar la API de input del emulador (callback de pad, polling, archivo de config)",
+      "listar los botones LOGICOS de la consola emulada (no los fisicos del host)",
+      "mapear fisico->logico por nombre exacto que espera la API",
+      "verificar con una corrida con ojos (R9): pulsar y ver cambio en pantalla",
+      "guardar aqui el mapeo que funcionO, con emulador y version"
+    ],
+    "ejemplo_concreto": "YabauseVita: PerPadAdd(&PORTDATA1) + PerPadUpPressed() etc.; el mapeo vive en config.cfg (map_cross=4...) y lo lee vita_menu.c"
+  },
+  "consolas": {
+    "sega_saturn": {
+      "botones": ["up","down","left","right","A","B","C","X","Y","Z","L","R","start"],
+      "analogico": false,
+      "observaciones": " cruceta digital, 6 botones frontales en dos filas (ABC abajo, XYZ arriba), L/R traseros"
+    },
+    "ps_vita": {
+      "botones": ["up","down","left","right","cross","circle","square","triangle","l","r","start","select","ps"],
+      "analogicos": ["izquierdo", "derecho"],
+      "frontal_tactil": true, "trasera_tactil": true
+    },
+    "nintendo_switch": {"botones": ["up","down","left","right","A","B","X","Y","L","R","ZL","ZR","minus","plus","lstick","rstick","capture","home"], "analogicos": ["izquierdo","derecho"], "nota": "A/B/X/Y intercambiados respecto a Xbox en disposicion"},
+    "playstation_1_a_5": {"botones": ["up","down","left","right","cross","circle","square","triangle","l1","r1","l2","r2","l3","r3","start","select","touchpad(PS4+)","ps"], "analogicos": ["izquierdo(PS1 analog era accesorio)","derecho(PS1 analog era accesorio)"]},
+    "xbox": {"botones": ["up","down","left","right","A","B","X","Y","LB","RB","LT","RT","view","menu","lstick","rstick"], "analogicos": ["izquierdo","derecho"], "nota": "A abajo, B derecha, X izquierda, Y arriba (invertido respecto a Nintendo)"},
+    "nes": {"botones": ["up","down","left","right","A","B","start","select"]},
+    "snes": {"botones": ["up","down","left","right","A","B","X","Y","L","R","start","select"]},
+    "sega_megadrive_genesis": {"botones": ["up","down","left","right","A","B","C","start"], "nota": "X/Y/Z y Mode solo en el pad de 6 botones"},
+    "nintendo_64": {"botones": ["up","down","left","right(digital C)","A","B","start","L","R","Z","C-up","C-down","C-left","C-right"], "analogicos": ["unico central"]},
+    "gamecube": {"botones": ["A","B","X","Y","Z","L","R","start","up","down","left","right"], "analogicos": ["izquierdo","derecho(C)"], "nota": "gatillos L/R analOgicos con click"},
+    "wii": {"botones": ["up","down","left","right","A","B","1","2","minus","plus","home"], "nota": "el nunchuk añade analogico+Z+C; WiiU/Pro cubren con A,B,X,Y,L,R,ZL,ZR"},
+    "game_boy_gba": {"botones": ["up","down","left","right","A","B","start","select"], "nota": "GBA añade L y R"},
+    "nintendo_ds_3ds": {"botones": ["up","down","left","right","A","B","X","Y","L","R","start","select"], "nota": "dos pantallas, la inferior táctil; 3DS añade Circle Pad y ZL/ZR(New)"},
+    "psp": {"botones": ["up","down","left","right","cross","circle","square","triangle","l","r","start","select","ps"], "analogicos": ["unico (slider)"]},
+    "dreamcast": {"botones": ["up","down","left","right","A","B","X","Y","start"], "analogicos": ["unico"], "nota": "VMU en el pad"},
+    "arcade_generico": {"botones": ["joystick 4/8 vias","A","B","C","D","start","coin/credit"], "nota": "varía por placa; el estandar de lucha es 6 botones en dos filas"}
+  },
+  "emuladores": {
+    "yabausevita_vita3k_teclado": {
+      "que_es": "YabauseVita (Saturn) corriendo en Vita3K; teclado del host -> pad Vita -> pad Saturn",
+      "capa_1_teclado_a_vita": {"C": "circle", "X": "cross", "Z": "square", "V": "triangle", "Enter": "start", "ShiftRight": "select", "flechas": "cruceta", "WASD": "analogico izq.", "Q/E": "L1/R1", "U/O": "L2/R2"},
+      "capa_2_vita_a_saturn": {"map_square": "A", "map_cross": "B", "map_circle": "C", "map_triangle": "Y", "map_select": "X", "map_start": "start", "flechas": "cruceta", "L": "L", "R": "R", "analogico izq.": "cruceta (zona muerta 50)"},
+      "donde_vive": "config.cfg (claves map_*), lo escribe vita_menu.c, lo lee main.c",
+      "verificado": "2026-08-30 con Vita3K build 4058"
+    },
+    "vita3k_directo": {"config": "vita3k/config.yml (keyboard-button-*)", "donde": "pref-path de config.yml"}
+  },
+  "descartados": [
+    {"que": "mapear circle del Saturn directo a X del teclado", "por_que_no": "la cadena tiene DOS capas (teclado->Vita->Saturn); saltarse una deja el boton mudo", "fecha": "2026-08-30"}
+  ]
+}

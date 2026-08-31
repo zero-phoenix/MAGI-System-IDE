@@ -1,86 +1,86 @@
-# Configuración centralizada del proyecto.
+# ConfiguraciÃ³n centralizada del proyecto.
 #
-# Reúne en un solo sitio lo que antes estaba disperso: pytest.ini, las flags de
-# ruff sueltas en CI, pyrightconfig.json y requirements.txt. Misma configuración
+# ReÃºne en un solo sitio lo que antes estaba disperso: pytest.ini, las flags de
+# ruff sueltas en CI, pyrightconfig.json y requirements.txt. Misma configuraciÃ³n
 # que antes; ahora vive en un lugar y tiene una sola fuente de verdad.
 
 [project]
 name = "magi-system-ide"
-version = "5.12.0"
+version = "5.13.0"
 description = "Entorno de desarrollo con un enjambre de tres inteligencias que debaten antes de actuar."
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# `--timeout` global: ningún test puede colgar la suite. 120 s es holgado para
+# `--timeout` global: ningÃºn test puede colgar la suite. 120 s es holgado para
 # todo lo que no compila (el 99%); los que compilan un .exe llevan su propia
 # marca con 300. Sin esto, un cuelgue no falla: bloquea, que es peor porque no
-# deja diagnóstico.
+# deja diagnÃ³stico.
 addopts = "-q --no-header --timeout=120"
 markers = [
     "slow: tests that compile or run heavy artifacts (e.g. PyInstaller builds)",
-    # `timeout` ya NO se declara aquí: la registra `pytest-timeout`, que ahora
-    # sí está instalado. Declararla a mano era justo lo que ocultaba el
-    # problema — pytest no avisaba de marca desconocida y todo el mundo daba
+    # `timeout` ya NO se declara aquÃ­: la registra `pytest-timeout`, que ahora
+    # sÃ­ estÃ¡ instalado. Declararla a mano era justo lo que ocultaba el
+    # problema â€” pytest no avisaba de marca desconocida y todo el mundo daba
     # por hecho que el plazo se aplicaba. No se aplicaba.
     # Ver tests/conftest.py: el test que la lleva toca la frontera con el
-    # exterior a propósito (red, disco, navegador). A cambio no puede afirmar
+    # exterior a propÃ³sito (red, disco, navegador). A cambio no puede afirmar
     # nada que dependa de lo que haya instalado, porque en el CI hay otra cosa.
-    "frontera: el test cruza la frontera con el exterior a propósito",
-    # Ver tests/conftest.py: por defecto los tests ven un catálogo de
+    "frontera: el test cruza la frontera con el exterior a propÃ³sito",
+    # Ver tests/conftest.py: por defecto los tests ven un catÃ¡logo de
     # proveedores CONGELADO. Esta marca pide el de verdad, y solo la necesitan
-    # los tests que comprueban el catálogo en sí (que el JSON coincida con las
+    # los tests que comprueban el catÃ¡logo en sÃ­ (que el JSON coincida con las
     # constantes, que toda familia verificada tenga candidatos).
-    "catalogo_real: el test lee el catálogo de proveedores de verdad",
+    "catalogo_real: el test lee el catÃ¡logo de proveedores de verdad",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
     # curl_cffi (interno de g4f) registra un selector thread porque el
     # ProactorEventLoop de Windows no implementa add_reader. Es inofensivo
-    # (es cómo curl_cffi funciona bajo Proactor) pero ensucia la salida de
+    # (es cÃ³mo curl_cffi funciona bajo Proactor) pero ensucia la salida de
     # tests. No podemos cambiar de policy: el SelectorEventLoop no soporta
-    # asyncio.subprocess en Windows, que el proyecto sí usa (Naoko, run_tests).
+    # asyncio.subprocess en Windows, que el proyecto sÃ­ usa (Naoko, run_tests).
     #
     # Dos detalles, y sin cualquiera de los dos el filtro no filtra nada:
     #
     # 1. NO se nombra la clase curl_cffi.utils.CurlCffiWarning. Nombrarla obliga
-    #    a pytest a importar curl_cffi al leer la configuración, y donde no está
-    #    instalado —el runner de Linux del CI, un clon recién hecho— eso emite
-    #    «PytestConfigWarning: Failed to import filter module»: el filtro puesto
-    #    para quitar un aviso creaba otro en la mitad de las máquinas.
+    #    a pytest a importar curl_cffi al leer la configuraciÃ³n, y donde no estÃ¡
+    #    instalado â€”el runner de Linux del CI, un clon reciÃ©n hechoâ€” eso emite
+    #    Â«PytestConfigWarning: Failed to import filter moduleÂ»: el filtro puesto
+    #    para quitar un aviso creaba otro en la mitad de las mÃ¡quinas.
     #
     # 2. El `(?s).*` del principio NO es adorno. El campo de mensaje es una
-    #    expresión regular ANCLADA AL INICIO (re.match), y el mensaje real de
-    #    curl_cffi empieza con un salto de línea y cuatro espacios:
+    #    expresiÃ³n regular ANCLADA AL INICIO (re.match), y el mensaje real de
+    #    curl_cffi empieza con un salto de lÃ­nea y cuatro espacios:
     #
     #        CurlCffiWarning: \n    Proactor event loop does not implement...
     #
-    #    Un patrón que empiece por «Proactor» no casa nunca, y el filtro parece
-    #    puesto sin estarlo. Es el fallo más silencioso de esta clase: la
-    #    configuración es válida, pytest no protesta, y el aviso sigue saliendo.
+    #    Un patrÃ³n que empiece por Â«ProactorÂ» no casa nunca, y el filtro parece
+    #    puesto sin estarlo. Es el fallo mÃ¡s silencioso de esta clase: la
+    #    configuraciÃ³n es vÃ¡lida, pytest no protesta, y el aviso sigue saliendo.
     "ignore:(?s).*Proactor event loop does not implement add_reader",
     # Naoko lanza un _watch_loop en su constructor. Aunque el test lo cancela,
     # el recolector de Python puede emitir ResourceWarning sobre transports
-    # que ya están cerrándose. Cosmético.
+    # que ya estÃ¡n cerrÃ¡ndose. CosmÃ©tico.
     "ignore:unclosed transport:ResourceWarning",
 ]
 
 # --- ruff ---------------------------------------------------------------
-# line-length = 100 sigue la convención REAL del código (p99 = 100, solo el 1%
-# de las líneas la supera). Forzar 88 habría reformateado medio repositorio.
+# line-length = 100 sigue la convenciÃ³n REAL del cÃ³digo (p99 = 100, solo el 1%
+# de las lÃ­neas la supera). Forzar 88 habrÃ­a reformateado medio repositorio.
 [tool.ruff]
 line-length = 100
 extend-exclude = [
     "magi/_attic",      # andamiaje retirado: se conserva como mapa, no se mantiene
-    "magi-gui",         # frontend TypeScript/Tauri, no es código Python
+    "magi-gui",         # frontend TypeScript/Tauri, no es cÃ³digo Python
     "build",
     "dist",
 ]
 
 [tool.ruff.lint]
 # Set inicial deliberadamente CONSERVADOR: errores y warnings que indican
-# bugs reales o problemas de mantenimiento, no estilo opinable. Se amplía
+# bugs reales o problemas de mantenimiento, no estilo opinable. Se amplÃ­a
 # progresivamente a medida que la deuda existente se salda.
 select = [
     "E",    # pycodestyle errors
@@ -97,7 +97,7 @@ select = [
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests pueden tener imports sin uso (fixtures) y nombres ambigüos.
+# Tests pueden tener imports sin uso (fixtures) y nombres ambigÃ¼os.
 "tests/**/*.py" = ["F401", "F841"]
 
 # main.py configura la consola ANTES de importar webview y la GUI: si no, el
@@ -105,6 +105,6 @@ ignore = ["E501"]
 # debajo de esa llamada son deliberados.
 "magi/main.py" = ["E402"]
 
-# NOTA: la config de pyright sigue en pyrightconfig.json. pyright no está en
+# NOTA: la config de pyright sigue en pyrightconfig.json. pyright no estÃ¡ en
 # requirements (es opcional, para desarrollo) y no podemos verificar localmente
-# si lee [tool.pyright] desde aquí, así que no se duplica.
+# si lee [tool.pyright] desde aquÃ­, asÃ­ que no se duplica.
