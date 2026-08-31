@@ -12,24 +12,27 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.15.0: vista
+## Qué hay de nuevo en la v5.16.0: memoria que se consulta, y honestidad medida
 
-Tres sentidos, en el orden en que hicieron falta. **R9** dio ojos: sin imagen y
-sin movimiento, una corrida no es evidencia. **R16** dio oídos: el log no
-distingue audio limpio de audio a trompicones. Faltaba saber **qué** hay en la
-pantalla.
+Dos cosas que no gastan cuota.
 
-`classify_screen` lo dice: si es negro, carga, licencia, menú, título o
-partida; en qué idioma habla el juego; y qué botón está pidiendo, validado
-contra el mando de esa consola. «NiGHTS se queda en la pantalla de licencia»
-era algo que había que mirar a mano y describir; ahora lo devuelve una función.
+**Buscar sin red.** `indice.py` monta un índice FTS5 sobre bitácora, memoria,
+docs y código, y responde «¿esto ya se intentó?» antes de proponer. Medido sobre
+el corpus real —224 documentos, 2,7 MB—: se reconstruye entero en 100 ms y
+consulta en 1 ms. Sin persistencia, sin embeddings y sin GPU: con ese tamaño,
+reconstruir cuesta menos que razonar sobre si el índice está al día.
 
-Y `Zonas` responde «¿dónde va lento?» con un número por pantalla. La media
-global miente por construcción: 60 en el menú y 17 en partida dan 38, y 38 no
-ocurre nunca. El informe lo dice en voz alta, para que nadie cite el promedio.
+**Saber qué de uno mismo es falso.** `automodelo.py` mantiene lo que MAGI cree
+de MAGI, y cada afirmación lleva la prueba que puede tumbarla — sin prueba no se
+admite, porque «soy bueno razonando» es una opinión. Cuando una corrida
+desmiente una afirmación, se marca **sola**, con su evidencia y su fecha.
 
-Sin OCR en la máquina, el veredicto es **SIN COMPROBAR** — que no es «no hay
-texto». Misma regla que los oídos.
+Sembrado con esta sesión: 8 afirmaciones y **4 refutadas por la realidad**,
+incluida una sobre quien escribe el código. Al prompt solo viaja lo refutado y
+lo frágil: recordar lo que nunca falla ocupa contexto y no cambia nada.
+
+No es conciencia, y no se llama así a propósito: es introspección que se puede
+comprobar.
 
 ## Cómo funciona
 
@@ -195,7 +198,7 @@ medio: **una corrida sin ojos no es evidencia**. Ver «Rondas verificadas» abaj
 
 ## Qué sabe hacer
 
-Más allá de debatir, el enjambre tiene **53 herramientas** reales sobre tu
+Más allá de debatir, el enjambre tiene **55 herramientas** reales sobre tu
 máquina, repartidas por rol y acotadas por dominio antes de entrar al prompt.
 
 - **Ingeniería de software**: crear, modificar y ejecutar código, construir

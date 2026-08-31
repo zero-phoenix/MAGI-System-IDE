@@ -27,6 +27,7 @@ def test_concatena_a_todas(monkeypatch, encargo_de_emulador):
     """Cada módulo aporta su trozo; ninguno se queda sin llamar."""
     llamadas = []
     import magi.modules.swarm.aceptacion as acept
+    import magi.modules.swarm.automodelo as auto
     import magi.modules.swarm.bitacora as bit
     import magi.modules.swarm.caja_de_herramientas as caja
     import magi.modules.swarm.memoria_persistente as memo
@@ -49,11 +50,14 @@ def test_concatena_a_todas(monkeypatch, encargo_de_emulador):
                         espiar("ronda", lambda e: "[R]"))
     monkeypatch.setattr(memo, "para_el_prompt",
                         espiar("memoria", lambda e: "[M]"))
+    monkeypatch.setattr(auto, "para_el_prompt",
+                        espiar("automodelo", lambda e: "[S]"))
 
     fuera = inyecciones.acumuladas(encargo_de_emulador)
 
-    assert llamadas == ["aceptacion", "caja", "bitacora", "ronda", "memoria"]
-    assert fuera == "[A][C][B][R][M]"
+    assert llamadas == ["aceptacion", "caja", "bitacora", "ronda",
+                        "memoria", "automodelo"]
+    assert fuera == "[A][C][B][R][M][S]"
 
 
 def test_encargo_ajeno_queda_casi_vacio(monkeypatch, tmp_path):
@@ -62,6 +66,7 @@ def test_encargo_ajeno_queda_casi_vacio(monkeypatch, tmp_path):
     monkeypatch.delenv("MAGI_BITACORA", raising=False)
     monkeypatch.delenv("MAGI_HARNESS_VITA3K", raising=False)
     monkeypatch.delenv("MAGI_MEMORIA", raising=False)
+    monkeypatch.delenv("MAGI_AUTOMODELO", raising=False)
     monkeypatch.chdir(tmp_path)
     fuera = inyecciones.acumuladas("escribe un poema sobre el mar")
     assert "PROTOCOLO DE CORRIDA" not in fuera

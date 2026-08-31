@@ -1,0 +1,74 @@
+[
+ {
+  "texto": "Se compilar el VPK de YabauseVita en CI",
+  "prueba": "build_yabausevita",
+  "estado": "sostenida",
+  "ultima": "2026-08-31 01:08",
+  "evidencia": "CI en verde el 31-ago; el .vpk sale como asset del release",
+  "veces_ok": 1,
+  "veces_mal": 0
+ },
+ {
+  "texto": "Se medir el rendimiento del emulador con corrida verificada",
+  "prueba": "ronda_emulador",
+  "estado": "sostenida",
+  "ultima": "2026-08-31 01:08",
+  "evidencia": "Ronda 0: 21 ventanas de 5 s, FPS mediana 17,1, sin errores en el log",
+  "veces_ok": 1,
+  "veces_mal": 0
+ },
+ {
+  "texto": "El nucleo SH2DynARM arranca el juego",
+  "prueba": "corrida_dynarec",
+  "estado": "refutada",
+  "ultima": "2026-08-31 01:08",
+  "evidencia": "cuelga al primer frame en tres builds independientes (-Ofast, -O3 y el VPK del CI); la cache JIT se aloja bien en 0x82800000",
+  "veces_ok": 0,
+  "veces_mal": 1
+ },
+ {
+  "texto": "Se detectar si una pulsacion cruza al juego",
+  "prueba": "experimento_input",
+  "estado": "refutada",
+  "ultima": "2026-08-31 01:08",
+  "evidencia": "el attract ya se mueve solo: el delta de medianas no aisla la pulsacion. Redisenado con pico de transicion y control, pero sin confirmar en pantalla que responda",
+  "veces_ok": 0,
+  "veces_mal": 1
+ },
+ {
+  "texto": "NiGHTS into Dreams llega a la pantalla de titulo",
+  "prueba": "arranque_nights",
+  "estado": "refutada",
+  "ultima": "2026-08-31 01:08",
+  "evidencia": "se queda en la licencia de SEGA; lee 3 sectores del IP.BIN y abandona, con el disco llegando byte-perfecto",
+  "veces_ok": 0,
+  "veces_mal": 1
+ },
+ {
+  "texto": "Se clasificar que hay en la pantalla de un juego",
+  "prueba": "classify_screen",
+  "estado": "sin_comprobar",
+  "ultima": "",
+  "evidencia": "probado con imagenes sinteticas y OCR real; SIN COMPROBAR contra una partida de verdad",
+  "veces_ok": 0,
+  "veces_mal": 0
+ },
+ {
+  "texto": "Se oir si el audio del juego sale entero",
+  "prueba": "listen_audio",
+  "estado": "sin_comprobar",
+  "ultima": "",
+  "evidencia": "probado con senales sinteticas; SIN COMPROBAR contra un juego corriendo",
+  "veces_ok": 0,
+  "veces_mal": 0
+ },
+ {
+  "texto": "Corro la compuerta completa antes de publicar",
+  "prueba": "verificar_antes_de_publicar",
+  "estado": "sostenida",
+  "ultima": "2026-08-31 01:38",
+  "evidencia": "suite completa al 100% sin FAILED antes de publicar v5.16.0; y el trinquete de wiring cazo indice.py sin conectar, que ningun subconjunto veia",
+  "veces_ok": 1,
+  "veces_mal": 1
+ }
+]

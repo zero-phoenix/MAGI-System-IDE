@@ -1,3 +1,41 @@
+# v5.16.0 — buscar sin gastar red, y saber qué de uno mismo es falso
+
+**Qué cambia:** dos capacidades que no consumen cuota, y una corrección honesta
+de lo que yo mismo había propuesto en el megaplan.
+
+**Lo concreto:**
+
+- **`magi/modules/memory/indice.py`** — FTS5 sobre bitácora, memoria, docs y
+  código. Responde «¿esto ya se intentó?» **sin gastar una llamada de red**.
+  Medido sobre el corpus real: 224 documentos, 2,7 MB, índice completo
+  reconstruido en **100 ms**, consulta en **1 ms**.
+- **Sin persistencia, sin embeddings, sin GPU — y eso es la decisión, no una
+  limitación.** Reconstruir cuesta menos que razonar sobre si el índice está al
+  día. Y proponer un modelo de 90 MB para buscar en 2,7 MB era sobre-ingeniería
+  mía: la Fase 9 del megaplan queda **retirada**, con su motivo escrito.
+- **Buscar `1.27` daba `fts5: syntax error near "."`.** Un buscador que falla
+  cuando le pasas un número es un buscador que nadie usa dos veces. Ahora sanea
+  la consulta y conserva `AND`, `OR`, `NOT`, `NEAR` y las comillas.
+- **`magi/modules/swarm/automodelo.py`** — lo que MAGI cree de MAGI, con la
+  prueba que puede tumbarlo. **Una afirmación sin prueba no se admite**: «soy
+  bueno razonando» es una opinión, no una afirmación sobre uno mismo.
+- **Sembrado con esta sesión: 8 afirmaciones, 4 refutadas por la realidad.** El
+  dynarec no arranca (tres builds), NiGHTS no llega al título, el experimento de
+  input no aísla la pulsación — y *«corro la compuerta antes de publicar»*, que
+  es sobre quien escribe esto y la desmintieron cuatro rebotes en un día.
+- **`sin_comprobar` es un estado de primera clase**, no «verdadera hasta que se
+  demuestre lo contrario». Y al prompt solo viaja lo refutado y lo frágil: lo
+  que se sostiene sin fallar ocupa contexto y no cambia ninguna decisión.
+- **Sexta inyección.** La secuencia pasa a aceptación → caja → bitácora → ronda
+  → memoria → automodelo, con su test de lista exacta.
+
+Cierra el hueco que la Ronda 0 dejó al descubierto: cuando la medición invalidó
+el plan entero, el sistema no tenía dónde anotarlo.
+
+**32 pruebas nuevas.** Ruff 0.16.5 limpio, huérfanos en 80, trinquetes en verde.
+
+---
+
 # v5.15.0 — vista: leer la pantalla como la lee una persona
 
 **Qué cambia:** R9 dio ojos («¿hay algo y se mueve?») y R16 oídos. Ninguno de

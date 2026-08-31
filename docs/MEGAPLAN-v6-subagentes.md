@@ -409,3 +409,135 @@ Peor: una versión nueva de ruff puede poner el build en rojo **sin que nadie
 toque una línea de código**. Es la misma clase de fallo que rompió el CI de
 yabausevita el 23-ago, cuando el bootstrap de vdpm cambió upstream.
 **Compuerta:** `requirements-dev.txt` con `ruff==0.16.5` y el CI usándolo.
+
+---
+
+# Parte IV — Correcciones medidas, y dos fases ya construidas
+
+Restricción declarada: **el hardware no se toca en ningún sentido.** Todo lo que
+sigue funciona con lo que ya hay instalado, sin descargas, sin claves y sin
+cambiar una pieza.
+
+## 1. Me corrijo: los embeddings sobraban
+
+En la Parte III propuse embeddings locales de 90 MB sobre la GTX 1050. Antes de
+construirlo medí el corpus de verdad:
+
+```
+documentos ........ 224
+texto ............. 2,7 MB
+  codigo .......... 1.444 KB
+  docs ............ 1.309 KB
+  bitacora ........    46 KB
+  memoria .........     9 KB
+
+indice FTS5 completo, reconstruido ....... 100 ms
+consulta ................................... 1 ms
+```
+
+Con 2,7 MB, **la propuesta de embeddings era sobre-ingeniería mía**. Añadía una
+descarga de 90 MB, una dependencia y un modo de fallo nuevo para buscar en algo
+que FTS5 recorre entero en un milisegundo. Y usar la GPU habría exigido además
+la rueda CUDA de torch: 2,5 GB en un disco con 11 GB libres, para 224 ficheros.
+
+**La Fase 9 queda retirada.** Vuelve a tener sentido si el corpus crece dos
+órdenes de magnitud — y el propio test lo vigila: falla si reconstruir pasa de
+5 s, que es la señal de que toca persistir e indexar de otra forma.
+
+Esto es exactamente lo que la bitácora llama un descarte con rescatable: la
+idea de «buscar sin gastar red» era correcta; el mecanismo que propuse, no.
+
+## 2. Fase 6 — construida: el índice
+
+`magi/modules/memory/indice.py`. Decisiones que salen de la medición, no del
+gusto:
+
+- **Sin persistencia.** Reconstruir cuesta 100 ms; mantener un índice en disco
+  sincronizado cuesta invalidación, corrupción y un fichero que se queda viejo.
+- **Sin embeddings, sin GPU.** Ver arriba.
+- **Saneo de consulta.** Buscar `1.27` daba `fts5: syntax error near "."`. Un
+  buscador que falla cuando le pasas un número es un buscador que nadie usa dos
+  veces. Se conservan `AND`, `OR`, `NOT`, `NEAR` y las comillas; el resto se
+  entrecomilla solo.
+- **Una consulta rota devuelve vacío**, nunca una excepción que tumbe el turno.
+
+## 3. Fase 10 — construida: el modelo de sí mismo falsable
+
+`magi/modules/swarm/automodelo.py`, sembrado con lo que esta sesión comprobó.
+La regla que lo sostiene: **una afirmación sin prueba asociada no se admite.**
+«Soy bueno razonando» no es una afirmación sobre uno mismo, es una opinión.
+
+Estado real al sembrarlo — 8 afirmaciones, y cuatro de ellas **refutadas por la
+realidad, no por opinión**:
+
+| Afirmación | Estado | Lo que dijo la realidad |
+|---|---|---|
+| Compilo el VPK en CI | sostenida | CI en verde; el `.vpk` sale como asset |
+| Mido el rendimiento con corrida verificada | sostenida | Ronda 0: 21 ventanas, FPS 17,1 |
+| El núcleo `SH2DynARM` arranca | **refutada** | cuelga al primer frame en tres builds |
+| Detecto si una pulsación cruza al juego | **refutada** | el attract ya se mueve; el delta no aísla |
+| NiGHTS llega al título | **refutada** | se queda en la licencia de SEGA |
+| **Corro la compuerta antes de publicar** | **refutada** | cuatro rebotes el 31-ago |
+| Clasifico la pantalla | sin comprobar | probado en sintético, no contra partida |
+| Oigo si el audio sale entero | sin comprobar | ídem |
+
+La última fila es sobre **mí**, y está ahí por la misma razón que las otras: la
+escribió la evidencia. Un automodelo que solo registra los aciertos del sistema
+y no los de quien lo modifica es un automodelo decorativo.
+
+**`sin_comprobar` es un estado de primera clase.** No es «verdadera hasta que se
+demuestre lo contrario»: tratarlo así es el fallo que R9 corrigió del lado de la
+imagen y R16 del lado del sonido.
+
+Y solo viaja al prompt **lo refutado y lo frágil**. Lo que se sostiene sin
+fallar no hace falta recordarlo: ocupa contexto y no cambia ninguna decisión.
+
+### El hueco que cierra
+
+Es la cuarta capacidad de la tabla de la Parte III —revisión de creencias— con
+mecanismo. Cuando la Ronda 0 invalidó el plan entero, el sistema no tenía dónde
+anotarlo. Ahora una afirmación que la realidad desmiente se marca sola, con su
+evidencia y su fecha, y vuelve al prompt de la ronda siguiente.
+
+## 4. Fase 8, especificada: la réplica
+
+La única de las pendientes que cambia la **calidad**, no la velocidad. Hoy
+Casper arbitra entre una tesis y una crítica que la tesis no ha podido
+responder.
+
+Diseño, con lo que lo hace pagable:
+
+1. **Condicional.** Solo si Balthasar refuta de verdad. Si confirma, no hay
+   segunda vuelta: se gana, no se regala.
+2. **Acotada.** Viaja la objeción concreta y la respuesta a esa objeción — unos
+   300 tokens, no el contexto entero.
+3. **Una sola vuelta.** Tope duro. Tres nodos discutiendo sin límite es un
+   sistema que no termina.
+4. **Con salida.** Melchior puede responder «tienes razón», y eso cierra la
+   ronda antes de llegar a Casper. Una réplica que no puede rendirse es teatro.
+
+**Compuerta de vida o muerte del mecanismo:** en las rondas con réplica, Casper
+tiene que cambiar de veredicto respecto a lo que habría dictado sin ella al
+menos **1 de cada 5**. Si nunca cambia, la réplica no aporta y se retira. Es la
+misma regla que se le puso a los subagentes: un mecanismo que no demuestra su
+efecto se quita.
+
+## 5. Estado de las once fases
+
+| # | Fase | Estado |
+|---|---|---|
+| 1 | Búsqueda web sin ventana | pendiente |
+| 2 | Subagentes por familia | pendiente |
+| 3 | Plan visible con estado | pendiente |
+| 4 | Compuerta obligatoria | pendiente — y el automodelo ya dice por qué hace falta |
+| 5 | Veredicto «la pregunta era otra» | pendiente |
+| 6 | Índice local | **construido** |
+| 7 | Abanico paralelo | pendiente (medido: 66 % menos espera) |
+| 8 | Réplica | especificada |
+| 9 | Embeddings locales | **retirada** — sobre-ingeniería sobre 2,7 MB |
+| 10 | Modelo de sí mismo falsable | **construido y sembrado** |
+| 11 | Fijar el linter | **aplicada** — `ruff==0.16.5` |
+
+El siguiente con más efecto por esfuerzo es el **7**: los ocho núcleos siguen
+parados mientras el enjambre espera tres respuestas de red en fila, y eso no
+necesita ni una descarga.

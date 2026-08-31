@@ -32,6 +32,7 @@ __all__ = ["acumuladas"]
 def acumuladas(encargo: str) -> str:
     """Todas las inyecciones que aplican a `encargo`, ya concatenadas."""
     from magi.modules.swarm import aceptacion as _acept
+    from magi.modules.swarm import automodelo as _auto
     from magi.modules.swarm import bitacora as _bit
     from magi.modules.swarm import caja_de_herramientas as _caja
     from magi.modules.swarm import memoria_persistente as _mem
@@ -43,4 +44,5 @@ def acumuladas(encargo: str) -> str:
         + _bit.para_el_prompt(encargo)
         + _ronda.para_el_prompt(encargo)
         + _mem.para_el_prompt(encargo)
+        + _auto.para_el_prompt(encargo)
     )

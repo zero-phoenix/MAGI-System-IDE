@@ -534,6 +534,18 @@ def build_registry() -> ToolRegistry:
         logging.getLogger(__name__).warning(
             "[tools] oídos no disponibles: %s", e)
 
+    # Fase 6 — buscar en la memoria sin gastar red. Medido: 224 documentos,
+    # 2,7 MB, índice completo en 100 ms y consulta en 1 ms. Sin este enganche
+    # `indice.py` seria otro modulo escrito, probado y que nadie llama — que es
+    # lo que `test_wiring` caza y ya paso cuatro veces.
+    try:
+        from magi.modules.memory.tools import register_memory_tools
+        register_memory_tools(reg)
+    except Exception as e:            # pragma: no cover
+        import logging
+        logging.getLogger(__name__).warning(
+            "[tools] busqueda en memoria no disponible: %s", e)
+
     return reg
 
 
