@@ -3,8 +3,13 @@ La secuencia de inyecciones tiene su propia casa (y su porqué).
 
 Nació cuando la cuarta inyección inline (ronda_verificada) hizo saltar el
 trinquete del orchestrator. Estos tests fijan el contrato de `acumuladas`:
-que llame a las cuatro, en el orden documentado, y que no edite lo que cada
-una escribió.
+que llame a TODAS, en el orden documentado, y que no edite lo que cada una
+escribió.
+
+La lista es deliberadamente exacta y no un `>=`. Cuando la v5.13.0 añadió
+`memoria_persistente` como quinta, este test se puso rojo — y eso es el
+comportamiento correcto: añadir contexto al prompt del enjambre no puede ser
+un cambio silencioso. Quien sume una inyección la declara aquí.
 """
 from __future__ import annotations
 
@@ -18,12 +23,13 @@ def encargo_de_emulador() -> str:
     return "ronda 2: corre y mide el emulador yabausevita (sonic r)"
 
 
-def test_concatena_a_las_cuatro(monkeypatch, encargo_de_emulador):
+def test_concatena_a_todas(monkeypatch, encargo_de_emulador):
     """Cada módulo aporta su trozo; ninguno se queda sin llamar."""
     llamadas = []
     import magi.modules.swarm.aceptacion as acept
     import magi.modules.swarm.bitacora as bit
     import magi.modules.swarm.caja_de_herramientas as caja
+    import magi.modules.swarm.memoria_persistente as memo
     import magi.modules.swarm.ronda_verificada as ronda
 
     def espiar(nombre, original):
@@ -41,11 +47,13 @@ def test_concatena_a_las_cuatro(monkeypatch, encargo_de_emulador):
                         espiar("bitacora", lambda e: "[B]"))
     monkeypatch.setattr(ronda, "para_el_prompt",
                         espiar("ronda", lambda e: "[R]"))
+    monkeypatch.setattr(memo, "para_el_prompt",
+                        espiar("memoria", lambda e: "[M]"))
 
     fuera = inyecciones.acumuladas(encargo_de_emulador)
 
-    assert llamadas == ["aceptacion", "caja", "bitacora", "ronda"]
-    assert fuera == "[A][C][B][R]"
+    assert llamadas == ["aceptacion", "caja", "bitacora", "ronda", "memoria"]
+    assert fuera == "[A][C][B][R][M]"
 
 
 def test_encargo_ajeno_queda_casi_vacio(monkeypatch, tmp_path):
@@ -53,7 +61,9 @@ def test_encargo_ajeno_queda_casi_vacio(monkeypatch, tmp_path):
     recibe ni bitácora ni protocolo de corrida — las inyecciones filtran."""
     monkeypatch.delenv("MAGI_BITACORA", raising=False)
     monkeypatch.delenv("MAGI_HARNESS_VITA3K", raising=False)
+    monkeypatch.delenv("MAGI_MEMORIA", raising=False)
     monkeypatch.chdir(tmp_path)
     fuera = inyecciones.acumuladas("escribe un poema sobre el mar")
     assert "PROTOCOLO DE CORRIDA" not in fuera
+    assert "MEMORIA PERMANENTE" not in fuera
     assert "BITÁCORA" not in fuera.upper() or "bitácora" not in fuera
