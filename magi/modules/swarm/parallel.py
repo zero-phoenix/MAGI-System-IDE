@@ -62,6 +62,10 @@ class Proposal:
     family: str = ""
     verified: bool = True
     verification: str = ""
+    #: Informe de verificación en cascada (Fase 7): cada variante se
+    #: verifica en cuanto existe, no cuando terminan todas. None solo si
+    #: no se pasó `tras_cada`.
+    report: object = None
 
     @property
     def label(self) -> str:
@@ -92,13 +96,21 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
                             n: int = 2, engine: str = "fast",
                             narrative_style: str = "tecnico",
                             last_proposal=None, last_critique=None,
-                            use_tools: bool = False) -> list[Proposal]:
+                            use_tools: bool = False,
+                            tras_cada=None) -> list[Proposal]:
     """
     N propuestas simultáneas del mismo agente, con semillas distintas.
 
     Coste en tiempo de pared: el de una sola (van en paralelo).
     Coste en cuota: N llamadas — por eso el valor por defecto es 2 y solo la
     ruta `build` sube a 3.
+
+    `tras_cada` (Fase 7, abanico): corrutina que recibe cada Proposal EN
+    CUANTO esa variante existe y devuelve su informe de verificación.
+    La verificación de la variante temprana corre mientras las demás
+    siguen generándose — con timeouts de hasta 45 s por verificación,
+    esperar a que terminen TODAS para empezar era regalar pared. El
+    informe queda en `Proposal.report` y quien llama lo lee de ahí.
     """
     base_seed = agent.seed or 0
 
@@ -140,9 +152,17 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
             result = await mio.generate_proposal(
                 task_id, command, round_num, last_proposal, last_critique,
                 engine, narrative_style, use_tools, publicar=False)
-            return Proposal(content=result["content"], variant=variant,
+            prop = Proposal(content=result["content"], variant=variant,
                             provider=result.get("provider", ""),
                             family=result.get("family", mio.family))
+            # Fase 7 — verificación en cascada: ESTA variante ya existe, su
+            # verificación arranca AHORA, en paralelo con las hermanas que
+            # siguen generándose. Esperar a que terminen todas para empezar
+            # era alargar la pared exactamente lo que tarda la verificación
+            # de la variante más temprana.
+            if tras_cada is not None:
+                prop.report = await tras_cada(prop)
+            return prop
         except Exception as e:
             logger.warning("[parallel] variante %d falló: %s", variant, e)
             return None
@@ -187,7 +207,12 @@ async def critique_multi_axis(agent, *, task_id: str, proposal_text: str,
             f"Sé concreto: cita la línea o el fragmento exacto. Si en este eje "
             f"no hay defectos reales, dilo en una frase — inventar objeciones "
             f"para parecer riguroso es peor que aprobar.\n"
-            f"Máximo 8 líneas. Sin preámbulo.")
+            f"Máximo 8 líneas. Sin preámbulo.\n"
+            f"CIERRA SIEMPRE con una última línea exactamente así: "
+            f"OBJECIONES: N — donde N es cuántas objeciones REALES sostienes "
+            f"en este eje (0 si ninguna). Esa línea la lee una máquina para "
+            f"decidir si el debate tiene segunda vuelta: sin ella, tus "
+            f"objeciones no existen para el sistema.")
         user = f"Propuesta a auditar:\n{proposal_text}"
         if evidence:
             user += f"\n{evidence}"

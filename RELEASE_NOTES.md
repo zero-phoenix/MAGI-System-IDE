@@ -1,3 +1,44 @@
+# v5.17.0 — el enjambre deja de esperar en fila, y Melchior contesta
+
+**Qué cambia:** las dos fases que quedaban del plan de rendimiento y calidad.
+
+**Lo concreto:**
+
+- **Fase 7, abanico paralelo.** Se solapa lo que no depende: la recogida de
+  evidencia con la redacción de la tesis, las variantes entre sí, los ejes de
+  crítica entre sí, y la verificación **en cascada** según llegan las variantes.
+  Medido a través del orquestador real: **3141 ms → 1937 ms, un 38 % menos**.
+- **38 %, no el 66 % que yo había prometido.** Ese 66 % salió de un banco
+  sintético de tres esperas independientes; la ronda real tiene una dependencia
+  irreducible —Balthasar no puede refutar una tesis que aún no existe— y esa no
+  se paraleliza. Cuando la medida sintética y la del sistema real discrepan,
+  gana la del sistema real.
+- **`MAGI_ABANICO=0`** vuelve al modo serial. Una optimización sin forma de
+  apagarla no se puede comparar consigo misma.
+- **Fase 8, la réplica.** Melchior contesta a la objeción **antes** de que
+  Casper arbitre. Condicional (solo si hay objeciones reales, firmadas con
+  `OBJECIONES: N`), acotada (1400 caracteres de extracto, 900 de réplica, sin
+  herramientas), una sola vuelta, y con salida: si empieza con `CONCESIÓN:`, el
+  debate cierra antes del arbitraje.
+- **Su compuerta viene armada.** `MAGI_REPLICA_SOMBRA=1` corre el arbitraje
+  contrafactual y anota si el veredicto cambió. Si Casper no cambia al menos 1
+  de cada 5, la réplica se retira. El registro está **vacío a propósito**: aún
+  no ha corrido ninguna ronda real, y una compuerta medida sobre datos de
+  prueba mide la prueba.
+- **El techo de líneas obligó a mejorar el diseño.** `orchestrator.py` estaba a
+  7 líneas de su tope: se extrajo `contraste.py` y la mecánica del cierre pasó a
+  `replica.py`. Quedó más corto que antes con más funcionalidad.
+- **El trinquete de huérfanos señaló tres piezas sin sitio de llamada externo.**
+  No se escondieron haciéndolas privadas: se les escribió prueba directa, y ahí
+  aparecieron sus modos de fallo — si la réplica revienta la ronda se arbitra
+  sin ella, y la réplica trabaja sobre una copia para no dejar a Melchior con
+  `hedge=False` el resto de la ronda.
+
+**27 pruebas nuevas** entre las tres fases. Ruff limpio, huérfanos en 80,
+suite completa en verde antes de publicar.
+
+---
+
 # v5.16.0 — buscar sin gastar red, y saber qué de uno mismo es falso
 
 **Qué cambia:** dos capacidades que no consumen cuota, y una corrección honesta

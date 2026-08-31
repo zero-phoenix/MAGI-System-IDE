@@ -1,0 +1,19 @@
+# Registro de la compuerta de la Fase 8: una linea por ronda con replica.
+# Campos: task_id, round, fired (hubo replica), concedio (Melchior se rindio),
+#         firmas / objeciones (por que se disparo), y -si la sombra estuvo
+#         activa- si el veredicto CAMBIO respecto al contrafactual sin replica.
+#
+# LA COMPUERTA: Casper tiene que cambiar de veredicto al menos 1 de cada 5.
+# Si nunca cambia, la replica no aporta y se retira. Este fichero es la unica
+# evidencia que puede decidirlo, asi que solo entran rondas REALES: nada de
+# task_id de prueba. Los tests escriben en tmp_path via MAGI_MEMORIA.
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:32:25"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": false, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:32:25"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:39:42"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": false, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:39:42"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:49:24"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": false, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:49:24"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:53:21"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": false, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:53:22"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:58:42"}
+{"task_id": "t-r", "round": 1, "fired": true, "concedio": false, "firmas": 4, "objeciones": 8, "ts": "2026-08-31T06:58:42"}

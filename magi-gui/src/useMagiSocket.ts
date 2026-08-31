@@ -90,6 +90,9 @@ export function useMagiSocket(port: number = 20128) {
               } else if (topic === 'naoko.improvement') {
                 // Naoko es EXPRESA: cada paso del ciclo llega aquí para verse.
                 useMagiStore.getState().setImprovement(payload);
+              } else if (topic === 'swarm.fases') {
+                // Fase 7 - los tiempos por fase de la ronda.
+                useMagiStore.getState().setFases(payload);
               } else if (topic === 'task.usage') {
                 // §7.3 — tokens y tiempo por tarea y por agente.
                 useMagiStore.getState().addUsage(payload);

@@ -12,27 +12,26 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.16.0: memoria que se consulta, y honestidad medida
+## Qué hay de nuevo en la v5.17.0: el enjambre deja de esperar en fila
 
-Dos cosas que no gastan cuota.
+**Va más rápido.** Lo que no depende ya no se hace en fila: la evidencia se
+recoge mientras se redacta la tesis, las variantes y los ejes de crítica corren
+en abanico, y la verificación va en cascada según llegan. Medido a través del
+orquestador real: **3141 ms → 1937 ms, un 38 % menos**.
 
-**Buscar sin red.** `indice.py` monta un índice FTS5 sobre bitácora, memoria,
-docs y código, y responde «¿esto ya se intentó?» antes de proponer. Medido sobre
-el corpus real —224 documentos, 2,7 MB—: se reconstruye entero en 100 ms y
-consulta en 1 ms. Sin persistencia, sin embeddings y sin GPU: con ese tamaño,
-reconstruir cuesta menos que razonar sobre si el índice está al día.
+Ese 38 % corrige un 66 % que yo había prometido desde un banco sintético. La
+ronda real tiene una dependencia que no se paraleliza —Balthasar no puede
+refutar una tesis que aún no existe—, y cuando la medida sintética discrepa de
+la del sistema real, gana la del sistema real.
 
-**Saber qué de uno mismo es falso.** `automodelo.py` mantiene lo que MAGI cree
-de MAGI, y cada afirmación lleva la prueba que puede tumbarla — sin prueba no se
-admite, porque «soy bueno razonando» es una opinión. Cuando una corrida
-desmiente una afirmación, se marca **sola**, con su evidencia y su fecha.
+**Y discute mejor.** Hasta ahora Melchior nunca contestaba a la objeción:
+Casper arbitraba entre una tesis y una crítica que la tesis no había podido
+responder. Ahora hay réplica — una sola, acotada, sin herramientas, y solo si
+hay desacuerdo real. Si Melchior concede, el debate cierra antes del arbitraje:
+rendirse ante una objeción válida es una salida legítima.
 
-Sembrado con esta sesión: 8 afirmaciones y **4 refutadas por la realidad**,
-incluida una sobre quien escribe el código. Al prompt solo viaja lo refutado y
-lo frágil: recordar lo que nunca falla ocupa contexto y no cambia nada.
-
-No es conciencia, y no se llama así a propósito: es introspección que se puede
-comprobar.
+La réplica viene con la compuerta que puede matarla: si Casper no cambia de
+veredicto al menos 1 de cada 5 rondas, no aporta y se retira.
 
 ## Cómo funciona
 

@@ -820,7 +820,20 @@ def test_requirements_cubre_todo_import_duro_del_sistema_y_de_la_suite():
     import sys
 
     declarados = _paquetes_declarados()
-    propios = {"magi", "source_helpers", "conftest", "tests"}
+
+    # Los módulos de ayuda de la propia suite no son dependencias externas:
+    # viven aquí y no hay nada que declarar en requirements.
+    #
+    # Se DETECTAN, no se listan a mano. La versión anterior tenía
+    # `{"magi", "source_helpers", "conftest", "tests"}` escrito a pelo, y el
+    # segundo helper (`swarm_helpers`) volvió a poner el build en rojo por
+    # existir. Una lista de excepciones a mano es la misma clase de parche
+    # que `KNOWN_ORPHANS`: funciona hasta el siguiente.
+    #
+    # Regla: en `tests/`, todo `.py` que no empiece por `test_` es ayuda.
+    propios = {"magi", "conftest", "tests"} | {
+        p.stem for p in (ROOT / "tests").glob("*.py")
+        if not p.stem.startswith("test_")}
 
     ficheros = sorted((ROOT / "tests").glob("*.py"))
     ficheros += sorted(_modulos_que_el_runner_importa().values())

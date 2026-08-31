@@ -541,3 +541,101 @@ efecto se quita.
 El siguiente con más efecto por esfuerzo es el **7**: los ocho núcleos siguen
 parados mientras el enjambre espera tres respuestas de red en fila, y eso no
 necesita ni una descarga.
+
+---
+
+# Parte V — Fases 7 y 8 construidas, y una corrección de la medición
+
+## 1. Fase 7 — el abanico paralelo: **38 %**, no 66 %
+
+La Parte III citaba un 66 % de ahorro. Ese número salió de un banco sintético:
+tres esperas de 500 ms totalmente independientes. La ronda real **no** es eso, y
+medida a través del orquestador de verdad da:
+
+```
+serial (MAGI_ABANICO=0) ..... 3141 ms
+abanico (MAGI_ABANICO=1) .... 1937 ms
+                              ------
+ahorro real .................  38 %
+```
+
+La diferencia entre 66 % y 38 % **no es un fallo del mecanismo: es lo que la
+ronda tiene de irreducible**. Balthasar no puede refutar una tesis que aún no
+existe, y esa dependencia no se paraleliza por mucho abanico que se ponga. El
+66 % era el techo teórico si todo fuera independiente; el 38 % es lo que se
+puede cobrar de verdad.
+
+**Queda como hallazgo:** cuando una medida sintética y una medida a través del
+sistema real discrepan, gana la del sistema real — y la sintética se queda como
+techo, no como promesa.
+
+Lo que se solapa: la recogida de evidencia con la redacción de la tesis, las
+variantes de Melchior entre sí, los ejes de Balthasar entre sí, y la
+verificación en cascada (`tras_cada`) según van llegando las variantes. Ritsuko
+ya era no bloqueante por arquitectura —anota por suscripción al bus—, así que
+esa parte del plan estaba cubierta antes de empezar.
+
+**Interruptor:** `MAGI_ABANICO=0` vuelve al modo serial. Existe porque una
+optimización sin forma de apagarla no se puede comparar consigo misma.
+
+## 2. Fase 8 — la réplica, construida con su compuerta
+
+Melchior ya contesta a la objeción antes de que Casper arbitre. Con las cuatro
+restricciones del diseño:
+
+- **Condicional:** solo si Balthasar sostiene objeciones reales. La firma es
+  `OBJECIONES: N` al cierre de cada eje — marcador en texto libre, como la
+  línea `DECISIÓN` de Casper, porque pedir JSON ya volvió ilegible a Casper.
+- **Acotada:** el extracto de objeciones se corta en 1400 caracteres y la
+  réplica en 900. Sin herramientas: la réplica discute lo que hay sobre la
+  mesa, no rehace la propuesta — rehacerla sería una segunda tesis.
+- **Una vuelta**, sin excepciones.
+- **Con salida:** si Melchior empieza con `CONCESIÓN:`, el debate cierra antes
+  del arbitraje. Rendirse ante una objeción válida es una salida legítima.
+
+**La compuerta, con su modo de medición.** `MAGI_REPLICA_SOMBRA=1` corre además
+el arbitraje contrafactual —el que Casper habría dictado sin réplica— y anota
+en `magi/data/memoria/replica.jsonl` si el veredicto **cambió**.
+
+> Si Casper no cambia de veredicto al menos 1 de cada 5, la réplica no aporta y
+> se retira.
+
+El registro está vacío a propósito: **todavía no ha corrido ninguna ronda
+real.** Las dos entradas que había eran artefactos de depuración y se
+descartaron. Una compuerta medida sobre datos de prueba mide la prueba.
+
+## 3. Lo que costó, y no era el mecanismo
+
+- `orchestrator.py` estaba a 1543 líneas de un techo de 1550. La lógica nueva
+  **no cabía**, y el techo no se sube: se extrajo `contraste.py` y la mecánica
+  del cierre pasó a `replica.py`. El orquestador quedó en ~1534 con más
+  funcionalidad que antes.
+- El trinquete de huérfanos señaló `CierreDebate`, `replica_de_melchior` y
+  `sombra_activada`: escritas, usadas dentro de su módulo, sin sitio de llamada
+  fuera. **No se escondieron haciéndolas privadas** — se les escribió prueba
+  directa, que es donde estaban sus modos de fallo de verdad:
+  - si la réplica revienta, la ronda **se arbitra sin ella** en vez de caerse;
+  - la réplica trabaja sobre una **copia** del agente, así que no deja a
+    Melchior con `hedge=False` para el resto de la ronda;
+  - `sombra_activada` está apagada por defecto: encendida duplicaría el coste
+    de todas las rondas en silencio.
+
+## 4. Estado de las once fases
+
+| # | Fase | Estado |
+|---|---|---|
+| 1 | Búsqueda web sin ventana | pendiente |
+| 2 | Subagentes por familia | pendiente |
+| 3 | Plan visible con estado | pendiente |
+| 4 | Compuerta obligatoria antes de «hecho» | pendiente |
+| 5 | Veredicto «la pregunta era otra» | pendiente |
+| 6 | Índice local FTS5 | **construido** |
+| 7 | Abanico paralelo | **construido** — 38 % medido |
+| 8 | Réplica | **construida** — compuerta armada, sin datos aún |
+| 9 | Embeddings locales | retirada |
+| 10 | Modelo de sí mismo falsable | **construido** |
+| 11 | Fijar el linter | aplicada |
+
+**Lo siguiente es la 4**, y ahora tiene doble motivo: el automodelo ya registra
+que la compuerta se salta, y la Fase 8 necesita rondas reales para que su
+propia compuerta pueda decidir.

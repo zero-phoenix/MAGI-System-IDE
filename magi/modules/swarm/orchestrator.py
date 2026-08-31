@@ -135,101 +135,16 @@ class SwarmOrchestrator:
         except Exception as e:
             logger.warning("[SWARM] no se pudo rehidratar el estado: %s", e)
 
-    #: Verbos con los que una síntesis se atribuye un hecho comprobable. Se
-    #: comparan en minúsculas y sin acentos, y solo importan si el registro
-    #: dice que ese hecho no ocurrió.
-    _AFIRMACIONES = ("se compilo", "se compiló", "compilado exitosamente",
-                     "se empaqueto", "se empaquetó", "se genero el ejecutable",
-                     "se generó el ejecutable", "binario generado",
-                     "ejecutable creado", "se creo el .exe", "se creó el .exe")
-
     def _contraste_con_el_registro(self, state: dict, verdict: dict) -> str | None:
         """
-        ¿La síntesis se está atribuyendo algo que no pasó? (C12)
+        C12/P5: ¿la síntesis se atribuye algo que el registro no sostiene?
 
-        LA PRUEBA QUE OBLIGÓ A ESCRIBIR ESTO
-        ====================================
-        20-ago, encargo «ping pong a color de 16 bits en un .exe portable».
-        Casper cerró con:
-
-            **Decisión Técnica:** APPROVED
-            Empaquetado Portable Final (PyInstaller): Se compiló exitosamente
-            el binario ejecutable único portable (onefile)…
-
-        Cero bloques de código en toda la conversación, cero llamadas a la
-        herramienta de entrega, cero artefactos. El informe parecía perfecto y
-        el usuario se habría ido a buscar un fichero que no existe.
-
-        Es peor que fallar: fallar se ve. Por eso el contraste no es contra
-        otro modelo —volveríamos a preguntar a quien ya se equivocó— sino
-        contra el registro de lo que el sistema HIZO.
+        La lógica y su historia viven en `swarm/contraste.py`. Queda este
+        delegado porque dos tests llaman al método por su nombre desde el
+        orquestador, y romperlos para un mudanza no aporta nada.
         """
-        texto = (verdict.get("feedback") or "")
-        bajo = texto.lower()
-        hubo_artefacto = bool(state.get("artefactos") or state.get("exe_path"))
-        verificacion = state.get("verification") or {}
-
-        if any(a in bajo for a in self._AFIRMACIONES):
-            if not (hubo_artefacto or verificacion.get("passed")):
-                return ("[AVISO] La síntesis dice haber compilado o empaquetado "
-                        "algo, y en el registro de esta tarea NO consta ningún "
-                        "artefacto generado ni verificación en verde. Trátalo "
-                        "como una propuesta, no como una entrega: no hay "
-                        "fichero que buscar.")
-
-        # P5 — EL CONTRASTE NO PUEDE CUBRIR SOLO «SE COMPILÓ».
-        #
-        # C12 nació de un caso concreto —una síntesis que decía haber
-        # empaquetado un .exe inexistente— y se quedó ahí. Pero la forma del
-        # fallo no tiene nada que ver con compilar: es **atribuirse un hecho
-        # comprobable que el registro no sostiene**, y eso se puede decir de
-        # muchas maneras.
-        #
-        # Es el principio que yo aplico sobre mi propio trabajo: desconfiar del
-        # informe de éxito. Dos veces en la sesión del 20-ago me cazó a mí:
-        # una prueba de alfa que fallaba porque mi expectativa estaba mal, y un
-        # primer informe de Ritsuko cuyo veredicto era el mensaje de error del
-        # proveedor — exactamente el fallo que Ritsuko existe para denunciar,
-        # cometido por mí.
-        #
-        # Un sistema que solo se revisa en el caso que ya le pillaron aprende
-        # a esquivar ese caso, no a ser honesto.
-        for señales, sostiene, aviso in self._AFIRMACIONES_EXTRA:
-            if any(s in bajo for s in señales):
-                if not sostiene(state, verificacion, hubo_artefacto):
-                    return aviso
-        return None
-
-    #: (señales, ¿lo sostiene el registro?, qué se avisa si no).
-    #:
-    #: Cada entrada nombra una familia de afirmaciones que el sistema puede
-    #: comprobar sobre sí mismo. Si no se puede comprobar, NO se pone aquí:
-    #: avisar sobre lo que no se sabe es ruido, y el ruido enseña a ignorar
-    #: los avisos.
-    _AFIRMACIONES_EXTRA: tuple[tuple[tuple[str, ...], object, str], ...] = (
-        (("las pruebas pasan", "los tests pasan", "tests en verde",
-          "pruebas en verde", "se ejecutaron los tests",
-          "se ejecutaron las pruebas", "suite en verde"),
-         lambda st, ver, art: bool(ver.get("passed")),
-         "[AVISO] La síntesis dice que las pruebas pasan, y en el registro de "
-         "esta tarea NO consta ninguna verificación ejecutada en verde. Nadie "
-         "ha corrido nada: es una previsión, no un resultado."),
-
-        (("he escrito el fichero", "se escribio el fichero",
-          "se escribió el fichero", "fichero creado", "archivo creado",
-          "guardado en disco"),
-         lambda st, ver, art: art or bool(st.get("ficheros_escritos")),
-         "[AVISO] La síntesis dice haber escrito un fichero y en el registro "
-         "no consta ninguno. Comprueba la ruta antes de darla por buena."),
-
-        (("segun analyze_port", "según analyze_port", "el analizador indica",
-          "la herramienta devuelve", "segun compare_consoles",
-          "según compare_consoles"),
-         lambda st, ver, art: bool(st.get("evidencia_previa")),
-         "[AVISO] La síntesis cita el resultado de una herramienta que no se "
-         "llegó a ejecutar en esta tarea. Es una cita de memoria, no un dato: "
-         "trátala como tal."),
-    )
+        from magi.modules.swarm import contraste
+        return contraste.con_el_registro(state, verdict)
 
     #: Consolas que el analizador de portabilidad conoce. Se comparan como
     #: palabra entera contra el enunciado.
@@ -1122,6 +1037,9 @@ class SwarmOrchestrator:
                          f"Amplío el margen a {state['max_rounds']} para poder "
                          "atender lo que me acabas de escribir."}))
 
+        # El recon de una ronda que no llegó a cosecharse (p. ej. tras un
+        # rebuild) no debe sobrevivir a su ronda: se cancela al reasignar.
+        recon_task = None
         while state["status"] == "in_progress":
             try:
                 # ---- PRESUPUESTO: el techo de esta tarea (v6.0 §A1) --------
@@ -1201,12 +1119,39 @@ class SwarmOrchestrator:
                 if _evid:
                     state["evidencia_previa"] = True
                 command_with_memory += _evid
+                #
+                # Fase 7 (abanico): el RECON de Balthasar arranca AQUÍ, a la
+                # vez que Melchior redacta. La parte de la evidencia que no
+                # depende de la tesis (qué se intentó antes, qué hay en el
+                # workspace) se reúne durante la ventana de redacción en vez
+                # de después. Nunca alarga la ronda: si no llega, se cancela
+                # (`cosechar_recon`) y los ejes siguen como hoy.
+                from magi.modules.swarm import abanico
+                crono = abanico.CronoDeRonda()
+                if recon_task is not None and not recon_task.done():
+                    recon_task.cancel()
+                recon_task = None
+                if abanico.activado() and use_tools and usadas + 3 < p.llamadas:
+                    recon_task = asyncio.create_task(abanico.recon_de_encargo(
+                        self.balthasar, task_id=task_id,
+                        command=state.get("command", ""),
+                        round_num=current_round, engine=engine,
+                        narrative_style=style))
+                # La verificación también entra en el abanico: cada variante
+                # se verifica EN CUANDO existe (`tras_cada`), no cuando
+                # terminen todas.
+                verifier = ProposalVerifier()
 
+                async def _verificar(v, _verificador=verifier):
+                    return await _verificador.verify(v.content)
+
+                crono.inicio("melchior")
                 variants = await generate_variants(
                     self.melchior, task_id=task_id, command=command_with_memory,
                     round_num=current_round, n=n_variants, engine=engine,
                     narrative_style=style, last_proposal=last_proposal,
-                    last_critique=last_critique, use_tools=use_tools)
+                    last_critique=last_critique, use_tools=use_tools,
+                    tras_cada=(_verificar if abanico.activado() else None))
                 # Cada variante ya cobró su llamada vía `cobrar` en `_ask`;
                 # aquí solo se informa al GUI del coste acumulado.
                 usadas = int(state.get("calls_used", 0))
@@ -1222,12 +1167,30 @@ class SwarmOrchestrator:
                 # Ninguna propuesta con código llega al crítico sin ejecutarse.
                 # Elimina la clase de fallo más cara: tres rondas debatiendo
                 # elegantemente sobre código que no compila.
-                verifier = ProposalVerifier()
-                reports = await asyncio.gather(
-                    *(verifier.verify(v.content) for v in variants))
-                for v, rep in zip(variants, reports, strict=True):
-                    v.verified = rep.ok
-                    v.verification = rep.render()
+                #
+                # Con el abanico activo ya se ejecutó EN CASCADA durante la
+                # generación; aquí solo se recoge. Con `MAGI_ABANICO=0` se
+                # hace entera aquí, como antes — mismo código, dos caminos,
+                # para poder medir la compuerta A/B.
+                if abanico.activado():
+                    reports = [v.report for v in variants
+                               if v.report is not None]
+                    for v in variants:
+                        if v.report is not None:
+                            v.verified = v.report.ok
+                            v.verification = v.report.render()
+                else:
+                    reports = await asyncio.gather(
+                        *(verifier.verify(v.content) for v in variants))
+                    for v, rep in zip(variants, reports, strict=True):
+                        v.verified = rep.ok
+                        v.verification = rep.render()
+                # El cronómetro de la fase cierra AQUÍ y no tras la
+                # generación: con la cascada activa la verificación corre
+                # dentro de la generación, y cerrarlo antes compararía
+                # fases distintas entre modos — la compuerta mediría otra
+                # cosa que la que dice medir.
+                crono.fin("melchior")
 
                 # C7 — se deja escrito si algo se comprobó DE VERDAD, no solo
                 # si nada falló. El contrato de entregable (C4) lee esto, y con
@@ -1331,11 +1294,19 @@ class SwarmOrchestrator:
                 # decisión que ya se tomó sin ella.
                 await self._cerrar_el_lazo(task_id, state)
 
+                # El recon se cosecha AQUÍ y no antes: la fábrica de arriba es
+                # tiempo local que el recon aprovecha gratis. Si no llegó, se
+                # cancela y se sigue — los ejes critican sin dossier, como hoy.
+                dossier = abanico.cosechar_recon(recon_task)
                 evidence = "\n\n".join(
                     f"[{v.label}] {v.verification}" for v in chosen if v.verification)
                 if state.get("artefactos"):
                     evidence += ("\n\n[ARTEFACTO ENTREGADO] "
                                  + ", ".join(state["artefactos"]))
+                if dossier:
+                    evidence += ("\n\n--- DOSSIER DE ENCARGO (recon de "
+                                 "Balthasar, recogido mientras Melchior "
+                                 "redactaba) ---\n" + dossier)
 
                 # ---- LA ÚNICA INTERVENCIÓN DE MELCHIOR EN ESTA RONDA -------
                 #
@@ -1380,12 +1351,14 @@ class SwarmOrchestrator:
                 }))
 
                 # ---- 3. BALTHASAR: crítica multi-eje EN PARALELO (§2.4) -----
+                crono.inicio("balthasar")
                 multi = await critique_multi_axis(
                     self.balthasar, task_id=task_id,
                     proposal_text=proposal["content"], round_num=current_round,
                     engine=engine, narrative_style=style, use_tools=use_tools,
                     evidence=("\n\n--- EVIDENCIA DE EJECUCIÓN ---\n" + evidence)
                     if evidence else "")
+                crono.fin("balthasar")
                 critique = {"content": multi.render(), "status": "CRITIQUE_GENERATED",
                             "axes": multi.axes_ok}
                 await self.bus.publish(BusEvent(topic="AGENT_POST", payload={
@@ -1401,10 +1374,38 @@ class SwarmOrchestrator:
                     await self._trigger_emergency_stop(task_id, state)
                     break
 
-                # 3. Casper Arbitra
-                verdict = await self.casper.arbitrate(
-                    task_id, proposal, critique, current_round, engine, style,
-                    use_tools=use_tools)
+                # ---- 2b. RÉPLICA (Fase 8) y 3. CASPER: el cierre del debate --
+                # La mecánica vive en `replica.ronda()`: condicional (solo si
+                # Balthasar FIRMA objeciones), acotada, una sola vuelta, con
+                # salida por concesión — sin concesión, Casper arbitra con la
+                # réplica sobre la mesa, que es arbitrar un debate y no un
+                # juicio en rebeldía. Aquí queda el flujo: veredicto, parada
+                # y registro.
+                from magi.modules.swarm import replica as _rep
+                crono.inicio("casper")
+                debate = await _rep.ronda(
+                    self.melchior, self.casper, task_id=task_id, multi=multi,
+                    proposal=proposal, critique=critique,
+                    round_num=current_round, engine=engine, style=style,
+                    use_tools=use_tools, techo=p.llamadas, usadas=usadas,
+                    bus=self.bus)
+                crono.fin("casper")
+                if debate.parar:
+                    await self._trigger_emergency_stop(task_id, state)
+                    break
+                verdict = debate.verdict
+                # La medición de la ronda viaja al bus: sin números no hay
+                # compuerta. La réplica se registra en memoria permanente
+                # para poder evaluar el 1-de-cada-5 con datos.
+                await self.bus.publish(BusEvent(
+                    topic="swarm.fases",
+                    payload={"task_id": task_id, "round": current_round,
+                             **crono.payload(recon=bool(dossier),
+                                             **debate.evento)}))
+                if debate.evento.get("fired"):
+                    _rep.registrar({"task_id": task_id,
+                                    "round": current_round,
+                                    **debate.evento})
                 self.blackboard.post(f"{task_id}.verdict", verdict)
                 if "SYS_EMERGENCY_STOP" in verdict.get("feedback", ""):
                     await self._trigger_emergency_stop(task_id, state)

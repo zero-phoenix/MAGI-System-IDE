@@ -59,6 +59,10 @@ interface MagiState {
                  tokens_in: number; tokens_out: number; elapsed_s: number;
                  iterations: number; tool_calls: number }>;
   addUsage: (u: any) => void;
+  // Fase 7 - cuanto tardo cada fase de la ronda. Sin esto, el abanico
+  // acelera y nadie lo ve: la mejora existe y es invisible.
+  fases: Record<string, any>;
+  setFases: (f: any) => void;
   // §2.3 — por qué ruta fue la petición
   route: { route: string; reason: string; max_rounds: number } | null;
   setRoute: (r: any) => void;
@@ -233,6 +237,9 @@ export const useMagiStore = create<MagiState>((set) => ({
   setImprovement: (improvement) => set({ improvement }),
 
   usage: [],
+  fases: {},
+  setFases: (f) =>
+    set((st) => ({ fases: { ...st.fases, [f.task_id]: f } })),
   addUsage: (u) => set((state) => ({
     usage: [...state.usage.slice(-199),
             { id: Math.random().toString(36), ...u }],

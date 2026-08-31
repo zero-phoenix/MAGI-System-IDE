@@ -1012,7 +1012,8 @@ class CasperAgent(SwarmAgentBase):
     async def arbitrate(self, task_id: str, proposal: dict, critique: dict,
                         round_num: int, engine: str = "fast",
                         narrative_style: str = "tecnico",
-                        use_tools: bool = False) -> dict:
+                        use_tools: bool = False,
+                        publicar: bool = True) -> dict:
         logger.info(f"[CASPER] Arbitrando debate con {self.provider}...")
 
         sys_prompt = """Eres CASPER (Gaspar), el nodo de la SÍNTESIS del sistema MAGI.
@@ -1046,10 +1047,21 @@ Termina con estas dos líneas, exactamente así y en este orden:
 
 DECISIÓN: APROBADA
 (o bien `DECISIÓN: NECESITA REVISIÓN` si la propuesta aún no está lista)"""
+        # Fase 8 — la réplica. Si Balthasar objetó y Melchior se defendió,
+        # Casper arbitra un debate COMPLETO: tesis, antítesis y la respuesta
+        # de la tesis a la antítesis. Sin este bloque arbitra un juicio en
+        # rebeldía. La réplica viaja marcada como posterior a la crítica
+        # porque cronológicamente lo es: Casper sabe qué vio Balthasar y
+        # qué no, que es a veces exactamente la cuestión.
+        replica = (critique or {}).get("replica") or ""
+        bloque_replica = (f"\nRÉPLICA de Melchior a las objeciones "
+                          f"(posterior a la crítica; pésala tú):\n"
+                          f"{replica}\n" if replica else "")
         user_prompt = (
             f"Ronda {round_num}.\n\n"
             f"TESIS de Melchior:\n{proposal['content']}\n\n"
-            f"ANTÍTESIS de Balthasar:\n{critique['content']}\n\n"
+            f"ANTÍTESIS de Balthasar:\n{critique['content']}\n"
+            f"{bloque_replica}\n"
             f"Redacta tu SÍNTESIS: evalúa qué acertó cada uno, construye y "
             f"ejecuta la solución consolidada, y entrégala. Termina con la "
             f"línea de DECISIÓN.")
@@ -1089,23 +1101,28 @@ DECISIÓN: APROBADA
         else:
             formatted_content = f"**Decisión Técnica:** {decision}\n\n{feedback}"
 
-        await self.bus.publish(BusEvent(
-            topic="AGENT_POST",
-            payload={
-                "type": "AGENT_POST",
-                "task_id": task_id,
-                "agent": "CASPER",
-                "role": "arbitro",
-                "provider": actual_provider,
-                "family": actual_family,
-                "family_expected": self.family,
-                "degraded": (None if actual_family == self.family
-                             else f"{self.family} no disponible; respondió {actual_family}"),
-                "content": formatted_content,
-                "changes": 0,
-                "stats": f"Decisión: {decision}"
-            }
-        ))
+        # `publicar=False` lo usa el arbitraje sombra de la réplica (Fase 8):
+        # el contrafactual se CORRE para medir, no para hablarle al usuario.
+        # Publicarlo sería dos Casper por ronda, y eso no es un debate, es
+        # un eco.
+        if publicar:
+            await self.bus.publish(BusEvent(
+                topic="AGENT_POST",
+                payload={
+                    "type": "AGENT_POST",
+                    "task_id": task_id,
+                    "agent": "CASPER",
+                    "role": "arbitro",
+                    "provider": actual_provider,
+                    "family": actual_family,
+                    "family_expected": self.family,
+                    "degraded": (None if actual_family == self.family
+                                 else f"{self.family} no disponible; respondió {actual_family}"),
+                    "content": formatted_content,
+                    "changes": 0,
+                    "stats": f"Decisión: {decision}"
+                }
+            ))
 
         return {"decision": decision, "feedback": feedback}
 

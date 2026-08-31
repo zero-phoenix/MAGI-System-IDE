@@ -15,8 +15,45 @@
 import { useMagiStore } from "../store";
 import { formatSeconds, formatTokens, summarize } from "../lib/cost";
 
+
+/**
+ * Los tiempos por fase de la ultima ronda.
+ *
+ * El abanico de la Fase 7 baja la pared de 3141 ms a 1937 ms, y sin este
+ * bloque esa mejora existe y no se ve. Un mecanismo que acelera de forma
+ * invisible no se puede retirar cuando deja de servir, que es justo lo que
+ * su compuerta exige poder hacer.
+ */
+function Fases({ f }: { f: any }) {
+  if (!f) return null;
+  const filas: Array<[string, number | undefined]> = [
+    ["Melchior (tesis + verificacion)", f.t_melchior_ms],
+    ["Balthasar (critica)", f.t_balthasar_ms],
+    ["Casper (arbitraje)", f.t_casper_ms],
+  ];
+  return (
+    <div style={{ marginTop: 14, fontSize: 12 }}>
+      <div style={{ color: "var(--dim)", marginBottom: 4 }}>
+        Ronda {f.round}: {f.t_ronda_ms} ms de pared
+        {f.recon ? " · evidencia recogida en paralelo" : ""}
+        {f.fired ? " · con replica" : ""}
+        {f.concedio ? " (Melchior concedio)" : ""}
+      </div>
+      {filas.map(([nombre, ms]) =>
+        ms === undefined ? null : (
+          <div key={nombre} style={{ display: "flex", gap: 8 }}>
+            <span style={{ flex: 1 }}>{nombre}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{ms} ms</span>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 export default function CostPanel({ taskId }: { taskId?: string }) {
   const usage = useMagiStore((s) => s.usage);
+  const fases = useMagiStore((st) => (taskId ? st.fases[taskId] : null));
   const s = summarize(usage, taskId);
 
   if (!s.calls) {
@@ -91,6 +128,8 @@ export default function CostPanel({ taskId }: { taskId?: string }) {
         El tiempo es de modelo, no de reloj: los turnos del enjambre corren en
         paralelo, así que la suma supera lo que tardó la tarea.
       </div>
+
+      <Fases f={fases} />
     </div>
   );
 }
