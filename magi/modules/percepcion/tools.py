@@ -74,6 +74,70 @@ def register_percepcion_tools(reg: ToolRegistry) -> ToolRegistry:
                        "del backend de audio antes que el mezclador.")
         return ToolResult(True, cuerpo, meta=v)
 
+    @reg.tool("classify_screen",
+              "Lee una captura de pantalla de un juego y dice QUÉ es: negro, "
+              "carga, licencia, menú, título o partida; en qué idioma habla y "
+              "qué botón está pidiendo. Úsala para saber dónde se quedó "
+              "atascado un juego en vez de describir la captura a mano.",
+              {"type": "object",
+               "properties": {
+                   "path": {"type": "string",
+                            "description": "ruta de la imagen"},
+                   "black_pct": {"type": "number",
+                                 "description": "% de píxeles negros, del harness"},
+                   "motion_pct": {"type": "number",
+                                  "description": "% de cambio respecto a la anterior"},
+                   "console": {"type": "string",
+                               "description": "clave de consola en la memoria "
+                                              "de mandos, p.ej. sega_saturn"}},
+               "required": ["path"]},
+              access={"read"})
+    def classify_screen(path: str, black_pct: float = 0.0,
+                        motion_pct: float = 0.0, console: str = "",
+                        ctx=None):
+        from pathlib import Path
+
+        from .vista import clasificar, disponible, leer_texto
+
+        p = ctx.resolve(path) if ctx else Path(path)
+        if not p.is_file():
+            return ToolResult(False, "", error=f"no existe: {p}")
+
+        texto = ""
+        if disponible():
+            try:
+                from PIL import Image
+                with Image.open(p) as img:
+                    texto = leer_texto(img)
+            except Exception as e:      # pragma: no cover
+                return ToolResult(False, "", error=f"no se pudo leer: {e}")
+
+        botones = None
+        if console:
+            try:
+                from ..swarm.memoria_persistente import cargar_controles
+                ficha = (cargar_controles().get("consolas") or {}).get(console)
+                botones = (ficha or {}).get("botones")
+            except Exception:           # pragma: no cover
+                botones = None
+
+        pant = clasificar(black_pct, motion_pct, texto, botones)
+        cuerpo = f"PANTALLA: {pant.clase} — {pant.razon}."
+        if pant.idioma:
+            cuerpo += f" Idioma: {pant.idioma} (confianza {pant.confianza_idioma:.2f})."
+        if pant.botones:
+            cuerpo += f" Pide: {', '.join(pant.botones)}."
+        if not disponible():
+            cuerpo += (" AVISO: sin OCR en esta máquina, así que idioma y "
+                       "botones quedan SIN COMPROBAR — no es que no los haya.")
+        return ToolResult(True, cuerpo,
+                          meta={"clase": pant.clase, "razon": pant.razon,
+                                "idioma": pant.idioma,
+                                "confianza_idioma": pant.confianza_idioma,
+                                "botones": pant.botones,
+                                "texto": pant.texto[:400],
+                                "ocr_disponible": disponible()})
+
     @reg.tool("audio_available",
               "Dice si esta máquina puede escuchar la salida de audio. "
               "Compruébalo ANTES de prometer un veredicto de sonido.",

@@ -12,26 +12,24 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.14.0: oídos, y el mapa del cable
+## Qué hay de nuevo en la v5.15.0: vista
 
-R9 puso ojos a las corridas —sin imagen y sin movimiento no hay evidencia—.
-Faltaban dos sentidos más.
+Tres sentidos, en el orden en que hicieron falta. **R9** dio ojos: sin imagen y
+sin movimiento, una corrida no es evidencia. **R16** dio oídos: el log no
+distingue audio limpio de audio a trompicones. Faltaba saber **qué** hay en la
+pantalla.
 
-**Oír.** `listen_audio` captura lo que suena y distingue tres cosas que no son
-la misma: si **hubo** audio, si salió **entero**, y cuánto del tiempo hubo
-señal. El log no puede distinguirlas: en YabauseVita el hilo de sonido quema
-los mismos 1,1-1,4 s por ventana tanto si el audio sale limpio como si sale a
-trompicones. Y si la máquina no tiene oídos, el veredicto es **SIN
-COMPROBAR** — que no es «no suena».
+`classify_screen` lo dice: si es negro, carga, licencia, menú, título o
+partida; en qué idioma habla el juego; y qué botón está pidiendo, validado
+contra el mando de esa consola. «NiGHTS se queda en la pantalla de licencia»
+era algo que había que mirar a mano y describir; ahora lo devuelve una función.
 
-**Saber qué está cableado.** `docs/MAPA-INTERFAZ.md` se genera del código: qué
-topics manda la interfaz y quién los atiende, qué eventos emite el núcleo y
-qué panel los pinta. Hoy: 19 comandos conectados, 23 eventos conectados, **0
-topics sin destinatario**, y 25 capacidades que se ejecutan sin que ningún
-panel las muestre. Esas 25 tienen trinquete: pueden bajar, no subir.
+Y `Zonas` responde «¿dónde va lento?» con un número por pantalla. La media
+global miente por construcción: 60 en el menú y 17 en partida dan 38, y 38 no
+ocurre nunca. El informe lo dice en voz alta, para que nadie cite el promedio.
 
-El mapa mapea el **cable**, no que el botón haga lo correcto. Decir lo
-contrario sería justo la clase de afirmación que R9 prohíbe.
+Sin OCR en la máquina, el veredicto es **SIN COMPROBAR** — que no es «no hay
+texto». Misma regla que los oídos.
 
 ## Cómo funciona
 
@@ -197,7 +195,7 @@ medio: **una corrida sin ojos no es evidencia**. Ver «Rondas verificadas» abaj
 
 ## Qué sabe hacer
 
-Más allá de debatir, el enjambre tiene **50 herramientas** reales sobre tu
+Más allá de debatir, el enjambre tiene **53 herramientas** reales sobre tu
 máquina, repartidas por rol y acotadas por dominio antes de entrar al prompt.
 
 - **Ingeniería de software**: crear, modificar y ejecutar código, construir

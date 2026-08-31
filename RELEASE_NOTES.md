@@ -1,3 +1,38 @@
+# v5.15.0 — vista: leer la pantalla como la lee una persona
+
+**Qué cambia:** R9 dio ojos («¿hay algo y se mueve?») y R16 oídos. Ninguno de
+los dos sabía **qué** estaba pasando en pantalla. Ahora sí.
+
+**Lo concreto:**
+
+- **`magi/modules/percepcion/vista.py`** con `classify_screen` registrada en el
+  enjambre. De una captura saca: en qué clase de pantalla estamos (negro,
+  carga, licencia, menú, título, partida), en qué **idioma** habla el juego, y
+  **qué botón está pidiendo** — validado contra la memoria de mandos de esa
+  consola, para no mandar al agente a pulsar una tecla que el mando no tiene.
+- **«NiGHTS se queda en la licencia» pasa a ser comprobable.** En la Ronda 2
+  eso hubo que averiguarlo mirando una captura a mano y describiéndola; ahora
+  lo dice una función.
+- **`Zonas`: FPS por clase de pantalla.** «Va lento» sin decir dónde no es
+  diagnóstico: un juego a 60 en el menú y a 17 en partida tiene media 38, y 38
+  no ocurre nunca. El informe señala la zona lenta y **avisa por escrito** de
+  que su propia media entre clases no describe ninguna pantalla.
+- **El idioma se detecta con confianza declarada.** «START» acierta en inglés y
+  en nada más, pero un empate a uno entre dos idiomas es una moneda al aire, no
+  una detección: la confianza mide la distancia al segundo candidato, no los
+  aciertos. Y el japonés se detecta por escritura (kana), no por palabras.
+- **Un fallo que solo aparece con OCR real.** Tesseract leyó «PULSA START PARA
+  JUGAR» como `PULSASTARTPARA JUGAR`. Un patrón con `\b` detrás del verbo no
+  encuentra nada ahí, y ese es el caso normal, no el raro. Hay segunda pasada
+  para texto pegado y test de regresión con las cadenas sucias de verdad.
+- **Sin OCR se dice SIN COMPROBAR**, igual que los oídos. Una capacidad ausente
+  no es un resultado negativo.
+
+**36 pruebas nuevas.** El juicio vive separado de la captura, así que se prueba
+con imágenes sintéticas y con OCR real, sin emulador delante.
+
+---
+
 # v5.14.0 — oídos, y el mapa del cable entre la pantalla y el núcleo
 
 **Qué cambia:** R9 puso ojos a las corridas. Faltaban dos cosas: **oír** si el
