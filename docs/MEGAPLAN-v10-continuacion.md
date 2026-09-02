@@ -870,6 +870,23 @@ Lo mismo que hicieron las sesiones anteriores:
 *Fin del MEGAPLAN v10. Verificado contra el código el 2-sep-2026. Si el código
 ha cambiado desde entonces, gana el código.*
 
+## Hallazgos de la sesión supervisada (2-sep-2026, noche)
+
+- **El reanudar-zombis se cuelga antes del primer log.** Tras reiniciar el
+  kernel con una tarea `in_progress` recuperada, `submit_task` sobre esa
+  tarea no llegaba nunca a «Iniciando tarea»: el encargo del usuario quedaba
+  procesado (estilo/motor/ruta en el log) pero el enjambre no arrancaba.
+  Reproducido dos veces. Solución operativa inmediata: conversación nueva.
+  Arreglo pendiente: la reanudación debe arrancar limpia o declarar la tarea
+  cancelada — nunca callarse. Es la clase exacta de fallo que R2 detecta
+  (>30 s sin ronda) pero nadie corrige solo. **Candidato a la próxima
+  versión.**
+- **Lanzar `python -m magi.main` con `&` dentro de una shell efímera mata el
+  proceso al salir la shell.** Usar el mecanismo persistente.
+- **CI**: tres flakes del mismo familia (márgenes de reloj contra runners
+  cargados) corregidos con el invariante dicho directo; el de hedge ahora
+  guarda un stack de 40 frames para que el próximo fallo nombre al culpable.
+
 ## Publicación — cierre de la sesión
 
 - **v5.19.0 publicada por CI** (tag `v5.19.0`, workflow 8m43s en verde):
