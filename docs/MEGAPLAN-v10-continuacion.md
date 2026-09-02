@@ -870,6 +870,22 @@ Lo mismo que hicieron las sesiones anteriores:
 *Fin del MEGAPLAN v10. Verificado contra el código el 2-sep-2026. Si el código
 ha cambiado desde entonces, gana el código.*
 
+## Publicación — cierre de la sesión
+
+- **v5.19.0 publicada por CI** (tag `v5.19.0`, workflow 8m43s en verde):
+  `MAGI-IDE-v5.zip` 143,4 MB + `CHECKSUMS.txt`
+  (zip sha256 `13af1e3b7843…`). El `.exe` del CI no arrastra los dos fixes
+  post-release —ambos de cara al desarrollo, no al binario— que viajan en
+  `main` desde ya.
+- **`publicar.py` (vía local) se frenó con razón**: 9 dependencias directas
+  divergen de `requirements.lock` (g4f 7.9.4 vs 8.1.1, websockets 16 vs 12…).
+  El entorno local es el medido; el lock, el del CI. Alinear una de las dos
+  partes es tarea de la próxima sesión, con la suite delante.
+- **El CI cazó un flaky real** en `test_el_recon_tardio_se_cancela`: el
+  «tardío» era absoluto (5 s) y un runner cargado lo convertía en «a tiempo».
+  Endurecido a relativo (12 s). El CI del commit anterior pasó con el mismo
+  código: varianza, no regresión — y el fix la elimina igualmente.
+
 ## Aprendizajes de cierre de la sesión (2-sep-2026, tarde)
 
 - **Un `str.replace` sin `assert` es un no-op silencioso.** El segundo intento
