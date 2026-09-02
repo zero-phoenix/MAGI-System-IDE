@@ -246,7 +246,15 @@ async def test_el_recon_tardio_se_cancela_y_no_alarga_la_ronda(captura,
             por_defecto=("propuesta sin código", 0.4))
         balthasar = GuionProvider(
             f"g4f-{FAM_BALTHASAR}", FAM_BALTHASAR,
-            reglas=[("RECONOCIMIENTO", "DOSIER: tardísimo.", 5.0)],
+            # «Tardío» tiene que serlo CONTRA LA CORRIDA, no contra el reloj
+            # de una máquina concreta. Con 5 s, el runner de windows-latest
+            # del 2-sep-2026 (run 33619644639) estiró la fase previa a la
+            # cosecha hasta los 8,4 s: el recon llegaba «a tiempo», no se
+            # cancelaba, y la pared lo contaba — el test rojo sin que el
+            # mecanismo estuviera mal. 12 s solo pueden acabar DENTRO de la
+            # ventana si la cosecha se estira 30x, y si la cancelación se
+            # rompe, la pared los acusa igual.
+            reglas=[("RECONOCIMIENTO", "DOSIER: tardísimo.", 12.0)],
             por_defecto=("sin defectos en este eje. OBJECIONES: 0", 0.0))
         casper = GuionProvider(
             f"g4f-{FAM_CASPER}", FAM_CASPER,
@@ -270,5 +278,5 @@ async def test_el_recon_tardio_se_cancela_y_no_alarga_la_ronda(captura,
     # solo añade fragilidad.
     assert pared_con < pared_sin + 1.0, (
         f"la ronda esperó al recon tardío: {pared_con:.2f}s con abanico "
-        f"frente a {pared_sin:.2f}s sin él. El recon dura 5 s; si la pared "
+        f"frente a {pared_sin:.2f}s sin él. El recon dura 12 s; si la pared "
         f"lo acusa, es que no se canceló.")
