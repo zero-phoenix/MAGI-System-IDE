@@ -303,12 +303,21 @@ def test_la_suspension_viaja_en_el_prompt():
     dice que hacer en su lugar. Un mecanismo que produce tres propuestas
     prohibidas en silencio es peor que uno que no produce ninguna.
     """
-    for i, f in enumerate(filo.FILOSOFIAS):
-        txt = filo.para_la_variante(i)
-        assert f.suspendida_por, (
-            f"{f.clave} ya no esta suspendida: si la bitacora levanto la "
-            f"regla, actualiza tambien este test y di con que medicion")
-        assert f"SUSPENDIDA por {f.suspendida_por}" in txt
+    suspendidas = {f.clave: f for f in filo.FILOSOFIAS if f.suspendida_por}
+    # C (repartir_mejor) quedo LIBRE el 2-sep-2026: A9 cayo por medicion
+    # (drawn=94 presented=94 dropped=0 a 34,7 FPS, corrida verificada E1).
+    # Su prompt ya NO debe llevar el aviso de suspension.
+    assert "repartir_mejor" not in suspendidas, (
+        "repartir_mejor volvio a suspenderse: si es una medicion nueva, "
+        "actualiza este test y di cual")
+    assert "SUSPENDIDA" not in filo.para_la_variante(2)
+    # A y B siguen suspendidas por R6 (el camino de render es el 1,27 %,
+    # A7) hasta que exista telemetria de emulacion que demuestre lo contrario.
+    for clave in ("hacer_menos", "mover_menos"):
+        f = suspendidas[clave]
+        txt = filo.para_la_variante(0 if clave == "hacer_menos" else 1)
+        assert f.suspendida_por == "R6"
+        assert "SUSPENDIDA por R6" in txt
         assert f.levanta.split(".")[0][:20] in txt
 
 

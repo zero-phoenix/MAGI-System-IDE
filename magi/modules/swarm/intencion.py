@@ -87,7 +87,8 @@ _REVISION = (
 _ENCARGO = (
     "dime", "cuentame", "explica", "explicame", "describe", "define",
     "hazme", "haz un", "haz una", "crea", "genera", "escribe", "programa",
-    "construye", "disena", "analiza", "busca", "investiga", "compara",
+    "construye", "disena", "analiza", "optimiza", "propon",
+    "implementa", "busca", "investiga", "compara",
     "traduce", "resume", "calcula", "muestrame", "ensename", "por que",
     "porque", "que es", "quien es", "como se", "cuando", "donde",
     # Escribir «naoko» es hablarle a la supervisora, no responder a una
@@ -156,8 +157,15 @@ def es_respuesta_a_aprobacion(texto: str) -> bool:
     if "naoko" in palabras:
         return False
 
-    # 3. Pedir un cambio SOBRE lo propuesto sí es responder.
-    if any(v in t for v in _REVISION):
+    # 3. Pedir un cambio SOBRE lo propuesto sí es responder. Pero el verbo
+    #    de revisión tiene que MANDAR la frase —en la cabeza o en un mensaje
+    #    corto— porque un encargo largo puede mencionar «mejora» de pasada.
+    #    Medido el 2-sep-2026: «optimiza ... propon una mejora por cada
+    #    filosofía...» se tragó como aprobación de una tarea zombi y el
+    #    encargo nuevo jamás arrancó. Una persona común no sabe que hay
+    #    una aprobación pendiente: su encargo no puede salir devorado.
+    if any(v in t for v in _REVISION) and (
+            n <= 8 or any(v in cabeza for v in _REVISION)):
         return True
 
     # 4. Una pregunta con interrogación y sin referencia a la propuesta es

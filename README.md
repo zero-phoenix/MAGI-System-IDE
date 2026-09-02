@@ -329,7 +329,36 @@ Siete reglas, cada una nacida de un fallo real:
    está hecho hasta que se comprueba **en el camino por el que pasa el sistema
    de verdad**.
 
-**1666 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
+
+## Autonomía: trabajar sin supervisor detrás
+
+El objetivo del sistema es operar **solo con los prompts de una persona
+común**, sin otra IA supervisándolo. Cada versión acerca eso:
+
+- **El motor se adapta al encargo.** Los encargos triviales («crea un script
+  que imprima X») arrancan al instante en modo rápido, sin la llamada de
+  estilo ni las cuatro iteraciones del modo profundo — medido: de 20+ min a
+  segundos de arranque. Los encargos serios siguen con Naoko eligiendo estilo
+  y el motor que pidió quien escribe. Ante la duda, nada es trivial: solo se
+  baja la marcha, nunca se sube a quien pidió prisa.
+- **Ritsuko vigila el reloj que la persona percibe.** El eco del chat (>2 s)
+  y el arranque de ronda (>30 s) quedan registrados como hallazgos con
+  número — el caso real que la motivó fue un eco a los 10,6 s que el usuario
+  descubrió con una captura.
+- **Segunda firma en las entregas.** Al cerrar cada tarea, Ritsuko firma lo
+  que constaba: `VERIFICADA` (hay artefacto), `DECLARADA_INCOMPLETA` (el
+  sistema avisó) o `SIN_ARTEFACTO` (la evidencia no está — un hecho, no una
+  acusación).
+- **Las reglas del proyecto viajan con el proyecto.** La bitácora del
+  emulador, sus reglas §5.2 y los descartes rescatables se inyectan sobre el
+  prompt: el enjambre no repite lo ya medido ni propone lo ya prohibido, y
+  las tres filosofías ortogonales (hacer menos / mover menos / repartir
+  mejor) se asignan por variante, no por suerte de semilla.
+- **La versión que ves es la que corres.** El pie de la interfaz lee la
+  versión del kernel en vivo; el sistema se audita usándose a sí mismo y lo
+  que encuentra se corrige con la medición pegada al commit.
+
+**1673 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:

@@ -1,3 +1,46 @@
+# v5.20.0 — autonomía: el encargo de una persona común no puede salir devorado
+
+**Qué cambia:** la sesión supervisó a MAGI usándolo como lo usaría una
+persona — mandarle mejorar el emulador con las tres filosofías y mirar. El
+fallo que eso destapó era el más grave posible para la autonomía, y la
+filosofía C quedó libre por medición.
+
+**Lo concreto:**
+
+- **El devorador de encargos, cazado en vivo.** Una tarea zombi pendiente de
+  aprobación CAPTURABA el siguiente comando del usuario como su respuesta:
+  «optimiza… propon una mejora por cada filosofía…» contenía «mejora» y la
+  regla de revisión, por SUBCADENA, se lo comía entero. El encargo nuevo
+  jamás arrancaba y nadie veía por qué. Ahora el verbo de revisión tiene que
+  mandar la frase (cabeza o mensaje corto), «optimiza/propon/implementa»
+  entran en la lista de encargos, y una persona que no sabe que existe una
+  aprobación pendiente ya no pierde su trabajo en ella.
+- **La filosofía C (repartir mejor) queda LIBRE por medición.** A9 cayó:
+  `drawn=94 presented=94 dropped=0` a 34,7 FPS, impresos por
+  `VIDGPUVdp2LogTiming` y capturados por `vita3k_ctl` — la línea existía
+  desde el 18-jul y A9 describía una build anterior. Bitácora del emulador
+  actualizada con la medición; A y B siguen suspendidas por R6 (render =
+  1,27 %, A7).
+- **El motor se adapta al encargo.** Los triviales («crea holamundo.py…»)
+  arrancan al instante: sin la llamada LLM de estilo (3-22 s) y en modo
+  rápido — medido antes: 20+ min para un hola mundo. Determinista,
+  conservador (ante la duda, nada es trivial) y solo baja la marcha: a
+  quien pidió prisa no se le sube.
+- **README reescrito** con la sección de autonomía y las cifras reales.
+
+**Supervisión con ojos:** 8 pestañas pulsadas sin errores, tres envíos del
+encargo real (los dos primeros enseñaron el devorador), capturas de cada
+estado, y la ronda de optimización arrancando por fin con las tres
+filosofías sobre la bitácora viva.
+
+---
+
+**7 pruebas nuevas** (motor trivial, devorador de encargos). Suite completa
+en verde con `verificar.py --todo` incluidos los .exe; ruff limpio;
+huérfanos en 80; `kernel.py` 1070/1070 sin subir el techo.
+
+---
+
 # v5.19.0 — auditar el sistema usándolo, y los fallos que solo así se ven
 
 **Qué cambia:** la sesión empezó ejecutando el megaplan v10 y siguió

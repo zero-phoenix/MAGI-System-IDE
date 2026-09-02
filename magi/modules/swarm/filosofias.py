@@ -163,11 +163,11 @@ FILOSOFIAS: tuple[Filosofia, ...] = (
                 "categoria donde mas importa medir con los tres juegos."),
         marcas=("dropped", "nucleo", "core", "hilo", "thread", "reparto",
                 "banda", "paraleliz", "afinidad", "planific", "scheduler"),
-        # No es R6: es que su metrica NO SE IMPRIME. Una filosofia cuyo
-        # contador no sale por el log no puede ganar ni perder (A9).
-        suspendida_por="A9",
-        levanta=("exponer drawn/presented/dropped en el log. vidgpu.c ya los "
-                 "lleva; esta build no los imprime."),
+        # A9 cayo por medicion el 2-sep-2026: drawn=94 presented=94
+        # dropped=0 a 34,7 FPS, impresos por VIDGPUVdp2LogTiming y capturados
+        # por vita3k_ctl. La metrica existe; la filosofia compite.
+        suspendida_por="",
+        levanta="",
     ),
 )
 

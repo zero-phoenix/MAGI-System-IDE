@@ -719,19 +719,21 @@ class Kernel:
         # se ignora y se recalcula.
         gui_style = (payload.get("narrative_style", "tecnico")
                      if isinstance(payload, dict) else "tecnico")
-        try:
-            from magi.core.providers.cloud import FreeCloudLLM
-            from magi.modules.infrastructure.naoko import estilo_para
-            narrative_style = await estilo_para(command, llm=FreeCloudLLM())
-            logger.info("[kernel] estilo decidido por naoko: %s (gui: %s)",
-                        narrative_style, gui_style)
-            await self.bus.publish(BusEvent(
-                topic="swarm.style",
-                payload={"task_id": task_id, "style": narrative_style,
-                         "decidido_por": "naoko"}))
-        except Exception as e:
-            logger.debug("[kernel] estilo naoko falló (%s); uso %s", e, gui_style)
-            narrative_style = gui_style
+        # El estilo y el motor los decide `motor.estilo_y_motor`: los
+        # encargos triviales (medido 2-sep-2026: 20+ min para un «holamundo»
+        # por una llamada de estilo de 3-22 s y cuatro iteraciones) llegan
+        # «tecnico»/«fast» SIN tocar la red; el resto, como siempre.
+        from magi.core.providers.cloud import FreeCloudLLM
+        from magi.modules.infrastructure.motor import estilo_y_motor
+        narrative_style, engine, origen = await estilo_y_motor(
+            command, motor_gui=engine, estilo_gui=gui_style,
+            llm=FreeCloudLLM())
+        logger.info("[kernel] estilo=%s motor=%s decidido por %s",
+                    narrative_style, engine, origen)
+        await self.bus.publish(BusEvent(
+            topic="swarm.style",
+            payload={"task_id": task_id, "style": narrative_style,
+                     "decidido_por": origen, "engine": engine}))
 
         # Generar un proyecto automático si es una conversación nueva
         # Para simular "cada vez que inicie una conversacion", creamos la carpeta
