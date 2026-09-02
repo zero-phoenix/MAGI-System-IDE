@@ -46,9 +46,10 @@ function cuando(ts: number) {
   return new Date(ts * 1000).toLocaleDateString();
 }
 
-export function PreviewPanel({ listArtifacts, readArtifact }: {
+export function PreviewPanel({ listArtifacts, readArtifact, connected = true }: {
   listArtifacts: (limite?: number) => Promise<any>;
   readArtifact: (path: string) => Promise<any>;
+  connected?: boolean;
 }) {
   const [modo, setModo] = useState<"artefactos" | "url">("artefactos");
   const [items, setItems] = useState<Item[]>([]);
@@ -75,6 +76,13 @@ export function PreviewPanel({ listArtifacts, readArtifact }: {
   }, [listArtifacts, sel]);
 
   useEffect(() => { cargarLista(); }, [cargarLista]);
+
+  // Hallado el 2-sep-2026 auditando la app en vivo: el panel montaba ANTES de
+  // que el WebSocket abriera, `listArtifacts` rechazaba con «sin conexión con
+  // el kernel» y ese error quedaba pegado para siempre — con «Leyendo el
+  // workspace…» al lado, que ya no era verdad. Había que pulsar Releer a mano
+  // para ver artefactos que estaban ahi. Cuando la conexion llega, se recarga.
+  useEffect(() => { if (connected) cargarLista(); }, [connected]);
 
   useEffect(() => {
     if (!sel) { setCont(null); return; }
@@ -196,7 +204,9 @@ export function PreviewPanel({ listArtifacts, readArtifact }: {
           {!cont && (
             <div style={{ flex: 1, display: "flex", alignItems: "center",
                           justifyContent: "center", color: "var(--dim)" }}>
-              {raiz ? "Elige un artefacto de la izquierda." : "Leyendo el workspace…"}
+              {raiz ? "Elige un artefacto de la izquierda."
+              : error ? "Sin datos del workspace. Reintenta con Releer."
+              : "Leyendo el workspace…"}
             </div>
           )}
           {cont && (

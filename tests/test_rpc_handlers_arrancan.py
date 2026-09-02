@@ -104,6 +104,13 @@ async def test_sys_config_devuelve_lo_que_la_interfaz_pinta():
     assert "reparto" in cfg["enjambre"] and "diversidad" in cfg["enjambre"]
     assert isinstance(cfg["familias"], list) and cfg["familias"]
     assert {"MELCHIOR", "BALTHASAR", "CASPER"} <= set(cfg["herramientas"])
+    # La versión que pinta el pie de página. Fue hallado el 2-sep-2026 diciendo
+    # «v3.0» con el sistema en la 5.18: una constante del GUI que nadie
+    # actualizaba. Ahora la única fuente es el kernel.
+    from magi import __version__
+    assert cfg.get("version") == __version__, (
+        "sys.config no devuelve la versión real: el pie de la interfaz "
+        "volvería a mentir sobre qué se está usando")
 
 
 def test_all_domains_se_puede_importar_del_paquete():

@@ -7,3 +7,4 @@
 # Si nunca cambia, la replica no aporta y se retira. Este fichero es la unica
 # evidencia que puede decidirlo, asi que solo entran rondas REALES: nada de
 # task_id de prueba. Los tests escriben en tmp_path via MAGI_MEMORIA.
+{"task_id": "task_btyy3gcn", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 1, "ts": "2026-09-02T01:17:14"}

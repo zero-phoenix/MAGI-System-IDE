@@ -168,10 +168,35 @@ def test_pertinente_separa_las_rondas_de_optimizacion():
     assert filo.pertinente("optimiza el rendimiento del emulador")
     assert filo.pertinente("sube los FPS de YabauseVita en Vita3K")
     # Encargo del emulador que NO es de rendimiento: R14 y la ronda 3 van de
-    # por que NiGHTS no arranca, y eso no se ataca en tres filosofias.
+    # por qué NiGHTS no arranca, y eso no se ataca en tres filosofías.
     assert not filo.pertinente("averigua por que NiGHTS no llega al titulo")
     # Optimizacion que no es del emulador.
     assert not filo.pertinente("optimiza el arranque de la interfaz")
+
+
+def test_pertinente_no_cuela_por_nombrar_la_consola():
+    """
+    El falso positivo medido el 2-sep-2026: 3 de 10 encargos de prueba
+    colaban porque `vita` (o `saturn`) estaba en la frase aunque el
+    OBJETIVO fuera otro entregable. Cada uno habria recibido el reparto en
+    tres filosofias del camino de render y las reglas de un proyecto ajeno.
+
+    El control son los positivos de arriba: si al estrechar alguno dejara
+    de dar True, este fichero se pone rojo y no hace falta esperar a una
+    ronda real para enterarse.
+    """
+    # La consola como TEMA, el entregable como objetivo.
+    assert not filo.pertinente(
+        "acelera la web que muestra la velocidad de la Vita")
+    assert not filo.pertinente(
+        "escribe un articulo sobre la velocidad del Sega Saturn")
+    assert not filo.pertinente("haz un dashboard del rendimiento de Saturn")
+    assert not filo.pertinente(
+        "optimiza el servidor que guarda las capturas de Vita3K")
+    # Y con tilde, que `_plano` tiene que aplanar igual. Este caso es el
+    # mas afilado: lleva palabra de optimizar Y palabra de emulador, asi
+    # que lo unico que lo puede bloquear es la guardia de entregable ajeno.
+    assert not filo.pertinente("acelera la página del emulador")
 
 
 # ------------------------------------------------------------- 2. DETECCION
@@ -232,6 +257,25 @@ def test_las_reglas_de_la_bitacora_frenan_antes_de_compilar():
     # R14 — el disco de NiGHTS llega byte-perfecto.
     disco = "El disco de NiGHTS esta corrupto: volver a volcar el CHD."
     assert "R14" in [r.clave for r in filo.choques(disco)]
+    # R7 — GPU timing son totales de 5 s, no µs por fotograma (A8).
+    mal_leido = ("El GPU timing del composite marca 1250 µs por fotograma, "
+                 "asi que el render es el cuello.")
+    assert "R7" in [r.clave for r in filo.choques(mal_leido)]
+
+
+def test_citar_la_regla_r7_no_es_violarla():
+    """
+    La forma honesta de citar R7 («no son µs por fotograma») nombra las
+    mismas palabras que la violacion, sin el numero delante. Por eso el
+    segundo grupo de R7 exige un VALOR con unidades: sin el digito, la
+    negacion honesta pasa limpia.
+
+    Es el mismo principio que `honesta` de R6 mas arriba: una regla que
+    flagra al que la cita correctamente ensena a no citarla.
+    """
+    honesta = ("GPU timing son totales de la ventana de 5 s (A8), no µs por "
+               "fotograma: leerlos como instantaneos invierte la conclusion.")
+    assert filo.choques(honesta) == []
 
 
 def test_las_reglas_no_disparan_con_mencionar_la_palabra():

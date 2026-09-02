@@ -1,6 +1,6 @@
 # Traspaso — MAGI System IDE + YabauseVita
 
-**Fecha:** 31 de agosto de 2026
+**Fecha:** 2 de septiembre de 2026 (actualizado tras la v5.19.0)
 **Para:** quien continúe el trabajo (zcode desktop u otro agente)
 **Máquina:** `DESKTOP-B6D864U` · Windows 10 22H2 (build 19045.6466) · i7-3770 · 24 GB · GTX 1050 2 GB
 
@@ -30,8 +30,8 @@ corrige este fichero.
 
 | | |
 |---|---|
-| `zero-phoenix/MAGI-System-IDE` | **público**, `main` en `7db9d2e`, versión **5.16.0** |
-| `zero-phoenix/yabausevita` | **público**, `main` en `e33ead7` |
+| `zero-phoenix/MAGI-System-IDE` | **público**, `main` en la **5.19.0** (v5.17: abanico+réplica; v5.18: filosofías asignadas; v5.19: auditoría en vivo, C6, Ritsuko R2/R4) |
+| `zero-phoenix/yabausevita` | **público**, `main` con R16 escrita en la bitácora (2-sep-2026) |
 | Clones locales | `C:\Users\D\Documents\GitHub\MAGI-System-IDE` y `...\yabausevita-zp` |
 
 Ambos árboles limpios, ambos CI en verde, **14 releases conservados** (ninguno
@@ -133,16 +133,18 @@ un juego real»): `classify_screen` y `listen_audio`.
 | 4 | Compuerta obligatoria antes de «hecho» | pendiente |
 | 5 | Veredicto «la pregunta era otra» | pendiente |
 | 6 | Índice local FTS5 | **construido** |
-| 7 | Abanico paralelo | pendiente — **el de más efecto por esfuerzo** |
-| 8 | Réplica (Melchior contesta a la objeción) | especificada, no construida |
+| 7 | Abanico paralelo | **construida** (v5.17.0): 38 % medido, `MAGI_ABANICO=0` vuelve a serie |
+| 8 | Réplica (Melchior contesta a la objeción) | **construida** (v5.17.0): condicional, acotada, con `CONCESIÓN:`; compuerta `MAGI_REPLICA_SOMBRA=1` **aún sin rondas reales** |
 | 9 | Embeddings locales | **retirada** — sobre-ingeniería sobre 2,7 MB |
 | 10 | Modelo de sí mismo falsable | **construido y sembrado** |
 | 11 | Fijar el linter | **aplicada** |
 
-**El siguiente es el 7.** Medido: tres esperas independientes tardan 1,50 s en
-serie y 0,51 s en abanico — **66 % menos**. Los ocho núcleos están parados
-mientras el enjambre espera tres respuestas de red en fila. No necesita ninguna
-descarga.
+**Las fases 7 y 8 ya están construidas (v5.17.0) y las filosofías son
+asignadas desde la v5.18.0.** El plan vigente es `docs/MEGAPLAN-v10-continuacion.md`:
+el orden que queda es E1 (exponer `drawn/presented/dropped`, levanta A9),
+E2 (instrumentar SH2LRU y dynarec), E3 (Ronda 4: BIOS/CDB de NiGHTS),
+M3 (Ritsuko portera de la sonda, tras rodar G4), F1-F5 (las fases del v6 que
+quedan) y las diferidas del bloque P con su precondición.
 
 ---
 

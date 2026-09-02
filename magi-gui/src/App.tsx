@@ -231,11 +231,15 @@ export default function App() {
   // `prov-c` a BALTHASAR y `prov-a` a CASPER, letras que no correspondían a
   // ningún proveedor. La cabecera ya se arregló; esto se quedó sin tocar.
   const [reparto, setReparto] = useState<Record<string, string>>({});
+  // La versión la dice el KERNEL (sys.config), no este fichero: una
+  // versión escrita a mano aquí ya conto un tres cuando el sistema iba por el
+  // la 5.18 — un pie de página que miente sobre qué estás usando.
+  const [versionKernel, setVersionKernel] = useState("");
   useEffect(() => {
     if (!fetchConfig) return;
     let vivo = true;
     fetchConfig()
-      .then((c: any) => { if (vivo) setReparto(c?.enjambre?.familias || {}); })
+      .then((c: any) => { if (vivo) { setReparto(c?.enjambre?.familias || {}); setVersionKernel(c?.version || ""); } })
       .catch(() => { /* la cabecera ya avisa; aquí se calla y usa "—" */ });
     return () => { vivo = false; };
     // Solo `connected`: `fetchConfig` cambia de identidad en cada render y
@@ -635,7 +639,7 @@ export default function App() {
                 genera de verdad, y la URL queda como modo secundario. */}
             {activeTab === "Vista previa" && (
               <PreviewPanel listArtifacts={listArtifacts}
-                            readArtifact={readArtifact} />
+                            readArtifact={readArtifact} connected={connected} />
             )}
 
             {/* La pestaña estaba en la barra y NO tenía render: se pulsaba y
@@ -847,7 +851,7 @@ export default function App() {
 
       <div className="foot">
         <div>
-          ejecutable de escritorio · <b>MAGI SYSTEM IDE v3.0</b> · layout maestro
+          ejecutable de escritorio · <b>MAGI SYSTEM IDE {versionKernel ? `v${versionKernel}` : ""}</b> · layout maestro
         </div>
         <div>acceso root habilitado</div>
       </div>

@@ -113,6 +113,7 @@ class Kernel:
         configuración que muestre valores escritos a mano es justo la clase de
         cosa que este proyecto ha estado desmontando.
         """
+        from magi import __version__
         from magi.core import no_browser, paths
         from magi.core.providers.backends.g4f_backend import (
             FAMILY_SPECS,
@@ -163,6 +164,7 @@ class Kernel:
                         for rol in ("MELCHIOR", "BALTHASAR", "CASPER")}
 
         return {
+            "version": __version__,
             "enjambre": {"reparto": asignacion.by_role,
                          "familias": asignacion.families,
                          "diversidad": asignacion.diversity,

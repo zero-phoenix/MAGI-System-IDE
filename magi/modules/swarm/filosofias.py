@@ -181,8 +181,11 @@ class Regla:
     clave: str
     dice: str
     #: Todas las piezas tienen que aparecer para que haya choque. Un solo
-    #: termino dispararia con cualquier mencion de pasada, y una regla que
-    #: bloquea propuestas validas se desactiva sola a la tercera vez.
+    #: termino dispararia con cualquier mencion de pasada: el diseño de
+    #: `exige` ES la mitigacion del falso positivo. No hay (todavia) contador
+    #: de estorbo que desactive una regla a la tercera: hasta que existan
+    #: rondas reales con choques, no se sabe que cuenta como estorbo, y un
+    #: contador sin dato que contar es una promesa, no un mecanismo.
     exige: tuple[tuple[str, ...], ...]
 
     def choca(self, texto: str) -> bool:
@@ -224,6 +227,17 @@ REGLAS: tuple[Regla, ...] = (
                (r"cambiar", r"sustituir", r"reemplazar", r"pasar a",
                 r"en vez de")),
     ),
+    Regla(
+        clave="R7",
+        dice=("No leer `GPU timing` como microsegundos por fotograma: son "
+              "totales de la ventana de 5 s (A8)."),
+        # El segundo grupo exige un VALOR con unidades por fotograma, no la
+        # mera co-ocurrencia de «µs» y «fotograma»: la forma honesta de
+        # citar la regla («no son µs por fotograma») nombra las dos palabras
+        # sin el numero delante, y no debe ser flagrada.
+        exige=((r"gpu[ _]timing",),
+               (r"\d[\d.,]*\s*(µs|us)\s*(por|/)\s*(fotograma|frame)",)),
+    ),
 )
 
 
@@ -241,8 +255,19 @@ def choques(texto: str) -> list[Regla]:
 _RE_OPTIMIZA = re.compile(
     r"\b(optimiz\w*|acelera\w*|rendimiento|fps|mas rapido|velocidad|"
     r"cuello|profil\w*)\b")
+#: `vita` suelta NO basta (2-sep-2026, medido): «acelera la web que muestra
+#: la velocidad de la Vita» es una tarea de web que nombra la consola, y con
+#: `vita` en la lista se repartia en tres filosofias del camino de render.
+#: Los encargos reales de este proyecto siempre traen `yabause`, `vita3k`,
+#: `emulador` o `emulacion`; la consola suelta, no.
 _RE_EMULADOR = re.compile(
-    r"\b(yabause\w*|saturn|vita3k|vita|emulador|emulacion)\b")
+    r"\b(yabause\w*|saturn|vita3k|emulador|emulacion)\b")
+#: Y el emulador puede ser TEMA sin ser OBJETIVO: un articulo, un dashboard
+#: o una pagina SOBRE el rendimiento del Saturn optimizan su entregable, no
+#: la emulacion. Esos encargos no se reparten en filosofias del pipeline.
+_RE_AJENO = re.compile(
+    r"\b(web|interfaz|servidor|articulo|dashboard|pagina|tutorial|blog|"
+    r"ensayo)\b")
 
 
 def pertinente(encargo: str) -> bool:
@@ -251,12 +276,20 @@ def pertinente(encargo: str) -> bool:
 
     Se le pasa el encargo DEL USUARIO, no el prompt ya montado. El montado
     lleva la bitacora inyectada, y la bitacora habla de optimizar el emulador
-    en casi cada linea: con ella dentro esto diria que si SIEMPRE, y todas las
-    tareas -- escribir un parser, arreglar un test -- se repartirian en tres
-    ataques al camino de render.
+    en casi cada linea: con ella dentro esto diria que si SIEMPRE, y todas
+    las tareas -- escribir un parser, arreglar un test -- se repartirian en
+    tres ataques al camino de render.
+
+    Hace falta hablar de optimizar Y del emulador Y que el emulador sea el
+    objetivo. Medido el 2-sep-2026: 3 de 10 encargos de prueba colaban por
+    nombrar la consola («acelera la web que muestra la velocidad de la Vita»,
+    «articulo sobre la velocidad del Sega Saturn», «dashboard del
+    rendimiento de Saturn») y habrian recibido reglas de otro proyecto.
     """
     t = _plano(encargo)
-    return bool(_RE_OPTIMIZA.search(t) and _RE_EMULADOR.search(t))
+    return bool(_RE_OPTIMIZA.search(t)
+                and _RE_EMULADOR.search(t)
+                and not _RE_AJENO.search(t))
 
 
 def asignada(variante: int) -> Filosofia:

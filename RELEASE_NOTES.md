@@ -1,3 +1,81 @@
+# v5.19.0 — auditar el sistema usándolo, y los fallos que solo así se ven
+
+**Qué cambia:** la sesión empezó ejecutando el megaplan v10 y siguió
+auditando MAGI usándolo como lo usa el usuario: abrir la interfaz, mandar una
+tarea real y mirar lo que sale. Cuatro fallos que ningún test veía salieron
+así, C6 se resolvió porque su precondición se cumplió sola, y Ritsuko ganó
+los dos roles que el megaplan v9 le tenía reservados.
+
+**Lo concreto:**
+
+- **El pie de página decía «v3.0» con el sistema en la 5.18.** Una constante
+  del GUI que nadie actualizaba. Ahora la versión la dice el kernel
+  (`sys.config` → `version`), y el test del contrato RPC lo vigila.
+- **«Vista previa» nacía rota.** El panel pedía los artefactos al montarse,
+  ANTES de que el WebSocket abriera: «sin conexión con el kernel» quedaba
+  pegado para siempre junto a un «Leyendo el workspace…» que ya no era verdad.
+  Recarga cuando la conexión llega, y mientras no hay datos no dice que está
+  leyendo.
+- **C6, resuelto tras 14 días aplazado** — su precondición era «reproducible»,
+  y una ronda real lo reprodujo: `HuggingSpace: TypeError: argument of type
+  'NoneType' is not iterable` con la familia `hf` dada por agotada, y quince
+  minutos después el MISMO HuggingSpace respondiendo con normalidad por otra
+  familia. Causa raíz: g4f 7.9.4 deja `model_aliases = None` y hace `model in
+  provider.model_aliases`. El parche de compat rellena con `{}` los alias que
+  falten —sin pisar los reales—, igual que el de `JsonConversation`.
+- **`pertinente()` colaba por nombrar la consola.** Medido: 3 de 10 encargos
+  de prueba («acelera la web que muestra la velocidad de la Vita», «artículo
+  sobre la velocidad del Sega Saturn», «dashboard del rendimiento de Saturn»)
+  se habrían repartido en tres filosofías del camino de render, con reglas de
+  otro proyecto encima. `vita` suelta deja de bastar y una guardia de
+  entregable ajeno (web/artículo/dashboard/…) corta el resto. Los positivos
+  históricos quedan como control del test.
+- **R7 entra en `REGLAS`**: «no leer `GPU timing` como µs por fotograma» era
+  detectable en el texto de una propuesta y no estaba. Exige un VALOR con
+  unidades («1250 µs por fotograma»), así que citar la regla honestamente
+  («no son µs por fotograma») no es flagrado.
+- **El comentario de `Regla.exige` prometía un contador de estorbo que no
+  existía.** Corregido a lo que hay: el diseño de `exige` ES la mitigación.
+  Un contador sin rondas reales que contar sería una promesa, no un mecanismo.
+- **Ritsuko R2 — el reloj que el usuario percibe.** Dos relojes: el eco del
+  chat de Naoko (>2 s es hallazgo; el caso real del 23-ago tardó 10,6 s y el
+  detector fue el usuario con una captura) y el arranque de ronda (>30 s es
+  «recibido y sin empezar». Una cola que AVISA que es cola no es cuelgue).
+- **Ritsuko R4 — segunda firma en las entregas.** Al cerrar una tarea firma
+  lo que constaba: VERIFICADA (hay artefacto), DECLARADA_INCOMPLETA (el
+  sistema avisó) o SIN_ARTEFACTO (la evidencia no está — hecho auditable, no
+  acusación). Viaja como `ritsuko.firma_entrega`, nunca como orden.
+
+## Lo que se midió usándolo de verdad
+
+La tarea real («crea holamundo.py que imprima los 25 primeros números primos,
+ejecútalo») recorrió el pipeline entero con ojos: dossier del abanico recogido
+mientras Melchior redactaba, `write_file` y `run_command` OK, crítica
+multi-eje 4/4, réplica con concesión real («reemplazar `y` por `and`»),
+failover en vivo de familia (command → hf → gemini) y el guardián
+`no_browser` bloqueando un Chrome que g4f intentó abrir. El eco del usuario
+fue instantáneo: el arreglo G de la v9 sigue en pie.
+
+## Lo que la auditoría dejó anotado y NO se tocó
+
+- **La sonda sigue midiendo con tareas vivas**: canarios a los cuatro minutos
+  de arrancar la ronda. Es el conflicto del v9 §3; G4 lo mitiga (tregua de
+  arranque) pero no lo elimina. Es exactamente el trabajo de R3: Ritsuko,
+  portera de la sonda.
+- **Una tarea trivial en modo profundo tardó 20+ minutos** con proveedores
+  gratuitos. No es un fallo: es el modo elegido. Pero Naoko podría clasificar
+  «trivial» y bajar a `fast` — anotado como mejora futura, no construido.
+
+---
+
+**15 pruebas nuevas** entre filosofías (casos borde negativos de
+`pertinente`, R7 y su negación honesta), compat (regresión de HuggingSpace),
+RPC (la versión en `sys.config`) y Ritsuko (los dos relojes y la firma).
+Suite entera en verde, ruff limpio, huérfanos en 80, `ritsuko.py` en 800/800
+y `orchestrator.py` en 1550/1550 sin subir ningún techo.
+
+---
+
 # v5.18.0 — las tres filosofías dejan de depender de la semilla
 
 **Qué cambia:** la §2 de la bitácora del emulador exige que las tres

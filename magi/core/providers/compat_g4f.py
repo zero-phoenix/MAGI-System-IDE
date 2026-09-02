@@ -89,7 +89,51 @@ def esta_aplicado() -> bool:
         from g4f.providers.response import JsonConversation
     except Exception:
         return False
-    return all(hasattr(JsonConversation, k) for k in ATRIBUTOS_POR_DEFECTO)
+    if not all(hasattr(JsonConversation, k) for k in ATRIBUTOS_POR_DEFECTO):
+        return False
+    return _aliases_de_huggingspace_sanos()
+
+
+def _aliases_de_huggingspace_sanos() -> bool:
+    """
+    Ninguna clase implicada en HuggingSpace tiene `model_aliases = None`.
+
+    g4f 7.9.4 deja `model_aliases = None` como default de `ProviderModelMixin`,
+    y `HuggingSpace.create_async_generator` hace, por cada sub-proveedor:
+
+        if model in provider.model_aliases or model in provider.get_models():
+
+    Con `model_aliases = None` eso es `model in None`: `TypeError: argument
+    of type 'NoneType' is not iterable`. Medido en una ronda REAL el
+    2-sep-2026 (task_btyy3gcn): la familia `hf` quedaba «agotada» con ese
+    error — y quince minutos después el MISMO HuggingSpace respondía con
+    normalidad por la familia `command` cuando el modelo sí resolvia. No
+    estaba roto; estaba sin aliases en el momento de la comprobacion.
+    """
+    try:
+        from g4f.Provider import HuggingSpace
+    except Exception:
+        return False
+    clases = [HuggingSpace, *getattr(HuggingSpace, "providers", [])]
+    return all(getattr(c, "model_aliases", None) is not None for c in clases)
+
+
+def _parchear_aliases_de_huggingspace() -> None:
+    """Rellena con `{}` los `model_aliases` que sean `None`, sin pisar nada.
+
+    Misma filosofia que los atributos de `JsonConversation`: el parche solo
+    actua donde el valor ausente revienta. `{}` es el neutro correcto —
+    `model in {}` es `False` y el filtro cae a `get_models()`, que es la
+    comprobacion de verdad; un `None` no puede entrar en un `in`.
+    """
+    try:
+        from g4f.Provider import HuggingSpace
+    except Exception as e:                      # g4f ausente o reorganizado
+        logger.debug("compat_g4f: no se pudo importar HuggingSpace (%s)", e)
+        return
+    for cls in [HuggingSpace, *getattr(HuggingSpace, "providers", [])]:
+        if getattr(cls, "model_aliases", None) is None:
+            cls.model_aliases = {}
 
 
 def aplicar() -> bool:
@@ -111,5 +155,7 @@ def aplicar() -> bool:
         # pisarlo. El objetivo es que no falte, no que valga esto.
         if not hasattr(JsonConversation, nombre):
             setattr(JsonConversation, nombre, valor)
+
+    _parchear_aliases_de_huggingspace()
 
     return esta_aplicado()

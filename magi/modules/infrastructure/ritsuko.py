@@ -154,6 +154,10 @@ class RitsukoAgent:
         self._eventos: list[dict] = []
         self._informes: list[Informe] = []
         self._t0 = time.monotonic()
+        # R2 — relojes del retraso percibido. Ver `_reloj_del_eco` y
+        # `_reloj_de_ronda`.
+        self._t0_eco_naoko: float | None = None
+        self._t0_sys_exec: dict[str, float] = {}
 
     # ------------------------------------------------------------ arranque
 
@@ -170,11 +174,27 @@ class RitsukoAgent:
         for tema in ("naoko.log", "naoko.status", "naoko.diagnostico",
                      "naoko.improvement", "AGENT_POST", "swarm.task_completed",
                      "swarm.budget_exhausted", "obs.alert", "error.critical",
-                     "sonda.actualizada"):
+                     "sonda.actualizada",
+                     # R4 — la firma de entrega se sostiene con estos dos:
+                     # sin ellos en la ventana, «cierre con artefacto» sería
+                     # una suposición, no evidencia.
+                     "swarm.artefacto_listo", "swarm.entrega_incompleta",
+                     # R2 — los dos hitos que delimitan el arranque de una
+                     # ronda vista desde el bus.
+                     "SYS_EXEC", "swarm.ronda"):
             self.bus.subscribe(tema, self._anotar)
         self.bus.subscribe("ritsuko.user_message", self._handle_user_message)
         # R1 — de observadora a control de calidad. Ver `_revisar_deriva`.
         self.bus.subscribe("provider.model_drift", self._revisar_deriva)
+        # R2 — el reloj que el usuario percibe. Ver `_reloj_del_eco`.
+        self.bus.subscribe("naoko.user_message", self._reloj_del_eco)
+        for tema in ("naoko.log", "naoko.status"):
+            self.bus.subscribe(tema, self._reloj_del_eco)
+        # R2 — recibido-y-sin-empezar. Ver `_reloj_de_ronda`.
+        for tema in ("SYS_EXEC", "swarm.ronda", "swarm.entrada_encolada"):
+            self.bus.subscribe(tema, self._reloj_de_ronda)
+        # R4 — segunda firma en las entregas. Ver `_firmar_entrega`.
+        self.bus.subscribe("swarm.task_completed", self._firmar_entrega)
         self.activa = True
         logger.info("[ritsuko] auditora en linea (familia razonamiento)")
 
@@ -262,6 +282,121 @@ class RitsukoAgent:
                         f"{motivo}\n\nDejo constancia de que ese veredicto no "
                         f"debe invalidar comparaciones.")}))
 
+    # --------------------------------------- R2: el reloj que el usuario ve
+
+    #: El eco del chat de Naoko no puede tardar. Caso real y medido
+    #: (2026-08-23): «hola naoko» con el eco a los 10,6 s —el usuario
+    #: concluyó que su mensaje se había perdido—. Dos segundos es donde la
+    #: espera empieza a parecer un fallo, no una métrica de rendimiento.
+    UMBRAL_ECO_S = 2.0
+
+    #: Anti-cuelgue, no anti-lento: con proveedores gratuitos la ronda tarda
+    #: lo que tarda. Esto caza «recibido y sin empezar» —el estilo de Naoko
+    #: colgado, la admisión parada— y por eso el margen es generoso.
+    UMBRAL_ARRANQUE_RONDA_S = 30.0
+
+    async def _decir(self, topico: str, carga: dict, visible: str) -> None:
+        """Publica un hallazgo (hecho auditable) y su línea de log."""
+        await self.bus.publish(BusEvent(topic=topico, payload=carga))
+        await self.bus.publish(BusEvent(topic="ritsuko.log", payload={
+            "agent": "RITSUKO", "content": visible}))
+
+    async def _reloj_del_eco(self, event: BusEvent) -> None:
+        """
+        R2 — retraso entre el mensaje del usuario y el eco en pantalla.
+
+        Cuando el eco tardó 10,6 s, el detector fue el usuario con una
+        captura. Ritsuko ya ve los eventos con su marca de tiempo; esto lo
+        convierte en hallazgo con número. Solo informa.
+        """
+        if event.topic == "naoko.user_message":
+            self._t0_eco_naoko = time.monotonic()
+            return
+        t0, self._t0_eco_naoko = self._t0_eco_naoko, None
+        if t0 is None:
+            return                      # eco sin mensaje previo: nada que medir
+        retraso = time.monotonic() - t0
+        if retraso <= self.UMBRAL_ECO_S:
+            return
+        logger.info("[ritsuko] retraso percibido del eco de naoko: %.1f s", retraso)
+        await self._decir(
+            "ritsuko.retraso_percibido",
+            {"via": "naoko", "retraso_s": round(retraso, 1),
+             "umbral_s": self.UMBRAL_ECO_S},
+            f"[RELOJ] El eco del chat tardó {retraso:.1f} s en llegar. Por "
+            f"encima de {self.UMBRAL_ECO_S:.0f} s ya no parece inmediato: el "
+            "usuario concluye que su mensaje se perdió.")
+
+    async def _reloj_de_ronda(self, event: BusEvent) -> None:
+        """
+        R2 — «recibido y sin empezar»: SYS_EXEC entró y la ronda no arrancó.
+
+        Entre el RPC y la primera `swarm.ronda` hay una llamada LLM (el
+        estilo que decide Naoko) y la admisión del orquestador: ninguna
+        debería acercarse a medio minuto. `swarm.entrada_encolada` cancela
+        el reloj — una cola que AVISA que es cola no es un cuelgue.
+        """
+        p = event.payload if isinstance(event.payload, dict) else {}
+        tarea = str(p.get("task_id") or "")
+        if not tarea:
+            return
+        if event.topic == "SYS_EXEC":
+            self._t0_sys_exec[tarea] = time.monotonic()
+            return
+        t0 = self._t0_sys_exec.pop(tarea, None)
+        if t0 is None or event.topic == "swarm.entrada_encolada":
+            return
+        retraso = time.monotonic() - t0
+        if retraso <= self.UMBRAL_ARRANQUE_RONDA_S:
+            return
+        logger.info("[ritsuko] ronda de %s tardo %.1f s en arrancar", tarea, retraso)
+        await self._decir(
+            "ritsuko.retraso_percibido",
+            {"via": "arranque_ronda", "task_id": tarea,
+             "retraso_s": round(retraso, 1),
+             "umbral_s": self.UMBRAL_ARRANQUE_RONDA_S},
+            f"[RELOJ] {tarea}: recibido hace {retraso:.0f} s y la ronda no ha "
+            "arrancado. La ronda tarda lo que tarda; el arranque, no.")
+
+    # ---------------------------------------- R4: segunda firma de la entrega
+
+    async def _firmar_entrega(self, event: BusEvent) -> None:
+        """
+        R4 — al cerrar una tarea, mirar qué constaba de la entrega.
+
+        El control C12/D3 con ojos que no tienen nada que defender:
+        VERIFICADA (hay `swarm.artefacto_listo`), DECLARADA_INCOMPLETA (el
+        sistema avisó) o SIN_ARTEFACTO — el hecho auditable de que la
+        evidencia no está, sin acusar a las tareas conversacionales, que
+        tampoco producen artefacto. Viaja como `ritsuko.firma_entrega`:
+        hecho, nunca orden.
+        """
+        p = event.payload if isinstance(event.payload, dict) else {}
+        tarea = str(p.get("task_id") or "")
+        if not tarea:
+            return
+
+        def hubo(tema: str) -> dict | None:
+            for e in reversed(self._eventos):
+                if e.get("tema") == tema and e.get("task_id") == tarea:
+                    return e
+            return None
+
+        if (ev := hubo("swarm.artefacto_listo")) is not None:
+            firma = "VERIFICADA"
+            detalle = f"artefacto registrado antes del cierre ({ev.get('texto', '')[:120]})"
+        elif hubo("swarm.entrega_incompleta") is not None:
+            firma, detalle = "DECLARADA_INCOMPLETA", (
+                "el propio sistema aviso que la entrega estaba incompleta")
+        else:
+            firma, detalle = "SIN_ARTEFACTO", (
+                "ni artefacto ni aviso de incompleto en la ventana: si el "
+                "encargo era de producto, la entrega no consta")
+
+        await self._decir("ritsuko.firma_entrega",
+                          {"task_id": tarea, "firma": firma, "detalle": detalle},
+                          f"[FIRMA] {tarea}: {firma} — {detalle}.")
+
     def _hubo_trabajo_reciente(self) -> bool:
         """¿Estaba el enjambre gastando cuota justo antes de la medicion?"""
         ahora = time.monotonic() - self._t0
@@ -281,9 +416,12 @@ class RitsukoAgent:
         self._eventos.append({
             "t": round(time.monotonic() - self._t0, 1),
             "tema": event.topic,
+            "task_id": p.get("task_id"),
             "quien": p.get("agent") or p.get("agente") or p.get("status"),
+            # `ruta`: sin ella la firma (R4) no podría decir de qué artefacto.
             "texto": str(p.get("content") or p.get("result") or
-                         p.get("motivo") or p.get("status") or "")[:600],
+                         p.get("motivo") or p.get("status") or
+                         p.get("ruta") or "")[:600],
         })
         if len(self._eventos) > VENTANA_EVENTOS:
             del self._eventos[:len(self._eventos) - VENTANA_EVENTOS]

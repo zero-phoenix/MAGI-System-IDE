@@ -144,9 +144,13 @@ async def test_la_cascada_acorta_la_pared_de_melchior(captura, monkeypatch):
     assert abanico["estado"] == serial["estado"]
 
     # Y MENOS PARED: la verificación larga dejó de esperar a la generación
-    # lenta. El margen (0,4 s) es menor que la ganancia esperada (~0,9 s)
-    # para absorber el arranque del intérprete del verificador.
-    assert abanico["t_melchior"] < serial["t_melchior"] - 0.4, (
+    # lenta. El margen es RELATIVO (un 20 % de la pared serial medida aquí
+    # mismo), no una constante de reloj: una constante vuelve a medir el
+    # runner en cuanto la máquina va cargada. Este test falló exactamente
+    # así el 2-sep-2026 — suite paralela compitiendo con un npm build por
+    # los mismos núcleos — y pasó en serie a los siete segundos. La ganancia
+    # estructural esperada es ~35 %; exigir 20 % la separa del ruido.
+    assert abanico["t_melchior"] < serial["t_melchior"] * 0.8, (
         f"la cascada no acortó la pared: serial {serial['t_melchior']:.2f}s "
         f"vs abanico {abanico['t_melchior']:.2f}s — si esto se repite, la "
         f"compuerta pide retirar el mecanismo")
