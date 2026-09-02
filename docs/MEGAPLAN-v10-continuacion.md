@@ -16,7 +16,9 @@ Lo que este plan ya dejó hecho en su primera sesión, con su evidencia:
 | P4 (C6) | ✅ | resuelto al reproducirse en ronda real: parche de `model_aliases` en `compat_g4f.py` |
 | E1-E4, F1-F5, P1-P3 | ⏳ | sin empezar; el orden está en §11 |
 | D8 (parcial) | ◐ | `replica.jsonl` tiene su PRIMERA fila real: task_btyy3gcn, réplica disparada, Melchior CONCEDIÓ (1 objeción). La compuerta de vida-o-muerte ya tiene de qué alimentarse — queda correr el contrafactual (`MAGI_REPLICA_SOMBRA=1`) en rondas reales |
-| Auditoría en vivo | ✅ | tarea real por la GUI: eco instantáneo, abanico+crítica 4/4+réplica con concesión, failover en vivo, `no_browser` cazando un Chrome. Fallos hallados y corregidos: pie «v3.0», Vista previa nacía rota, test de la cascada con margen absoluto |
+| Auditoría en vivo | ✅ |
+- **Tercer hallazgo del pie, ya en vivo:** tras arreglar la constante «v3.0», el pie decía «v0.0.0» — el fallback de `magi/__init__.py` prometía leer pyproject y devolvía la constante. Corregido leyendo pyproject (regex, sin tomllib en 3.10) con test de regresión. El .exe del CI no se afecta (pip-instala antes de compilar); viaja desde main en la próxima versión.
+ tarea real por la GUI: eco instantáneo, abanico+crítica 4/4+réplica con concesión, failover en vivo, `no_browser` cazando un Chrome. Fallos hallados y corregidos: pie «v3.0», Vista previa nacía rota, test de la cascada con margen absoluto |
 
 ---
 
