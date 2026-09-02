@@ -12,26 +12,22 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.17.0: el enjambre deja de esperar en fila
+## Qué hay de nuevo en la v5.18.0: tres ataques distintos, no tres redacciones
 
-**Va más rápido.** Lo que no depende ya no se hace en fila: la evidencia se
-recoge mientras se redacta la tesis, las variantes y los ejes de crítica corren
-en abanico, y la verificación va en cascada según llegan. Medido a través del
-orquestador real: **3141 ms → 1937 ms, un 38 % menos**.
+Cuando la ronda es de optimización del emulador, las tres propuestas de
+Melchior dejan de diferenciarse por la semilla y pasan a **asignarse**: una
+ataca `composite`, otra `upload`, otra `dropped`. Ortogonales por
+construcción, que es lo que hace que compararlas signifique algo — tres
+redacciones de la misma idea no informan de nada por muy distintas que suenen.
 
-Ese 38 % corrige un 66 % que yo había prometido desde un banco sintético. La
-ronda real tiene una dependencia que no se paraleliza —Balthasar no puede
-refutar una tesis que aún no existe—, y cuando la medida sintética discrepa de
-la del sistema real, gana la del sistema real.
+Con ellas viaja la mitad que faltaba: las reglas ya aprendidas se comprueban
+**antes de compilar**. Si una propuesta choca con algo que el proyecto ya
+midió y descartó, el crítico lo ve pegado a esa propuesta y no se gasta un
+ciclo de compilación en redescubrirlo.
 
-**Y discute mejor.** Hasta ahora Melchior nunca contestaba a la objeción:
-Casper arbitraba entre una tesis y una crítica que la tesis no había podido
-responder. Ahora hay réplica — una sola, acotada, sin herramientas, y solo si
-hay desacuerdo real. Si Melchior concede, el debate cierra antes del arbitraje:
-rendirse ante una objeción válida es una salida legítima.
-
-La réplica viene con la compuerta que puede matarla: si Casper no cambia de
-veredicto al menos 1 de cada 5 rondas, no aporta y se retira.
+Hoy las tres están suspendidas por medición propia —el camino de render es el
+1,27 % del tiempo— y el sistema lo dice en voz alta en vez de producir tres
+propuestas prohibidas en silencio.
 
 ## Cómo funciona
 

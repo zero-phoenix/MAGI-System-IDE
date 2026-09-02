@@ -1,3 +1,79 @@
+# v5.18.0 — las tres filosofías dejan de depender de la semilla
+
+**Qué cambia:** la §2 de la bitácora del emulador exige que las tres
+propuestas de cada ronda sean «tres formas distintas de atacar el mismo
+cuello, mutuamente excluyentes por diseño». Melchior las diversificaba con
+`seed + n*101`. Eso da tres redacciones, no tres ataques: nada impedía que
+las tres recortaran `composite` con otras palabras, y la ronda gastaba tres
+compilaciones para medir una sola idea.
+
+Ahora se **asignan**. La variante 0 ataca `composite`, la 1 `upload`, la 2
+`dropped`, cada una con su riesgo característico y su predicción falsable.
+
+**Lo concreto:**
+
+- **Tres variantes, no dos.** `_n_variantes` devuelve 2 desde D6, y con 2 la
+  filosofía C —«repartir mejor»— **no se exploraría nunca**: `asignada`
+  cicla, así que 0 y 1 se llevan A y B y C se queda fuera siempre. El
+  mecanismo habría dicho «ortogonal» ignorando un tercio de sus ejes. D6 midió
+  variantes diversificadas por semilla —tres textos de la misma idea—, que es
+  justo el desperdicio que esto viene a quitar.
+- **§6 de la bitácora, implementada.** Decía: «si alguna choca con una regla
+  de §5.2, se rechaza sin llegar a compilar». No lo hacía nadie. Ahora R1,
+  R6, R14 y R15 se comprueban sobre el texto de cada propuesta y el choque
+  llega **pegado** a la propuesta que lo comete, no en un resumen al final.
+  Rechazar sin compilar es lo que ahorra el ciclo: un `.vpk` y una corrida
+  verificada por propuesta.
+- **Las tres están suspendidas hoy, y el prompt lo dice.** R6 tapa A y B
+  (el camino de render es el 1,27 % del tiempo, A7); A9 tapa C, cuya métrica
+  `dropped` ni siquiera se imprime en el log. Cada variante recibe qué regla
+  la suspende, qué haría falta para levantarla, y la instrucción de proponer
+  en su lugar lo que levantaría la suspensión. **Un mecanismo que produce
+  tres propuestas prohibidas en silencio es peor que uno que no produce
+  ninguna.**
+- **Y el reparto se revisa a posteriori.** `revisar` mira lo que las
+  variantes hicieron de verdad, no lo que se les pidió. Si colapsan en el
+  mismo mecanismo, Balthasar recibe el aviso: comparar tres versiones de la
+  misma idea no informa de nada.
+
+## Dos cosas que encontré probando lo que ya había escrito
+
+**Escribí el test esperando dos choques con R6 y el comprobador dijo tres.**
+Tenía razón: la filosofía C mueve el `composite` entre núcleos, y eso sigue
+siendo camino de render. Es exactamente lo que la ronda 0 concluyó midiendo
+—«las tres filosofías quedan en suspenso»—, redescubierto solo desde el texto
+de las propuestas. La expectativa equivocada era la mía.
+
+**Y las reglas del emulador se aplicaban a rondas que no son del emulador.**
+R6 exige `(composite|upload|display)` más un verbo de optimizar, así que
+disparaban las tres: «optimizar el display del Tetris», «reducir el tiempo de
+upload al servidor», «acelerar el display en la web». Balthasar habría
+recibido la orden de rechazar sin compilar una propuesta válida citando una
+regla de otro proyecto. Las reglas quedan acotadas a las rondas que reparten
+filosofías. Una regla que bloquea trabajo bueno se desactiva sola a la tercera
+vez que estorba.
+
+## Que no se trabe
+
+El fan-out pasa de 2 a 3 ramas concurrentes, así que se prueba lo que ahí
+puede salir mal: una variante que revienta no se lleva a las hermanas; si
+revientan las tres se falla rápido en vez de esperar; y las tres esperas se
+solapan, medido **contra un control en la misma corrida** (n=1 frente a n=3).
+
+Ni un umbral absoluto en todo el fichero. El único número de reloj es un tope
+anticuelgue de 20 s sobre un trabajo de 0,3 s, que solo distingue «terminó» de
+«se quedó esperando para siempre» — la lección de la v5.17.1, donde
+`t_melchior_ms < 900` medía el runner y no el código.
+
+---
+
+**18 pruebas nuevas**, incluida una ronda completa por el orquestador real:
+encargo → reparto → tres prompts distintos → propuesta fundida → Balthasar.
+Suite entera en verde, ruff limpio, huérfanos en 80, `orchestrator.py` en
+1550/1550 sin subir el techo.
+
+---
+
 # v5.17.1 — dos cosas que dije y no eran ciertas
 
 Ninguna de las dos era del mecanismo. Las dos eran de cómo lo estaba midiendo,

@@ -26,6 +26,8 @@ import copy
 import logging
 from dataclasses import dataclass, field
 
+from magi.modules.swarm import filosofias as filo
+
 logger = logging.getLogger(__name__)
 
 # Ejes de crítica. Cada uno es una llamada corta y concurrente.
@@ -66,6 +68,12 @@ class Proposal:
     #: verifica en cuanto existe, no cuando terminan todas. None solo si
     #: no se pasó `tras_cada`.
     report: object = None
+    #: Clave de la filosofía ortogonal que se le ASIGNÓ a esta variante.
+    #: Vacío cuando la ronda no es de optimización del emulador. No es lo
+    #: mismo que la que acabó siguiendo: eso lo dice `filosofias.revisar`
+    #: mirando el texto, y la diferencia entre ambas es justo el fallo que
+    #: hay que poder ver.
+    filosofia: str = ""
 
     @property
     def label(self) -> str:
@@ -97,7 +105,8 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
                             narrative_style: str = "tecnico",
                             last_proposal=None, last_critique=None,
                             use_tools: bool = False,
-                            tras_cada=None) -> list[Proposal]:
+                            tras_cada=None,
+                            repartir_filosofias: bool = False) -> list[Proposal]:
     """
     N propuestas simultáneas del mismo agente, con semillas distintas.
 
@@ -111,6 +120,14 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
     siguen generándose — con timeouts de hasta 45 s por verificación,
     esperar a que terminen TODAS para empezar era regalar pared. El
     informe queda en `Proposal.report` y quien llama lo lee de ahí.
+
+    `repartir_filosofias` (§2 de la bitácora del emulador): en vez de N
+    variantes que solo se diferencian en la semilla, cada una recibe UNA de
+    las tres filosofías ortogonales — hacer menos, mover menos, repartir
+    mejor. La semilla da tres redacciones distintas; la asignación da tres
+    ATAQUES distintos, que es lo que la ronda necesita para que comparar
+    signifique algo. Lo enciende el orquestador cuando el encargo es de
+    optimización del emulador.
     """
     base_seed = agent.seed or 0
 
@@ -149,12 +166,23 @@ async def generate_variants(agent, *, task_id: str, command: str, round_num: int
             # intervención. Si cada una publicase, el usuario vería «MELCHIOR
             # propone» tres veces por ronda con tres análisis a medias. El
             # orquestador funde las variantes y publica UNA sola.
+            # El reparto de filosofías va en el ENCARGO, no en el sistema:
+            # es lo que esta variante tiene que atacar, no lo que Melchior
+            # es. La semilla ya está puesta arriba; esto es lo que hace que
+            # las tres sean ortogonales por construcción y no por suerte.
+            encargo = command
+            clave = ""
+            if repartir_filosofias:
+                asignada = filo.asignada(variant)
+                clave = asignada.clave
+                encargo = command + filo.para_la_variante(variant)
             result = await mio.generate_proposal(
-                task_id, command, round_num, last_proposal, last_critique,
+                task_id, encargo, round_num, last_proposal, last_critique,
                 engine, narrative_style, use_tools, publicar=False)
             prop = Proposal(content=result["content"], variant=variant,
                             provider=result.get("provider", ""),
-                            family=result.get("family", mio.family))
+                            family=result.get("family", mio.family),
+                            filosofia=clave)
             # Fase 7 — verificación en cascada: ESTA variante ya existe, su
             # verificación arranca AHORA, en paralelo con las hermanas que
             # siguen generándose. Esperar a que terminen todas para empezar
@@ -249,10 +277,36 @@ def format_variants_for_critic(proposals: list[Proposal]) -> str:
         return proposals[0].content
     parts = [f"Se han generado {len(proposals)} enfoques alternativos. "
              f"Compáralos y señala cuál es más sólido y por qué.\n"]
+    nombres = {f.clave: f.nombre for f in filo.FILOSOFIAS}
+    # Las reglas de §5.2 son de la bitácora DEL EMULADOR y solo se aplican a
+    # sus rondas. Sin esta condición, «optimizar el display del Tetris» o
+    # «reducir el tiempo de upload al servidor» chocan con R6 — comprobado,
+    # las dos disparaban — y Balthasar recibiría la orden de rechazar una
+    # propuesta perfectamente válida citando una regla de otro proyecto.
+    # Una regla que bloquea trabajo bueno se desactiva sola a la tercera vez.
+    ronda_del_emulador = any(p.filosofia for p in proposals)
     for p in proposals:
-        parts.append(f"===== {p.label} ({p.family}) =====")
+        cabecera = f"===== {p.label} ({p.family})"
+        if p.filosofia:
+            cabecera += f" · asignada: {nombres.get(p.filosofia, p.filosofia)}"
+        parts.append(cabecera + " =====")
         if not p.verified:
             parts.append(f"[NO PASA VERIFICACIÓN]\n{p.verification}")
+        # Los choques van PEGADOS a la propuesta que los comete, no en un
+        # resumen al final: una regla rota que se lee tres pantallas más
+        # abajo no cambia el juicio de esta propuesta.
+        for r in (filo.choques(p.content) if ronda_del_emulador else ()):
+            parts.append(f"[CHOCA CON {r.clave}] {r.dice}\n"
+                         f"§6 de la bitácora: se rechaza SIN llegar a "
+                         f"compilar. No la defiendas: dilo.")
         parts.append(p.content)
         parts.append("")
+    # Y el veredicto de ortogonalidad de la tanda entera, que es una
+    # propiedad del conjunto y no de ninguna propuesta suelta.
+    if ronda_del_emulador:
+        reparto = filo.revisar([p.content for p in proposals])
+        if not reparto.ok:
+            parts.append(f"[REPARTO] {reparto.render()} Tenlo en cuenta al "
+                         f"compararlas: si atacan lo mismo, elegir entre "
+                         f"ellas no informa de nada.")
     return "\n".join(parts)

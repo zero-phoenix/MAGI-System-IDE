@@ -11,6 +11,7 @@ from magi.core.store.state import INTERRUMPIDA
 from magi.core.verification import ProposalVerifier
 from magi.modules.memory.episodic import EpisodicMemory
 
+from . import filosofias
 from .agents import BalthasarAgent, CasperAgent, MelchiorAgent
 from .intencion import aprueba as _aprueba
 from .intencion import es_respuesta_a_aprobacion
@@ -1146,12 +1147,17 @@ class SwarmOrchestrator:
                     return await _verificador.verify(v.content)
 
                 crono.inicio("melchior")
+                # §2 — tres filosofías, tres variantes. Ver `filosofias`.
+                reparte = filosofias.pertinente(state.get("command", ""))
+                if reparte:
+                    n_variants = len(filosofias.FILOSOFIAS)
                 variants = await generate_variants(
                     self.melchior, task_id=task_id, command=command_with_memory,
                     round_num=current_round, n=n_variants, engine=engine,
                     narrative_style=style, last_proposal=last_proposal,
                     last_critique=last_critique, use_tools=use_tools,
-                    tras_cada=(_verificar if abanico.activado() else None))
+                    tras_cada=(_verificar if abanico.activado() else None),
+                    repartir_filosofias=reparte)
                 # Cada variante ya cobró su llamada vía `cobrar` en `_ask`;
                 # aquí solo se informa al GUI del coste acumulado.
                 usadas = int(state.get("calls_used", 0))
