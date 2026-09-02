@@ -276,7 +276,13 @@ async def test_el_recon_tardio_se_cancela_y_no_alarga_la_ronda(captura,
     # pero el umbral absoluto sí podía romperse en un runner cargado sin que
     # nada estuviera mal. Una constante que no distingue el fallo del ruido
     # solo añade fragilidad.
-    assert pared_con < pared_sin + 1.0, (
+    # Margen RELATIVO al control (2-sep-2026, noche): con un control de
+    # 1,06 s en windows-latest, el +1,0 absoluto reventó con 2,17 s — la
+    # cancelación SÍ funcionó (12 s no esperados) y el test siguió rojo.
+    # El techo debe escalar con la pared: max(2 s, la propia pared) admite
+    # el sobrecoste del abanico y sigue cazando cualquier espera del recon
+    # (12 s) con control de 5 s o de 1.
+    assert pared_con < pared_sin + max(2.0, pared_sin), (
         f"la ronda esperó al recon tardío: {pared_con:.2f}s con abanico "
         f"frente a {pared_sin:.2f}s sin él. El recon dura 12 s; si la pared "
         f"lo acusa, es que no se canceló.")
