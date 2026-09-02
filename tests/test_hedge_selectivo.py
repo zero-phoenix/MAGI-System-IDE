@@ -91,7 +91,9 @@ async def test_variantes_y_ejes_piden_hedge_false(monkeypatch):
         vistos.append((kw.get("tag"), kw.get("hedge")))
         if kw.get("tag") is None:
             import traceback
-            culpables.append("".join(traceback.format_stack(limit=12)))
+            # limit=40: con 12, tres frames de maquinaria asyncio/pytest se comian
+        # el presupuesto y el culpable real no salia (CI ubuntu 2-sep-2026).
+        culpables.append("".join(traceback.format_stack(limit=40)))
         return ("Respuesta válida en español. ### CONCLUSIÓN", "g4f-cualquiera")
 
     monkeypatch.setattr(FreeCloudLLM, "generate", falso)
