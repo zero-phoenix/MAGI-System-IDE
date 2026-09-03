@@ -55,6 +55,11 @@ export default function App() {
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
   // v5.3.0 — confirma el borrado inline (sin window.confirm, que rompe el flujo).
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // La conversacion es la columna vertebral (deconstruccion 3-sep-2026,
+  // docs/DECONSTRUCCION-INTERFAZ.md): los paneles viven en un CAJON lateral
+  // plegable, no en una tercera columna fija. Cerrado por defecto: nada
+  // ocupa pantalla que no se este mirando.
+  const [cajonAbierto, setCajonAbierto] = useState(false);
   const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
           fetchHealth, runBenchmark, runSelfImprovement,
           listImprovements, proposeImprovement, decideImprovement,
@@ -421,12 +426,18 @@ export default function App() {
         </div>
 
         {/* COLUMNA CENTRAL: ENJAMBRE Y CONVERSACIÓN */}
-        <div className="col" style={{ flex: 1, minWidth: "400px", borderRight: "1px solid var(--gr)", display: "flex", flexDirection: "column" }}>
+        <div className="col" style={{ flex: 2, minWidth: "300px", display: "flex", flexDirection: "column" }}>
           
           <div style={{ background: "#050809", padding: "5px 10px", borderBottom: "1px solid var(--gr)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "11px", color: "var(--dim)" }}>
               Contexto Activo: <b style={{ color: "var(--node)" }}>{activeConversationId}</b>
             </span>
+            <button className={`bt ${cajonAbierto ? "go" : ""}`}
+                    title="Paneles: plan, código, vista previa, terminal, Naoko, Ritsuko…"
+                    onClick={() => setCajonAbierto(v => !v)}
+                    style={{ fontSize: "11px", padding: "2px 8px" }}>
+              ◧ Paneles
+            </button>
           </div>
 
           <div className="tri" style={{ paddingBottom: "10px" }}>
@@ -617,8 +628,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: LIENZO (CANVAS) */}
-        <div className="col canvas" style={{ flex: 1, minWidth: "400px" }}>
+        {/* CAJON DE PANELES (antes tercera columna fija): doce funciones a
+            demanda, ninguna compitiendo por pantalla en reposo. */}
+        {cajonAbierto && (
+        <div className="col canvas" style={{ width: "480px", minWidth: "480px", borderLeft: "1px solid var(--gr)" }}>
           <div className="tabs">
             {[...PESTAÑAS, ...((pendingApproval || approval) ? ["Diff (Aprobación)"] : [])].map((tab) => (
               <div
@@ -845,13 +858,19 @@ export default function App() {
 
           </div>
         </div>
+        )}
       </div>
 
       <CommandPalette commands={comandos} onRun={ejecutarComando} />
 
       <div className="foot">
         <div>
-          ejecutable de escritorio · <b>MAGI SYSTEM IDE {versionKernel ? `v${versionKernel}` : ""}</b> · layout maestro
+          <b style={{ color: connected ? "var(--ok)" : "#f87171" }}>
+            {connected ? "● EN LÍNEA" : "○ FUERA DE LÍNEA"}
+          </b>
+          {" · motor "}{engine === "deep" ? "análisis profundo" : "súper rapidez"}
+          {" · tarea "}{activeConversationId}
+          {" · "}<b>MAGI SYSTEM IDE {versionKernel ? `v${versionKernel}` : ""}</b>
         </div>
         <div>acceso root habilitado</div>
       </div>
