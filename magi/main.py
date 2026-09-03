@@ -81,6 +81,12 @@ class MagiSystem:
 
         # 2. Levantar el Kernel (Área 0)
         await self.kernel.start()
+        # El perro guardián de la ronda dormida: tareas vivas + bus mudo
+        # = hallazgo, no silencio. Nació de una tarea real colgada 20 min
+        # entre réplica y síntesis sin que nada lo dijera (2-sep-2026).
+        from magi.modules.infrastructure.guardian import vigilar
+        asyncio.get_event_loop().create_task(
+            vigilar(self.bus, self.kernel.swarm))
 
         # 3. Levantar otros módulos base
         self.gateway = Gateway()

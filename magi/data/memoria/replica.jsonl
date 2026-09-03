@@ -9,3 +9,4 @@
 # task_id de prueba. Los tests escriben en tmp_path via MAGI_MEMORIA.
 {"task_id": "task_btyy3gcn", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 1, "ts": "2026-09-02T01:17:14"}
 {"task_id": "default", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 9, "ts": "2026-09-02T07:00:43"}
+{"task_id": "task_0sxvcnmy", "round": 1, "fired": true, "concedio": true, "firmas": 4, "objeciones": 9, "ts": "2026-09-02T08:01:53"}
