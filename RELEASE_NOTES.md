@@ -1,3 +1,41 @@
+# v5.21.0 — la conversación es la columna vertebral
+
+**Qué cambia:** la interfaz se deconstruyó y se reconstruyó desde cero con
+el paradigma del agente que la supervisa (docs/DECONSTRUCCION-INTERFAZ.md:
+los diez principios operativos, qué se adoptó, qué queda para v2). Y el
+arranque de ronda ya no puede colgarse por un proveedor muerto.
+
+**Lo concreto:**
+
+- **Doce paneles dejan de competir por pantalla.** La tercera columna fija
+  (Plan, Código, Vista previa, Terminal, Naoko, Ritsuko, Configuración,
+  Gráfico, Motores, Coste, Sistema, Mejoras) pasa a ser un **cajón lateral
+  plegable**, cerrado por defecto; la conversación gana el ancho que le
+  correspondía. Colores e icono intactos: es cirugía de arquitectura de la
+  información, no de identidad.
+- **Pie honesto**: pasa de texto decorativo a línea de estado operativa —
+  conexión real, motor, tarea activa y versión del kernel, siempre visible.
+- **El guardián de la ronda dormida se pinta**: `ritsuko.ronda_dormida`
+  llega al panel de Ritsuko como mensaje de auditoría con tareas y
+  segundos. El trinquete del mapa de interfaz lo exigió al nacer invisible
+  — y tenía razón: una alarma que nadie ve no es una alarma.
+- **El estilo ya no puede colgar el arranque**: tope de 20 s a la llamada
+  de Naoko; pasado, el estilo de la interfaz y la ronda arranca. Medido en
+  vivo la misma mañana: «estilo decidido por fallback» y tarea iniciada al
+  momento, contra la madrugada en la que un proveedor muerto dejó el
+  arranque en suspenso para siempre.
+
+**Verificado en vivo:** la ronda supervisada de optimización del emulador
+arrancó con la GUI reconstruida puesta y el motor rápido seleccionado.
+
+---
+
+**6 pruebas nuevas** (tope de estilo, guardián, deconstrucción). Suite
+completa en verde incluidos los .exe, 122 tests de interfaz, tsc y build
+limpios, huérfanos en 80, ningún techo subido.
+
+---
+
 # v5.20.0 — autonomía: el encargo de una persona común no puede salir devorado
 
 **Qué cambia:** la sesión supervisó a MAGI usándolo como lo usaría una

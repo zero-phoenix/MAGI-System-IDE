@@ -142,6 +142,21 @@ export function useMagiSocket(port: number = 20128) {
                   changes: 0,
                   stats: "0 ms"
                 });
+              } else if (topic === 'ritsuko.ronda_dormida') {
+                // El guardián (3-sep-2026): tareas vivas + bus mudo = una
+                // ronda colgada. Pinta como mensaje de auditoría — el usuario
+                // no puede estar mirando logs para enterarse.
+                useMagiStore.getState().addRitsukoMessage({
+                  id: Math.random().toString(36),
+                  agent: "RITSUKO",
+                  role: "Guardián",
+                  provider: "local",
+                  content: `[GUARDIÁN] Tareas ${payload.vivas?.join(", ")} llevan `
+                    + `${payload.silencio_s} s sin producir nada. Ronda dormida: `
+                    + `considera reiniciarla.`,
+                  changes: 0,
+                  stats: `${payload.silencio_s} s`
+                });
               } else if (topic === 'ritsuko.status') {
                 useMagiStore.getState().setRitsukoStatus(payload.status);
               } else if (topic === 'ritsuko.informe') {
