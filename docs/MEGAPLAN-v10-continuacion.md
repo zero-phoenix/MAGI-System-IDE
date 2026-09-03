@@ -881,6 +881,21 @@ ha cambiado desde entonces, gana el código.*
   cancelada — nunca callarse. Es la clase exacta de fallo que R2 detecta
   (>30 s sin ronda) pero nadie corrige solo. **Candidato a la próxima
   versión.**
+- **ESCALA DEL BUG DE REANUDACIÓN (3-sep-2026, madrugada):** no solo se
+  cuelga la tarea recuperada — tras un reinicio con tareas recuperadas, los
+  envíos NUEVOS tampoco despachan (tercera reproducción: task_j5pmv1ev con
+  motor rápido procesada por el kernel y jamás «Iniciando tarea»).
+  Hipótesis de trabajo para la próxima sesión: el `_spawn_loop` del
+  orquestador queda esperando futuros de las tareas recuperadas que nadie
+  rearma. **Es el primer ticket de la próxima sesión.**
+- **Punto ciego del guardián hallado:** mide el silencio GLOBAL del bus; un
+  cuelgue enmascarado por otro tráfico (canarios, sonda) no dispara. La
+  v2 debe vigilar el progreso POR TAREA (último evento que la mencione).
+- **Ronda profunda observada 62+ min sin síntesis** con proveedores
+  respondiendo: el modo profundo excede la paciencia práctica para tareas
+  de optimización; el fast quedó seleccionado para el siguiente intento
+  pero el dispatch quedó bloqueado por el bug anterior.
+
 - **Lanzar `python -m magi.main` con `&` dentro de una shell efímera mata el
   proceso al salir la shell.** Usar el mecanismo persistente.
 - **CI**: tres flakes del mismo familia (márgenes de reloj contra runners
