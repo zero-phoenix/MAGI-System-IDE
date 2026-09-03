@@ -48,3 +48,22 @@ async def test_nunca_se_sube_la_marcha(monkeypatch):
     _, motor, _ = await estilo_y_motor(
         "analiza a fondo el rendimiento", motor_gui="fast")
     assert motor == "fast"
+
+
+async def test_el_estilo_colgado_no_cuelga_el_arranque(monkeypatch):
+    """Proveedores muertos dejaron el arranque en suspenso para siempre
+    (3-sep-2026): la llamada de estilo sin tope bloqueaba la ronda entera.
+    Con tope, cae al estilo de la interfaz y sigue."""
+    import asyncio
+
+    from magi.modules.infrastructure import motor
+
+    async def colgado(cmd, llm=None):
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr("magi.modules.infrastructure.naoko.estilo_para", colgado)
+    monkeypatch.setattr(motor, "ESTILO_TIMEOUT_S", 0.2)
+    estilo, motor_, origen = await motor.estilo_y_motor(
+        "analiza el rendimiento a fondo", motor_gui="deep",
+        estilo_gui="divulgativo")
+    assert (estilo, motor_, origen) == ("divulgativo", "deep", "fallback")

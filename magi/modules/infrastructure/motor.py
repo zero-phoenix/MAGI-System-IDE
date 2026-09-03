@@ -45,6 +45,11 @@ _RE_TRABAJO_DE_FONDO = re.compile(
     r"audit|optimiz|rendimiento|ronda|emulador|ingenieri|ingenieria|"
     r"seguridad|evalua|diagnostic|migra|port|debug|perfil|benchmark)\w*")
 
+#: Cuánto puede costar la llamada de estilo antes de caer al estilo de
+#: la interfaz. R2 midió arranques de 98 s por su culpa; proveedores
+#: muertos lo dejaron colgado para siempre (3-sep-2026, 00:42).
+ESTILO_TIMEOUT_S = 20.0
+
 #: Techo de longitud del atajo. Un encargo largo puede ser muchas cosas,
 #: y ninguna de ellas es «trivial».
 MAX_CORTO = 90
@@ -79,9 +84,17 @@ async def estilo_y_motor(comando: str, motor_gui: str,
 
     # No trivial: el estilo lo decide Naoko como siempre, y el motor es el
     # de la interfaz — aquí no se sube ni se baja nada.
+    #
+    # CON TOPE (3-sep-2026): proveedores muertos a esa hora dejaron el
+    # arranque colgado ANTES de publicar SYS_EXEC — la ronda jamás empezaba
+    # y el log no decía nada. El estilo es un lujo de 20 s como máximo;
+    # pasado el tope, el de la interfaz, y la ronda sigue.
+    import asyncio
+
     from magi.modules.infrastructure.naoko import estilo_para
     try:
-        estilo = await estilo_para(comando, llm=llm)
+        estilo = await asyncio.wait_for(estilo_para(comando, llm=llm),
+                                        timeout=ESTILO_TIMEOUT_S)
         origen = "naoko"
     except Exception as e:                       # mismo criterio que kernel
         logger.debug("[motor] estilo naoko fallo (%s); uso %s", e, estilo_gui)
