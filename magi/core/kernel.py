@@ -365,7 +365,7 @@ class Kernel:
 
         Este handler entero era:
 
-            logger.critical("E-STOP INVOCADO DESDE LA GUI")
+            logger.warning("E-STOP INVOCADO DESDE LA GUI")
             return "EMERGENCY_STOP_TRIGGERED"
 
         Una línea de log y una cadena. No cancelaba ningún bucle ni mataba
@@ -378,7 +378,7 @@ class Kernel:
         no existía.
         """
         from magi.core.cancel import supervisor
-        logger.critical("E-STOP INVOCADO DESDE LA GUI")
+        logger.warning("E-STOP INVOCADO DESDE LA GUI")
         informe = await supervisor().cancel_all()
         await self.bus.publish(BusEvent(
             topic="task.cancelled", payload=informe.to_payload()))

@@ -1,3 +1,46 @@
+# v5.22.0 — la misión Tetris: MAGI operado en vivo por una persona, de punta a punta
+
+**Qué cambia:** esta versión no añade una función — documenta y planifica.
+Una persona operó MAGI v5.21.1 en vivo (teclar, pulsar botones, aprobar,
+rechazar, parar) con el encargo «crea un Tetris en un .exe portable», jugó
+el artefacto resultante, y todo lo aprendido quedó en
+docs/MEGAPLAN-v11-tetris.md: 11 hallazgos con evidencia, la comparativa con
+cómo lo habría hecho un agente con manos, y el plan A-E para cerrar cada
+uno.
+
+**Lo que la misión destapó (resumen; el detalle y su evidencia en el megaplan):**
+
+- El .exe entregado JUEGA (gravedad, colisiones, score, game over) pero su
+  reinicio (tecla R) está roto y su fuente no está donde el sistema lo
+  guardó — el artefacto no tiene procedencia. T1/T5.
+- El build se invocó antes de escribir código; la propuesta era prosa sin
+  ficheros y aun así llegó a preguntar «¿apruebo?». T2/T3.
+- `task.cancel` tecleado arrancó una tarea que propuso DESREGISTRAR una
+  tarea programada de Windows (frenada por Balthasar). T6.
+- SYS_EXEC es decorativo; PARAR no corta llamadas en vuelo; el Terminal
+  inunda el bus y enmascara al guardián; ronda profunda >45 min sin salida.
+  T7-T11.
+
+**El plan (bloques A-E):** procedencia obligatoria de artefactos (manifiesto
+con hashes de binario y fuentes), autotest de INTERFAZ para juegos (teclas
+simuladas — habría cazado el reinicio roto), código-antes-del-build,
+comandos reconocidos en el input + SYS_EXEC desplegable de verdad, PARAR que
+para de verdad, rechazo con motivo, compuerta que no pregunta humo, canal de
+infraestructura separado y degradación de motor por salud.
+
+**Verificado en vivo durante la misión:** el E-STOP desde la GUI, el pie con
+«⏸ ESPERA TU APROBACIÓN», el recon de Balthasar en paralelo, la crítica
+multi-eje 4/4, la réplica con concesión, y Balthasar frenando una propuesta
+peligrosa con 2 objeciones de seguridad.
+
+---
+
+**0 pruebas nuevas** — esta versión es el plan; las pruebas nacen con cada
+paquete (la compuerta de cada uno exige reproducir el fallo que cura).
+Suite completa en verde al publicar.
+
+---
+
 # v5.21.1 — el pase de Balthasar: la interfaz puesta a prueba a si misma
 
 **Qué cambia:** la reconstruccion de la v5.21.0 se examino a si misma
