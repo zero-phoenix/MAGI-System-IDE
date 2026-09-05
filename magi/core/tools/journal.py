@@ -131,6 +131,29 @@ class WriteJournal:
                     continue
         return out
 
+    def fuentes_de_tarea(self, task_id: str | None,
+                         suffixes: tuple[str, ...] = (".py",),
+                         bajo: str | None = None) -> list[str]:
+        """
+        Rutas que ESA tarea escribió, filtradas por sufijo y —opcional—
+        directorio. Lee el índice en disco: el journal en memoria solo vive
+        en el turno que escribió. Es la compuerta A3 del megaplan v11:
+        compilar sin fuente escrito por la tarea es compilar a ciegas.
+        """
+        if not task_id or not self.index_path.exists():
+            return []
+        bajo_n = (bajo or "").replace("\\", "/").lower()
+        out: list[str] = []
+        for e in self.all_entries():
+            if e.task_id != task_id:
+                continue
+            objetivo = str(e.target)
+            if objetivo.endswith(tuple(suffixes)) and (
+                    not bajo_n
+                    or objetivo.replace("\\", "/").lower().startswith(bajo_n)):
+                out.append(objetivo)
+        return out
+
     def _restore(self, entry: JournalEntry) -> bool:
         target = Path(entry.target)
         try:

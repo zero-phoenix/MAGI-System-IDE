@@ -317,6 +317,14 @@ async def build_project_exe(
             final_exe = built_exe
             logs.append(f"Generado: {final_exe}")
 
+        # MEGAPLAN v11 A1 — procedencia obligatoria: el binario sin fuente
+        # emparejado es un artefacto huerfano (el tetris.exe del 5-sep no se
+        # puede regenerar de lo que el sistema guardo). El manifiesto viaja
+        # JUNTO al exe con el sha256 de ambos lados.
+        manifiesto = escribir_manifiesto(final_exe, project_dir,
+                                         entry=entry or "main.py")
+        logs.append(f"Manifiesto: {manifiesto}")
+
         return PackagerResult(
             True,
             exe_path=final_exe,
@@ -324,6 +332,7 @@ async def build_project_exe(
             meta={
                 "exe": str(final_exe),
                 "size": final_exe.stat().st_size,
+                "manifest": str(manifiesto),
                 "pyinstaller_output": full_output[:4000],
             },
         )
@@ -332,3 +341,28 @@ async def build_project_exe(
         if clean:
             shutil.rmtree(venv_dir, ignore_errors=True)
             shutil.rmtree(work_base, ignore_errors=True)
+
+
+def escribir_manifiesto(exe: Path, project_dir: Path,
+                        entry: str = "main.py") -> Path:
+    """
+    Escribe `<exe>.manifest.json` junto al binario: sha256 del exe, sha256 de
+    cada fuente .py del proyecto y la entrada. Es la procedencia del
+    artefacto — sin ella, un binario no se puede auditar ni regenerar (v11 A1).
+    """
+    import hashlib
+    import json as _json
+
+    def sha(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+
+    fuentes = {str(f.relative_to(project_dir)): sha(f)
+               for f in sorted(project_dir.rglob("*.py"))
+               if "__pycache__" not in f.parts and f.is_file()}
+    man = {
+        "exe": str(exe), "exe_sha256": sha(exe),
+        "entry": entry, "fuentes": fuentes,
+    }
+    ruta = exe.with_suffix(exe.suffix + ".manifest.json")
+    ruta.write_text(_json.dumps(man, indent=2), encoding="utf-8", newline="\n")
+    return ruta

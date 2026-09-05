@@ -60,6 +60,7 @@ export default function App() {
   // docs/DECONSTRUCCION-INTERFAZ.md): los paneles viven en un CAJON lateral
   // plegable, no en una tercera columna fija. Cerrado por defecto: nada
   // ocupa pantalla que no se este mirando.
+  const [menuSys, setMenuSys] = useState(false);
   const [cajonAbierto, setCajonAbierto] = useState(
     () => (typeof window !== "undefined"
            && window.localStorage?.getItem("magi.cajon") === "1"));
@@ -582,9 +583,12 @@ export default function App() {
                   className="bt go" 
                   style={{ padding: "5px 12px", fontWeight: "bold", background: "var(--acc)", color: "#000", cursor: "pointer" }}
                   onClick={() => {
-                    sysCommand("sí");
-                    sendCommand("sí", activeConversationId, engine, narrativeStyle);
-                    addMessage({ id: Math.random().toString(36), agent: "USER", role: "comando", provider: "local", content: "sí", changes: 0, stats: "", task_id: activeConversationId });
+                    // C2 (v11): si hay texto en el input, viaja como motivo.
+                    const motivo = inputVal.trim() || "sí";
+                    sysCommand(motivo);
+                    sendCommand(motivo, activeConversationId, engine, narrativeStyle);
+                    addMessage({ id: Math.random().toString(36), agent: "USER", role: "comando", provider: "local", content: motivo, changes: 0, stats: "", task_id: activeConversationId });
+                    setInputVal("");
                     setPendingApproval(null);
                   }}
                 >
@@ -603,8 +607,14 @@ export default function App() {
                   className="bt stop" 
                   style={{ padding: "5px 10px", background: "var(--dang)", color: "#000", fontWeight: "bold", cursor: "pointer" }}
                   onClick={() => {
-                    sysCommand("cancelar");
-                    sendCommand("cancelar", activeConversationId, engine, narrativeStyle);
+                    // C2 (v11): el rechazo lleva motivo — el del input, si lo
+                    // escribiste. Un «cancelar» desnudo dejó a Melchior sin
+                    // saber por qué (mision Tetris, 5-sep).
+                    const motivo = inputVal.trim() || "cancelar";
+                    sysCommand(motivo);
+                    sendCommand(motivo, activeConversationId, engine, narrativeStyle);
+                    addMessage({ id: Math.random().toString(36), agent: "USER", role: "comando", provider: "local", content: motivo, changes: 0, stats: "", task_id: activeConversationId });
+                    setInputVal("");
                     setPendingApproval(null);
                   }}
                 >
@@ -616,7 +626,28 @@ export default function App() {
 
           <div className="comp">
             <div className="cr">
-              <button className="pre">SYS_EXEC ▾</button>
+              <div style={{ position: "relative" }}>
+                <button className="pre" title="Comandos de administración"
+                        onClick={() => setMenuSys(v => !v)}>SYS_EXEC ▾</button>
+                {menuSys && (
+                  <div style={{ position: "absolute", bottom: "110%", left: 0,
+                                background: "#050a0b", border: "1px solid var(--gr)",
+                                zIndex: 50, minWidth: "220px" }}>
+                    <button className="bt" style={{ display: "block", width: "100%", textAlign: "left" }}
+                            onClick={() => { handleCancelTask(); setMenuSys(false); }}>
+                      ⏹ Parar esta tarea (task.cancel)
+                    </button>
+                    <button className="bt" style={{ display: "block", width: "100%", textAlign: "left" }}
+                            onClick={() => { handleStopAll(); setMenuSys(false); }}>
+                      🛑 Parar TODO (emergencia)
+                    </button>
+                    <button className="bt" style={{ display: "block", width: "100%", textAlign: "left" }}
+                            onClick={() => { setInputVal("task.cancel "); setMenuSys(false); }}>
+                      ⌨ Escribir task.cancel…
+                    </button>
+                  </div>
+                )}
+              </div>
               <textarea
                 className="pf"
                 rows={1}

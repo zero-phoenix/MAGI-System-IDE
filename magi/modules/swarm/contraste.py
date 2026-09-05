@@ -116,3 +116,27 @@ _AFIRMACIONES_EXTRA: tuple[tuple[tuple[str, ...], object, str], ...] = (
      "llegó a ejecutar en esta tarea. Es una cita de memoria, no un dato: "
      "trátala como tal."),
 )
+
+
+def producto_sin_humo(state: dict, verdict: dict) -> str | None:
+    """
+    C3 (v11): el mensaje de cierre de un producto SIN artefacto ni código,
+    o None si la propuesta sí trae algo que aprobar.
+
+    El 5-sep la compuerta preguntó «¿apruebo?» sobre prosa pura con
+    «0 fichero(s) · tests en verde» — aprobar humo con apariencia de trámite.
+    Un producto que no produce nada se cierra solo, con el motivo.
+    """
+    import re
+
+    if state.get("route") != "build":
+        return None
+    if state.get("artefactos"):
+        return None
+    prop = state.get("last_proposal") or {}
+    contenido = str(prop.get("content") or "")
+    if re.findall(r"```(\w+)?\n", contenido):
+        return None
+    return ("[C3] El encargo era de producto (ruta build) y la propuesta no "
+            "tiene ni artefacto ni código: no hay nada que aprobar. Se cierra "
+            "incompleta; vuelve a pedirla exigiendo el código primero.")

@@ -1,3 +1,44 @@
+# v5.23.0 — el plan v11 en acción: comandos, procedencia y compuerta sin humo
+
+**Qué cambia:** se ejecutan los bloques críticos del megaplan v11 — los que
+la misión Tetris (5-sep) destapó operando MAGI en vivo. Cada arreglo nace de
+un fallo reproducido y trae la prueba que lo caza.
+
+**Lo concreto:**
+
+- **B1 — los comandos escritos se EJECUTAN, no se debaten.** `task.cancel
+  [id]`, «parar todo», `EMERGENCY_STOP` y «emergencia» tecleados en el input
+  se interceptan y ejecutan como órdenes (magi/core/comandos.py). Era el
+  agujero por el que «task.cancel X» arrancó una tarea que propuso
+  desregistrar una tarea programada de Windows.
+- **A1 — procedencia obligatoria de artefactos.** Toda compilación deja
+  `<exe>.manifest.json` con el sha256 del binario y de cada fuente .py del
+  proyecto. El tetris.exe del 5-sep no se podía regenerar de lo que el
+  sistema guardaba: eso no vuelve a pasar sin quedar escrito.
+- **A3 — código antes del build.** `build_project_exe` se niega si la tarea
+  no escribió ningún .py (journal): el 5-sep se invocó dos veces sin un solo
+  fichero y el binario nació huérfano.
+- **C3 — a un producto sin artefacto ni código NO se le pregunta «¿apruebo?»**
+  — la ronda se cierra con el motivo (era lo que hizo preguntar humo con
+  «0 fichero(s) · tests en verde»).
+- **D1 — el INFO de infraestructura deja de inundar el Terminal** (fallbacks
+  de proveedores, canarios, sonda): solo WARNING+ sube al bus. El panel
+  vuelve a ser legible y el guardián de rondas dormidas deja de estar
+  enmascarado por el spam.
+- **B3 — SYS_EXEC ▾ ya no es decorativo**: despliega Parar esta tarea /
+  Parar TODO / escribir task.cancel.
+- **C2 — aprobar o cancelar lleva motivo**: si hay texto en el input, viaja
+  con la decisión (un «cancelar» desnudo dejó a Melchior sin saber por qué).
+
+---
+
+**15 pruebas nuevas** (comandos de input ×6, manifiesto, journal por tarea,
+humo ×3, filtro de ruido ×3). Suite completa en verde con .exe incluidos;
+`kernel.py` 1070/1070 y `orchestrator.py` 1549/1550 sin subir techos; ruff
+limpio; huérfanos en 80; 131 tests de interfaz.
+
+---
+
 # v5.22.0 — la misión Tetris: MAGI operado en vivo por una persona, de punta a punta
 
 **Qué cambia:** esta versión no añade una función — documenta y planifica.

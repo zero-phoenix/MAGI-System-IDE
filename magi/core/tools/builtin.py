@@ -438,6 +438,19 @@ def build_registry() -> ToolRegistry:
         if not project_dir.is_dir():
             return ToolResult(False, "", error=f"no existe el directorio: {project_dir}")
 
+        # MEGAPLAN v11 A3 — codigo ANTES del build. El 5-sep se invoco dos
+        # veces sin un solo fichero escrito y el binario nacio sin fuente.
+        if ctx.task_id:
+            fuentes = ctx.get_journal().fuentes_de_tarea(
+                ctx.task_id, bajo=str(project_dir))
+            if not fuentes:
+                return ToolResult(
+                    False, "",
+                    error=("no hay fichero .py escrito por esta tarea en "
+                           f"{project_dir}: escribe el codigo con write_file "
+                           "ANTES de compilar, o el .exe nacera sin fuente "
+                           "que lo respalde (v11 A3)"))
+
         output_exe = ctx.resolve(output) if output else None
         icon_path = ctx.resolve(icon) if icon else None
 

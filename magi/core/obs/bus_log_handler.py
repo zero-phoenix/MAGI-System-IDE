@@ -56,6 +56,17 @@ _NO_CRITICOS = (
     "asyncio",                # avisos del bucle de eventos
 )
 
+#: Loggers cuyo INFO es teléfono de línea (v11 D1): fallbacks de g4f,
+#: canarios de Naoko, sonda y conexiones. Al bus solo suben WARNING+; en el
+#: fichero siguen completos.
+_RUIDOSOS = (
+    "magi.core.providers",
+    "magi.modules.infrastructure.naoko",
+    "magi.core.kernel",          # las líneas [sonda] son INFO periódicas
+    "websockets",
+    "magi.modules.memgraph",
+)
+
 #: Ventana de supresión de mensajes idénticos.
 _VENTANA_REPETIDOS_S = 30.0
 
@@ -123,6 +134,15 @@ class BusLogHandler(logging.Handler):
             return
         self._local.dentro = True
         try:
+            # MEGAPLAN v11 D1 — el ruido de infraestructura no entra al
+            # Terminal. Los fallbacks de proveedores y canarios (INFO, cientos
+            # por minuto) inundaban el panel y ENMASCARABAN al guardián de
+            # rondas dormidas: su reloj de silencio se reiniciaba con spam.
+            # Esos registros siguen en el log de fichero; al bus solo suben
+            # si son WARNING+.
+            if record.levelno < logging.WARNING and record.name.startswith(
+                    _RUIDOSOS):
+                return
             msg = self.format(record)
 
             if self.loop is None:

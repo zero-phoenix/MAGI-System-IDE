@@ -365,7 +365,7 @@ class Kernel:
 
         Este handler entero era:
 
-            logger.warning("E-STOP INVOCADO DESDE LA GUI")
+            logger.critical("E-STOP INVOCADO DESDE LA GUI")
             return "EMERGENCY_STOP_TRIGGERED"
 
         Una línea de log y una cadena. No cancelaba ningún bucle ni mataba
@@ -378,7 +378,7 @@ class Kernel:
         no existía.
         """
         from magi.core.cancel import supervisor
-        logger.warning("E-STOP INVOCADO DESDE LA GUI")
+        logger.critical("E-STOP INVOCADO DESDE LA GUI")
         informe = await supervisor().cancel_all()
         await self.bus.publish(BusEvent(
             topic="task.cancelled", payload=informe.to_payload()))
@@ -657,7 +657,15 @@ class Kernel:
         command = payload.get("command", "") if isinstance(payload, dict) else payload
         raw_id = payload.get("id", "task_0") if isinstance(payload, dict) else "task_0"
 
-        # interceptar comando GIT_PUSH_TO_GITHUB
+        # B1 (v11): una orden escrita se EJECUTA, nunca se debate.
+        from magi.core.comandos import clasificar  # noqa: E501
+        orden, objetivo = clasificar(command)
+        if orden == "cancel":
+            return await self._handle_cancel_task(
+                {"id": objetivo or raw_id}, websocket)
+        if orden == "estop":
+            return await self._handle_estop({}, websocket)
+
         if isinstance(command, str) and command.startswith("GIT_PUSH_TO_GITHUB"):
             repo_url = command.split(" ", 1)[1] if " " in command else ""
             if not repo_url:
@@ -665,9 +673,7 @@ class Kernel:
                 return
 
             scratch_dir = workspace_dir()
-
             await self.bus.publish(BusEvent(topic="TERMINAL_OUT", payload=f"Iniciando subida a GitHub: {repo_url}"))
-
             script = f"""
             git init
             git add .
@@ -711,18 +717,13 @@ class Kernel:
         else:
             task_id = raw_id
 
-        engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"
-        # MAGI 9.0 §2.7: el estilo narrativo llegaba de la GUI (un selector de 4
-        # opciones que el usuario tenía que elegir a mano). v5.3.0: Naoko lo
-        # decide sola a partir del comando, porque ella entiende qué tipo de
-        # petición es. La GUI ya no expone el selector; el valor que llegue aquí
-        # se ignora y se recalcula.
+        engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"  # noqa: E501
+        # §2.7 (historial en git): la GUI ya no elige estilo; lo que llegue se
+        # recalcula abajo.
         gui_style = (payload.get("narrative_style", "tecnico")
                      if isinstance(payload, dict) else "tecnico")
-        # El estilo y el motor los decide `motor.estilo_y_motor`: los
-        # encargos triviales (medido 2-sep-2026: 20+ min para un «holamundo»
-        # por una llamada de estilo de 3-22 s y cuatro iteraciones) llegan
-        # «tecnico»/«fast» SIN tocar la red; el resto, como siempre.
+        # `motor.estilo_y_motor`: triviales sin red (medido 2-sep: 20+ min
+        # para un holamundo); el resto, como siempre.
         from magi.core.providers.cloud import FreeCloudLLM
         from magi.modules.infrastructure.motor import estilo_y_motor
         narrative_style, engine, origen = await estilo_y_motor(
@@ -735,8 +736,7 @@ class Kernel:
             payload={"task_id": task_id, "style": narrative_style,
                      "decidido_por": origen, "engine": engine}))
 
-        # Generar un proyecto automático si es una conversación nueva
-        # Para simular "cada vez que inicie una conversacion", creamos la carpeta
+        # Carpeta de proyecto automática por conversación.
         new_proj_dir = workspace_dir() / f"project_{task_id}"
         new_proj_dir.mkdir(parents=True, exist_ok=True)
 

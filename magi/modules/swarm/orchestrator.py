@@ -1438,27 +1438,26 @@ class SwarmOrchestrator:
             sin_arbitro = verdict["decision"] == "SIN_ARBITRAJE"
 
             if is_asking_approval or sin_arbitro or current_round >= state.get("max_rounds", 3):
-                # Antes de pedir aprobación, mirar si escribiste algo mientras
-                # trabajábamos. Si lo hay, se atiende AHORA en vez de pedirte
-                # el visto bueno a una propuesta que ya has comentado.
+                # Si escribiste algo mientras trabajabamos, se atiende ahora.
                 if await self._vaciar_cola(task_id):
                     continue
                 state["status"] = "WAITING_USER_APPROVAL"
                 self._persist(task_id)
 
-                # §7.4 — aprobación CON CONTEXTO. Antes solo salía esta frase,
-                # y la interfaz deducía el estado de aprobación buscándola
-                # dentro del terminal (App.tsx:167). Al no haber evento con
-                # datos, `DiffViewer` recibía originalCode="" y pintaba todo
-                # como añadido: no era un diff, era el texto nuevo en verde.
-                # Aprobar sobre eso es aprobar a ciegas con la APARIENCIA de
-                # haber revisado, que es lo peor de las dos cosas.
+                from . import contraste as _c  # C3 (v11): sin humo no se pregunta
+                humo = _c.producto_sin_humo(state, verdict)
+                if humo:
+                    state["status"] = "completed"
+                    self._persist(task_id)
+                    for tema, carga in (("TERMINAL_OUT", {"content": humo}),
+                                         ("swarm.entrega_incompleta", {"task_id": task_id, "motivo": humo})):
+                        await self.bus.publish(BusEvent(topic=tema, payload=carga))  # noqa: E501
+                    break
                 await self._publish_approval(task_id, state, verdict)
 
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
-                    payload={"content": "[SWARM] Esperando aprobación interactiva del usuario para ejecutar o finalizar la propuesta final."}
-                ))
+                    payload={"content": "[SWARM] Esperando tu aprobacion interactiva."}))
                 # AQUI NO SE APARCA EL BUCLE ESPERANDO AL USUARIO.
                 #
                 # La v5.5.2 cambio este `break` por
