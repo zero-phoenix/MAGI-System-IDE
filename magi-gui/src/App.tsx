@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DiffViewer from './DiffViewer';
 import AgentMessageCard from './components/AgentMessageCard';
+import MotoresPanel from './components/MotoresPanel';
 import CostPanel from './components/CostPanel';
 import SystemPanel from './components/SystemPanel';
 import CommandPalette from './components/CommandPalette';
@@ -59,7 +60,12 @@ export default function App() {
   // docs/DECONSTRUCCION-INTERFAZ.md): los paneles viven en un CAJON lateral
   // plegable, no en una tercera columna fija. Cerrado por defecto: nada
   // ocupa pantalla que no se este mirando.
-  const [cajonAbierto, setCajonAbierto] = useState(false);
+  const [cajonAbierto, setCajonAbierto] = useState(
+    () => (typeof window !== "undefined"
+           && window.localStorage?.getItem("magi.cajon") === "1"));
+  useEffect(() => {
+    window.localStorage?.setItem("magi.cajon", cajonAbierto ? "1" : "0");
+  }, [cajonAbierto]);
   const { sendCommand, fetchTelemetry, sendGitClone, cancelTask, stopEverything,
           fetchHealth, runBenchmark, runSelfImprovement,
           listImprovements, proposeImprovement, decideImprovement,
@@ -129,7 +135,12 @@ export default function App() {
   // §7.4 — el evento estructurado manda. El raspado de texto de abajo queda
   // como respaldo para backends antiguos, pero ya no es la vía principal.
   useEffect(() => {
-    if (approval) setActiveTab("Diff (Aprobación)");
+    // La aprobación es la decisión que BLOQUEA el sistema: si llega con el
+    // cajón cerrado (estado por defecto desde la deconstrucción), el diff
+    // cambiaba de pestaña a ciegas y el usuario no veía nada. Hallado por
+    // el propio pase de Balthasar sobre la v5.21.0: la pestaña cambió
+    // dentro de un cajón invisible.
+    if (approval) { setCajonAbierto(true); setActiveTab("Diff (Aprobación)"); }
   }, [approval]);
 
   useEffect(() => {
@@ -138,6 +149,7 @@ export default function App() {
       const props = [...messages].reverse().find(m => m.role === 'propone' || m.role === 'critica');
       if (props) {
         setPendingApproval(props.content);
+        setCajonAbierto(true);
         setActiveTab("Diff (Aprobación)");
       }
     }
@@ -214,7 +226,11 @@ export default function App() {
   ];
 
   const ejecutarComando = (id: string) => {
-    if (id.startsWith("tab:")) { setActiveTab(id.slice(4)); return; }
+    if (id.startsWith("tab:")) {
+      setActiveTab(id.slice(4));
+      setCajonAbierto(true);   // «Ir a X» con el cajon cerrado era una orden muerta
+      return;
+    }
     if (id === "cancel") { handleCancelTask(); return; }
     if (id === "stopall") { handleStopAll(); return; }
     if (id === "newchat") { startNewConversation(); return; }
@@ -487,7 +503,11 @@ export default function App() {
                   {visible.map((msg, i) => (
                     <AgentMessageCard key={messages.length - visible.length + i}
                                       msg={msg} telemetry={telemetry}
-                                      renderCode={renderCode} />
+                                      renderCode={renderCode}  onOpenFile={(ruta: string) => {
+                requestFileContent(ruta);
+                setCajonAbierto(true);
+                setActiveTab("Código");
+              }} />
                   ))}
                 </>
               );
@@ -687,73 +707,10 @@ export default function App() {
             )}
             
              {activeTab === "Estado de Motores IA" && (
-               <div style={{ flex: 1, background: "#050a0b", border: "1px solid var(--dim)", padding: "20px", color: "#cfe0e4", overflowY: "auto", userSelect: "text", WebkitUserSelect: "text" }}>
-                  <h2 style={{ color: "var(--acc)", marginBottom: "15px" }}>Estado de Inteligencias Artificiales</h2>
-                  <p style={{ color: "var(--dim)", marginBottom: "20px" }}>Resumen de la arquitectura del Enjambre y modelos utilizados por MAGI a través del G4F Auto-Router.</p>
-                  
-                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px", fontSize: "12px" }}>
-                    <thead>
-                      <tr style={{ background: "var(--gr)", textAlign: "left" }}>
-                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>IA (Rol)</th>
-                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Modelo Principal</th>
-                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Fallback (Evasión anti-429)</th>
-                        <th style={{ padding: "8px", border: "1px solid var(--dim)" }}>Estado G4F</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--var)", fontWeight: "bold" }}>🧠 MELCHIOR (Arquitecto)</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>DeepSeek / LLaMA 3</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--acc)", fontWeight: "bold" }}>🛡️ BALTHASAR (Crítico)</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Claude 3.5 Sonnet</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--fn)", fontWeight: "bold" }}>⚖️ CASPER (Árbitro)</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>Qwen 2.5</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)" }}>gpt-4o</td>
-                        <td style={{ padding: "8px", border: "1px solid var(--dim)", color: "var(--ok)" }}>🟢 OK</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  
-                  <p style={{ color: "#8fa4aa", fontSize: "11px", fontStyle: "italic", marginBottom: "30px" }}>
-                    * El enrutador intercepta caídas de los modelos principales y redirige hacia el ecosistema GPT-4o / Qwen. No se usan APIs locales. En caso extremo, se usa un mecanismo automatizado de detención segura.
-                  </p>
-
-                  <h2 style={{ color: "var(--acc)", marginBottom: "20px" }}>Dashboard de Telemetría (Empírica)</h2>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
-                    {telemetry && telemetry.length > 0 ? telemetry.map((prov, i) => (
-                      <div key={i} style={{
-                        background: "rgba(10, 20, 25, 0.7)", 
-                        border: "1px solid var(--dim)",
-                        borderRadius: "6px",
-                        padding: "10px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "5px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.3)"
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <h3 style={{ margin: 0, color: "var(--node)", fontSize: "14px" }}>{prov.provider}</h3>
-                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "10px", background: prov.success_count > 0 ? "rgba(0,255,100,0.1)" : "rgba(255,50,50,0.1)", color: prov.success_count > 0 ? "#0f0" : "#f55" }}>
-                            {prov.success_count > 0 ? "ALIVE" : "DEAD"}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "var(--dim)" }}>Latencia media: <span style={{ color: "#cfe0e4" }}>{prov.avg_latency_ms.toFixed(0)} ms</span></div>
-                        <div style={{ fontSize: "11px", color: "var(--dim)" }}>Éxitos / Fallos: <span style={{ color: "#cfe0e4" }}>{prov.success_count} / {prov.failure_count}</span></div>
-                      </div>
-                    )) : <span style={{ color: "var(--dim)", fontSize: "12px" }}>Esperando datos de la red G4F...</span>}
-                  </div>
-               </div>
+               <MotoresPanel telemetry={telemetry} />
             )}
-            
-            {activeTab === "Código" && (
+
+                        {activeTab === "Código" && (
                <div style={{ flex: 1, display: 'flex', background: "#1e1e1e", border: "1px solid var(--dim)", color: "#d4d4d4", overflow: "hidden" }}>
                   <FileTreeSidebar onFileClick={requestFileContent} />
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -868,6 +825,8 @@ export default function App() {
           <b style={{ color: connected ? "var(--ok)" : "#f87171" }}>
             {connected ? "● EN LÍNEA" : "○ FUERA DE LÍNEA"}
           </b>
+          {(pendingApproval || awaitingApproval)
+            ? " · ⏸ ESPERA TU APROBACIÓN" : ""}
           {" · motor "}{engine === "deep" ? "análisis profundo" : "súper rapidez"}
           {" · tarea "}{activeConversationId}
           {" · "}<b>MAGI SYSTEM IDE {versionKernel ? `v${versionKernel}` : ""}</b>

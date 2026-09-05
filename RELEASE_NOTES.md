@@ -1,3 +1,40 @@
+# v5.21.1 — el pase de Balthasar: la interfaz puesta a prueba a si misma
+
+**Qué cambia:** la reconstruccion de la v5.21.0 se examino a si misma
+ejecutandola como la usaria una persona, y cinco fallos reales cayeron —
+incluido uno que hacia invisible la decision mas importante del sistema.
+
+**Los cinco, con su evidencia:**
+
+- **La aprobacion quedaba detras del cajon cerrado.** Mi cirugia movio los
+  paneles a un cajon plegable y los efectos que cambiaban de pestana al
+  llegar una aprobacion seguian cambiandola A CIEGAS: el diff de la decision
+  que bloquea el sistema, invisible. Ahora la aprobacion ABRE el cajon, y
+  la linea de estado anuncia «ESPERA TU APROBACION».
+- **«Ir a X» de la paleta era una orden muerta** con el cajon cerrado.
+  Ahora lo abre.
+- **Las rutas del flujo son clicables** (principio #7 de la
+  deconstruccion): «docs/BITACORA-OPTIMIZACION.md» en cualquier mensaje se
+  convierte en enlace, y clicarlo abre el panel Codigo con el fichero.
+  Dos lecciones del camino: el sanitizador de react-markdown tumba el
+  esquema open: (urlTransform lo respeta ahora), y el backend exigia rutas
+  absolutas — las relativas se resuelven contra el workspace.
+- **El cajon recuerda su estado** entre sesiones (localStorage).
+- **App.tsx volvio a su techo extrayendo** MotoresPanel — cuya tabla de
+  modelos era decorativa (nombres escritos a mano junto a telemetria viva);
+  el panel ahora usa el reparto real.
+
+**Verificado en vivo:** mencion mandada por la GUI, ruta subrayada en la
+burbuja, clic, panel Codigo abierto con el explorador.
+
+---
+
+**9 pruebas nuevas** (6 de rutas/lib, 2 de componente con renderToString,
+3 de resolucion relativa en el handler). Suite Python completa en verde,
+131 tests de interfaz, tsc y build limpios, App.tsx 839/900, huerfanos 80.
+
+---
+
 # v5.21.0 — la conversación es la columna vertebral
 
 **Qué cambia:** la interfaz se deconstruyó y se reconstruyó desde cero con

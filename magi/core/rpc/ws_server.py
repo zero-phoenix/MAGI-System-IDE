@@ -274,7 +274,17 @@ class WSServer:
 
     async def _handle_get_file_content(self, payload: Any, websocket: Any) -> Any:
         import os
+
+        from magi.core.paths import workspace_dir
         path = payload.get("path")
+        # Las rutas RELATIVAS se resuelven contra el workspace: el flujo del
+        # enjambre y una persona común nombran «docs/BITACORA.md», no la
+        # absoluta. Hallado clicando el propio enlace de la v5.21 (pase de
+        # Balthasar): el panel abría y el fichero no se seleccionaba.
+        if path and not os.path.isabs(path):
+            candidata = os.path.join(str(workspace_dir()), path)
+            if os.path.isfile(candidata):
+                path = candidata
         if not path or not os.path.exists(path) or not os.path.isfile(path):
             return {"error": "File not found or invalid path"}
         try:

@@ -9,9 +9,38 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { enlazarRutas, rutaDeEnlace } from "../lib/rutas";
+import { defaultUrlTransform } from "react-markdown";
 
-export const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
+/**
+ * Convierte las rutas de archivo del texto en enlaces clicables.
+ *
+ * Principio #7 de la deconstrucción: «cada artefacto es una referencia
+ * clicable en el flujo». Antes, un mensaje que decía
+ * «he creado C:\...\holamundo.py» nombraba el archivo y punto: para
+ * verlo había que saber que existía un explorador, abrirlo y buscarlo.
+ *
+ * Solo se enlaza FUERA de los bloques de código: dentro de una valla ```
+ * los corchetes de markdown no se procesan y quedarían como texto
+ * visible — el remedio sería peor que el silencio.
+ */
+export const AgentMessageCard = ({ msg, telemetry, renderCode, onOpenFile }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Los enlaces open:... son rutas de archivo del propio sistema: no
+  // navegan a ningún sitio, ABREN el fichero. Sin onOpenFile (tests,
+  // montajes mínimos) se ven como texto sin romper nada.
+  const enlace = ({ href, children }: any) => {
+    const ruta = rutaDeEnlace(href);
+    if (ruta === null || !onOpenFile) return <>{children}</>;
+    return (
+      <a href={ruta} onClick={(e) => { e.preventDefault(); onOpenFile(ruta); }}
+         style={{ color: "var(--acc)", textDecoration: "underline dotted" }}
+         title={`Abrir ${ruta}`}>
+        {children}
+      </a>
+    );
+  };
   
   let body = "";
   let conclusion = "";
@@ -60,16 +89,20 @@ export const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
       <div className="card-body" style={{ padding: '12px', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
         {msg.agent === 'USER' ? (
           <div>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-              {msg.content}
+            <ReactMarkdown remarkPlugins={[remarkGfm]}
+                           components={{ code: renderCode, a: enlace }}
+                           urlTransform={(u: string) => u.startsWith("open:") ? u : defaultUrlTransform(u)}>
+              {enlazarRutas(msg.content)}
             </ReactMarkdown>
           </div>
         ) : (
           <>
             {conclusion && (
               <div className="card-conclusion-text" style={{ marginBottom: body ? '8px' : '0', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                  {conclusion}
+                <ReactMarkdown remarkPlugins={[remarkGfm]}
+                               components={{ code: renderCode, a: enlace }}
+                           urlTransform={(u: string) => u.startsWith("open:") ? u : defaultUrlTransform(u)}>
+                  {enlazarRutas(conclusion)}
                 </ReactMarkdown>
               </div>
             )}
@@ -84,8 +117,10 @@ export const AgentMessageCard = ({ msg, telemetry, renderCode }: any) => {
                 </button>
                 {isExpanded && (
                   <div className="card-body-text" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--dim)', color: '#cfe0e4', fontWeight: 400, fontSize: '13px', lineHeight: 1.55 }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: renderCode }}>
-                      {body}
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}
+                                   components={{ code: renderCode, a: enlace }}
+                           urlTransform={(u: string) => u.startsWith("open:") ? u : defaultUrlTransform(u)}>
+                      {enlazarRutas(body)}
                     </ReactMarkdown>
                   </div>
                 )}
