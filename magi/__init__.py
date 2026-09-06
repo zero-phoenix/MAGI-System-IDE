@@ -3,7 +3,12 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 try:
-    __version__ = _version("magi-system-ide")
+    # El nombre de la distribucion, que es el de `[project].name` en
+    # pyproject.toml. Al renombrar el producto a Magisys este quedo pidiendo
+    # "magi-system-ide", que ya no existe: no rompia nada porque el respaldo
+    # de abajo lee pyproject, pero entonces la rama de pip no se usaba nunca
+    # y un fallo suyo habria pasado inadvertido.
+    __version__ = _version("Magisys")
 except PackageNotFoundError:
     # Fuera de pip (PyInstaller, checkout sin instalar): pyproject.toml es
     # la unica fuente. Migraciones lo usa para saber si debe correr, y el
