@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "actualizado": "2026-08-30",
+  "actualizado": "6-sep-2026",
   "proposito": "Memoria permanente de MAGI: como se usan los controles de las consolas y como se cablean a los emuladores. Incluye versiones descartadas: lo que se probo y no funcionO queda, para no repetirlo.",
   "metodo_para_cualquier_emulador": {
     "pasos": [
@@ -14,41 +14,379 @@
   },
   "consolas": {
     "sega_saturn": {
-      "botones": ["up","down","left","right","A","B","C","X","Y","Z","L","R","start"],
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "C",
+        "X",
+        "Y",
+        "Z",
+        "L",
+        "R",
+        "start"
+      ],
       "analogico": false,
       "observaciones": " cruceta digital, 6 botones frontales en dos filas (ABC abajo, XYZ arriba), L/R traseros"
     },
     "ps_vita": {
-      "botones": ["up","down","left","right","cross","circle","square","triangle","l","r","start","select","ps"],
-      "analogicos": ["izquierdo", "derecho"],
-      "frontal_tactil": true, "trasera_tactil": true
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "cross",
+        "circle",
+        "square",
+        "triangle",
+        "l",
+        "r",
+        "start",
+        "select",
+        "ps"
+      ],
+      "analogicos": [
+        "izquierdo",
+        "derecho"
+      ],
+      "frontal_tactil": true,
+      "trasera_tactil": true
     },
-    "nintendo_switch": {"botones": ["up","down","left","right","A","B","X","Y","L","R","ZL","ZR","minus","plus","lstick","rstick","capture","home"], "analogicos": ["izquierdo","derecho"], "nota": "A/B/X/Y intercambiados respecto a Xbox en disposicion"},
-    "playstation_1_a_5": {"botones": ["up","down","left","right","cross","circle","square","triangle","l1","r1","l2","r2","l3","r3","start","select","touchpad(PS4+)","ps"], "analogicos": ["izquierdo(PS1 analog era accesorio)","derecho(PS1 analog era accesorio)"]},
-    "xbox": {"botones": ["up","down","left","right","A","B","X","Y","LB","RB","LT","RT","view","menu","lstick","rstick"], "analogicos": ["izquierdo","derecho"], "nota": "A abajo, B derecha, X izquierda, Y arriba (invertido respecto a Nintendo)"},
-    "nes": {"botones": ["up","down","left","right","A","B","start","select"]},
-    "snes": {"botones": ["up","down","left","right","A","B","X","Y","L","R","start","select"]},
-    "sega_megadrive_genesis": {"botones": ["up","down","left","right","A","B","C","start"], "nota": "X/Y/Z y Mode solo en el pad de 6 botones"},
-    "nintendo_64": {"botones": ["up","down","left","right(digital C)","A","B","start","L","R","Z","C-up","C-down","C-left","C-right"], "analogicos": ["unico central"]},
-    "gamecube": {"botones": ["A","B","X","Y","Z","L","R","start","up","down","left","right"], "analogicos": ["izquierdo","derecho(C)"], "nota": "gatillos L/R analOgicos con click"},
-    "wii": {"botones": ["up","down","left","right","A","B","1","2","minus","plus","home"], "nota": "el nunchuk añade analogico+Z+C; WiiU/Pro cubren con A,B,X,Y,L,R,ZL,ZR"},
-    "game_boy_gba": {"botones": ["up","down","left","right","A","B","start","select"], "nota": "GBA añade L y R"},
-    "nintendo_ds_3ds": {"botones": ["up","down","left","right","A","B","X","Y","L","R","start","select"], "nota": "dos pantallas, la inferior táctil; 3DS añade Circle Pad y ZL/ZR(New)"},
-    "psp": {"botones": ["up","down","left","right","cross","circle","square","triangle","l","r","start","select","ps"], "analogicos": ["unico (slider)"]},
-    "dreamcast": {"botones": ["up","down","left","right","A","B","X","Y","start"], "analogicos": ["unico"], "nota": "VMU en el pad"},
-    "arcade_generico": {"botones": ["joystick 4/8 vias","A","B","C","D","start","coin/credit"], "nota": "varía por placa; el estandar de lucha es 6 botones en dos filas"}
+    "nintendo_switch": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "X",
+        "Y",
+        "L",
+        "R",
+        "ZL",
+        "ZR",
+        "minus",
+        "plus",
+        "lstick",
+        "rstick",
+        "capture",
+        "home"
+      ],
+      "analogicos": [
+        "izquierdo",
+        "derecho"
+      ],
+      "nota": "A/B/X/Y intercambiados respecto a Xbox en disposicion"
+    },
+    "playstation_1_a_5": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "cross",
+        "circle",
+        "square",
+        "triangle",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "start",
+        "select",
+        "touchpad(PS4+)",
+        "ps"
+      ],
+      "analogicos": [
+        "izquierdo(PS1 analog era accesorio)",
+        "derecho(PS1 analog era accesorio)"
+      ]
+    },
+    "xbox": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "X",
+        "Y",
+        "LB",
+        "RB",
+        "LT",
+        "RT",
+        "view",
+        "menu",
+        "lstick",
+        "rstick"
+      ],
+      "analogicos": [
+        "izquierdo",
+        "derecho"
+      ],
+      "nota": "A abajo, B derecha, X izquierda, Y arriba (invertido respecto a Nintendo)"
+    },
+    "nes": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "start",
+        "select"
+      ]
+    },
+    "snes": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "X",
+        "Y",
+        "L",
+        "R",
+        "start",
+        "select"
+      ]
+    },
+    "sega_megadrive_genesis": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "C",
+        "start"
+      ],
+      "nota": "X/Y/Z y Mode solo en el pad de 6 botones"
+    },
+    "nintendo_64": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right(digital C)",
+        "A",
+        "B",
+        "start",
+        "L",
+        "R",
+        "Z",
+        "C-up",
+        "C-down",
+        "C-left",
+        "C-right"
+      ],
+      "analogicos": [
+        "unico central"
+      ]
+    },
+    "gamecube": {
+      "botones": [
+        "A",
+        "B",
+        "X",
+        "Y",
+        "Z",
+        "L",
+        "R",
+        "start",
+        "up",
+        "down",
+        "left",
+        "right"
+      ],
+      "analogicos": [
+        "izquierdo",
+        "derecho(C)"
+      ],
+      "nota": "gatillos L/R analOgicos con click"
+    },
+    "wii": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "1",
+        "2",
+        "minus",
+        "plus",
+        "home"
+      ],
+      "nota": "el nunchuk añade analogico+Z+C; WiiU/Pro cubren con A,B,X,Y,L,R,ZL,ZR"
+    },
+    "game_boy_gba": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "start",
+        "select"
+      ],
+      "nota": "GBA añade L y R"
+    },
+    "nintendo_ds_3ds": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "X",
+        "Y",
+        "L",
+        "R",
+        "start",
+        "select"
+      ],
+      "nota": "dos pantallas, la inferior táctil; 3DS añade Circle Pad y ZL/ZR(New)"
+    },
+    "psp": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "cross",
+        "circle",
+        "square",
+        "triangle",
+        "l",
+        "r",
+        "start",
+        "select",
+        "ps"
+      ],
+      "analogicos": [
+        "unico (slider)"
+      ]
+    },
+    "dreamcast": {
+      "botones": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "A",
+        "B",
+        "X",
+        "Y",
+        "start"
+      ],
+      "analogicos": [
+        "unico"
+      ],
+      "nota": "VMU en el pad"
+    },
+    "arcade_generico": {
+      "botones": [
+        "joystick 4/8 vias",
+        "A",
+        "B",
+        "C",
+        "D",
+        "start",
+        "coin/credit"
+      ],
+      "nota": "varía por placa; el estandar de lucha es 6 botones en dos filas"
+    },
+    "playstation_2": {
+      "mando_estandar": "DualShock 2: cruceta, X O TRIANGULO CUADRADO, L1 L2 R1 R2, L3 R3, START SELECT ANALOGO",
+      "convencion_pc": "X=espacio/enter de accion, CUADRADO=shift, cruceta=WASD o flechas, L1/R1=q/e",
+      "nota_decomp": "PS2 es la fuente habitual de decompilaciones estilo dusklight: EE (R5900), VU0/VU1, GS. Un port a Vita se apoya en recompilar el C original y sustituir la capa de render/entrada."
+    }
   },
   "emuladores": {
     "yabausevita_vita3k_teclado": {
       "que_es": "YabauseVita (Saturn) corriendo en Vita3K; teclado del host -> pad Vita -> pad Saturn",
-      "capa_1_teclado_a_vita": {"C": "circle", "X": "cross", "Z": "square", "V": "triangle", "Enter": "start", "ShiftRight": "select", "flechas": "cruceta", "WASD": "analogico izq.", "Q/E": "L1/R1", "U/O": "L2/R2"},
-      "capa_2_vita_a_saturn": {"map_square": "A", "map_cross": "B", "map_circle": "C", "map_triangle": "Y", "map_select": "X", "map_start": "start", "flechas": "cruceta", "L": "L", "R": "R", "analogico izq.": "cruceta (zona muerta 50)"},
+      "capa_1_teclado_a_vita": {
+        "C": "circle",
+        "X": "cross",
+        "Z": "square",
+        "V": "triangle",
+        "Enter": "start",
+        "ShiftRight": "select",
+        "flechas": "cruceta",
+        "WASD": "analogico izq.",
+        "Q/E": "L1/R1",
+        "U/O": "L2/R2"
+      },
+      "capa_2_vita_a_saturn": {
+        "map_square": "A",
+        "map_cross": "B",
+        "map_circle": "C",
+        "map_triangle": "Y",
+        "map_select": "X",
+        "map_start": "start",
+        "flechas": "cruceta",
+        "L": "L",
+        "R": "R",
+        "analogico izq.": "cruceta (zona muerta 50)"
+      },
       "donde_vive": "config.cfg (claves map_*), lo escribe vita_menu.c, lo lee main.c",
       "verificado": "2026-08-30 con Vita3K build 4058"
     },
-    "vita3k_directo": {"config": "vita3k/config.yml (keyboard-button-*)", "donde": "pref-path de config.yml"}
+    "vita3k_directo": {
+      "config": "vita3k/config.yml (keyboard-button-*)",
+      "donde": "pref-path de config.yml"
+    }
   },
   "descartados": [
-    {"que": "mapear circle del Saturn directo a X del teclado", "por_que_no": "la cadena tiene DOS capas (teclado->Vita->Saturn); saltarse una deja el boton mudo", "fecha": "2026-08-30"}
-  ]
+    {
+      "que": "mapear circle del Saturn directo a X del teclado",
+      "por_que_no": "la cadena tiene DOS capas (teclado->Vita->Saturn); saltarse una deja el boton mudo",
+      "fecha": "2026-08-30"
+    }
+  ],
+  "pc_jugando": {
+    "teclado": {
+      "convencion_extendida": "WASD mover, raton mirar, LMB accion, RMB apuntar, ESPACIO saltar, SHIFT correr, E interactuar, R recargar, TAB inventario, ESC pausa, 1-9 armas",
+      "recreativas_retro": "flechas + Z X C (A B C) o ASDF; START=ENTER, MONEDA=5",
+      "android_emulador": "el teclado mapea al touch; cada emulador trae su config"
+    },
+    "gamepad": {
+      "estandar_xinput": "A B X Y, LB RB LT RT, L3 R3, cruceta — SDL2/GameControllerDB lo normaliza",
+      "steam_input": "cualquier mando se remapea por juego sin tocar el codigo",
+      "en_codigo": "pygame: pygame.joystick; SDL2: SDL_GameControllerOpen; Vita: sceCtrl (SceCtrlData)"
+    },
+    "puertos_a_consoles": "mantener UNA capa de entrada propia (enum abstracto: ARRIBA/ABAJO/IZQ/DER/A/B/X/Y/START/SELECT/L1/R1) y mapearla por plataforma: teclado, xinput, sceCtrl"
+  },
+  "decompilacion_y_puertos": {
+    "que_es": "una decomp estilo dusklight reconstruye el C fuente de un binario comercial hasta compilar a los MISMOS bytes: se divide el binario en funciones, cada una se reescribe hasta que el compilador original (o uno calibrado) la produce identica, y el proyecto entero recompila a un binario byte-a-byte igual al original",
+    "flujo_en_5_pasos": {
+      "1_objetivo": "fijar version y region del binario base (su sha256 manda); sin version fijada, todo matching es mentira",
+      "2_split": "separar el binario en funciones/datos con los simbolos que sobrevivan (map, sym files) y los ausentes como offsets",
+      "3_matching": " Ghidra/objdiff: decompilar funcion a funcion, recompilar con las flags originales y comparar bytes; verde cuando es 1:1",
+      "4_recompila_pc": "el proyecto completo compila en PC (make/objdiff) y produce el binario igual: este ES el juego en PC sin sus assets",
+      "5_port_vita": "sobre el C recompilado: sustituir la capa de plataforma (render -> vita2d/SDL2, entrada -> sceCtrl, audio -> SDL2/sceAudio, ficheros -> sceIo), build con vitasdk (docker, vdpm del PATH) y VPK; lo que era ASM especifico se reimplementa, no se porta"
+    },
+    "reglas_duras": [
+      "no se decompila 'por encima': sin byte-matching no es decomp, es reinterpretacion (que tambien vale, pero se llama distinto y no sirve para assets/exactitud)",
+      "assets del original: extraer, no regenerar",
+      "en el port a Vita: el rendimiento manda con metricas internas (R4 del emulador), no con FPS de emuladores HLE",
+      "cada funcion verde se commitea: el matching que no se guarda se pierde"
+    ],
+    "herramientas": "Ghidra, objdiff, decomp.me, permutator, vitasdk/vdpm en docker (vdpm del PATH, NO ./vdpm del checkout)"
+  }
 }

@@ -1,0 +1,115 @@
+{
+  "version": "1.0",
+  "curado": "6-sep-2026",
+  "nota": "indice curado de repos que sirven a MAGI (metadatos, no clones). Cada entrada es falsable: la URL manda. Entra por rondas, con evidencia.",
+  "repos": [
+    {
+      "nombre": "vitasdk/vdpm",
+      "tema": "vita",
+      "url": "https://github.com/vitasdk/vdpm",
+      "para_que": "toolchain de Vita: docker + vdpm del PATH construye YabauseVita"
+    },
+    {
+      "nombre": "vitasdk/vita2d",
+      "tema": "vita",
+      "url": "https://github.com/xerpi/vita2d",
+      "para_que": "render 2D en Vita: la capa de render de ports"
+    },
+    {
+      "nombre": "libretro/yabause",
+      "tema": "emudev",
+      "url": "https://github.com/libretro/yabause",
+      "para_que": "referencia de núcleo Saturn portátil"
+    },
+    {
+      "nombre": "Kronos-GERS/Shall we Kronos",
+      "tema": "emudev",
+      "url": "https://github.com/FCare/Kronos",
+      "para_que": "Saturn de precisión: cadena VDP de referencia"
+    },
+    {
+      "nombre": "TASEmulators/dolphin",
+      "tema": "emudev",
+      "url": "https://github.com/dolphin-emu/dolphin",
+      "para_que": "referencia de arquitectura de emulador moderno (dynarec, HLE)"
+    },
+    {
+      "nombre": "decomp.me",
+      "tema": "decomp",
+      "url": "https://decomp.me",
+      "para_que": "matching de funciones colaborativo en navegador"
+    },
+    {
+      "nombre": "encounter/objdiff",
+      "tema": "decomp",
+      "url": "https://github.com/encounter/objdiff",
+      "para_que": "diff de objetos para byte-matching: la herramienta del paso 3"
+    },
+    {
+      "nombre": "NationalSecurityAgency/ghidra",
+      "tema": "decomp",
+      "url": "https://github.com/NationalSecurityAgency/ghidra",
+      "para_que": "decompilador de referencia para el split y matching"
+    },
+    {
+      "nombre": "marijnvdwerf/pilotwings-decomp",
+      "tema": "decomp",
+      "url": "https://github.com/marijnvdwerf/pilotwings-decomp",
+      "para_que": "ejemplo real de proyecto decomp estilo dusklight"
+    },
+    {
+      "nombre": "pret/pokeruby",
+      "tema": "decomp",
+      "url": "https://github.com/pret/pokeruby",
+      "para_que": "decomp completo recompilable: el estándar del flujo en 5 pasos"
+    },
+    {
+      "nombre": "Vita3K/Vita3K",
+      "tema": "emudev",
+      "url": "https://github.com/Vita3K/Vita3K",
+      "para_que": "HLE de Vita: decide CORRECCIÓN, no rendimiento (R4)"
+    },
+    {
+      "nombre": "pygame/pygame",
+      "tema": "gamedev",
+      "url": "https://github.com/pygame/pygame",
+      "para_que": "librería de juegos del enjambre (instalada 2.6.1)"
+    },
+    {
+      "nombre": "photonstorm/phaser",
+      "tema": "gamedev",
+      "url": "https://github.com/photonstorm/phaser",
+      "para_que": "juegos web cuando el encargo pide HTML"
+    },
+    {
+      "nombre": "xemu-project/xemu",
+      "tema": "emudev",
+      "url": "https://github.com/xemu-project/xemu",
+      "para_que": "referencia Xbox"
+    },
+    {
+      "nombre": "PCSX2/pcsx2",
+      "tema": "emudev",
+      "url": "https://github.com/PCSX2/pcsx2",
+      "para_que": "referencia PS2: fuente habitual de decomp estilo dusklight"
+    },
+    {
+      "nombre": "argh Arghonaut",
+      "tema": "tooling",
+      "url": "https://github.com/pyinstaller/pyinstaller",
+      "para_que": "empaquetado onefile: la fábrica de .exe del sistema"
+    },
+    {
+      "nombre": "fastapi/fastapi",
+      "tema": "tooling",
+      "url": "https://github.com/tiangolo/fastapi",
+      "para_que": "servidores locales cuando el encargo lo pide"
+    },
+    {
+      "nombre": "xtekky/gpt4free",
+      "tema": "ia",
+      "url": "https://github.com/xtekky/gpt4free",
+      "para_que": "el transporte gratuito de la nube del enjambre (g4f)"
+    }
+  ]
+}

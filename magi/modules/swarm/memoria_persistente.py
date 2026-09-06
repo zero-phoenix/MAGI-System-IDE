@@ -171,8 +171,14 @@ def _bloque_controles(encargo: str, datos: dict) -> str:
             filas.append(f"- **{k}**: {botones}{nota}")
         else:
             filas.append(f"- **{k}**: {v}")
+    extra = ""
+    if datos.get("pc_jugando") and re.search(
+            r"\b(teclado|pc|ordenador|computadora|gamepad|mando)\b", t):
+        teclas = datos["pc_jugando"].get("teclado", {})
+        extra = ("- **pc_jugando**: teclado — "
+                 + str(teclas.get("convencion_extendida", "")) + "\n")
     return ("\nMANDOS QUE YA CONOCES (memoria permanente):\n"
-            + "\n".join(filas) + "\n")
+            + "\n".join(filas) + "\n" + extra)
 
 
 def _bloque_descartes(encargo: str, descartes: list[dict]) -> str:
@@ -197,21 +203,45 @@ def _bloque_descartes(encargo: str, descartes: list[dict]) -> str:
             + "\n".join(filas) + "\n")
 
 
+#: Decompilación (estilo dusklight) y puertos PC->consola. Se inyecta SOLO
+#: cuando el encargo habla de eso: es conocimiento denso y en cada prompt
+#: sería ruido que tapa lo que importa.
+_DECOMP = re.compile(
+    r"\b(decomp\w*|decompil\w*|recompil\w*|dusklight|ghidra|objdiff|"
+    r"reverse\w*|ingenieri\w*\s*inversa|port\w*|puerto|vita2d|vitasdk|"
+    r"vpk|byte[- ]?match\w*)\b")
+
+
+def _bloque_decomp(datos: dict) -> str:
+    d = datos.get("decompilacion_y_puertos") or {}
+    if not d:
+        return ""
+    flujo = d.get("flujo_en_5_pasos") or {}
+    pasos = "\n".join(f"  {k}: {v}" for k, v in flujo.items())
+    reglas = "\n".join(f"  - {r}" for r in d.get("reglas_duras") or [])
+    return ("DECOMPILACIÓN Y PUERTOS (memoria permanente):\n"
+            + f"  {d.get('que_es', '')}\nFLUJO:\n" + pasos
+            + "\nREGLAS DURAS:\n" + reglas + "\n")
+
+
 def para_el_prompt(encargo: str, inicio=None) -> str:
     """
     Va ARRIBA del prompt. Vacío si no aplica: un aviso repetido en cada
     encargo se convierte en ruido y acaba tapando los que sí importan.
     """
-    if not pertinente(encargo):
+    t = _plano(encargo)
+    if not (pertinente(encargo) or _DECOMP.search(t)):
         return ""
-    ctrl = _bloque_controles(encargo, cargar_controles(inicio))
+    datos = cargar_controles(inicio)
+    ctrl = _bloque_controles(encargo, datos)
     desc = _bloque_descartes(encargo, cargar_descartes(inicio))
-    if not (ctrl or desc):
+    decomp = _bloque_decomp(datos) if _DECOMP.search(t) else ""
+    if not (ctrl or desc or decomp):
         return ""
     return (
         "\n\nMEMORIA PERMANENTE DE MAGI. Esto no es de esta tarea: es lo que el "
         "sistema sabe de antes y sobrevive a la sesión.\n"
-        + ctrl + desc +
+        + ctrl + desc + decomp +
         "\nUn enfoque descartado puede volver a proponerse — pero entonces hay "
         "que decir qué cambió respecto al motivo del descarte. Y lo marcado "
         "como SE RESCATA se reutiliza en vez de volver a descubrirse."

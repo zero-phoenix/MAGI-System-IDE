@@ -193,7 +193,7 @@ medio: **una corrida sin ojos no es evidencia**. Ver «Rondas verificadas» abaj
 
 ## Qué sabe hacer
 
-Más allá de debatir, el enjambre tiene **55 herramientas** reales sobre tu
+Más allá de debatir, el enjambre tiene **58 herramientas** reales sobre tu
 máquina, repartidas por rol y acotadas por dominio antes de entrar al prompt.
 
 - **Ingeniería de software**: crear, modificar y ejecutar código, construir

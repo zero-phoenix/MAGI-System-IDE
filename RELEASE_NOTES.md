@@ -1,3 +1,44 @@
+# v5.25.0 — LILIM, la capa local superveloz, y la memoria enciclopédica falsable
+
+**Qué cambia:** nace LILIM (megaplan v12, docs/MEGAPLAN-v12-lilim.md): la
+capa LOCAL, determinista y sin red que responde al instante lo que MAGI ya
+sabe — CON procedencia — y escala al enjambre lo que no sabe. Más
+velocidad y más eficiencia sin perder precisión: lo que Lilim no está en su
+memoria, NO lo inventa.
+
+**Lo concreto:**
+
+- **`magi/modules/lilim/`** — el núcleo: responde mandos de 17 consolas,
+  configuración de PC para jugar, decompilación/puertos estilo dusklight
+  (el flujo en 5 pasos hasta el port a Vita) y el índice de repos, todo con
+  `fuente:` y `falsable contra:` en cada respuesta. Ante lo desconocido:
+  «NO LO SÉ (local) — escala al enjambre». Cero red, cero cuota.
+- **`repos_top.json`** — el índice curado de los mejores repos de GitHub
+  para MAGI (emudev, decomp, gamedev, vita, tooling, ia): METADATOS con URL
+  falsable, no clones — un repo se clona shallow a demanda al workspace
+  (L2), nunca se descarga internet (C: tiene ~10 GB).
+- **`lilim_pregunta` y `repos_de`** como herramientas del enjambre (58
+  ahora): cualquier nodo puede consultar la memoria local en ms mid-tarea.
+- **Controles ampliados**: PS2 (la fuente habitual de decomp estilo
+  dusklight), `pc_jugando` (convención de teclado extendida, gamepad
+  xinput/SDL/Steam, la regla de oro de los ports: UNA capa de entrada
+  abstracta mapeada por plataforma) y el bloque completo
+  `decompilacion_y_puertos` (split, matching con objdiff, byte-matching,
+  recompila en PC, port con vitasdk).
+- **Inyección selectiva**: el conocimiento de decomp entra al prompt SOLO
+  cuando el encargo habla de eso (regex dedicada) — conocimiento denso en
+  cada prompt sería ruido.
+- **Auditoría de modelos**: g4f alineado al lock (8.1.1, paridad con CI) —
+  los parches de compat aplican limpios y la sonda midió 32/32 candidatos.
+
+---
+
+**7 pruebas nuevas** (el contrato de Lilim: procedencia, repos con URL,
+y las tres reglas del no-inventar). Suite completa a cero; huérfanos en 80;
+58 herramientas declaradas y contadas.
+
+---
+
 # v5.24.0 — A2: los juegos se entregan jugados, no solo compilados
 
 **Qué cambia:** el segundo bloque crítico del megaplan v11. La misión Tetris

@@ -54,6 +54,52 @@ def build_registry() -> ToolRegistry:
 
     # ------------------------------------------------------------- lectura
 
+    @reg.tool("controles_de",
+              "Consulta la memoria permanente de mandos: cómo se juega en una "
+              "consola, cómo se mapea a teclado/PC y las convenciones de entrada "
+              "por plataforma (teclado, xinput, sceCtrl). Uso: controles_de "
+              "\"sega_saturn\" o \"pc\" para la configuración de computadora.",
+              {"type": "object", "properties": {
+                  "consola": {"type": "string",
+                              "description": "nombre/clave de consola, o 'pc' "
+                                             "para jugar en computadora"}},
+               "required": ["consola"]}, access={"read"})
+    def controles_de(consola: str, ctx: ToolContext):
+        import json
+
+        from ...modules.swarm.memoria_persistente import raiz as _raiz_memoria
+        _raiz = _raiz_memoria()
+        ruta = _raiz / "controles.json" if _raiz else None
+        if ruta is None or not ruta.exists():
+            return ToolResult(False, "", error="memoria de controles no encontrada")
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        clave = consola.strip().lower().replace(" ", "_")
+        seccion = (datos.get("consolas") or {}).get(clave)
+        if seccion is None and clave in ("pc", "pc_jugando", "computadora"):
+            seccion = datos.get("pc_jugando")
+        if seccion is None:
+            # búsqueda difusa por subcadena
+            for k, v in (datos.get("consolas") or {}).items():
+                if clave in k:
+                    seccion = v
+                    break
+        if seccion is None:
+            disponibles = ", ".join(sorted(datos.get("consolas") or {}))
+            return ToolResult(
+                False, "", error=(f"no conozco '{consola}'. Disponibles: "
+                                  f"{disponibles}; 'pc' para jugar en computadora"))
+        cuerpo = seccion if isinstance(seccion, str) else json.dumps(
+            seccion, ensure_ascii=False, indent=2)
+        extra = ""
+        decomp = datos.get("decompilacion_y_puertos") or {}
+        if decomp and any(p in clave for p in ("decomp", "port", "puerto")):
+            extra = "\n\nDECOMP/PENDIENTE-DE-PORT: ver decompilacion_y_puertos."
+        return ToolResult(True, f"{clave}: {cuerpo}{extra}")
+
+    # LILIM (v12): las herramientas de la capa local viven en su módulo.
+    from .lilim_tools import registrar as _registrar_lilim
+    _registrar_lilim(reg)
+
     @reg.tool("read_file", "Lee un fichero de texto. Usa offset/limit para ficheros grandes.",
               {"type": "object", "properties": {
                   "path": {"type": "string"},
