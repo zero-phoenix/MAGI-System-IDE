@@ -983,6 +983,8 @@ def _leer_decision(content: str, round_num: int,
     m = coincidencias[-1] if coincidencias else None   # nos quedamos con la ÚLTIMA
     if m:
         valor = m.group(1).strip().upper()
+        if any(p in valor for p in ("PREGUNTA", "OTRA", "IRRELEVANTE", "DESVIO", "DESVÍO")):
+            return "LA_PREGUNTA_ERA_OTRA", texto
         if "REVIS" in valor or "RECHAZ" in valor or "REJECT" in valor:
             # A partir de la última ronda ya no se devuelve a Melchior: se
             # entrega lo que haya. Alargar el debate sin fin es peor que
