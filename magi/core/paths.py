@@ -271,16 +271,18 @@ def escritorio() -> Path | None:
             from ctypes import byref, c_wchar_p, windll, wintypes
 
             # FOLDERID_Desktop = {B4BFCC3A-DB2C-424C-B029-7FE99FA87E641}
-            guid = wintypes.GUID(0xB4BFCC3A, 0xDB2C, 0x424C,
-                                 b"\xB0\x29\x7F\xE9\x9F\xA8\x7E\x64\x01")
-            puntero = c_wchar_p()
-            if windll.shell32.SHGetKnownFolderPath(
-                    byref(guid), 0, None, byref(puntero)) == 0 and puntero.value:
-                try:
-                    ruta = Path(puntero.value)
-                finally:
-                    windll.ole32.CoTaskMemFree(puntero)
-                return ruta if ruta.is_dir() else None
+            GUID = getattr(wintypes, "GUID", None)
+            if GUID is not None:
+                guid = GUID(0xB4BFCC3A, 0xDB2C, 0x424C,
+                            b"\xB0\x29\x7F\xE9\x9F\xA8\x7E\x64\x01")
+                puntero = c_wchar_p()
+                if windll.shell32.SHGetKnownFolderPath(
+                        byref(guid), 0, None, byref(puntero)) == 0 and puntero.value:
+                    try:
+                        ruta = Path(puntero.value)
+                    finally:
+                        windll.ole32.CoTaskMemFree(puntero)
+                    return ruta if ruta.is_dir() else None
         except Exception:
             pass
         base = os.environ.get("USERPROFILE") or str(Path.home())

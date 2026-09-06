@@ -4,6 +4,8 @@ Las herramientas de LILIM, la capa local superveloz (megaplan v12).
 Extraidas de builtin.py por el trinquete de líneas: son un dominio propio
 (memoria local enciclopédica) y no mezclan con las herramientas de ficheros.
 """
+from __future__ import annotations
+
 from .builtin import ToolContext, ToolResult
 
 
@@ -55,7 +57,7 @@ def registrar(reg) -> None:
                            "description": "opcional: ia, baterias, "
                                           "hardware, emulacion, python"}},
                "required": []}, access={"read"})
-    def lilim_novedades(tema: str = "", ctx: ToolContext = None):
+    def lilim_novedades(tema: str = "", ctx: ToolContext | None = None):
         from ...modules.lilim import novedades as _nov
         return ToolResult(True, _nov(tema or ""))
 
