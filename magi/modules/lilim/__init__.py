@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Any
 
 __all__ = ["pregunta", "repos_de", "NO_LO_SE", "responde_si_sabe",
-           "registrar_conocimiento", "repos_clonar", "desregistrar_clon"]
+           "registrar_conocimiento", "repos_clonar", "desregistrar_clon",
+           "enciclopedia", "verificar_novedades_fuente"]
 
 NO_LO_SE = "NO LO SÉ (local) — escala al enjambre: razonamiento y verificación de nube."
 
@@ -116,8 +117,89 @@ def pregunta(pregunta_texto: str) -> str:
                 if NO_LO_SE not in r:
                     return r
 
-    # 4. lo que no está en memoria NO se inventa
+    # 4. enciclopedia técnica (L4: SH2, VDP, Vita, Decomp)
+    e = enciclopedia(t)
+    if e != NO_LO_SE:
+        return e
+
+    # 5. lo que no está en memoria NO se inventa
     return NO_LO_SE
+
+
+def enciclopedia(dominio: str = "") -> str:
+    """L4: Enciclopedia técnica por dominios curados (SH2, VDP, Vita, Decomp)."""
+    datos = _cargar("enciclopedia.json")
+    doms = datos.get("dominios") or {}
+    if not dominio or not dominio.strip():
+        return "Dominios técnicos en enciclopedia: " + ", ".join(sorted(doms.keys()))
+
+    t = _plano(dominio)
+    for k, v in doms.items():
+        if (_plano(k) in t or t in _plano(k)
+                or any(w in t for w in _plano(v.get("titulo", "")).split() if len(w) > 4)):
+            puntos = "\n".join(f"  · {p}" for p in v.get("puntos_clave", []))
+            marca = "verificado" if v.get("verificado") else "SIN COMPROBAR"
+            return (
+                f"ENCICLOPEDIA LILIM [{k.upper()} · {marca}] (curado {datos.get('curado', '?')}):\n"
+                f"{v.get('titulo', '')}\n"
+                f"{v.get('resumen', '')}\n"
+                f"Puntos clave:\n{puntos}\n"
+                f"fuente: {v.get('fuente', '')} — falsable contra la documentación técnica."
+            )
+    return NO_LO_SE
+
+
+def verificar_novedades_fuente(
+    tema_o_titulo: str = "",
+    _lector: Any = None,
+) -> tuple[int, int, str]:
+    """
+    L3/L4: Verifica novedades contra sus URLs fuente usando lectura web sin navegador.
+    Retorna (verificados_nuevos, total_procesados, reporte).
+    """
+    datos = _cargar("novedades.json")
+    entradas = datos.get("entradas") or []
+    t = _plano(tema_o_titulo)
+
+    from datetime import datetime, timezone
+    fecha_hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    verificados = 0
+    procesados = 0
+    detalles = []
+
+    for e in entradas:
+        if t and (t not in _plano(e.get("tema", "")) and t not in _plano(e.get("titulo", ""))):
+            continue
+        if e.get("verificado"):
+            continue
+
+        procesados += 1
+        url = e.get("fuente_verificar", "")
+        if not url:
+            continue
+
+        contenido = ""
+        ok_lectura = False
+        if _lector is not None:
+            ok_lectura, contenido, _ = _lector(url)
+        else:
+            try:
+                from ..percepcion.web import web_read
+                ok_lectura, contenido, _ = web_read(url, max_chars=2000)
+            except Exception:
+                ok_lectura = False
+
+        if ok_lectura and any(w in _plano(contenido) for w in _plano(e.get("titulo", "")).split() if len(w) > 4):
+            e["verificado"] = True
+            e["verificado_en"] = fecha_hoy
+            verificados += 1
+            detalles.append(f"✅ Verificado: '{e.get('titulo')}' contra {url}")
+        else:
+            detalles.append(f"⏳ SIN COMPROBAR: '{e.get('titulo')}' (sin coincidencia de fuente)")
+
+    reporte = f"Verificación de novedades: {verificados}/{procesados} confirmadas con evidencia.\n" + "\n".join(detalles)
+    return verificados, procesados, reporte
 
 
 # ------------------------------------------------- L3: conocimiento verificado

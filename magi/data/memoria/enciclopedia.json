@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "curado": "6-sep-2026",
+  "dominios": {
+    "sh2": {
+      "titulo": "Hitachi SuperH SH-2 (SH7095) en Sega Saturn",
+      "resumen": "Procesador RISC de 32 bits a 28.6 MHz con arquitectura Harvard y pipeline de 2 etapas (Fetch/Decode, Execute).",
+      "puntos_clave": [
+        "Arquitectura dual: Master SH-2 y Slave SH-2 comparten el bus SCU y la SDRAM principal.",
+        "Divisor por hardware en 39 ciclos (DVSR/DVDNT).",
+        "Hazards de bus: accesos simultáneos de Master y Slave a la memoria compartida introducen ciclos de espera (wait states).",
+        "Cache de 4 KB unificada por procesador con soporte de purga y bloqueo."
+      ],
+      "fuente": "https://segaretro.org/Hitachi_SH-2",
+      "verificado": true
+    },
+    "vdp": {
+      "titulo": "Procesadores de Video Sega Saturn (VDP1 y VDP2)",
+      "resumen": "Subsistema gráfico desacoplado formado por dos chips de video especializados.",
+      "puntos_clave": [
+        "VDP1: Renderiza sprites distorsionados, polígonos texturizados y líneas en doble frame buffer de 512 KB.",
+        "VDP2: Genera hasta 5 planos de scroll simultáneos con rotación 3D afín (RBG0) y transparencias.",
+        "Composición: VDP2 superpone los planos de fondo sobre la salida del framebuffer de VDP1 con orden de prioridad de píxel."
+      ],
+      "fuente": "https://segaretro.org/Sega_Saturn/Hardware_manuals",
+      "verificado": true
+    },
+    "vita": {
+      "titulo": "PlayStation Vita (VitaSDK & Hardware)",
+      "resumen": "SoC con CPU quad-core ARM Cortex-A9 MPCore y GPU SGX543MP4+ ejecutando software nativo con VitaSDK.",
+      "puntos_clave": [
+        "Entrada: sceCtrlPeekBufferPositive / sceCtrlReadBufferPositive lee botones y sticks analógicos.",
+        "Render: libvita2d o sceGxm para shaders y comandos de dibujo acelerados por hardware.",
+        "Memoria: 512 MB RAM principal + 128 MB VRAM dedicada para texturas y render targets.",
+        "Audio: sceAudioOutOpenPort y sceAudioOutOutputBlocking con buffer PCM estéreo a 48 kHz."
+      ],
+      "fuente": "https://vitasdk.org/",
+      "verificado": true
+    },
+    "decomp": {
+      "titulo": "Ingeniería Inversa y Decompilación de Matching",
+      "resumen": "Flujo de decompilación moderna enfocado en byte-matching exacto para puertos nativos y análisis forense.",
+      "puntos_clave": [
+        "Desensamblado y mapa de símbolos: extracción de binarios originales con Ghidra o Capstone.",
+        "Reimplementación en C/C++: compilación con la versión exacta del toolchain histórico (ej. SH-C v3, GCC 2.95).",
+        "Matching con objdiff: comparación de diferencias de registros y ensamblado a nivel de instrucción.",
+        "Patrón Dusklight: stubs modulares que permiten ejecutar el código recompilado en plataformas modernas."
+      ],
+      "fuente": "https://github.com/simonlindholm/objdiff",
+      "verificado": true
+    }
+  }
+}
