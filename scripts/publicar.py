@@ -63,10 +63,10 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-SPEC = RAIZ / "MAGI-IDE-v5.spec"
-EXE = RAIZ / "dist" / "MAGI-IDE-v5.exe"
-ZIP = RAIZ / "dist" / "MAGI-IDE-v5.zip"
-TOC = RAIZ / "build" / "MAGI-IDE-v5" / "Analysis-00.toc"
+SPEC = RAIZ / "Magisys.spec"
+EXE = RAIZ / "dist" / "Magisys.exe"
+ZIP = RAIZ / "dist" / "Magisys.zip"
+TOC = RAIZ / "build" / "Magisys" / "Analysis-00.toc"
 NOTAS = RAIZ / "RELEASE_NOTES.md"
 
 #: Suelo de tamaño del .exe, en MB. MEDIDO, no calculado: 94,1 sin el Python
@@ -285,7 +285,7 @@ def main() -> int:
         return 0
 
     orden = ["gh", "release", "create", args.tag, str(ZIP),
-             "--title", f"MAGI System IDE {args.tag}"]
+             "--title", f"Magisys {args.tag}"]
     if NOTAS.is_file():
         orden += ["--notes-file", str(NOTAS)]
     else:

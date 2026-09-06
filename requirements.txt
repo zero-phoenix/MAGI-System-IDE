@@ -1,4 +1,4 @@
-# MAGI System IDE — inferencia de nube gratuita, sin claves de API,
+# Magisys — inferencia de nube gratuita, sin claves de API,
 # sin modelos locales (documento de arquitectura §I.3).
 g4f
 

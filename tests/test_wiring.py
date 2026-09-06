@@ -873,7 +873,7 @@ def test_nadie_lanza_python_con_sys_executable():
     Releases, cada una de esas llamadas RELANZA MAGI:
 
       · `run_test_suite` y `_local_build`, que es la puerta previa a publicar:
-        `MAGI-IDE-v5.exe -m pytest` arranca otra GUI y otro servidor.
+        `Magisys.exe -m pytest` arranca otra GUI y otro servidor.
       · `observe_program`, `observe_game` y `capture_program`: el bucle de
         observación del §5 acababa mirando a MAGI en lugar del artefacto que
         se acababa de generar.

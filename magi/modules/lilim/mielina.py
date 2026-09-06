@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -59,30 +60,128 @@ async def lubricar_propuesta(encargo: str, contexto: str = "") -> str | None:
     return await cliente.generar(prompt, max_tokens=380, temperature=0.15, timeout=12.0)
 
 
+#: Bloques cercados de Markdown: ```lenguaje ... ```
+_CERCA = re.compile(r"```([A-Za-z0-9_+#-]*)[ \t]*\r?\n(.*?)```", re.S)
+
+#: Etiquetas de cerca que significan «esto es Python».
+_ETIQUETAS_PY = {"python", "py", "python3"}
+
+#: Señales de que un texto SIN cercas es Python de verdad. Se exige que
+#: alguna aparezca a principio de línea: `import` dentro de una frase en
+#: prosa no convierte la frase en código.
+_SENAL_PY = re.compile(
+    r"^[ \t]*(def |async def |class |import |from \w+ import |@\w+)",
+    re.M)
+
+#: Señales de que NO lo es. `#include` y las llaves delatan a C/C++, que es
+#: el 100 % del emulador y la mitad de lo que este enjambre revisa.
+_SENAL_NO_PY = re.compile(
+    r"^[ \t]*#\s*include\b|^[ \t]*(?:static|typedef|unsigned|void|struct)\s|"
+    r"[;{}][ \t]*$", re.M)
+
+
+def _parece_python(texto: str) -> bool:
+    """
+    ¿Este texto sin cercas es Python ROTO, o simplemente no es Python?
+
+    Solo se pregunta cuando `ast.parse` ya ha fallado, y esa distinción es
+    todo el arreglo: un `SyntaxError` sobre código C no es un defecto del
+    código, es un defecto del auditor.
+
+    La primera versión de esta heurística exigía `def`/`class`/`import` a
+    principio de línea y silenciaba un `try/except` suelto, que es Python
+    perfectamente válido. Por eso ahora el parseo va PRIMERO: lo que compila
+    es Python y no hace falta adivinarlo. Aquí solo llega lo que no compila.
+    """
+    return bool(_SENAL_PY.search(texto)) and not _SENAL_NO_PY.search(texto)
+
+
+def _fragmentos_python(texto: str) -> list[str]:
+    """
+    Lo que de este texto SÍ se puede auditar con el `ast` de Python.
+
+    Melchior no devuelve código desnudo: devuelve prosa con bloques
+    cercados, y a menudo en C. Pasar todo eso a `ast.parse` producía un
+    `SyntaxError en línea 1` — medido — en CADA propuesta real. Balthasar
+    recibía un defecto inventado y gastaba su turno en él.
+    """
+    cercas = _CERCA.findall(texto)
+    if cercas:
+        fuera = []
+        for etiqueta, cuerpo in cercas:
+            eti = etiqueta.strip().lower()
+            if eti in _ETIQUETAS_PY:
+                fuera.append(cuerpo)
+            elif not eti and _compila(cuerpo):
+                # Cerca sin etiqueta: solo cuenta si de verdad compila como
+                # Python. Adivinar el lenguaje es lo que causó el fallo.
+                fuera.append(cuerpo)
+        return fuera
+
+    # Sin cercas. Si compila, es Python y no hay nada que adivinar; si no
+    # compila, hay que decidir si es Python roto (defecto real) o cualquier
+    # otro lenguaje (silencio).
+    if _compila(texto) or _parece_python(texto):
+        return [texto]
+    return []
+
+
+def _compila(texto: str) -> bool:
+    try:
+        ast.parse(texto)
+    except (SyntaxError, ValueError):
+        return False
+    return True
+
+
 def pre_auditoria_estatica(codigo: str) -> list[str]:
     """
-    Inspección estática determinista en 0 ms para asistir a Balthasar.
-    Detecta problemas de sintaxis, funciones vacías o recursos no manejados.
+    Inspección estática determinista para asistir a Balthasar.
+
+    SOLO habla de Python, y solo cuando está seguro de que lo es. Sobre
+    cualquier otra cosa **calla**: una objeción fabricada es peor que el
+    silencio, porque Balthasar la defiende y el debate se va detrás de ella.
     """
-    defectos: list[str] = []
     if not codigo or not codigo.strip():
         return ["Código vacío o ausente"]
 
+    defectos: list[str] = []
+    for fragmento in _fragmentos_python(codigo):
+        defectos.extend(_defectos_de_un_fragmento(fragmento))
+    return defectos
+
+
+def _defectos_de_un_fragmento(codigo: str) -> list[str]:
+    defectos: list[str] = []
     try:
         arbol = ast.parse(codigo)
-        for nodo in ast.walk(arbol):
-            if isinstance(nodo, ast.FunctionDef):
-                if len(nodo.body) == 1 and isinstance(nodo.body[0], ast.Pass):
-                    defectos.append(f"Función '{nodo.name}' solo contiene 'pass' sin implementar.")
-            elif isinstance(nodo, ast.Try):
-                for handler in nodo.handlers:
-                    if handler.type is None:
-                        defectos.append("Uso de 'except:' desnudo sin atrapar excepción específica.")
     except SyntaxError as err:
-        defectos.append(f"SyntaxError en línea {err.lineno}: {err.msg}")
-    except Exception:
-        pass
+        return [f"SyntaxError en línea {err.lineno}: {err.msg}"]
+    except Exception as err:  # noqa: BLE001 - se REPORTA, no se traga
+        # Antes esto era `except Exception: pass`, que es exactamente el
+        # defecto que esta función audita dos líneas más abajo. Y era peor
+        # que irónico: al fallar por dentro devolvía «sin defectos», que es
+        # un verde falso justo donde se decide si hay que criticar.
+        logger.warning("[mielina] la pre-auditoría falló: %s", err)
+        return [f"Pre-auditoría no concluyente ({type(err).__name__}): "
+                f"trátala como SIN COMPROBAR, no como código limpio."]
 
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Se ignora el docstring: `def f():\n "doc"\n pass` está tan sin
+            # implementar como el que solo lleva `pass`.
+            cuerpo = [n for n in nodo.body
+                      if not (isinstance(n, ast.Expr)
+                              and isinstance(n.value, ast.Constant)
+                              and isinstance(n.value.value, str))]
+            if len(cuerpo) == 1 and isinstance(cuerpo[0], ast.Pass):
+                defectos.append(
+                    f"Función '{nodo.name}' solo contiene 'pass' sin implementar.")
+        elif isinstance(nodo, ast.Try):
+            for handler in nodo.handlers:
+                if handler.type is None:
+                    defectos.append(
+                        "Uso de 'except:' desnudo sin atrapar excepción específica.")
     return defectos
 
 

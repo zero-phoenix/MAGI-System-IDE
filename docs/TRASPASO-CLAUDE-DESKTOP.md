@@ -1,4 +1,4 @@
-# Plan de Traspaso Técnico — MAGI System IDE & YabauseVita
+# Plan de Traspaso Técnico — Magisys & YabauseVita
 
 **Fecha:** 6 de septiembre de 2026  
 **Autor:** Antigravity (Google DeepMind)  
@@ -22,12 +22,12 @@ Antes de tocar una sola línea de código, lee y asimila las reglas canónicas d
 
 ## 1. Mapa de Rutas del Sistema
 
-### A. Repositorio MAGI System IDE
-- **Ruta del repositorio:** `C:\Users\D\Documents\GitHub\MAGI-System-IDE`
+### A. Repositorio Magisys
+- **Ruta del repositorio:** `C:\Users\D\Documents\GitHub\Magisys`
 - **Rama principal:** `main` (apuntando al tag `v5.27.1` y commit `f671e75`)
-- **Ejecutable compilado portable:** `C:\Users\D\Documents\GitHub\MAGI-System-IDE\dist\unpacked\MAGI-IDE-v5.exe`
-- **Paquete Zip del release:** `C:\Users\D\Documents\GitHub\MAGI-System-IDE\dist\MAGI-IDE-v5.zip`
-- **Acceso directo en el Escritorio:** `C:\Users\D\Desktop\MAGI System IDE.lnk`
+- **Ejecutable compilado portable:** `C:\Users\D\Documents\GitHub\Magisys\dist\unpacked\Magisys.exe`
+- **Paquete Zip del release:** `C:\Users\D\Documents\GitHub\Magisys\dist\Magisys.zip`
+- **Acceso directo en el Escritorio:** `C:\Users\D\Desktop\Magisys.lnk`
 - **Frontend nativo:** `magi-gui/` (React + TypeScript + Vite + Tailwind/CSS Evangelion)
 - **Servidor HTTP local de GUI:** `http://127.0.0.1:1420`
 - **Servidor WebSocket RPC del Kernel:** `ws://127.0.0.1:20128`
@@ -54,7 +54,7 @@ Antes de tocar una sola línea de código, lee y asimila las reglas canónicas d
 
 ### C. Repositorio Desacoplado Venim (VeniceMAGI)
 - **Ruta:** `C:\Users\D\magi-port\VeniceMAGI`
-- **Nota:** MAGI System IDE fue totalmente desacoplado visual y arquitectónicamente de Venim. Si necesitas correr MAGI-IDE, asegúrate de que ningún proceso de Venim esté reteniendo los puertos `1420` o `20128`.
+- **Nota:** Magisys fue totalmente desacoplado visual y arquitectónicamente de Venim. Si necesitas correr MAGI-IDE, asegúrate de que ningún proceso de Venim esté reteniendo los puertos `1420` o `20128`.
 
 ---
 
@@ -68,10 +68,10 @@ Antes de tocar una sola línea de código, lee y asimila las reglas canónicas d
    - `npm test` en verde (131/131 tests pasados) y compilación Vite limpia en `magi-gui/dist`.
 3. **Suite Completa y Release v5.27.1:**
    - Se ejecutó `python scripts/verificar.py --rapido` pasando los **1788 tests en Python** con 0 errores de tipo en `pyright`.
-   - Release oficial publicado en GitHub: [v5.27.1](https://github.com/zero-phoenix/MAGI-System-IDE/releases/tag/v5.27.1) con `MAGI-IDE-v5.zip` (150.4 MB, hash SHA-256 verificado) y `CHECKSUMS.txt`.
+   - Release oficial publicado en GitHub: [v5.27.1](https://github.com/zero-phoenix/Magisys/releases/tag/v5.27.1) con `Magisys.zip` (150.4 MB, hash SHA-256 verificado) y `CHECKSUMS.txt`.
 4. **Despliegue y Acceso Directo:**
-   - Se creó el acceso directo oficial en `C:\Users\D\Desktop\MAGI System IDE.lnk`.
-   - Se verificó que `MAGI-IDE-v5.exe` levanta la ventana nativa de Webview2 y el Kernel WebSocket en `ws://127.0.0.1:20128`.
+   - Se creó el acceso directo oficial en `C:\Users\D\Desktop\Magisys.lnk`.
+   - Se verificó que `Magisys.exe` levanta la ventana nativa de Webview2 y el Kernel WebSocket en `ws://127.0.0.1:20128`.
 5. **Interacción como Usuario con el Enjambre:**
    - Se programó `scripts/interactuar_magi.py` para interactuar vía WebSocket con el bus de MAGI. La petición de mejora de YabauseVita fue enrutada con éxito a `build` (confianza 0.85) iniciando el debate dialéctico supervisado por Naoko.
 6. **Calibración de los Órganos de Lilim:**
@@ -124,8 +124,8 @@ A continuación se detallan las tareas prioritarias que Claude Desktop debe cont
 Claude Desktop puede comprobar la salud del entorno ejecutando:
 
 ```powershell
-# 1. En MAGI System IDE:
-cd C:\Users\D\Documents\GitHub\MAGI-System-IDE
+# 1. En Magisys:
+cd C:\Users\D\Documents\GitHub\Magisys
 python scripts/verificar.py --rapido
 python -m pytest tests/test_readme_claims.py
 

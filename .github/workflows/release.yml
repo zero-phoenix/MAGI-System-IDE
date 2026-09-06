@@ -1,4 +1,4 @@
-name: Build and Release MAGI System IDE
+name: Build and Release Magisys
 
 on:
   push:
@@ -122,7 +122,7 @@ jobs:
 
     # SE COMPILA CON EL .spec, NO CON LA LÍNEA DE COMANDOS
     # ===================================================
-    # Antes esta receta iba escrita a mano aquí, y `MAGI-IDE-v5.spec` se usaba
+    # Antes esta receta iba escrita a mano aquí, y `Magisys.spec` se usaba
     # solo en local. Dos recetas para el mismo binario es una que se queda
     # atrás, y ya pasó: al externalizar el catálogo de proveedores se añadió
     # `--add-data "magi/data;magi/data"` al .spec, y esta línea no se enteró.
@@ -136,7 +136,7 @@ jobs:
     # además de hinchar el binario colgaban la compilación indefinidamente en
     # torch/__init__.py:265.
     - name: Build Executable (PyInstaller, desde el .spec)
-      run: pyinstaller --clean --noconfirm MAGI-IDE-v5.spec
+      run: pyinstaller --clean --noconfirm Magisys.spec
 
     - name: Verificar que lo que hace falta viajó dentro
       # Las tres cosas que un .exe puede perder SIN dar error al arrancar, que
@@ -156,7 +156,7 @@ jobs:
           throw "falta el Python embebido (assets/python-embed/extracted): el .exe no podria ejecutar nada"
         }
 
-        if (-not (Test-Path "dist/MAGI-IDE-v5.exe")) {
+        if (-not (Test-Path "dist/Magisys.exe")) {
           throw "PyInstaller no produjo el .exe"
         }
 
@@ -169,7 +169,7 @@ jobs:
         # embebido», y el binario salió a 107,3 porque dentro va comprimido.
         # Sumar tamaños en disco para predecir el de un archivo comprimido es
         # inventarse un número — y tumbó un build correcto.
-        $toc = "build/MAGI-IDE-v5/Analysis-00.toc"
+        $toc = "build/Magisys/Analysis-00.toc"
         if (-not (Test-Path $toc)) { throw "no encuentro el inventario $toc" }
         if (-not (Select-String -Path $toc -Pattern "python-embed" -Quiet)) {
           throw "el Python embebido NO entro en el binario: el .exe publicado no podria ejecutar nada"
@@ -178,7 +178,7 @@ jobs:
 
         # Y un suelo de tamaño, ahora sí MEDIDO y no calculado: 94,1 MB sin
         # embebido (v5.2.0) y 107,3 con él (v5.3.0). 100 queda entre los dos.
-        $mb = [math]::Round((Get-Item "dist/MAGI-IDE-v5.exe").Length / 1MB, 1)
+        $mb = [math]::Round((Get-Item "dist/Magisys.exe").Length / 1MB, 1)
         Write-Host "exe: $mb MB"
         if ($mb -lt 100) { throw "el .exe pesa $mb MB: se quedo algo fuera" }
 
@@ -186,29 +186,29 @@ jobs:
       # El usuario descarga un .zip, no el .exe suelto: Windows y muchos
       # navegadores bloquean o avisan sobre un .exe descargado directamente.
       run: |
-        Compress-Archive -Path "dist/MAGI-IDE-v5.exe" -DestinationPath "dist/MAGI-IDE-v5.zip" -Force
-        $z = [math]::Round((Get-Item "dist/MAGI-IDE-v5.zip").Length / 1MB, 1)
+        Compress-Archive -Path "dist/Magisys.exe" -DestinationPath "dist/Magisys.zip" -Force
+        $z = [math]::Round((Get-Item "dist/Magisys.zip").Length / 1MB, 1)
         Write-Host "zip: $z MB"
 
     - name: Checksums SHA256
       # El binario no está firmado y SmartScreen asusta; lo que SÍ se puede
       # garantizar es la integridad: quien descargue puede verificar con
-      # `certutil -hashfile MAGI-IDE-v5.zip SHA256` contra CHECKSUMS.txt.
+      # `certutil -hashfile Magisys.zip SHA256` contra CHECKSUMS.txt.
       # Se generan del .zip Y del .exe interno por si alguien descomprime.
       run: |
-        $h1 = (Get-FileHash "dist/MAGI-IDE-v5.zip" -Algorithm SHA256).Hash
-        $h2 = (Get-FileHash "dist/MAGI-IDE-v5.exe" -Algorithm SHA256).Hash
-        "$($h1.ToLower())  MAGI-IDE-v5.zip"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
-        "$($h2.ToLower())  MAGI-IDE-v5.exe"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
+        $h1 = (Get-FileHash "dist/Magisys.zip" -Algorithm SHA256).Hash
+        $h2 = (Get-FileHash "dist/Magisys.exe" -Algorithm SHA256).Hash
+        "$($h1.ToLower())  Magisys.zip"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
+        "$($h2.ToLower())  Magisys.exe"  | Out-File dist/CHECKSUMS.txt -Encoding ascii -Append
         Get-Content dist/CHECKSUMS.txt
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.RELEASE_TAG }}
-        name: "MAGI System IDE ${{ env.RELEASE_TAG }}"
+        name: "Magisys ${{ env.RELEASE_TAG }}"
         files: |
-          dist/MAGI-IDE-v5.zip
+          dist/Magisys.zip
           dist/CHECKSUMS.txt
         body_path: RELEASE_NOTES.md
         draft: false

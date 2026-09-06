@@ -64,3 +64,43 @@ def test_todo_py_de_magi_y_tests_esta_versionado():
         "importe pasa en esta máquina y revienta en el CI:\n  "
         + "\n  ".join(huerfanos)
         + "\n(arregla con `git add` o bórralos)")
+
+
+@pytest.mark.skipif(not _git_disponible(), reason="sin git no hay nada que comparar")
+def test_lo_que_el_release_necesita_esta_en_git():
+    """
+    Los ficheros SIN los que el job de release no produce binario.
+
+    El .py ya estaba cubierto; el `.spec` no, y ahí pasó: `.gitignore` tiene
+    `*.spec` con una excepción por NOMBRE (`!MAGI-IDE-v5.spec`). Al renombrar
+    el producto a Magisys, el fichero cayó bajo la regla general y git dejó
+    de verlo — ni como no seguido, que es lo que lo hace invisible.
+
+    En esta máquina todo pasaba: `test_bundle_coherente` lo lee del disco.
+    En un checkout limpio, `pyinstaller Magisys.spec` no encuentra nada y el
+    release se queda sin .exe. Es la misma clase de fallo que el test de
+    arriba, sobre otro tipo de fichero.
+    """
+    registrados = set(
+        subprocess.run(["git", "ls-files"],
+                       cwd=RAIZ, capture_output=True, text=True,
+                       check=True).stdout.splitlines())
+
+    #: Lo que `release.yml` toca por nombre. Si un fichero de esta lista deja
+    #: de estar en git, no hay binario que publicar.
+    imprescindibles = ["Magisys.spec", "requirements.txt", "requirements.lock",
+                       "pyproject.toml", "RELEASE_NOTES.md"]
+
+    faltan = [f for f in imprescindibles
+              if (RAIZ / f).exists() and f not in registrados]
+    assert not faltan, (
+        "ficheros que el release necesita y que git NO tiene:\n  "
+        + "\n  ".join(faltan)
+        + "\n\nEstán en tu disco, así que aquí todo pasa; en el runner no "
+          "existen. Mira si `.gitignore` los está tapando.")
+
+    perdidos = [f for f in imprescindibles if not (RAIZ / f).exists()]
+    assert not perdidos, (
+        f"ficheros imprescindibles que ya no existen en disco: {perdidos}. "
+        f"Si los renombraste, actualiza esta lista y `.gitignore` en el "
+        f"mismo commit.")

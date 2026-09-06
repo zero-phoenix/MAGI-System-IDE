@@ -414,7 +414,7 @@ export function useMagiSocket(port: number = 20128) {
   //     efecto -> RPC -> respuesta -> setState -> render
   //            -> identidad nueva -> efecto -> ...
   //
-  // Medido el 2026-08-20 sobre MAGI-IDE-v5.exe en reposo, sin ninguna tarea
+  // Medido el 2026-08-20 sobre Magisys.exe en reposo, sin ninguna tarea
   // corriendo: 97 % de un núcleo. El mismo kernel arrancado solo, sin
   // interfaz y con las mismas 13 tareas rehidratadas: 0 %. El bucle estaba
   // aquí, no en el enjambre. Y el coste real lo pagaba el usuario: Naoko

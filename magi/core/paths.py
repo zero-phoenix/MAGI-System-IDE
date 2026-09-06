@@ -53,7 +53,7 @@ def python_executable() -> str | None:
     cada una de esas llamadas **relanza MAGI entero**:
 
       · `run_test_suite` y `_local_build` (la puerta previa a publicar):
-        MAGI-IDE-v5.exe -m pytest -> arranca otra GUI y otro servidor.
+        Magisys.exe -m pytest -> arranca otra GUI y otro servidor.
       · `observe_program`, `observe_game`, `capture_program`: el bucle de
         observación del §5 acababa mirando a MAGI en vez de al artefacto que
         acababa de generar.

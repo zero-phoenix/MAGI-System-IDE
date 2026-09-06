@@ -42,7 +42,7 @@ logger = logging.getLogger("MagiSystem")
 
 class MagiSystem:
     """
-    Orquestador principal del MAGI System IDE (Área 0 y Centro de Control).
+    Orquestador principal del Magisys (Área 0 y Centro de Control).
     Amarra el bus de eventos, la pasarela de UI, la resiliencia cloud y los módulos operativos.
     """
     def __init__(self, host="127.0.0.1", port=20128, debug=False):
@@ -70,7 +70,7 @@ class MagiSystem:
             pass
 
     async def start(self):
-        logger.info("Iniciando MAGI System IDE...")
+        logger.info("Iniciando Magisys...")
 
         # 1. Setup de señales
         await self._setup_signal_handlers()
@@ -165,7 +165,7 @@ def _start_magi_background(magi, loop):
         logger.error(f"Error fatal en el loop secundario: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="MAGI System IDE Bootstrapper")
+    parser = argparse.ArgumentParser(description="Magisys Bootstrapper")
     parser.add_argument("--host", default="127.0.0.1", help="Host para el GUI Server (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=20128, help="Puerto para el GUI Server (default: 20128)")
     parser.add_argument("--gui-port", type=int, default=1420, help="Puerto HTTP local para el Frontend (default: 1420)")
@@ -198,7 +198,7 @@ def main():
 
     logger.info("Iniciando ventana nativa de MAGI...")
     webview.create_window(
-        title="MAGI System IDE",
+        title="Magisys",
         url=f"http://127.0.0.1:{args.gui_port}",
         width=1280,
         height=800,

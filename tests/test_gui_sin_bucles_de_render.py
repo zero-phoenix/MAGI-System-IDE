@@ -5,7 +5,7 @@ EL FALLO QUE ESTO IMPIDE, MEDIDO
 ================================
 2026-08-20, sobre la aplicación en marcha y en reposo:
 
-    MAGI-IDE-v5.exe  ->  97 % de un núcleo, permanentemente
+    Magisys.exe  ->  97 % de un núcleo, permanentemente
     el mismo kernel arrancado solo, sin interfaz  ->  0 %
 
 El bucle no estaba en el enjambre ni en los proveedores: estaba en React.

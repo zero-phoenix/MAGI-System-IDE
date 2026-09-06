@@ -1,4 +1,4 @@
-# MAGI System IDE
+# Magisys
 
 Un entorno de desarrollo con un **enjambre de tres inteligencias que aplican el
 método dialéctico** (tesis → antítesis → síntesis), **herramientas reales sobre
@@ -8,7 +8,7 @@ tu máquina** para ejecutar lo que deciden, y una regla que lo atraviesa todo:
 Inferencia **100 % de nube gratuita**: sin claves de API, sin modelos locales,
 sin suscripciones.
 
-**[⬇ Descargar la última versión para Windows](https://github.com/zero-phoenix/MAGI-System-IDE/releases/latest)** — un `.zip`, se descomprime y se ejecuta. Sin instalador.
+**[⬇ Descargar la última versión para Windows](https://github.com/zero-phoenix/Magisys/releases/latest)** — un `.zip`, se descomprime y se ejecuta. Sin instalador.
 
 ---
 
@@ -338,13 +338,13 @@ qué ficheros toca el cambio, su contenido antes y después con un diff real, la
 
 ### Binario para Windows (recomendado)
 
-**[⬇ Descargar la última versión](https://github.com/zero-phoenix/MAGI-System-IDE/releases/latest)**
+**[⬇ Descargar la última versión](https://github.com/zero-phoenix/Magisys/releases/latest)**
 
-1. En **Assets**, descarga **`MAGI-IDE-v5.zip`**.
-2. Verifica la descarga (opcional): `certutil -hashfile MAGI-IDE-v5.zip SHA256`
+1. En **Assets**, descarga **`Magisys.zip`**.
+2. Verifica la descarga (opcional): `certutil -hashfile Magisys.zip SHA256`
    contra **`CHECKSUMS.txt`**, que se publica junto al zip.
 3. Descomprímelo donde quieras — no hay instalador ni carpetas obligatorias.
-4. Ejecuta **`MAGI-IDE-v5.exe`**.
+4. Ejecuta **`Magisys.exe`**.
 
 Windows SmartScreen avisará porque el binario no está firmado: *Más
 información → Ejecutar de todas formas*.
@@ -359,8 +359,8 @@ ejecutan código funcionan sin que tengas Python instalado.
 ### Desde el código
 
 ```bash
-git clone https://github.com/zero-phoenix/MAGI-System-IDE
-cd MAGI-System-IDE
+git clone https://github.com/zero-phoenix/Magisys
+cd Magisys
 pip install -r requirements.txt
 
 cd magi-gui && npm ci && npm run build && cd ..

@@ -109,6 +109,87 @@ def test_pre_auditoria_estatica():
     assert pre_auditoria_estatica(codigo_sano) == []
 
 
+# ---------------------------------------------------- LO QUE DE VERDAD LLEGA
+
+#: Una propuesta de Melchior tal cual sale: prosa con bloque cercado. NUNCA
+#: llega código desnudo, que es lo único que la primera versión sabía leer.
+PROPUESTA_REAL = """Voy a cachear los planos que no cambian entre fotogramas.
+
+```python
+def compone(plano):
+    pass
+```
+
+Predicción: composite baja >= 20 %."""
+
+#: El emulador entero es C. Esto es lo que llega en una ronda de YabauseVita.
+PROPUESTA_C = """Reduzco el trabajo del SH2 esclavo en espera pasiva.
+
+```c
+static void sh2_step(SH2_struct *ctx) {
+    u32 op = fetch(ctx->pc);
+    ctx->pc += 2;
+    dispatch(ctx, op);
+}
+```"""
+
+
+def test_no_inventa_un_syntaxerror_en_cada_propuesta_real():
+    """
+    EL FALLO QUE ESTO CIERRA, medido antes de arreglarlo:
+
+        propuesta real (prosa + cerca) -> "SyntaxError en línea 1"
+        código C (el emulador entero)  -> "SyntaxError en línea 1"
+
+    `pre_auditoria_estatica` pasaba el texto ENTERO a `ast.parse`, así que
+    fabricaba un defecto inexistente en cada propuesta que no fuera Python
+    desnudo — es decir, en todas. Balthasar recibía esa objeción y gastaba
+    su turno defendiéndola.
+
+    Una objeción fabricada es peor que el silencio.
+    """
+    defectos = pre_auditoria_estatica(PROPUESTA_REAL)
+    assert not any("SyntaxError" in d for d in defectos), (
+        f"sigue inventando un error de sintaxis sobre prosa: {defectos}")
+    # Y sí ve el defecto REAL que hay dentro del bloque de Python.
+    assert any("pass" in d for d in defectos), (
+        f"se saltó el defecto de verdad al filtrar: {defectos}")
+
+
+def test_sobre_codigo_c_calla_en_vez_de_mentir():
+    """C no es Python roto: es otro lenguaje. El `ast` de Python no opina."""
+    assert pre_auditoria_estatica(PROPUESTA_C) == []
+    c_desnudo = ("static void paso(SH2 *ctx) {\n"
+                 "    ctx->pc += 2;\n"
+                 "}\n")
+    assert pre_auditoria_estatica(c_desnudo) == []
+    assert pre_auditoria_estatica("#include <stdio.h>\nint main(){return 0;}") == []
+
+
+def test_sigue_viendo_python_roto_sin_cercas():
+    """Callar ante C no puede volverse callar ante todo."""
+    assert any("SyntaxError" in d for d in pre_auditoria_estatica("def rota(\n"))
+
+
+def test_el_docstring_no_disfraza_una_funcion_vacia():
+    con_doc = 'def tarea():\n    """Documentada."""\n    pass\n'
+    assert any("pass" in d for d in pre_auditoria_estatica(con_doc))
+
+
+def test_tambien_audita_funciones_async():
+    """La mitad de este proyecto es `async def`; la versión anterior no las veía."""
+    assert any("pass" in d for d in pre_auditoria_estatica(
+        "async def tarea():\n    pass\n"))
+
+
+def test_varios_bloques_se_auditan_todos():
+    texto = ("Primero:\n\n```python\ndef a():\n    pass\n```\n\n"
+             "Y luego:\n\n```python\ntry:\n    x = 1\nexcept:\n    x = 0\n```\n")
+    defectos = pre_auditoria_estatica(texto)
+    assert any("pass" in d for d in defectos)
+    assert any("except" in d for d in defectos)
+
+
 def test_clasificar_intencion_local():
     """Enrutamiento determinista rápido."""
     assert clasificar_intencion_local("") == "vacio"

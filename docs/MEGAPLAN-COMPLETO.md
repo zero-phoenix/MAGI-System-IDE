@@ -1,9 +1,9 @@
-# MEGAPLAN COMPLETO — MAGI System IDE + YabauseVita
+# MEGAPLAN COMPLETO — Magisys + YabauseVita
 ## Consolidado de las sesiones del 2-sep al 6-sep-2026 · Estado: v5.26.0 publicada
 
 **Para:** cualquier agente que continúe (Antigravity IDE, ZCode Desktop, u otro)
-**Repositorios:** `zero-phoenix/MAGI-System-IDE` (público) y `zero-phoenix/yabausevita` (público)
-**Clones locales de trabajo:** `C:\Users\D\Documents\GitHub\MAGI-System-IDE` y `C:\Users\D\Documents\GitHub\yabausevita-zp`
+**Repositorios:** `zero-phoenix/Magisys` (público) y `zero-phoenix/yabausevita` (público)
+**Clones locales de trabajo:** `C:\Users\D\Documents\GitHub\Magisys` y `C:\Users\D\Documents\GitHub\yabausevita-zp`
 **Máquina:** `DESKTOP-B6D864U` · Windows 10 22H2 · i7-3770 (8 hilos) · GTX 1050 low profile 2 GB (NO se usa) · 24 GB RAM · C: ~10 GB libres
 
 ---
@@ -116,7 +116,7 @@ python scripts/verificar.py --todo
 # 2. versión en pyproject.toml + RELEASE_NOTES.md (notas CONCRETAS, nunca genéricas)
 # 3. commit + push de main
 git add -A && git commit -m "feat(vX.Y.Z): ..." && git push origin main
-# 4. tag → Actions compila y publica el release con MAGI-IDE-v5.zip + CHECKSUMS.txt
+# 4. tag → Actions compila y publica el release con Magisys.zip + CHECKSUMS.txt
 git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 # 5. verificar: gh run list --limit 2 && gh release view vX.Y.Z --json assets
 ```

@@ -110,8 +110,23 @@ def test_build_project_exe_detects_gui(pygame_project: Path, tmp_path: Path):
         assert out.is_file()
         assert out.stat().st_size > 1_000_000
     else:
-        # Si falla, el error debe ser legible y contener la ruta del proyecto.
-        assert pygame_project.name in result.error or "PyInstaller" in result.error
+        # Si falla, el error tiene que ser LEGIBLE: decir qué proyecto, o
+        # qué herramienta, o qué dependencia falta.
+        #
+        # La lista pedía solo las dos primeras y dejaba fuera la tercera, que
+        # es la que ocurre en una máquina sin `pygame`: el mensaje real era
+        # «ModuleNotFoundError: No module named 'pygame'» — exactamente el
+        # «error de importación claro» que el comentario de arriba dice
+        # aceptar. El test fallaba por no reconocer lo que él mismo declaraba
+        # válido. (Es `slow`, así que el CI no lo veía: lo excluye con
+        # `-m "not slow"`.)
+        legible = (pygame_project.name in result.error
+                   or "PyInstaller" in result.error
+                   or "ModuleNotFoundError" in result.error
+                   or "No module named" in result.error)
+        assert legible, (
+            f"el fallo no explica su causa, y un error opaco no se puede "
+            f"arreglar:\n{result.error[:500]}")
 
 
 def test_build_project_exe_missing_dir(tmp_path: Path):

@@ -5,7 +5,7 @@
 # que antes; ahora vive en un lugar y tiene una sola fuente de verdad.
 
 [project]
-name = "magi-system-ide"
+name = "Magisys"
 version = "5.27.0"
 description = "Entorno de desarrollo con un enjambre de tres inteligencias que debaten antes de actuar."
 requires-python = ">=3.10"

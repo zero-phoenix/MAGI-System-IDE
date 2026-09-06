@@ -1,4 +1,4 @@
-PROMPT PARA ANTIGRAVITY IDE — CONTINUAR EL TRABAJO DE MAGI SYSTEM IDE
+PROMPT PARA ANTIGRAVITY IDE — CONTINUAR EL TRABAJO DE MAGISYS
 =====================================================================
 
 Copia y pega esto como instrucción inicial. El documento
@@ -8,14 +8,14 @@ léelo entero ANTES de escribir una línea de código.
 ------------------------------------------------------------------------
 
 Continúas un trabajo en curso sobre dos repositorios míos de GitHub:
-zero-phoenix/MAGI-System-IDE y zero-phoenix/yabausevita. La última sesión
+zero-phoenix/Magisys y zero-phoenix/yabausevita. La última sesión
 cerró la versión v5.26.0 (LILIM multimodal: motor EPD local, traductor de 6
 idiomas, memoria de novedades 2023-2026 falsables, M4 de conocimiento con
 URL obligatoria). NO empieces de cero y NO improvises el contexto: está todo
 escrito y verificado.
 
 LO PRIMERO, ANTES DE PROponer NADA:
-1. Clona o abre C:\Users\D\Documents\GitHub\MAGI-System-IDE y lee entero el
+1. Clona o abre C:\Users\D\Documents\GitHub\Magisys y lee entero el
    fichero "MEGAPLAN-COMPLETO-MAGI.md" (copiado al escritorio; también está
    consolidado en docs/ del repo junto a MEGAPLAN-v10/v11/v12).
 2. Verifica el estado real: `git log --oneline -8`, `gh run list --limit 3`,
@@ -45,7 +45,7 @@ REGLAS NO NEGOCIABLES (el detalle y su historia están en el megaplan, §3):
 LA REGLA PERMANENTE DE PUBLICACIÓN (siempre, en cada versión):
 - Compilar LOCALMENTE (verificar.py --todo) Y en la nube: commit+push de
   main, luego tag vX.Y.Z → GitHub Actions compila y publica el release con
-  MAGI-IDE-v5.zip + CHECKSUMS.txt.
+  Magisys.zip + CHECKSUMS.txt.
 - Reescribir/actualizar el README con las cifras reales (tests, herramientas
   — las cuenta test_readme_claims.py contra el registry) y lo nuevo.
 - El release debe llevar el exe comprimido y la descripción de lo nuevo de
@@ -91,7 +91,7 @@ sin fijar (0.16.5), NODE_ENV=production local, módulos en disco sin git add,
 lanzar MAGI con & en shell efímera, ./vdpm del checkout en Docker.
 
 CUENTAS Y RUTAS: cuenta GitHub activa zero-phoenix (gh CLI ya autenticado).
-Clones de trabajo: Documents\GitHub\MAGI-System-IDE y
+Clones de trabajo: Documents\GitHub\Magisys y
 Documents\GitHub\yabausevita-zp (el clon SIN -zp está obsoleto). Vita3K
 instalado con la bios y los juegos; Docker disponible.
 

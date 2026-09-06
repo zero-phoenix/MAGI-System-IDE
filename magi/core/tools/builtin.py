@@ -413,9 +413,9 @@ def build_registry() -> ToolRegistry:
               {"type": "object",
                "properties": {"name": {"type": "string",
                                        "description": "nombre base (sin .exe)",
-                                       "default": "MAGI-IDE-v5"}},
+                                       "default": "Magisys"}},
                "required": []}, access={"exec"}, dangerous=True)
-    async def build_exe(name: str = "MAGI-IDE-v5", ctx: ToolContext | None = None):
+    async def build_exe(name: str = "Magisys", ctx: ToolContext | None = None):
         if ctx is None:
             return ToolResult(False, "", error="sin contexto")
         raiz = ctx.cwd

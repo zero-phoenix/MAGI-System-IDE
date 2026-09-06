@@ -56,7 +56,7 @@ from ...core.paths import cache_dir
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "MAGI-System-IDE/9.0 (contacto en el repositorio)"
+USER_AGENT = "Magisys/9.0 (contacto en el repositorio)"
 
 # §6.1: caducidad por TIPO de dato, no una TTL global. Un tipo de cambio y la
 # composición de un gobierno no envejecen al mismo ritmo, y tratarlos igual

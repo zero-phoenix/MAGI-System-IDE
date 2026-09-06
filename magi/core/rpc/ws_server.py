@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class WSServer:
     """
-    Servidor RPC / WebSocket real para MAGI System IDE (Área 10).
+    Servidor RPC / WebSocket real para Magisys (Área 10).
     """
     def __init__(self, bus: MagiBus, host: str = "127.0.0.1", port: int = 20128):
         self.bus = bus

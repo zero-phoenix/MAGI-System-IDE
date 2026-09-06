@@ -3,7 +3,7 @@ Lo que el .spec deja fuera del .exe, el código no puede necesitarlo dentro.
 
 EL FALLO QUE ESTO IMPIDE
 ========================
-`MAGI-IDE-v5.spec` excluye del binario una pila de ML que MAGI no usa y que
+`Magisys.spec` excluye del binario una pila de ML que MAGI no usa y que
 entraba de polizón por una integración opcional de g4f:
 
     g4f/tools/files.py -> g4f.integration.markitdown -> markitdown
@@ -38,7 +38,7 @@ import re
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-SPEC = RAIZ / "MAGI-IDE-v5.spec"
+SPEC = RAIZ / "Magisys.spec"
 PAQUETE = RAIZ / "magi"
 
 #: se salta: andamiaje retirado, conservado como mapa y fuera del binario.
@@ -49,7 +49,7 @@ def _excluidos_del_spec() -> set[str]:
     """Los `excludes=[...]` del .spec, leídos del .spec y no copiados aquí."""
     texto = SPEC.read_text(encoding="utf-8")
     m = re.search(r"excludes\s*=\s*\[(.*?)\]", texto, re.DOTALL)
-    assert m, "no encuentro `excludes=[...]` en MAGI-IDE-v5.spec"
+    assert m, "no encuentro `excludes=[...]` en Magisys.spec"
     return set(re.findall(r"['\"]([A-Za-z0-9_.]+)['\"]", m.group(1)))
 
 

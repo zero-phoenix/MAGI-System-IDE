@@ -30,7 +30,7 @@ real. Solo que el fallo no estaba donde parecía.
 ### La medición que lo decidió
 
 ```
-MAGI-IDE-v5.exe (PID 16288), en reposo, sin ninguna tarea corriendo
+Magisys.exe (PID 16288), en reposo, sin ninguna tarea corriendo
     100,3 % de un núcleo    (media de 12 s, psutil)
 
 el mismo kernel arrancado solo, sin interfaz, con las 13 tareas rehidratadas

@@ -22,11 +22,11 @@ Lo que este plan ya dejó hecho en su primera sesión, con su evidencia:
 
 ---
 
-# MEGAPLAN v10 — Continuación integral de MAGI-System-IDE + YabauseVita
+# MEGAPLAN v10 — Continuación integral de Magisys + YabauseVita
 
 **Fecha:** 2 de septiembre de 2026
 **Para:** ZCode Desktop (Z.ai AI Agent Coding Desktop App) o cualquier agente que continúe
-**Partida:** MAGI-System-IDE **v5.18.0** (`0b7316b`) · YabauseVita `e33ead7`
+**Partida:** Magisys **v5.18.0** (`0b7316b`) · YabauseVita `e33ead7`
 **Procedencia:** auditoría independiente del repositorio público + todo el historial documental
 (docs/, RELEASE_NOTES.md, bitácora del emulador, automodelo) verificada contra el código.
 
@@ -62,9 +62,9 @@ puedes, no has terminado de leer.
 
 | | |
 |---|---|
-| `zero-phoenix/MAGI-System-IDE` | público, `main` en `0b7316b`, **v5.18.0**, 200 commits |
+| `zero-phoenix/Magisys` | público, `main` en `0b7316b`, **v5.18.0**, 200 commits |
 | `zero-phoenix/yabausevita` | público, `main` en `e33ead7` (Ronda 3 documentada) |
-| Clones locales de trabajo | `C:\Users\D\Documents\GitHub\MAGI-System-IDE` y `C:\Users\D\Documents\GitHub\yabausevita-zp` |
+| Clones locales de trabajo | `C:\Users\D\Documents\GitHub\Magisys` y `C:\Users\D\Documents\GitHub\yabausevita-zp` |
 
 ⚠️ **Tres identidades GitHub en esta máquina:** `davidchaveznge-wq` en `git config`,
 `zero-phoenix` (la activa) + `4n0th1ng` en `gh` CLI. El clon `Documents\GitHub\yabausevita`
@@ -905,7 +905,7 @@ ha cambiado desde entonces, gana el código.*
 ## Publicación — cierre de la sesión
 
 - **v5.19.0 publicada por CI** (tag `v5.19.0`, workflow 8m43s en verde):
-  `MAGI-IDE-v5.zip` 143,4 MB + `CHECKSUMS.txt`
+  `Magisys.zip` 143,4 MB + `CHECKSUMS.txt`
   (zip sha256 `13af1e3b7843…`). El `.exe` del CI no arrastra los dos fixes
   post-release —ambos de cara al desarrollo, no al binario— que viajan en
   `main` desde ya.

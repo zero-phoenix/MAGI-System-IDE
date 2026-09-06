@@ -314,13 +314,15 @@ export default function App() {
   return (
     <>
       <div className="tt">
-        <b>MAGI SYSTEM IDE</b> — Supercomputadora Táctica Autónoma (independiente de Venim). Interfaz horizontal fija.
+        {/* El subtítulo dice lo que Magisys HACE. Antes se presentaba por
+            lo que no era; ver tests/test_independiente_de_venim.py. */}
+        <b>MAGISYS</b> — tres inteligencias debaten tu encargo antes de tocar nada.
       </div>
 
       <div className="bar">
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <span className="brand">
-            MAGI SYSTEM IDE
+            MAGISYS
             <span style={{ color: "var(--node)", fontSize: "10px", padding: "1px 6px", border: "1px solid var(--node)", borderRadius: "2px", marginLeft: "8px", letterSpacing: "0.08em" }}>
               EVANGELION TACTICAL
             </span>{" "}
@@ -874,7 +876,7 @@ export default function App() {
             ? " · ⏸ ESPERA TU APROBACIÓN" : ""}
           {" · motor "}{engine === "deep" ? "análisis profundo" : "súper rapidez"}
           {" · tarea "}{activeConversationId}
-          {" · "}<b>MAGI SYSTEM IDE {versionKernel ? `v${versionKernel}` : ""}</b>
+          {" · "}<b>MAGISYS {versionKernel ? `v${versionKernel}` : ""}</b>
         </div>
         <div>acceso root habilitado</div>
       </div>

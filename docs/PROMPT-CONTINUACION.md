@@ -13,8 +13,8 @@ Lee estos cuatro ficheros **enteros**, en este orden:
 
 1. `TRASPASO-MAGI-YABAUSEVITA.md` (adjunto) — el mapa de todo
 2. `C:\Users\D\Documents\GitHub\yabausevita-zp\docs\BITACORA-OPTIMIZACION.md` — hallazgos A1-A27 y reglas R1-R16
-3. `C:\Users\D\Documents\GitHub\MAGI-System-IDE\docs\MEGAPLAN-v6-subagentes.md` — el plan, cuatro partes
-4. `C:\Users\D\Documents\GitHub\MAGI-System-IDE\docs\AUTOMODELO.json` — lo que el sistema sabe que NO sabe hacer
+3. `C:\Users\D\Documents\GitHub\Magisys\docs\MEGAPLAN-v6-subagentes.md` — el plan, cuatro partes
+4. `C:\Users\D\Documents\GitHub\Magisys\docs\AUTOMODELO.json` — lo que el sistema sabe que NO sabe hacer
 
 Cuando termines, dime en tres frases qué entendiste del estado actual. Si algo
 de lo que leas contradice al código, **gana el código**: dímelo y corrige el

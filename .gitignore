@@ -27,7 +27,13 @@ dist/
 build/
 *.spec
 # Excepto el spec principal del producto, que debe versionarse.
-!MAGI-IDE-v5.spec
+#
+# La excepcion va por NOMBRE, asi que al renombrar el producto a Magisys el
+# fichero cayo bajo `*.spec` y git dejo de verlo — ni siquiera como no
+# seguido. En una maquina limpia el job de release corre
+# `pyinstaller Magisys.spec` sobre un fichero que no existe y no hay .exe.
+# Cazado antes de publicar; lo guarda test_nada_sin_versionar.py.
+!Magisys.spec
 
 release/
 

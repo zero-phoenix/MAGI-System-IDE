@@ -1,4 +1,4 @@
-# Traspaso — MAGI System IDE + YabauseVita
+# Traspaso — Magisys + YabauseVita
 
 **Fecha:** 2 de septiembre de 2026 (actualizado tras la v5.19.0)
 **Para:** quien continúe el trabajo (zcode desktop u otro agente)
@@ -30,9 +30,9 @@ corrige este fichero.
 
 | | |
 |---|---|
-| `zero-phoenix/MAGI-System-IDE` | **público**, `main` en la **5.19.0** (v5.17: abanico+réplica; v5.18: filosofías asignadas; v5.19: auditoría en vivo, C6, Ritsuko R2/R4) |
+| `zero-phoenix/Magisys` | **público**, `main` en la **5.19.0** (v5.17: abanico+réplica; v5.18: filosofías asignadas; v5.19: auditoría en vivo, C6, Ritsuko R2/R4) |
 | `zero-phoenix/yabausevita` | **público**, `main` con R16 escrita en la bitácora (2-sep-2026) |
-| Clones locales | `C:\Users\D\Documents\GitHub\MAGI-System-IDE` y `...\yabausevita-zp` |
+| Clones locales | `C:\Users\D\Documents\GitHub\Magisys` y `...\yabausevita-zp` |
 
 Ambos árboles limpios, ambos CI en verde, **14 releases conservados** (ninguno
 se borra nunca).
@@ -44,7 +44,7 @@ se borra nunca).
 
 ### Releases descargables
 
-- MAGI: `MAGI-IDE-v5.zip` (143 MB) + `CHECKSUMS.txt`, con el `.exe` dentro.
+- MAGI: `Magisys.zip` (143 MB) + `CHECKSUMS.txt`, con el `.exe` dentro.
 - YabauseVita: `YabauseVita.vpk` por commit, más releases etiquetados.
 
 ---
