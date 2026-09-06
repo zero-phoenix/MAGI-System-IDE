@@ -193,32 +193,27 @@ Lilim extiende la interacción de MAGI más allá del texto plano mediante tres 
 
 ```mermaid
 flowchart TD
-    User(["Petición / Documento / Audio"]) --> Sentidos["Lilim Sentidos"]
+    User["Petición · documento · audio"] --> Sentidos["Lilim · sentidos"]
 
-    subgraph Percepcion ["Percepción Periférica"]
-        Sentidos -->|"PDF / Imagen"| Ojos["Ojos: PyMuPDF + Lens VLM"]
-        Sentidos -->|"Audio / Loopback"| Oidos["Oídos: WAV / MP3 / WASAPI"]
-    end
+    Sentidos -->|"PDF o imagen"| Ojos["Ojos"]
+    Sentidos -->|"audio"| Oidos["Oídos"]
 
-    Ojos --> Naoko["Naoko: Supervisora"]
+    Ojos --> Naoko["Naoko · supervisora"]
     Oidos --> Naoko
 
-    subgraph Dialectica ["Bucle Dialéctico Mielinizado"]
-        Naoko --> Melchior["Melchior: Tesis"]
-        Melchior --> Balthasar["Balthasar: Antítesis"]
-        Balthasar --> Casper["Casper: Síntesis"]
+    Naoko --> Melchior["Melchior · tesis"]
+    Melchior --> Balthasar["Balthasar · antítesis"]
+    Balthasar --> Casper["Casper · síntesis"]
 
-        Mielina[("Lilim Mielina: KoboldCpp Qwen 2.5 1.5B / AST")]
-        Mielina -.->|"Esqueleto previo"| Melchior
-        Mielina -.->|"Pre-auditoría AST 0ms"| Balthasar
-        Mielina -.->|"Matriz de arbitraje"| Casper
-    end
+    Mielina["Lilim · mielina"] -.->|"esqueleto previo"| Melchior
+    Mielina -.->|"pre-auditoría AST"| Balthasar
+    Mielina -.->|"contexto destilado"| Casper
 
-    Casper --> Brazos["Brazos: Actuación Workspace / DOCX / MD"]
-    Brazos --> Entrega(["Respuesta Final Verificada"])
+    Casper --> Brazos["Brazos · workspace y export"]
+    Brazos --> Entrega["Respuesta verificada"]
 
-    Ritsuko["Ritsuko: Auditora"] -.->|"Vigila telemetría"| Naoko
-    Ritsuko -.->|"Auditoría de arbitraje"| Casper
+    Ritsuko["Ritsuko · auditora"] -.->|"vigila telemetría"| Naoko
+    Ritsuko -.->|"audita el arbitraje"| Casper
 ```
 
 ---
