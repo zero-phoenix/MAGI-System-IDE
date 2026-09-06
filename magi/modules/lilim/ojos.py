@@ -99,6 +99,20 @@ def extraer_texto_y_layout_pdf(pdf_path: str | Path, max_paginas: int = 10) -> t
                     })
 
         return "\n\n".join(texto_total), bloques_totales, len(doc)
+    except ImportError:
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(str(pdf_path))
+            texto_total = []
+            limite = min(len(reader.pages), max_paginas)
+            for i in range(limite):
+                t = reader.pages[i].extract_text() or ""
+                if t.strip():
+                    texto_total.append(f"--- PÁGINA {i+1} ---\n{t.strip()}")
+            return "\n\n".join(texto_total), [], len(reader.pages)
+        except Exception as err2:
+            logger.debug("Fallback pypdf falló en %s: %s", pdf_path, err2)
+            return "", [], 1
     except Exception as err:
         logger.debug("Extracción directa de texto falló en %s: %s", pdf_path, err)
         return "", [], 1

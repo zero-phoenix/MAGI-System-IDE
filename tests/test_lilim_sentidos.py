@@ -52,7 +52,7 @@ def dummy_wav(tmp_path) -> Path:
 @pytest.fixture
 def dummy_pdf(tmp_path) -> Path:
     """Crea un documento PDF mínimo usando PyMuPDF (fitz)."""
-    import fitz
+    fitz = pytest.importorskip("fitz", reason="PyMuPDF (fitz) no instalado en este entorno")
     ruta = tmp_path / "documento.pdf"
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
@@ -67,7 +67,7 @@ def dummy_pdf(tmp_path) -> Path:
 @pytest.fixture
 def dummy_img(tmp_path) -> Path:
     """Crea una imagen PNG mínima con PIL."""
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image", reason="Pillow no instalado")
     ruta = tmp_path / "captura.png"
     img = Image.new("RGB", (200, 100), color=(73, 109, 137))
     img.save(ruta)
@@ -92,16 +92,22 @@ def test_ojos_rasterizar_pdf(dummy_pdf):
 
 
 @pytest.mark.asyncio
-async def test_ojos_analizar_documento(dummy_pdf, dummy_img):
+async def test_ojos_analizar_documento_pdf(dummy_pdf):
     res_pdf = await analizar_documento_escaneado(dummy_pdf)
     assert res_pdf.tipo == "pdf"
     assert res_pdf.total_paginas == 1
     assert "RESOLUCIÓN" in res_pdf.texto_crudo
 
+
+@pytest.mark.asyncio
+async def test_ojos_analizar_documento_imagen(dummy_img):
     res_img = await analizar_documento_escaneado(dummy_img)
     assert res_img.tipo == "imagen"
     assert res_img.dimensiones == [200, 100]
 
+
+@pytest.mark.asyncio
+async def test_ojos_analizar_documento_inexistente():
     res_inexistente = await analizar_documento_escaneado("no_existe.pdf")
     assert res_inexistente.tipo == "error"
 
@@ -146,6 +152,7 @@ def test_brazos_exportar_markdown(tmp_path):
 
 
 def test_brazos_exportar_docx(tmp_path):
+    pytest.importorskip("docx", reason="python-docx no instalado")
     salida = tmp_path / "resolucion.docx"
     p = exportar_a_docx(
         titulo="RESOLUCIÓN ADMISORIA",
@@ -159,6 +166,7 @@ def test_brazos_exportar_docx(tmp_path):
 
 
 def test_brazos_recortar_imagen(dummy_img, tmp_path):
+    pytest.importorskip("PIL.Image", reason="Pillow no instalado")
     salida = tmp_path / "recorte.png"
     p = recortar_region_imagen(dummy_img, (10, 10, 50, 50), salida)
     assert p is not None

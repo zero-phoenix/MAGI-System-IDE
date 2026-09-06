@@ -15,7 +15,7 @@
 - **C1-GUI — Informe de cancelación visible:** el reporte real de procesos liquidados y bucles detenidos (`CancelReport`) se visualiza en la conversación.
 - **L3-L4 — Lilim enciclopédico:** verificación periódica de novedades tecnológicas contra fuentes reales y enciclopedia técnica estructurada por dominios.
 
-**67 herramientas** en el catálogo. **1786 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
+**67 herramientas** en el catálogo. **1788 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
 
 ---
 
