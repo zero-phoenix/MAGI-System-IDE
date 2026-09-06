@@ -1,3 +1,10 @@
+# v5.23.1 —
+
+**Errata (v5.23.1):** el release v5.23.0 se etiquetó antes de que la
+compuerta local terminara y el CI lo tumbó con razón: el E2E del Tetris
+compilaba sin journal. Arreglado registrando el fuente como hace un agente
+real tras `write_file` — y de paso el test verifica ahora el manifiesto A1.
+
 # v5.23.0 — el plan v11 en acción: comandos, procedencia y compuerta sin humo
 
 **Qué cambia:** se ejecutan los bloques críticos del megaplan v11 — los que

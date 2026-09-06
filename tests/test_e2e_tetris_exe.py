@@ -91,9 +91,16 @@ async def test_build_tetris_executable(tetris_project, tmp_path):
 @pytest.mark.slow
 @pytest.mark.timeout(300)
 def test_build_tetris_via_tool_registry(tetris_project, tmp_path):
-    """Invoca build_project_exe a través del registro real de herramientas."""
+    """Invoca build_project_exe a través del registro real de herramientas.
+
+    Con la compuerta A3 (v11), la herramienta exige que la tarea haya
+    escrito un .py antes de compilar: este test registra el fuente en el
+    journal como lo haría un agente real tras write_file — y el manifiesto
+    A1 debe aparecer junto al binario."""
     registry = build_registry()
     ctx = ToolContext(task_id="e2e_tetris", cwd=tmp_path)
+    fuente = tetris_project / "main.py"
+    ctx.get_journal().record(fuente, "write", tool="write_file")
 
     result = asyncio.run(registry.execute("build_project_exe", {
         "path": str(tetris_project),
@@ -103,6 +110,10 @@ def test_build_tetris_via_tool_registry(tetris_project, tmp_path):
     }, ctx=ctx))
 
     assert result.ok, f"tool build_project_exe falló: {result.error}"
+    exe = tmp_path / "TetrisTool.exe"
+    assert exe.is_file()
+    manifiesto = exe.with_suffix(".exe.manifest.json")
+    assert manifiesto.is_file(), "A1: el build no dejó manifiesto de procedencia"
     exe = tmp_path / "TetrisTool.exe"
     assert exe.is_file()
 
