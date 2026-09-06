@@ -1,3 +1,23 @@
+# v5.27.0 — Enjambre v6, percepción web, degradación de motor D2 y plan vivo
+
+**Qué cambia:** Se consolida el Enjambre v6 (subagentes por familia de modelo, plan vivo por tarea, compuerta obligatoria automatizada y veredicto de desvío), se añade percepción web completa sin navegador ni dependencias pesadas, degradación de motor `deep` → `fast` por salud de proveedores, clon shallow de repositorios con procedencia en journal, y visibilidad de cancelaciones e hitos en la GUI.
+
+**Lo concreto:**
+
+- **D2 — Degradación de motor por salud:** cuando los proveedores gratuitos de `deep` sufren degradación o timeouts excesivos, el motor degrada automáticamente a `fast` registrando el origen y alertando al operador sin bloquear la máquina.
+- **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
+- **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` HTTP con presupuesto por ronda y formato obligatorio de cita con URL y fecha. Si no hay red, resultado explícito `SIN COMPROBAR`.
+- **F2 — Subagentes por familia:** Melchior y Balthasar pueden invocar subagentes de solo lectura de su misma familia de modelo con turno único y conclusión sintetizada.
+- **F3 — `plan.md` vivo por tarea:** seguimiento de hitos de la tarea (`pendiente`, `haciendo`, `hecha`, `no se pudo`) inyectado en el prompt y emitido a la interfaz vía `task.plan` con su tarjeta visual `PlanCard`.
+- **F4 — Compuerta obligatoria automatizada:** antes de que Casper emita veredicto final, se ejecuta programáticamente la compuerta de verificación sin relanzar el ejecutable (uso estricto de `python_executable()`).
+- **F5 — Veredicto «la pregunta era otra»:** cuando las propuestas debaten sobre un aspecto no pertinente, se declara el cuarto veredicto, guardando los hallazgos rescatables en `magi/data/memoria/descartes.jsonl`.
+- **C1-GUI — Informe de cancelación visible:** el reporte real de procesos liquidados y bucles detenidos (`CancelReport`) se visualiza en la conversación.
+- **L3-L4 — Lilim enciclopédico:** verificación periódica de novedades tecnológicas contra fuentes reales y enciclopedia técnica estructurada por dominios.
+
+**67 herramientas** en el catálogo. **1766 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
+
+---
+
 # v5.26.0 — Lilim multimodal: el motor EPD, el traductor y la memoria de novedades
 
 **Qué cambia:** Lilim pasa de índice a MOTOR: el ciclo encode→prefill→decode

@@ -43,6 +43,7 @@ tiró por creerle al documento.
 | v5.24.0 | A2: autotest de teclas de 3 estados (verde/rojo/sin_comprobar) ejecutado por el packager | ✅ |
 | v5.25.0 | LILIM v1: `lilim_pregunta`, `repos_de`, controles ampliados (PS2, pc_jugando, decomp/puertos), g4f 8.1.1 auditado (32/32) | ✅ |
 | v5.26.0 | LILIM multimodal: motor EPD, traductor 6 idiomas, novedades 2023-2026, lilim_ensenar (M4), CONTEXTO inyectado, A2 con marca por fichero | ✅ |
+| v5.27.0 | Enjambre v6 (F1-F5), degradación D2, clon shallow L2, CancelReport C1-GUI, E2/E3 Ronda 4 CDB/SH2 | ✅ |
 
 **Repositorio limpio en `main`, CI verde, todos los releases conservados
 (ninguno se borra NUNCA).**
@@ -51,11 +52,11 @@ tiró por creerle al documento.
 
 | Plan | Hecho | Pendiente |
 |---|---|---|
-| **v6** (fases 1-11) | 6,7,8,10,11 | **F1** web_search/web_read sin navegador; **F2** subagentes por familia; **F3** plan.md vivo; **F4** compuerta obligatoria; **F5** veredicto «la pregunta era otra» |
+| **v6** (fases 1-11) | 6,7,8,10,11, **F1**, **F2**, **F3**, **F4**, **F5** | (Completado) |
 | **v9** (Ritsuko) | R1, R2, R4 | **R3** portera de la sonda (tras rodar G4 en uso real) |
-| **v10** (megaplan base) | D1-D6, M1, M2, P4, auditoría en vivo | **E1** ya superado (A9); **E2** instrumentar SH2LRU/dynarec; **E3** Ronda 4 (BIOS/CDB de NiGHTS); **E4** dynarec solo con Vita real; **P1-P3** diferidas con precondición |
-| **v11** (Tetris) | A1, A2, A3, B1, B3, C2, C3, D1 | **C1-GUI** pintar el informe de cancelación; **D2** degradar motor por salud; **T5** el tetris.exe del Escritorio sigue con la R rota (los próximos juegos nacen con A2) |
-| **v12** (Lilim) | L1 + motor EPD + traductor + novedades + M4 + contexto inyectado | **L2** `repos_clonar` shallow a demanda; **L3-avanzar** verificación automática de novedades; **L4** enciclopedia por dominios; **L5** panel de Lilim en la GUI |
+| **v10** (megaplan base) | D1-D6, M1, M2, P4, auditoría en vivo, **E1**, **E2**, **E3** | **E4** dynarec solo con Vita real; **P1-P3** diferidas con precondición |
+| **v11** (Tetris) | A1, A2, A3, B1, B3, C2, C3, D1, **C1-GUI**, **D2** | **T5** el tetris.exe del Escritorio sigue con la R rota |
+| **v12** (Lilim) | L1 + motor EPD + traductor + novedades + M4 + contexto + **L2** + **L3** + **L4** | **L5** panel de Lilim en la GUI |
 
 ### Pendientes prioritarios (el orden recomendado)
 

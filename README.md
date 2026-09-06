@@ -12,22 +12,14 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.18.0: tres ataques distintos, no tres redacciones
+## Qué hay de nuevo en la v5.27.0: enjambre v6, percepción web, degradación D2 y plan vivo
 
-Cuando la ronda es de optimización del emulador, las tres propuestas de
-Melchior dejan de diferenciarse por la semilla y pasan a **asignarse**: una
-ataca `composite`, otra `upload`, otra `dropped`. Ortogonales por
-construcción, que es lo que hace que compararlas signifique algo — tres
-redacciones de la misma idea no informan de nada por muy distintas que suenen.
-
-Con ellas viaja la mitad que faltaba: las reglas ya aprendidas se comprueban
-**antes de compilar**. Si una propuesta choca con algo que el proyecto ya
-midió y descartó, el crítico lo ve pegado a esa propuesta y no se gasta un
-ciclo de compilación en redescubrirlo.
-
-Hoy las tres están suspendidas por medición propia —el camino de render es el
-1,27 % del tiempo— y el sistema lo dice en voz alta en vez de producir tres
-propuestas prohibidas en silencio.
+- **D2 — Degradación de motor por salud:** cuando los proveedores gratuitos de `deep` fallan o superan el umbral de latencia/errores, el sistema degrada automáticamente a `fast` sin colgar la máquina.
+- **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
+- **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` HTTP con presupuesto estricto por ronda y citas con URL + fecha obligatorias.
+- **F2-F5 — Enjambre v6 consolidado:** subagentes por familia de modelo (`F2`), `plan.md` vivo con tarjeta en la interfaz (`F3`), compuerta automática obligatoria antes del cierre (`F4`) y 4to veredicto «la pregunta era otra» (`F5`) con memoria de descartes reutilizables.
+- **C1-GUI — Informe de cancelación visible:** el reporte real de procesos parados y bucles cancelados se pinta directamente en el flujo de conversación.
+- **L3-L4 — Lilim enciclopédico:** verificación automática de novedades tecnológicas 2023-2026 y enciclopedia por dominios.
 
 ## Cómo funciona
 
@@ -358,7 +350,7 @@ común**, sin otra IA supervisándolo. Cada versión acerca eso:
   versión del kernel en vivo; el sistema se audita usándose a sí mismo y lo
   que encuentra se corrige con la medición pegada al commit.
 
-**1673 tests en Python · 122 en la interfaz · sin tests verdes no hay release.**
+**1766 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:
