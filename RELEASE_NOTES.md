@@ -1,3 +1,18 @@
+# v5.27.1 — Interfaz táctica Evangelion, desacople de Venim y auditoría ortogonal de YabauseVita
+
+**Qué cambia:** Se aplica la paleta visual canónica de las supercomputadoras MAGI de Evangelion (naranja ámbar `#FF6600`/`#FFA726` y azul turquesa táctico `#00D2C4`/`#005953`), se rotula y desacopla definitivamente la identidad del sistema frente a Venim, y se audita el pipeline de medición ortogonal con Vita3K sobre YabauseVita (775 ventanas de 5 s procesadas, mediana 44.5 FPS).
+
+**Lo concreto:**
+
+- **Paleta visual Evangelion en `magi-gui`:** reemplazo de los tonos azules genéricos por naranja ámbar puro (`#FF6600`) para deliberaciones, avisos y acentos, y azul turquesa de terminal táctico (`#00D2C4`) para enlaces de nodos, monitores de datos y gráficos de rondas. Superficie militar abisal (`#03060a` / `#070d14`) con resplandores CRT.
+- **Desacople de marca Venim:** cabecera con distintivo `EVANGELION TACTICAL` y aclaración explícita de autonomía en subtítulo de ventana.
+- **Auditoría de integridad 100% verde:** suite de 1788 tests en Python, 131 tests en TypeScript, tipado estricto pyright a 0 errores y techos de líneas intactos.
+- **Pipeline ortogonal de YabauseVita comprobado:** verificación determinista mediante `tools/vita3k_ctl.py` y `scripts/ronda_emulador.py` con perfilado de ciclos SH2/VDP y mediciones reales en disco.
+
+**67 herramientas** en el catálogo. **1788 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
+
+---
+
 # v5.27.0 — Enjambre v6, percepción web, degradación de motor D2, plan vivo y Lilim Mielina
 
 **Qué cambia:** Se consolida el Enjambre v6 (subagentes por familia de modelo, plan vivo por tarea, compuerta obligatoria automatizada y veredicto de desvío), se añade percepción web completa sin navegador ni dependencias pesadas, degradación de motor `deep` → `fast` por salud de proveedores, clon shallow de repositorios con procedencia en journal, visibilidad de cancelaciones e hitos en la GUI, y la expansión **Lilim Mielina** con inferencia neuronal local (KoboldCpp + Qwen 2.5 1.5B GGUF Q4_K_M) y sentidos periféricos (Ojos/Lens con PyMuPDF, Oídos acústicos y Brazos de workspace).
