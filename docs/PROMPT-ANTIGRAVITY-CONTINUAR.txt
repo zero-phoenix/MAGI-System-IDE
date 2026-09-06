@@ -1,0 +1,104 @@
+PROMPT PARA ANTIGRAVITY IDE — CONTINUAR EL TRABAJO DE MAGI SYSTEM IDE
+=====================================================================
+
+Copia y pega esto como instrucción inicial. El documento
+"MEGAPLAN-COMPLETO-MAGI.md" (en el escritorio) contiene TODO el estado:
+léelo entero ANTES de escribir una línea de código.
+
+------------------------------------------------------------------------
+
+Continúas un trabajo en curso sobre dos repositorios míos de GitHub:
+zero-phoenix/MAGI-System-IDE y zero-phoenix/yabausevita. La última sesión
+cerró la versión v5.26.0 (LILIM multimodal: motor EPD local, traductor de 6
+idiomas, memoria de novedades 2023-2026 falsables, M4 de conocimiento con
+URL obligatoria). NO empieces de cero y NO improvises el contexto: está todo
+escrito y verificado.
+
+LO PRIMERO, ANTES DE PROponer NADA:
+1. Clona o abre C:\Users\D\Documents\GitHub\MAGI-System-IDE y lee entero el
+   fichero "MEGAPLAN-COMPLETO-MAGI.md" (copiado al escritorio; también está
+   consolidado en docs/ del repo junto a MEGAPLAN-v10/v11/v12).
+2. Verifica el estado real: `git log --oneline -8`, `gh run list --limit 3`,
+   `gh release view v5.26.0 --json assets`. Si el código contradice al
+   documento, GANA EL CÓDIGO y corrige el documento en el mismo commit.
+3. Dime en tres frases qué entendiste del estado y qué paquete vas a atacar
+   primero. NO escribas código antes de eso.
+
+LA REGLA QUE ORDENA TODO: un documento sobre el sistema no es el sistema.
+Lee el código. Si el código contradice a un documento, gana el código.
+
+REGLAS NO NEGOCIABLES (el detalle y su historia están en el megaplan, §3):
+- Compuerta completa antes de publicar: ruff (ruff==0.16.5), huerfanos
+  --conteo (techo 80), pytest ENTERA, verificar.py --todo (compila el .exe).
+- Nunca subir el techo de un trinquete (kernel.py 1070, orchestrator.py 1550,
+  ritsuko.py 800, builtin.py 800) ni tocar KNOWN_ORPHANS: conectar,
+  adelgazar o extraer módulo.
+- Medir contra un CONTROL en la misma corrida, nunca contra constantes de
+  reloj (R12). Sin ojos/oidos no hay evidencia (R9/R16). «No lo comprobé»
+  se declara SIN COMPROBAR, no se inventa.
+- Ficheros con Python, newline='\n', sin BOM. No borrar releases. Nunca.
+- Hardware no se toca (i7-3770 + GTX 1050 2 GB); Lilim es stdlib pura, sin
+  GPU, un hilo, sin red — no debe ahogar la máquina.
+- Si te equivocas, dilo y corrígelo en el mismo commit; las erratas quedan
+  visibles en RELEASE_NOTES.
+
+LA REGLA PERMANENTE DE PUBLICACIÓN (siempre, en cada versión):
+- Compilar LOCALMENTE (verificar.py --todo) Y en la nube: commit+push de
+  main, luego tag vX.Y.Z → GitHub Actions compila y publica el release con
+  MAGI-IDE-v5.zip + CHECKSUMS.txt.
+- Reescribir/actualizar el README con las cifras reales (tests, herramientas
+  — las cuenta test_readme_claims.py contra el registry) y lo nuevo.
+- El release debe llevar el exe comprimido y la descripción de lo nuevo de
+  esa versión (notas concretas: qué cambió, qué se midió, qué se encontró
+  probando lo ya escrito — nunca genéricas).
+- Verificar el release: gh run list --limit 2 y gh release view vX.Y.Z.
+- Conservar TODOS los releases anteriores. Nunca se borra uno.
+
+QUÉ TIENES QUE HACER, EN ORDRE (detalle y compuertas en el megaplan §2):
+1. **D2** — degradar el motor deep→fast cuando la salud de proveedores se
+   degrade (tasa de respuestas inservibles de la sonda/telemetría). La
+   misión Tetris padeció 45+ minutos con proveedores moribundos.
+2. **L2** — lilim/repos_clonar: clon shallow del índice repos_top.json al
+   workspace, registrado en el journal (la compuerta A3 ya exige fuente).
+3. **F1-F5** del megaplan v6 en su orden: web_search/web_read sin navegador
+   con presupuesto por ronda y cita obligatoria URL+fecha; subagentes por
+   familia; plan.md vivo; compuerta obligatoria; veredicto «la pregunta era
+   otra».
+4. **C1-GUI** — pintar el informe de cancelación en la interfaz (hoy va solo
+   al Terminal).
+5. **E1-E3 de interfaz** — tarjeta de plan vivo en el flujo, hilos de
+   Naoko/Ritsuko en la izquierda, manifiesto visible en la tarjeta de
+   aprobación.
+6. **L3/L4 de Lilim** — verificación automática de las novedades contra sus
+   fuentes (cambiar verificado:false → true con fecha) y enciclopedia por
+   dominios sembrada por las rondas.
+7. **Emulador (E2/E3)** — instrumentar SH2LRU y dynarec con coste por
+   instrucción; Ronda 4: por qué la BIOS abandona el disco de NiGHTS tras 3
+   sectores del IP.BIN (hipótesis: lado BIOS/CDB; Panzer como control). El
+   dynarec solo se declara roto/funcionando con una Vita real (E4).
+
+EL RITUAL DE CIERRE DE CADA RONDA/TAREA (no opcional):
+1. Descartes a magi/data/memoria/descartes.jsonl con medición y rescatable.
+2. contrastar(prueba, ok, evidencia) en el automodelo — también sobre ti.
+3. Hallazgos y reglas a la bitácora del emulador EN EL MISMO COMMIT.
+4. Release con notas concretas + README + conservar releases (regla
+   permanente de arriba).
+5. Actualizar el estado de los paquetes en MEGAPLAN-COMPLETO-MAGI.md.
+
+TRAMPAS YA PAGADAS (megaplan §5): BOM de PowerShell (escribe con Python),
+heredocs de bash que mangles \n y \\ (usa Write/Python con chr(92)), ruff
+sin fijar (0.16.5), NODE_ENV=production local, módulos en disco sin git add,
+lanzar MAGI con & en shell efímera, ./vdpm del checkout en Docker.
+
+CUENTAS Y RUTAS: cuenta GitHub activa zero-phoenix (gh CLI ya autenticado).
+Clones de trabajo: Documents\GitHub\MAGI-System-IDE y
+Documents\GitHub\yabausevita-zp (el clon SIN -zp está obsoleto). Vita3K
+instalado con la bios y los juegos; Docker disponible.
+
+CÓMO QUIERO QUE ME HABLES: en español. Dime lo que MIDES, no lo que
+supones. Si te equivocas, dilo y corrígelo en el mismo mensaje. Si algo no
+se puede comprobar, dilo (SIN COMPROBAR) en vez de rellenarlo. Y si crees
+que una de mis instrucciones está mal, discútela — este proyecto ha mejorado
+cada vez que alguien señaló que el plan apuntaba al sitio equivocado.
+
+Empieza por lo primero: leer el megaplan y devolverme las tres frases.
