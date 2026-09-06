@@ -193,30 +193,32 @@ Lilim extiende la interacción de MAGI más allá del texto plano mediante tres 
 
 ```mermaid
 flowchart TD
-    User([Petición / Documento / Audio]) --> Sentidos[Lilim Sentidos]
-    
-    subgraph Percepcion [Percepción Periférica]
-        Sentidos -->|PDF / Imagen| Ojos[Ojos: PyMuPDF + Lens VLM]
-        Sentidos -->|Audio / Loopback| Oidos[Oídos: WAV / MP3 / WASAPI]
+    User(["Petición / Documento / Audio"]) --> Sentidos["Lilim Sentidos"]
+
+    subgraph Percepcion ["Percepción Periférica"]
+        Sentidos -->|"PDF / Imagen"| Ojos["Ojos: PyMuPDF + Lens VLM"]
+        Sentidos -->|"Audio / Loopback"| Oidos["Oídos: WAV / MP3 / WASAPI"]
     end
-    
-    Percepcion --> Naoko[Naoko: Supervisora]
-    
-    subgraph Dialectica [Bucle Dialéctico Mielinizado]
-        Naoko --> Melchior[Melchior: Tesis]
-        Melchior --> Balthasar[Balthasar: Antítesis]
-        Balthasar --> Casper[Casper: Síntesis]
-        
-        Mielina[(Lilim Mielina: KoboldCpp Qwen 2.5 1.5B / AST)]
-        Mielina -.->|Esqueleto previo| Melchior
-        Mielina -.->|Pre-auditoría AST 0ms| Balthasar
-        Mielina -.->|Matriz de arbitraje| Casper
+
+    Ojos --> Naoko["Naoko: Supervisora"]
+    Oidos --> Naoko
+
+    subgraph Dialectica ["Bucle Dialéctico Mielinizado"]
+        Naoko --> Melchior["Melchior: Tesis"]
+        Melchior --> Balthasar["Balthasar: Antítesis"]
+        Balthasar --> Casper["Casper: Síntesis"]
+
+        Mielina[("Lilim Mielina: KoboldCpp Qwen 2.5 1.5B / AST")]
+        Mielina -.->|"Esqueleto previo"| Melchior
+        Mielina -.->|"Pre-auditoría AST 0ms"| Balthasar
+        Mielina -.->|"Matriz de arbitraje"| Casper
     end
-    
-    Casper --> Brazos[Brazos: Actuación Workspace / DOCX / MD]
-    Brazos --> Entrega([Respuesta Final Verificada])
-    
-    Ritsuko[Ritsuko: Auditora] -.->|Vigila telemetría| Dialectica
+
+    Casper --> Brazos["Brazos: Actuación Workspace / DOCX / MD"]
+    Brazos --> Entrega(["Respuesta Final Verificada"])
+
+    Ritsuko["Ritsuko: Auditora"] -.->|"Vigila telemetría"| Naoko
+    Ritsuko -.->|"Auditoría de arbitraje"| Casper
 ```
 
 ---
