@@ -30,3 +30,78 @@ def registrar(reg) -> None:
     def repos_de(tema: str, ctx: ToolContext):
         from ...modules.lilim import repos_de as _repos
         return ToolResult(True, _repos(tema))
+
+    @reg.tool("lilim_traduce",
+              "LILIM (local): traduce la terminología técnica al instante "
+              "entre es/en/de/ru/ja/zh desde la memoria, con procedencia. "
+              "Frases completas que la memoria no cubre: el puente manda al "
+              "enjambre de nube (se dice explícitamente).",
+              {"type": "object", "properties": {
+                  "texto": {"type": "string"},
+                  "idioma": {"type": "string",
+                             "description": "destino: es, en, de, ru, ja, zh"}},
+               "required": ["texto", "idioma"]}, access={"read"})
+    def lilim_traduce(texto: str, idioma: str, ctx: ToolContext):
+        from ...modules.lilim import traduce as _traduce
+        return ToolResult(True, _traduce(texto, idioma))
+
+    @reg.tool("lilim_novedades",
+              "LILIM (local): las novedades tecnológicas 2023-2026 en "
+              "memoria (IA, baterías con IA en China, emulación, Python), "
+              "cada una con su fuente para verificar. Lo no verificado se "
+              "dice: SIN COMPROBAR.",
+              {"type": "object", "properties": {
+                  "tema": {"type": "string",
+                           "description": "opcional: ia, baterias, "
+                                          "hardware, emulacion, python"}},
+               "required": []}, access={"read"})
+    def lilim_novedades(tema: str = "", ctx: ToolContext = None):
+        from ...modules.lilim import novedades as _nov
+        return ToolResult(True, _nov(tema or ""))
+
+    @reg.tool("lilim_ensenar",
+              "LILIM (M4): guarda un conocimiento VERIFICADO con su URL de "
+              "evidencia. Sin URL no entra — la enciclopedia sin procedencia "
+              "es el sistema inventando más rápido. La próxima consulta "
+              "sobre ese tema se responde local, en ms.",
+              {"type": "object", "properties": {
+                  "tema": {"type": "string"},
+                  "afirmacion": {"type": "string"},
+                  "url": {"type": "string"}},
+               "required": ["tema", "afirmacion", "url"]}, access={"read"})
+    def lilim_ensenar(tema: str, afirmacion: str, url: str, ctx: ToolContext):
+        from ...modules.lilim import registrar_conocimiento as _reg
+        ok = _reg(tema, afirmacion, url)
+        return ToolResult(ok, "aprendido con procedencia" if ok else "",
+                          error="" if ok else
+                          "sin tema, afirmación o URL no hay conocimiento")
+    @reg.tool("lilim_resuelve",
+              "LILIM (motor EPD local): la consulta por el ciclo encode-"
+              "prefill-decode sobre TODA la memoria, con su métrica MoE "
+              "(qué dominios se activaron y qué % de la memoria). 0-4 ms, "
+              "sin red, sin GPU. Lo desconocido: NO LO SÉ.",
+              {"type": "object", "properties": {
+                  "pregunta": {"type": "string"}},
+               "required": ["pregunta"]}, access={"read"})
+    def lilim_resuelve(pregunta: str, ctx: ToolContext):
+        from ...modules.lilim.motor import motor
+        r = motor.resolver(pregunta)
+        return ToolResult(True, f"{r.activacion()} · {r.respuesta}")
+
+    @reg.tool("lilim_multimodal",
+              "LILIM (local, sin modelo): hechos DETERMINISTAS de un fichero "
+              "o imagen — formato, dimensiones, peso, sha256. Lo que la "
+              "imagen CONTIENE requiere visión: te dice a quién escalar.",
+              {"type": "object", "properties": {
+                  "ruta": {"type": "string"}},
+               "required": ["ruta"]}, access={"read"})
+    def lilim_multimodal(ruta: str, ctx: ToolContext):
+        import json as _j
+
+        from ...modules.lilim.rapida import hechos_de_imagen
+        hechos = hechos_de_imagen(ruta)
+        if "error" in hechos and "no existe" in hechos["error"]:
+            return ToolResult(False, "", error=hechos["error"])
+        return ToolResult(True, _j.dumps(hechos, ensure_ascii=False))
+
+

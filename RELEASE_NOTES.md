@@ -1,3 +1,47 @@
+# v5.26.0 — Lilim multimodal: el motor EPD, el traductor y la memoria de novedades
+
+**Qué cambia:** Lilim pasa de índice a MOTOR: el ciclo encode→prefill→decode
+de GLM-5.3-Flash traducido a un i7-3770 sin GPU — activación escasa reportada,
+caché lineal de sesión y hechos multimodales deterministas. Y gana las tres
+memorias que le pidieron: terminología en 6 idiomas, novedades tecnológicas
+2023-2026 falsables, y el canal de contexto para todo el enjambre.
+
+**Lo concreto:**
+
+- **`lilim/motor.py` — el ciclo EPD local.** encode (qué dominios activa la
+  pregunta) → prefill (atención lineal: el estado de sesión manda) → decode.
+  Cada respuesta declara su métrica MoE: «[activado 1/4 dominios, 39,2 % de
+  la memoria, 0,7 ms]». Medido en la máquina objetivo: respuestas de
+  0,0-3,5 ms, caché a 0,0 ms, cero GPU, cero red, un solo hilo.
+- **`lilim/rapida.py` — hechos multimodales deterministas.** Formato,
+  dimensiones (cabeceras PNG/JPEG/GIF/BMP sin dependencias) y sha256 de
+  cualquier fichero. El contenido SEMÁNTICO de una imagen se escala con la
+  nota impresa — no se inventa.
+- **Traductor de 6 idiomas** (`lilim_traduce`): es/en/de/ru/ja/zh sobre la
+  memoria de terminología técnica (`idiomas.json`, 20 términos del dominio),
+  con procedencia. Las palabras que no están se dejan tal cual y se dice que
+  la FRASE completa va por el puente de nube — Lilim no inventa traducciones.
+- **Novedades 2023-2026** (`lilim_novedades`): semilla de 13 hitos — GPT-4,
+  Llama 2, AlphaFold 3, DeepSeek R1, baterías de sodio de CATL y la IA en la
+  fábrica de baterías china (BYD/CATL), estado sólido, Switch 2, cierres
+  legales de Yuzu/Ryujinx, Python free-threaded — cada una con su
+  `fuente_verificar` y su bandera SIN COMPROBAR: la regla de la casa.
+- **`lilim_ensenar` (M4)** — el enjambre guarda conocimiento VERIFICADO con
+  su URL; sin URL no entra. La próxima consulta sobre ese tema se responde
+  local, en ms.
+- **CONTEXTO LILIM inyectado**: los tres nodos arrancan con los hechos
+  locales de memoria que tocan a su encargo — empiezan sabiendo, no
+  descubriendo. Si Lilim cae, la inyección sigue sin ella.
+- **A2 con marca por fichero**: los exe de ventana (windowed) no tienen
+  consola y su print muere en stdout nulo — la marca del autotest puede
+  viajar en `autotest_ok.txt` junto al binario. Hallado con el propio
+  fixture de Tetris; los tres builds slow en verde con ella.
+
+**63 herramientas** (de 55 hace tres días). Suite completa a cero; techos
+exactos; huérfanos en 80; ruff limpio.
+
+---
+
 # v5.25.0 — LILIM, la capa local superveloz, y la memoria enciclopédica falsable
 
 **Qué cambia:** nace LILIM (megaplan v12, docs/MEGAPLAN-v12-lilim.md): la

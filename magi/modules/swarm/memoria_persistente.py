@@ -233,15 +233,22 @@ def para_el_prompt(encargo: str, inicio=None) -> str:
     if not (pertinente(encargo) or _DECOMP.search(t)):
         return ""
     datos = cargar_controles(inicio)
+    # CONTEXTO LILIM (v12): los hechos locales que tocan a ESTE encargo, en
+    # ms. Si Lilim cae, la memoria permanente sigue — el except es a propósito.
+    try:
+        from ..lilim import contexto as _ctx_lilim
+        ctx_l = _ctx_lilim(encargo)
+    except Exception:
+        ctx_l = ""
     ctrl = _bloque_controles(encargo, datos)
     desc = _bloque_descartes(encargo, cargar_descartes(inicio))
     decomp = _bloque_decomp(datos) if _DECOMP.search(t) else ""
-    if not (ctrl or desc or decomp):
+    if not (ctrl or desc or decomp or ctx_l):
         return ""
     return (
         "\n\nMEMORIA PERMANENTE DE MAGI. Esto no es de esta tarea: es lo que el "
         "sistema sabe de antes y sobrevive a la sesión.\n"
-        + ctrl + desc + decomp +
+        + ctx_l + ctrl + desc + decomp +
         "\nUn enfoque descartado puede volver a proponerse — pero entonces hay "
         "que decir qué cambió respecto al motivo del descarte. Y lo marcado "
         "como SE RESCATA se reutiliza en vez de volver a descubrirse."

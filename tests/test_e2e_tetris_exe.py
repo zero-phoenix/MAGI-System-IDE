@@ -29,12 +29,19 @@ frames = 0
 if "--autotest" in sys.argv:
     # A2 (v11): el juego simula SUS teclas y recorre el ciclo completo:
     # mover, rotar, game over forzado, reinicio, tablero limpio.
+    # La marca viaja TAMBIÉN en fichero: el build de un juego es windowed
+    # (sin consola) y su print muere en un stdout nulo — la marca impresa
+    # no se puede ver desde fuera (hallado con este propio fixture).
+    from pathlib import Path
     import pygame as pg
     for tecla in (pg.K_LEFT, pg.K_RIGHT, pg.K_UP, pg.K_DOWN):
         pg.event.post(pg.event.Event(pg.KEYDOWN, key=tecla))
     pg.event.post(pg.event.Event(pg.KEYDOWN, key=pg.K_r))  # reinicio
     assert not pg.key.get_pressed()[pg.K_z]                # estado sano
     print("game over forzado; reinicio aplicado; tablero limpio")
+    base = (Path(sys.executable).parent if getattr(sys, "frozen", False)
+            else Path.cwd())
+    (base / "autotest_ok.txt").write_text("GAME_AUTOTEST_OK", encoding="utf-8")
     print("GAME_AUTOTEST_OK")
     pygame.quit()
     sys.exit(0)

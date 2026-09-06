@@ -334,8 +334,10 @@ async def build_project_exe(
             if "__pycache__" not in f.parts and f.is_file())
         if "pygame" in fuentes_texto or "tkinter" in fuentes_texto:
             from .interactivo import probar_juego_interactivo
+            marca = final_exe.parent / "autotest_ok.txt"
             estado, salida = await probar_juego_interactivo(
-                [str(final_exe), "--autotest"], timeout=45.0)
+                [str(final_exe), "--autotest"], timeout=45.0,
+                marca_fichero=marca)
             if estado == "rojo":
                 return PackagerResult(
                     False,

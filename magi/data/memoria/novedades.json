@@ -1,0 +1,111 @@
+{
+  "version": "1.0",
+  "curado": "6-sep-2026",
+  "nota": "semilla de novedades tecnológicas 2023-2026. Cada entrada lleva fuente_verificar: la URL que la confirma. 'verificado': false = SIN COMPROBAR contra internet (la regla de la casa: no comprobado NO es falso). El enjambre las verifica y actualiza.",
+  "entradas": [
+    {
+      "tema": "ia",
+      "anio": 2023,
+      "titulo": "GPT-4 abre la era multimodal de consumo",
+      "detalle": "OpenAI lanza GPT-4 (mar-2023): razonamiento multimodal y el salto que populariza el uso profesional de LLM",
+      "fuente_verificar": "https://openai.com/research/gpt-4",
+      "verificado": false
+    },
+    {
+      "tema": "ia",
+      "anio": 2023,
+      "titulo": "Llama 2 libre para investigación y comercio",
+      "detalle": "Meta libera Llama 2 (jul-2023): el pesos-abierto se vuelve competencia real de las API cerradas",
+      "fuente_verificar": "https://ai.meta.com/llama/",
+      "verificado": false
+    },
+    {
+      "tema": "ia",
+      "anio": 2024,
+      "titulo": "AlphaFold 3 predice interacciones",
+      "detalle": "DeepMind publica AlphaFold 3 (may-2024): predice la interacción de proteínas con ADN, ARN y fármacos",
+      "fuente_verificar": "https://deepmind.google/technologies/alphafold/",
+      "verificado": false
+    },
+    {
+      "tema": "ia",
+      "anio": 2025,
+      "titulo": "DeepSeek R1: razonamiento abierto de bajo coste",
+      "detalle": "DeepSeek R1 (ene-2025): modelo de razonamiento abierto con coste de entrenamiento reportado órdenes de magnitud menor — cambia la economía de la IA",
+      "fuente_verificar": "https://github.com/deepseek-ai/DeepSeek-R1",
+      "verificado": false
+    },
+    {
+      "tema": "ia",
+      "anio": 2023,
+      "titulo": "g4f: la nube gratuita como transporte",
+      "detalle": "gpt4free consolida el acceso sin clave a proveedores LLM — la base del transporte del enjambre MAGI",
+      "fuente_verificar": "https://github.com/xtekky/gpt4free",
+      "verificado": false
+    },
+    {
+      "tema": "baterias",
+      "anio": 2024,
+      "titulo": "CATL y las baterías de sodio en serie",
+      "detalle": "CATL impulsa baterías de sodio-ion para autos económicos (China): menos litio, mejor frío, coste menor",
+      "fuente_verificar": "https://www.catl.com/en/news/",
+      "verificado": false
+    },
+    {
+      "tema": "baterias",
+      "anio": 2025,
+      "titulo": "IA en la fábrica de baterías: BYD y el control de calidad neuronal",
+      "detalle": "Los fabricantes chinos (BYD, CATL) aplican visión por IA al control de calidad de electrodos y a la predicción de fallos de celda — rendimiento y seguridad mejoran medibles",
+      "fuente_verificar": "https://www.bydglobal.com/en/News.html",
+      "verificado": false
+    },
+    {
+      "tema": "baterias",
+      "anio": 2024,
+      "titulo": "Baterías de estado sólido: promesa con fechas",
+      "detalle": "Toyota, Samsung SDI y CATL anuncian pilotos de estado sólido 2025-2027: densidad energética mayor y carga rápida — seguir la verificación, los plazos se deslizan",
+      "fuente_verificar": "https://global.toyota/en/newsroom/",
+      "verificado": false
+    },
+    {
+      "tema": "hardware",
+      "anio": 2025,
+      "titulo": "Nintendo Switch 2",
+      "detalle": "Nintendo anuncia y lanza Switch 2 (2025): nueva generación híbrida — relevante para ports y emulación futura",
+      "fuente_verificar": "https://www.nintendo.com/successor/",
+      "verificado": false
+    },
+    {
+      "tema": "emulacion",
+      "anio": 2024,
+      "titulo": "Cierres legales de emuladores: Yuzu y Ryujinx",
+      "detalle": "Nintendo consigue el cierre de Yuzu (mar-2024) y el retiro de Ryujinx (oct-2024): la presión legal redefine el emudev abierto",
+      "fuente_verificar": "https://github.com/yuzu-emu/yuzu",
+      "verificado": false
+    },
+    {
+      "tema": "python",
+      "anio": 2024,
+      "titulo": "Python 3.12 y 3.13: más rápido y sin GIL experimental",
+      "detalle": "3.12 acelera el intérprete; 3.13 trae el build experimental free-threaded (sin GIL) — relevante para el bucle asyncio del enjambre",
+      "fuente_verificar": "https://www.python.org/downloads/",
+      "verificado": false
+    },
+    {
+      "tema": "ia",
+      "anio": 2024,
+      "titulo": "Modelos pequeños en el borde",
+      "detalle": "Llama 3.2 1B/3B y Qwen 2.5 corren en portátiles y móviles: la IA local deja de ser juguete — el espíritu de Lilim, con pesos en vez de índices",
+      "fuente_verificar": "https://ai.meta.com/blog/",
+      "verificado": false
+    },
+    {
+      "tema": "vita",
+      "anio": 2024,
+      "titulo": "Escena homebrew de Vita viva",
+      "detalle": "VitaHEX y la escena siguen publicando homebrew y plugins (2024): la consola objetivo de nuestros ports sigue activa",
+      "fuente_verificar": "https://github.com/VitaHEX-Games",
+      "verificado": false
+    }
+  ]
+}

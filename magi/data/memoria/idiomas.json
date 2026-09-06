@@ -1,0 +1,155 @@
+{
+  "version": "1.0",
+  "curado": "6-sep-2026",
+  "idiomas": [
+    "es",
+    "en",
+    "de",
+    "ru",
+    "ja",
+    "zh"
+  ],
+  "nota": "terminología técnica del dominio de MAGI en 6 idiomas. Lilim traduce ESTOS términos al instante y con procedencia; frases completas van por nube (puente) — nunca inventa una palabra que no está.",
+  "terminos": {
+    "emulador": {
+      "en": "emulator",
+      "de": "Emulator",
+      "ru": "эмулятор",
+      "ja": "エミュレータ",
+      "zh": "模拟器"
+    },
+    "decompilacion": {
+      "en": "decompilation",
+      "de": "Dekompilierung",
+      "ru": "декомпиляция",
+      "ja": "逆コンパイル",
+      "zh": "反编译"
+    },
+    "byte_matching": {
+      "en": "byte matching",
+      "de": "Byte-Abgleich",
+      "ru": "побайтовое сравнение",
+      "ja": "バイトマッチング",
+      "zh": "字节匹配"
+    },
+    "rendimiento": {
+      "en": "performance",
+      "de": "Leistung",
+      "ru": "производительность",
+      "ja": "パフォーマンス",
+      "zh": "性能"
+    },
+    "herramienta": {
+      "en": "tool",
+      "de": "Werkzeug",
+      "ru": "инструмент",
+      "ja": "ツール",
+      "zh": "工具"
+    },
+    "codigo_fuente": {
+      "en": "source code",
+      "de": "Quellcode",
+      "ru": "исходный код",
+      "ja": "ソースコード",
+      "zh": "源代码"
+    },
+    "compilar": {
+      "en": "compile",
+      "de": "kompilieren",
+      "ru": "компилировать",
+      "ja": "コンパイルする",
+      "zh": "编译"
+    },
+    "depurar": {
+      "en": "debug",
+      "de": "debuggen",
+      "ru": "отлаживать",
+      "ja": "デバッグする",
+      "zh": "调试"
+    },
+    "mando": {
+      "en": "gamepad",
+      "de": "Gamepad",
+      "ru": "геймпад",
+      "ja": "コントローラー",
+      "zh": "手柄"
+    },
+    "pantalla": {
+      "en": "screen",
+      "de": "Bildschirm",
+      "ru": "экран",
+      "ja": "画面",
+      "zh": "屏幕"
+    },
+    "sonido": {
+      "en": "sound",
+      "de": "Ton",
+      "ru": "звук",
+      "ja": "音",
+      "zh": "声音"
+    },
+    "memoria": {
+      "en": "memory",
+      "de": "Speicher",
+      "ru": "память",
+      "ja": "メモリ",
+      "zh": "内存"
+    },
+    "procesador": {
+      "en": "processor",
+      "de": "Prozessor",
+      "ru": "процессор",
+      "ja": "プロセッサ",
+      "zh": "处理器"
+    },
+    "portabilidad": {
+      "en": "portability",
+      "de": "Portabilität",
+      "ru": "переносимость",
+      "ja": "移植性",
+      "zh": "可移植性"
+    },
+    "ejecutable": {
+      "en": "executable",
+      "de": "ausführbare Datei",
+      "ru": "исполняемый файл",
+      "ja": "実行ファイル",
+      "zh": "可执行文件"
+    },
+    "prueba": {
+      "en": "test",
+      "de": "Test",
+      "ru": "тест",
+      "ja": "テスト",
+      "zh": "测试"
+    },
+    "evidencia": {
+      "en": "evidence",
+      "de": "Beweis",
+      "ru": "доказательство",
+      "ja": "証拠",
+      "zh": "证据"
+    },
+    "archivo": {
+      "en": "file",
+      "de": "Datei",
+      "ru": "файл",
+      "ja": "ファイル",
+      "zh": "文件"
+    },
+    "red": {
+      "en": "network",
+      "de": "Netzwerk",
+      "ru": "сеть",
+      "ja": "ネットワーク",
+      "zh": "网络"
+    },
+    "bateria": {
+      "en": "battery",
+      "de": "Batterie",
+      "ru": "батарея",
+      "ja": "電池",
+      "zh": "电池"
+    }
+  }
+}
