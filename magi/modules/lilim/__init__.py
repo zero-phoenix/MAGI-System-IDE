@@ -22,9 +22,10 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 __all__ = ["pregunta", "repos_de", "NO_LO_SE", "responde_si_sabe",
-           "registrar_conocimiento"]
+           "registrar_conocimiento", "repos_clonar", "desregistrar_clon"]
 
 NO_LO_SE = "NO LO SÉ (local) — escala al enjambre: razonamiento y verificación de nube."
 
@@ -304,3 +305,165 @@ def contexto(encargo: str) -> str:
     if not piezas:
         return ""
     return "CONTEXTO LILIM (local, en ms):\n" + "\n".join(piezas)
+
+
+def repos_clonar(
+    nombre_o_url: str,
+    destino: Path | str | None = None,
+    task_id: str | None = None,
+    journal: Any = None,
+    profundidad: int = 1,
+) -> tuple[bool, str, dict]:
+    """
+    L2: Clon shallow (--depth 1) de un repo del índice repos_top.json al workspace.
+
+    Registra cada fichero importado en el journal de la tarea para cumplir la
+    compuerta A3 (código ANTES del build: ningún ejecutable nace sin fuentes).
+    """
+    import subprocess
+
+    if not isinstance(nombre_o_url, str) or not nombre_o_url.strip():
+        return False, "Indica qué repositorio o URL clonar.", {}
+
+    nombre_n = nombre_o_url.strip()
+    datos = _cargar("repos_top.json")
+    url = ""
+    meta_repo: dict = {}
+
+    # ¿Es URL directa de git o ruta de repositorio en disco?
+    if (nombre_n.startswith(("http://", "https://", "git@", "ssh://", "file://"))
+            or Path(nombre_n).is_dir()):
+        url = nombre_n
+        repo_leaf = Path(nombre_n).name or "repo"
+        if repo_leaf.endswith(".git"):
+            repo_leaf = repo_leaf[:-4]
+        meta_repo = {"nombre": repo_leaf, "url": url, "tema": "externo"}
+    else:
+        # Búsqueda en el índice curado
+        t = _plano(nombre_n)
+        for r in datos.get("repos", []):
+            if t == _plano(r.get("nombre", "")) or t in _plano(r.get("nombre", "")):
+                url = r.get("url", "")
+                meta_repo = r
+                break
+        if not url:
+            for r in datos.get("repos", []):
+                if t == _plano(r.get("tema", "")):
+                    url = r.get("url", "")
+                    meta_repo = r
+                    break
+        if not url:
+            return (
+                False,
+                f"El repositorio '{nombre_n}' no está en repos_top.json ni es una URL válida. "
+                f"Usa repos_de() para ver los disponibles.",
+                {},
+            )
+
+    # Destino en disco
+    if destino is None:
+        from ...core.paths import workspace_dir
+        dest_dir = workspace_dir() / (meta_repo.get("nombre", "repo").split("/")[-1])
+    else:
+        dest_dir = Path(destino)
+
+    dest_dir = dest_dir.resolve()
+    if dest_dir.exists() and any(dest_dir.iterdir()):
+        return (
+            False,
+            f"El directorio de destino ya existe y no está vacío: {dest_dir}",
+            {},
+        )
+
+    # 1. Registrar directorio raíz en el journal antes de mutar
+    if journal and hasattr(journal, "record"):
+        try:
+            journal.record(dest_dir, kind="create", tool="lilim_repos_clonar")
+        except Exception:
+            pass
+
+    # 2. Clon shallow
+    try:
+        cmd = ["git", "clone", "--depth", str(max(1, profundidad)), url, str(dest_dir)]
+        res = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=120, check=False
+        )
+        if res.returncode != 0:
+            if dest_dir.exists():
+                _rmtree_force(dest_dir)
+            return (
+                False,
+                f"git clone falló con código {res.returncode}: {res.stderr.strip()}",
+                {},
+            )
+    except Exception as e:
+        if dest_dir.exists():
+            _rmtree_force(dest_dir)
+        return False, f"No se pudo ejecutar git clone: {e}", {}
+
+    # 3. Registrar cada fichero en el journal (compuerta A3)
+    registrados = 0
+    if journal and hasattr(journal, "record"):
+        for f in dest_dir.rglob("*"):
+            if f.is_file() and ".git" not in f.parts:
+                try:
+                    journal.record(f, kind="create", tool="lilim_repos_clonar")
+                    registrados += 1
+                except Exception:
+                    pass
+
+    return (
+        True,
+        f"Clon shallow exitoso de '{meta_repo.get('nombre', url)}' en {dest_dir} "
+        f"({registrados} ficheros registrados en journal para compuerta A3). "
+        f"falsable contra: {url}",
+        {
+            "nombre": meta_repo.get("nombre"),
+            "url": url,
+            "destino": str(dest_dir),
+            "ficheros_registrados": registrados,
+        },
+    )
+
+
+def _rmtree_force(path: Path) -> None:
+    """Elimina un árbol asegurando permisos de escritura en Windows."""
+    import os
+    import shutil
+    import stat
+
+    def _handle_readonly(func, fpath, exc_info):
+        try:
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        except Exception:
+            pass
+
+    if path.exists():
+        shutil.rmtree(path, onerror=_handle_readonly)
+
+
+def desregistrar_clon(
+    destino: Path | str,
+    task_id: str | None = None,
+    journal: Any = None,
+) -> tuple[bool, str]:
+    """Des-registro limpio: elimina la copia clonada y deshace entradas de journal."""
+    p = Path(destino).resolve()
+    if not p.exists():
+        return False, f"El directorio no existe: {p}"
+
+    # Si hay journal, deshacer entradas correspondientes
+    if journal and hasattr(journal, "all_entries") and hasattr(journal, "_restore"):
+        p_str = str(p).replace("\\", "/").lower()
+        for e in reversed(journal.all_entries()):
+            target_str = str(e.target).replace("\\", "/").lower()
+            if target_str == p_str or target_str.startswith(p_str + "/"):
+                if not e.undone:
+                    journal._restore(e)
+
+    if p.exists():
+        _rmtree_force(p)
+
+    return True, f"Clon en {p} des-registrado y eliminado limpiamente."
+

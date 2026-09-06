@@ -717,20 +717,20 @@ class Kernel:
         else:
             task_id = raw_id
 
-        engine = payload.get("engine", "fast") if isinstance(payload, dict) else "fast"  # noqa: E501
-        # §2.7 (historial en git): la GUI ya no elige estilo; lo que llegue se
-        # recalcula abajo.
-        gui_style = (payload.get("narrative_style", "tecnico")
-                     if isinstance(payload, dict) else "tecnico")
-        # `motor.estilo_y_motor`: triviales sin red (medido 2-sep: 20+ min
-        # para un holamundo); el resto, como siempre.
+        pld = payload if isinstance(payload, dict) else {}
+        engine, gui_style = pld.get("engine", "fast"), pld.get("narrative_style", "tecnico")
+        # `motor.estilo_y_motor`: triviales sin red y D2 degradación por salud.
         from magi.core.providers.cloud import FreeCloudLLM
         from magi.modules.infrastructure.motor import estilo_y_motor
         narrative_style, engine, origen = await estilo_y_motor(
-            command, motor_gui=engine, estilo_gui=gui_style,
-            llm=FreeCloudLLM())
+            command, engine, gui_style, FreeCloudLLM(),
+            self.swarm.store, getattr(self, "metrics", None))
         logger.info("[kernel] estilo=%s motor=%s decidido por %s",
                     narrative_style, engine, origen)
+        if "salud-degradada" in origen:
+            await self.bus.publish(BusEvent(
+                topic="TERMINAL_OUT",
+                payload={"content": f"[D2] {origen}: deep degradado a fast."}))
         await self.bus.publish(BusEvent(
             topic="swarm.style",
             payload={"task_id": task_id, "style": narrative_style,

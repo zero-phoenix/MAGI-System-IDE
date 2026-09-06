@@ -104,4 +104,36 @@ def registrar(reg) -> None:
             return ToolResult(False, "", error=hechos["error"])
         return ToolResult(True, _j.dumps(hechos, ensure_ascii=False))
 
+    @reg.tool("repos_clonar",
+              "LILIM (L2): clon shallow (--depth 1) de un repositorio curado "
+              "del índice repos_top.json al workspace, con registro en el "
+              "journal para cumplir la compuerta A3 (código antes del build).",
+              {"type": "object", "properties": {
+                  "nombre": {"type": "string",
+                             "description": "nombre en repos_top.json o URL git"},
+                  "destino": {"type": "string",
+                              "description": "directorio de destino en el workspace (opcional)"}},
+               "required": ["nombre"]}, access={"write"})
+    def repos_clonar(nombre: str, ctx: ToolContext, destino: str = ""):
+        from ...modules.lilim import repos_clonar as _clonar
+        dest_path = ctx.resolve(destino) if destino else None
+        journal = ctx.get_journal() if hasattr(ctx, "get_journal") else None
+        ok, msg, _ = _clonar(nombre, destino=dest_path, task_id=ctx.task_id, journal=journal)
+        return ToolResult(ok, msg if ok else "", error="" if ok else msg)
+
+    @reg.tool("repos_desregistrar",
+              "LILIM (L2): des-registro limpio de un clon shallow en workspace, "
+              "revirtiendo sus entradas en el journal.",
+              {"type": "object", "properties": {
+                  "destino": {"type": "string",
+                              "description": "directorio a limpiar en el workspace"}},
+               "required": ["destino"]}, access={"write"})
+    def repos_desregistrar(destino: str, ctx: ToolContext):
+        from ...modules.lilim import desregistrar_clon as _desreg
+        dest_path = ctx.resolve(destino)
+        journal = ctx.get_journal() if hasattr(ctx, "get_journal") else None
+        ok, msg = _desreg(dest_path, task_id=ctx.task_id, journal=journal)
+        return ToolResult(ok, msg if ok else "", error="" if ok else msg)
+
+
 

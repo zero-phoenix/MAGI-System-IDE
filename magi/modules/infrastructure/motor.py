@@ -35,7 +35,10 @@ import re
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["es_trivial", "estilo_y_motor"]
+__all__ = [
+    "es_trivial", "estilo_y_motor", "salud_proveedores_degradada",
+    "UMBRAL_FALLOS_DEGRADACION",
+]
 
 #: Palabras que delatan trabajo de fondo. Cualquiera de ellas descarta el
 #: atajo por largo que parezca el resto. Se comparan SIN tildes y en
@@ -67,8 +70,57 @@ def es_trivial(comando: str) -> bool:
     return len(t.strip()) <= MAX_CORTO and not _RE_TRABAJO_DE_FONDO.search(t)
 
 
+#: Umbral crítico de fallo para degradar motor. Si >= 50% de las respuestas
+#: son inservibles o timeout, deep es una trampa de 45+ minutos.
+UMBRAL_FALLOS_DEGRADACION = 0.50
+
+
+def _tasa_fallos_telemetria(metrics, min_muestras: int = 4) -> float | None:
+    """Tasa de fallos agregada de la telemetría en vivo del enjambre."""
+    if not metrics or not hasattr(metrics, "provider_calls"):
+        return None
+    calls = getattr(metrics, "provider_calls", {})
+    if not isinstance(calls, dict):
+        return None
+    total_calls = sum(c.total for c in calls.values() if hasattr(c, "total"))
+    if total_calls < min_muestras:
+        return None
+    total_fails = sum(c.fail for c in calls.values() if hasattr(c, "fail"))
+    return round(total_fails / total_calls, 3)
+
+
+def salud_proveedores_degradada(
+    store=None, metrics=None, umbral: float = UMBRAL_FALLOS_DEGRADACION,
+    min_muestras: int = 4
+) -> tuple[bool, float | None, str]:
+    """
+    Evalúa si la salud de los proveedores está críticamente degradada.
+
+    Devuelve `(degradada, tasa_fallos, motivo)`.
+    `degradada` es True SOLO con evidencia empírica suficiente (tasa >= umbral).
+    """
+    # 1. Telemetría de ejecución activa (más fresca si hay llamadas en curso)
+    tasa_tel = _tasa_fallos_telemetria(metrics, min_muestras=min_muestras)
+    if tasa_tel is not None and tasa_tel >= umbral:
+        return True, tasa_tel, f"telemetria ({tasa_tel * 100:.1f}% fallos)"
+
+    # 2. Sonda canaria periódica (historial persistido en BD)
+    try:
+        from magi.core.providers.sonda import tasa_fallos_reciente
+        tasa_sonda = tasa_fallos_reciente(store, min_muestras=min_muestras)
+    except Exception:
+        tasa_sonda = None
+
+    if tasa_sonda is not None and tasa_sonda >= umbral:
+        return True, tasa_sonda, f"sonda ({tasa_sonda * 100:.1f}% fallos)"
+
+    tasa = tasa_tel if tasa_tel is not None else tasa_sonda
+    return False, tasa, "saludable" if tasa is not None else "sin-datos-suficientes"
+
+
 async def estilo_y_motor(comando: str, motor_gui: str,
-                         estilo_gui: str = "tecnico", llm=None):
+                         estilo_gui: str = "tecnico", llm=None,
+                         store=None, metrics=None):
     """
     El estilo y el motor con los que arranca la tarea.
 
@@ -82,8 +134,20 @@ async def estilo_y_motor(comando: str, motor_gui: str,
                     "estilo", len(comando))
         return estilo_gui or "tecnico", "fast", "heuristica-trivial"
 
-    # No trivial: el estilo lo decide Naoko como siempre, y el motor es el
-    # de la interfaz — aquí no se sube ni se baja nada.
+    # D2 (v5.27.0): degradación deep -> fast si la salud de proveedores está
+    # degradada (>=50% fallos en telemetría o sonda canaria). La misión Tetris
+    # padeció 45+ min con proveedores moribundos en deep.
+    motor_final = motor_gui
+    origen_motor = "interfaz"
+    if motor_gui == "deep":
+        degradada, tasa, motivo = salud_proveedores_degradada(store, metrics)
+        if degradada:
+            motor_final = "fast"
+            origen_motor = f"salud-degradada:{motivo}"
+            logger.warning("[motor] D2: salud degradada (%s) — deep degradado a fast",
+                           motivo)
+
+    # No trivial: el estilo lo decide Naoko como siempre.
     #
     # CON TOPE (3-sep-2026): proveedores muertos a esa hora dejaron el
     # arranque colgado ANTES de publicar SYS_EXEC — la ronda jamás empezaba
@@ -95,8 +159,10 @@ async def estilo_y_motor(comando: str, motor_gui: str,
     try:
         estilo = await asyncio.wait_for(estilo_para(comando, llm=llm),
                                         timeout=ESTILO_TIMEOUT_S)
-        origen = "naoko"
+        origen_estilo = "naoko"
     except Exception as e:                       # mismo criterio que kernel
         logger.debug("[motor] estilo naoko fallo (%s); uso %s", e, estilo_gui)
-        estilo, origen = estilo_gui, "fallback"
-    return estilo, motor_gui, origen
+        estilo, origen_estilo = estilo_gui, "fallback"
+
+    origen = origen_motor if origen_motor != "interfaz" else origen_estilo
+    return estilo, motor_final, origen

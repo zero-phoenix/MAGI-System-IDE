@@ -63,7 +63,7 @@ __all__ = [
     "registrar", "medias_por_dia", "media_historica", "estado_de_candidatos",
     "resumen_para_panel", "medir_candidato", "medir_todo",
     "medias_por_familia", "toca_sondear", "refrescar_si_toca",
-    "INTERVALO_REFRESCO_S",
+    "INTERVALO_REFRESCO_S", "tasa_fallos_reciente",
 ]
 
 #: EL CANARIO, Y POR QUÉ DEJÓ DE SER «di: funciona»
@@ -551,3 +551,40 @@ async def refrescar_si_toca(llm, candidatos, store, *,
     except Exception as e:                                  # pragma: no cover
         logger.warning("[sonda] el refresco falló: %s", e)
         return 0, f"falló: {type(e).__name__}: {e}"
+
+
+def tasa_fallos_reciente(store, ventana_s: float = 7200.0,
+                         min_muestras: int = 4) -> float | None:
+    """
+    Tasa de fallos/respuestas inservibles de la sonda en la ventana reciente.
+
+    Devuelve un float en [0.0, 1.0] con la fracción de fallos (ok=0).
+    Si hay menos de `min_muestras` con datos, devuelve None: sin evidencia
+    suficiente se declara SIN COMPROBAR en vez de inventar que la salud está
+    mal o bien.
+    """
+    if not store:
+        return None
+    try:
+        limite_ts = time.time() - max(60.0, ventana_s)
+        with store._conn() as c:
+            row = c.execute(
+                "SELECT COUNT(*) total, SUM(CASE WHEN ok=1 THEN 1 ELSE 0 END) exitos"
+                " FROM sonda_latencia WHERE ts >= ?",
+                (limite_ts,)).fetchone()
+            total = int(row["total"] or 0) if row else 0
+            if total < min_muestras:
+                # Si en la ventana de tiempo hay pocas, miramos las últimas N absolutas
+                row = c.execute(
+                    "SELECT COUNT(*) total, SUM(CASE WHEN ok=1 THEN 1 ELSE 0 END) exitos"
+                    " FROM (SELECT ok FROM sonda_latencia ORDER BY ts DESC LIMIT 20)"
+                ).fetchone()
+                total = int(row["total"] or 0) if row else 0
+            if total < min_muestras:
+                return None
+            exitos = int(row["exitos"] or 0)
+            return round((total - exitos) / total, 3)
+    except Exception as e:                                  # pragma: no cover
+        logger.debug("[sonda] no se pudo calcular tasa de fallos reciente: %s", e)
+        return None
+

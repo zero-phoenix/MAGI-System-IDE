@@ -143,7 +143,6 @@ async def puente(pregunta: str, imagen_b64: str | None = None) -> str:
     if not clave:
         # Sin clave: las familias gratuitas del enjambre en modo flash.
         try:
-            from magi.core.providers.cloud import FreeCloudLLM
             from magi.core.providers.base import CompletionRequest, Message
             reg = None
             mensajes = [Message("system",
@@ -161,9 +160,7 @@ async def puente(pregunta: str, imagen_b64: str | None = None) -> str:
         except Exception as e:                     # sin red o todo caído
             return f"NO LO SÉ (puente no disponible: {e})"
     # Con clave: el modelo flash multimodal (imagen opcional vía image_url).
-    import base64
     import json as _json
-
     import urllib.request
     contenido: list | str = pregunta
     if imagen_b64:
