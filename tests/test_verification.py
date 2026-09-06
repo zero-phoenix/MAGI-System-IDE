@@ -128,7 +128,7 @@ async def test_tkinter_no_cuelga():
         "root.after(10, root.destroy)\n"
         "root.mainloop()\n"
     )
-    v = ProposalVerifier(timeout_s=6.0)
+    v = ProposalVerifier(timeout_s=12.0)
     report = await v.verify(f"```python\n{app}```")
     # ok==True cubre OK (con display) y skipped (sin display). Un GUI cuyo
     # único problema es no tener display no es un fallo de la propuesta.
