@@ -85,20 +85,19 @@ def build_registry() -> ToolRegistry:
                     break
         if seccion is None:
             disponibles = ", ".join(sorted(datos.get("consolas") or {}))
-            return ToolResult(
-                False, "", error=(f"no conozco '{consola}'. Disponibles: "
-                                  f"{disponibles}; 'pc' para jugar en computadora"))
-        cuerpo = seccion if isinstance(seccion, str) else json.dumps(
-            seccion, ensure_ascii=False, indent=2)
+            return ToolResult(False, "", error=f"no conozco '{consola}'. Disponibles: {disponibles}; 'pc'")
+        cuerpo = seccion if isinstance(seccion, str) else json.dumps(seccion, ensure_ascii=False, indent=2)
         extra = ""
         decomp = datos.get("decompilacion_y_puertos") or {}
         if decomp and any(p in clave for p in ("decomp", "port", "puerto")):
             extra = "\n\nDECOMP/PENDIENTE-DE-PORT: ver decompilacion_y_puertos."
         return ToolResult(True, f"{clave}: {cuerpo}{extra}")
 
-    # LILIM (v12): las herramientas de la capa local viven en su módulo.
+    # LILIM (v12) y Percepción Web (F1)
     from .lilim_tools import registrar as _registrar_lilim
+    from .web_tools import registrar as _registrar_web
     _registrar_lilim(reg)
+    _registrar_web(reg)
 
     @reg.tool("read_file", "Lee un fichero de texto. Usa offset/limit para ficheros grandes.",
               {"type": "object", "properties": {
