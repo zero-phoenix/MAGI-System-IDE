@@ -77,7 +77,10 @@ export function useMagiSocket(port: number = 20128) {
                 // El informe dice lo que se paró DE VERDAD, incluidos los
                 // procesos que no murieron. Un botón de parada no puede
                 // devolver algo con aspecto de éxito sin haber parado nada.
+                useMagiStore.getState().setCancelReport(payload);
                 appendTerminal(payload.detail || 'Cancelación completada');
+              } else if (topic === 'task.plan') {
+                useMagiStore.getState().setPlan(payload);
               } else if (topic === 'task.titled') {
                 // v5.3.0 — Naoko tituló la conversación con un resumen IA.
                 useMagiStore.getState().setTaskTitle(payload.task_id, payload.titulo);

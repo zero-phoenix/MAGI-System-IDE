@@ -20,6 +20,8 @@ import ImprovementPanel from './components/ImprovementPanel';
 import ConfigPanel from './components/ConfigPanel';
 import PreviewPanel from './components/PreviewPanel';
 import ProveedoresEnCabecera from './components/ProveedoresEnCabecera';
+import { CancelReportCard } from './components/CancelReportCard';
+import { PlanCard } from './components/PlanCard';
 import type { Command } from './lib/commands';
 import { tail } from './lib/history';
 import Editor from '@monaco-editor/react';
@@ -513,6 +515,12 @@ export default function App() {
                 </>
               );
             })()}
+
+            {/* C1-GUI: Informe visible de parada de emergencia */}
+            <CancelReportCard />
+
+            {/* E1: Tarjeta de plan vivo por tarea */}
+            <PlanCard />
 
             {/* MAGI 9.0 §3.4 — alertas de degradación */}
             {alerts.length > 0 && (

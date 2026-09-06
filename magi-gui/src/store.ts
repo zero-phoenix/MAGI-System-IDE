@@ -117,6 +117,11 @@ interface MagiState {
   setRitsukoStatus: (status: string) => void;
   ritsukoInformes: Array<{ nombre: string; ruta: string; bytes: number }>;
   setRitsukoInformes: (v: Array<{ nombre: string; ruta: string; bytes: number }>) => void;
+
+  cancelReport: any | null;
+  setCancelReport: (report: any | null) => void;
+  plan: any | null;
+  setPlan: (plan: any | null) => void;
 }
 
 export const useMagiStore = create<MagiState>((set) => ({
@@ -300,5 +305,10 @@ export const useMagiStore = create<MagiState>((set) => ({
   ritsukoInformes: [],
   addRitsukoMessage: (msg) => set((state) => ({ ritsukoMessages: [...state.ritsukoMessages, msg] })),
   setRitsukoStatus: (status) => set({ ritsukoStatus: status }),
-  setRitsukoInformes: (v) => set({ ritsukoInformes: v })
+  setRitsukoInformes: (v) => set({ ritsukoInformes: v }),
+
+  cancelReport: null,
+  setCancelReport: (report) => set({ cancelReport: report }),
+  plan: null,
+  setPlan: (plan) => set({ plan: plan })
 }));
