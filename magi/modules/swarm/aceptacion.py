@@ -50,6 +50,16 @@ _AUTOTEST = {
     "como": "--autotest 200",
     "espera": "sale con codigo 0 e imprime los fotogramas por segundo",
 }
+# A2 (v11): el autotest de un JUEGO recorre el ciclo completo CON TECLAS
+# simuladas por el propio juego (mover, rotar, forzar game over, pulsar su
+# tecla de reinicio) y solo entonces imprime GAME_AUTOTEST_OK. La mision
+# Tetris entrego un .exe con la tecla de reinicio rota y "tests en verde":
+# este criterio es la prueba que lo habria cazado antes de entregar.
+_RENDO = {
+    "que": "el ciclo de juego completo con teclas (game over y reinicio)",
+    "como": "--autotest (simula las teclas dentro del juego)",
+    "espera": "sale con codigo 0 e imprime GAME_AUTOTEST_OK",
+}
 _FORMATO = {
     "que": "el formato de color es el pedido",
     "como": "--formato",
@@ -91,6 +101,7 @@ def criterios(encargo: str) -> list[dict]:
         fuera.append(dict(_EXISTE))
     if _JUEGO.search(t):
         fuera.append(dict(_AUTOTEST))
+        fuera.append(dict(_RENDO))
     if _COLOR.search(t):
         fuera.append(dict(_FORMATO))
     if _PRUEBAS.search(t):

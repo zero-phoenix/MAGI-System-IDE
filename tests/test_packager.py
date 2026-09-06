@@ -31,11 +31,18 @@ def hello_project(tmp_path: Path):
 
 @pytest.fixture
 def pygame_project(tmp_path: Path):
-    """Proyecto con pygame para comprobar detección de GUI."""
+    """Proyecto con pygame para comprobar detección de GUI.
+
+    Conforme al contrato A2 (v11): su `--autotest` imprime la marca y sale 0,
+    porque el build de un juego ahora exige el autotest de teclas."""
     p = tmp_path / "pygame_dummy"
     p.mkdir()
     (p / "main.py").write_text(
-        "import pygame\npygame.init()\nprint('ok')\n",
+        "import sys\nimport pygame\npygame.init()\n"
+        "if '--autotest' in sys.argv:\n"
+        "    print('GAME_AUTOTEST_OK')\n"
+        "    raise SystemExit(0)\n"
+        "print('ok')\n",
         encoding="utf-8",
     )
     return p

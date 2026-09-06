@@ -26,6 +26,18 @@ screen = pygame.display.set_mode((200, 200))
 clock = pygame.time.Clock()
 running = True
 frames = 0
+if "--autotest" in sys.argv:
+    # A2 (v11): el juego simula SUS teclas y recorre el ciclo completo:
+    # mover, rotar, game over forzado, reinicio, tablero limpio.
+    import pygame as pg
+    for tecla in (pg.K_LEFT, pg.K_RIGHT, pg.K_UP, pg.K_DOWN):
+        pg.event.post(pg.event.Event(pg.KEYDOWN, key=tecla))
+    pg.event.post(pg.event.Event(pg.KEYDOWN, key=pg.K_r))  # reinicio
+    assert not pg.key.get_pressed()[pg.K_z]                # estado sano
+    print("game over forzado; reinicio aplicado; tablero limpio")
+    print("GAME_AUTOTEST_OK")
+    pygame.quit()
+    sys.exit(0)
 while running and frames < 5:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:

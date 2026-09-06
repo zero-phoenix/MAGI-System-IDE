@@ -144,3 +144,19 @@ Escritorio como evidencia, con su defecto de reinicio documentado.
    C1 con llamadas en vuelo interrumpidas.
 3. Trinquetes intactos; `orchestrator.py` 1550/1550 — extraer antes de tocar.
 4. Publicar release con notas concretas; conservar TODOS los releases.
+
+
+## ESTADO DE EJECUCIÓN (6-sep-2026)
+
+| Paq | Estado | Evidencia |
+|---|---|---|
+| B1 | ✅ v5.23.1 | `comandos.py` + 6 pruebas; el caso exacto «task.cancel X» tecleado es test |
+| A1 | ✅ v5.23.1 | `escribir_manifiesto` en packager; el E2E verifica el manifiesto junto al binario |
+| A3 | ✅ v5.23.1 | el tool exige fuente del journal; el CI lo validó tumbando la v5.23.0 |
+| C3 | ✅ v5.23.1 | `producto_sin_humo` en contraste + 3 pruebas |
+| D1 | ✅ v5.23.1 | filtro `_RUIDOSOS` en el bus handler + 2 pruebas |
+| B3/C2 | ✅ v5.23.1 | SYS_EXEC desplegable real; motivo del input en aprobar/cancelar |
+| A2 | ✅ v5.24.0 | `interactivo.py` (3 estados) ejecutado por el packager para juegos + criterio de aceptación; cazó a los fixtures no conformes |
+| C1 | ◐ | el informe de cancelación YA dice la verdad («no había nada en marcha» era cierto: bucles cerrados en espera de aprobación); falta pintar el informe en la GUI en vez del Terminal |
+| T5 (R rota del tetris.exe) | ◐ | el artefacto actual sigue roto; los próximos juegos se entregan con autotest de teclas (A2) |
+| D2/E1-E3 | ⏳ | sin empezar |

@@ -1,3 +1,42 @@
+# v5.24.0 — A2: los juegos se entregan jugados, no solo compilados
+
+**Qué cambia:** el segundo bloque crítico del megaplan v11. La misión Tetris
+entregó un .exe con la tecla de reinicio rota y «tests en verde» — porque
+los tests solo comprobaban que el fichero existía. Ahora un juego se
+verifica JUGÁNDOLO.
+
+**Lo concreto:**
+
+- **`magi/modules/studio/interactivo.py`** — el autotest de un juego lanza
+  el artefacto con `--autotest` y decide en TRES estados: `verde` (código 0
+  Y la marca GAME_AUTOTEST_OK), `rojo` (corrió y no llegó: el juego no
+  recorrió su ciclo con teclas) y `sin_comprobar` (cuelgue o exe de ventana
+  sin consola — la regla de la casa: no comprobado NO es roto).
+- **El packager lo ejecuta tras compilar** cualquier proyecto pygame/
+  tkinter: `rojo` frena la entrega con la salida del juego; `sin_comprobar`
+  avanza avisando «SIN COMPROBAR — no cuenta como probado».
+- **El contrato de aceptación lo exige de antemano** (criterio nuevo junto
+  al de `--autotest 200`): el juego debe simular SUS teclas dentro del
+  autotest — mover, rotar, forzar game over, pulsar su reinicio — y solo
+  entonces imprimir la marca.
+- **Verificado contra los propios tests del repo**: los dos fixtures pygame
+  tuvieron que volverse conformes — A2 cazó a su primer juego en el primer
+  build. La compuerta completa quedó en verde con la suite entera a cero.
+
+**Nota:** también se releyó el hallazgo T8 de la misión: PARAR ESTA sí
+funciona cuando hay bucle vivo; lo que pareció «no para nada» era la espera
+de aprobación (bucle ya cerrado por diseño) sobre una tarea zombi. El plan
+de procedencia (A1/A3) y esta A2 cierran el ciclo de entrega honesta; C1
+queda reformulado como honestidad del informe de cancelación (el informe ya
+dice la verdad — falta pintarlo mejor en la GUI).
+
+---
+
+**4 pruebas nuevas** (los tres estados del autotest + lanzamiento
+imposible). Suite completa a cero fallos; huérfanos en 80; techos intactos.
+
+---
+
 # v5.23.1 —
 
 **Errata (v5.23.1):** el release v5.23.0 se etiquetó antes de que la

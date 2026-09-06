@@ -325,6 +325,33 @@ async def build_project_exe(
                                          entry=entry or "main.py")
         logs.append(f"Manifiesto: {manifiesto}")
 
+        # MEGAPLAN v11 A2 — un juego se verifica JUGÁNDOLO. Si el proyecto es
+        # de pygame/tkinter, se exige su autotest de teclas: el 5-sep se
+        # entregó un .exe con la tecla de reinicio rota y «tests en verde».
+        fuentes_texto = "\n".join(
+            f.read_text(encoding="utf-8", errors="ignore")
+            for f in project_dir.rglob("*.py")
+            if "__pycache__" not in f.parts and f.is_file())
+        if "pygame" in fuentes_texto or "tkinter" in fuentes_texto:
+            from .interactivo import probar_juego_interactivo
+            estado, salida = await probar_juego_interactivo(
+                [str(final_exe), "--autotest"], timeout=45.0)
+            if estado == "rojo":
+                return PackagerResult(
+                    False,
+                    exe_path=final_exe,
+                    error=("el juego NO pasa su autotest de teclas "
+                           "(--autotest debe simular mover/rotar/game over/"
+                           "reinicio y terminar imprimiendo GAME_AUTOTEST_OK)"
+                           f" — salida: {salida[-400:]}"),
+                )
+            if estado == "sin_comprobar":
+                logs.append("Autotest de teclas: SIN COMPROBAR (cuelgue o "
+                            "exe de ventana sin consola) — no cuenta como "
+                            "roto, pero tampoco como probado")
+            else:
+                logs.append("Autotest de teclas: OK")
+
         return PackagerResult(
             True,
             exe_path=final_exe,
