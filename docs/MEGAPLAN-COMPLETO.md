@@ -21,14 +21,18 @@ tiró por creerle al documento.
 
 - **MAGI**: IDE con enjambre de 3 IA (MELCHIOR tesis/BALTHASAR antítesis/CASPER
   síntesis) + NAOKO (supervisora, repara) + RITSUKO (auditora, solo informa) +
-  **LILIM** (capa local superveloz, v12). Inferencia gratuita vía g4f
-  (alineado a 8.1.1). 63 herramientas. ~1680 pruebas Python + 131 GUI.
+  **LILIM** (capa local superveloz, v12 determinista + v13 mielina neuronal y
+  sentidos periféricos). Inferencia gratuita vía g4f (alineado a 8.1.1) +
+  KoboldCpp local opcional. 67 herramientas. 1786 pruebas Python + 131 GUI.
 - **YabauseVita**: emulador de Sega Saturn para PS Vita. Bitácora:
   `yabausevita-zp/docs/BITACORA-OPTIMIZACION.md` (hallazgos A1-A27, reglas R1-R16).
-- **LILIM** (v12): capa LOCAL determinista, 0 ms-3,5 ms, sin GPU, sin red,
-  sin inventar: motor EPD (activación escasa reportada), traductor es/en/de/
-  ru/ja/zh, novedades 2023-2026 falsables, M4 (conocimiento con URL o no entra),
-  CONTEXTO inyectado a los nodos. Plan completo: `docs/MEGAPLAN-v12-lilim.md`.
+- **LILIM** (v12-v13): capa LOCAL dual: 1) Determinista (0 ms-3,5 ms, sin GPU,
+  sin red: motor EPD, traductor 6 idiomas, novedades falsables 2023-2026, M4
+  con URL obligatoria, contexto inyectado); 2) Mielina neuronal y sentidos
+  (v13): cliente KoboldCpp (Qwen 2.5 1.5B GGUF Q4_K_M adaptado a i7-3770 /
+  GTX 1050 2GB), aceleración dialéctica pre-AST/propuesta/arbitraje, Ojos
+  (rasterización PDF/imágenes 150-300 DPI tipo Google Lens), Oídos (WAV/MP3/OGG
+  y WASAPI), Brazos (actuación de workspace, generación MD/DOCX, SHA-256).
 
 ## 2. ESTADO VERIFICADO AL CIERRE (6-sep-2026)
 
@@ -43,7 +47,7 @@ tiró por creerle al documento.
 | v5.24.0 | A2: autotest de teclas de 3 estados (verde/rojo/sin_comprobar) ejecutado por el packager | ✅ |
 | v5.25.0 | LILIM v1: `lilim_pregunta`, `repos_de`, controles ampliados (PS2, pc_jugando, decomp/puertos), g4f 8.1.1 auditado (32/32) | ✅ |
 | v5.26.0 | LILIM multimodal: motor EPD, traductor 6 idiomas, novedades 2023-2026, lilim_ensenar (M4), CONTEXTO inyectado, A2 con marca por fichero | ✅ |
-| v5.27.0 | Enjambre v6 (F1-F5), degradación D2, clon shallow L2, CancelReport C1-GUI, E2/E3 Ronda 4 CDB/SH2 | ✅ |
+| v5.27.0 | Enjambre v6 (F1-F5), degradación D2, clon shallow L2, CancelReport C1-GUI, E2/E3 Ronda 4 CDB/SH2, LILIM v13 (Mielina neuronal KoboldCpp Qwen 2.5 1.5B, Ojos Google Lens con PyMuPDF, Oídos acústicos, Brazos workspace) | ✅ |
 
 **Repositorio limpio en `main`, CI verde, todos los releases conservados
 (ninguno se borra NUNCA).**
@@ -57,6 +61,7 @@ tiró por creerle al documento.
 | **v10** (megaplan base) | D1-D6, M1, M2, P4, auditoría en vivo, **E1**, **E2**, **E3** | **E4** dynarec solo con Vita real; **P1-P3** diferidas con precondición |
 | **v11** (Tetris) | A1, A2, A3, B1, B3, C2, C3, D1, **C1-GUI**, **D2** | **T5** el tetris.exe del Escritorio sigue con la R rota |
 | **v12** (Lilim) | L1 + motor EPD + traductor + novedades + M4 + contexto + **L2** + **L3** + **L4** | **L5** panel de Lilim en la GUI |
+| **v13** (Lilim Mielina) | Cliente KoboldCpp, acelerador mielina (Melchior/Balthasar/Casper/Naoko/Ritsuko), Ojos (Lens/PDF), Oídos (acústico), Brazos (workspace/MD/DOCX/SHA-256) | (Completado) |
 
 ### Pendientes prioritarios (el orden recomendado)
 

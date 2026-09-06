@@ -24,9 +24,28 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .brazos import exportar_a_docx, exportar_a_markdown, recortar_region_imagen
+from .cliente_kobold import ClienteKobold
+from .mielina import (
+    clasificar_intencion_local,
+    lubricar_arbitraje,
+    lubricar_critica,
+    lubricar_propuesta,
+    lubricar_vision,
+    pre_auditoria_estatica,
+)
+from .oidos import escuchar_subsistema_emulador, inspeccionar_fichero_audio
+from .ojos import ResultadoLens, analizar_documento_escaneado, rasterizar_pagina_pdf
+
 __all__ = ["pregunta", "repos_de", "NO_LO_SE", "responde_si_sabe",
            "registrar_conocimiento", "repos_clonar", "desregistrar_clon",
-           "enciclopedia", "verificar_novedades_fuente"]
+           "enciclopedia", "verificar_novedades_fuente", "ClienteKobold",
+           "lubricar_propuesta", "lubricar_critica", "lubricar_arbitraje",
+           "lubricar_vision", "clasificar_intencion_local",
+           "pre_auditoria_estatica", "analizar_documento_escaneado",
+           "rasterizar_pagina_pdf", "ResultadoLens",
+           "inspeccionar_fichero_audio", "escuchar_subsistema_emulador",
+           "exportar_a_markdown", "exportar_a_docx", "recortar_region_imagen"]
 
 NO_LO_SE = "NO LO SÉ (local) — escala al enjambre: razonamiento y verificación de nube."
 

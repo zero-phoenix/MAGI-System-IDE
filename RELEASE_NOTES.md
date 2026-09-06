@@ -1,9 +1,10 @@
-# v5.27.0 — Enjambre v6, percepción web, degradación de motor D2 y plan vivo
+# v5.27.0 — Enjambre v6, percepción web, degradación de motor D2, plan vivo y Lilim Mielina
 
-**Qué cambia:** Se consolida el Enjambre v6 (subagentes por familia de modelo, plan vivo por tarea, compuerta obligatoria automatizada y veredicto de desvío), se añade percepción web completa sin navegador ni dependencias pesadas, degradación de motor `deep` → `fast` por salud de proveedores, clon shallow de repositorios con procedencia en journal, y visibilidad de cancelaciones e hitos en la GUI.
+**Qué cambia:** Se consolida el Enjambre v6 (subagentes por familia de modelo, plan vivo por tarea, compuerta obligatoria automatizada y veredicto de desvío), se añade percepción web completa sin navegador ni dependencias pesadas, degradación de motor `deep` → `fast` por salud de proveedores, clon shallow de repositorios con procedencia en journal, visibilidad de cancelaciones e hitos en la GUI, y la expansión **Lilim Mielina** con inferencia neuronal local (KoboldCpp + Qwen 2.5 1.5B GGUF Q4_K_M) y sentidos periféricos (Ojos/Lens con PyMuPDF, Oídos acústicos y Brazos de workspace).
 
 **Lo concreto:**
 
+- **Lilim Mielina & Sentidos Tridimensionales:** Inferencia neuronal local ultrarrápida adaptada al hardware anfitrión (Intel Core i7-3770 sin AVX2 + NVIDIA GTX 1050 Pascal 2 GB VRAM) usando runtime KoboldCpp (`koboldcpp-oldpc.exe` / `cu11_oldcpu`) y pesos Qwen 2.5 1.5B Instruct GGUF Q4_K_M (~986 MB VRAM). Acelerador dialéctico que actúa como vaina de mielina: pre-propuesta para Melchior, pre-auditoría estática AST en 0 ms y contraejemplos para Balthasar, matriz sintética para Casper, foco visual para Naoko y clasificación heurística para Ritsuko. Tríada sensorial periférica: Ojos (rasterización e inspección visual tipo Google Lens a 150-300 DPI con PyMuPDF), Oídos (análisis de cabeceras WAV/MP3/OGG e integración WASAPI) y Brazos (generación de informes Markdown con procedencia, exportación a DOCX y sellado de integridad SHA-256).
 - **D2 — Degradación de motor por salud:** cuando los proveedores gratuitos de `deep` sufren degradación o timeouts excesivos, el motor degrada automáticamente a `fast` registrando el origen y alertando al operador sin bloquear la máquina.
 - **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
 - **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` HTTP con presupuesto por ronda y formato obligatorio de cita con URL y fecha. Si no hay red, resultado explícito `SIN COMPROBAR`.
@@ -14,7 +15,7 @@
 - **C1-GUI — Informe de cancelación visible:** el reporte real de procesos liquidados y bucles detenidos (`CancelReport`) se visualiza en la conversación.
 - **L3-L4 — Lilim enciclopédico:** verificación periódica de novedades tecnológicas contra fuentes reales y enciclopedia técnica estructurada por dominios.
 
-**67 herramientas** en el catálogo. **1766 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
+**67 herramientas** en el catálogo. **1786 tests en Python** + **131 tests en TypeScript/GUI**. Techos de líneas intactos (`kernel.py` 1069/1070, `orchestrator.py` 1534/1550, `builtin.py` 798/800); huérfanos en 80 exactos.
 
 ---
 

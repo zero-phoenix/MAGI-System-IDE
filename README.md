@@ -14,6 +14,7 @@ sin suscripciones.
 
 ## Qué hay de nuevo en la v5.27.0: enjambre v6, percepción web, degradación D2 y plan vivo
 
+- **Lilim Mielina & Sentidos Tridimensionales:** Inferencia local ultrarrápida (KoboldCpp con Qwen 2.5 1.5B Q4_K_M adaptado a i7-3770 / GTX 1050), acelerador dialéctico («vaina de mielina») para lubricar Melchior, Balthasar, Casper, Naoko y Ritsuko, y tríada sensorial completa: Ojos (inspección de PDFs escaneados e imágenes tipo Google Lens a 150-300 DPI con PyMuPDF), Oídos (validación acústica WAV/MP3/OGG y loopback WASAPI) y Brazos (actuación de workspace con informes Markdown/DOCX y hashing SHA-256).
 - **D2 — Degradación de motor por salud:** cuando los proveedores gratuitos de `deep` fallan o superan el umbral de latencia/errores, el sistema degrada automáticamente a `fast` sin colgar la máquina.
 - **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
 - **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` HTTP con presupuesto estricto por ronda y citas con URL + fecha obligatorias.
@@ -41,23 +42,28 @@ segunda ronda arranca en Melchior con la síntesis previa de Casper + tus
 observaciones.
 
 ```
-TU PETICIÓN
-    │
-    ▼
-NAOKO elige el estilo
-    │
-    ▼
-MELCHIOR  ──TESIS────▶  BALTHASAR  ──ANTÍTESIS────▶  CASPER
-(construye)            (refuta con evidencia)       (SÍNTESIS al usuario)
-     ▲                        ▲                          │
-     └──── BITÁCORA + PROTOCOLO R9 + HERRAMIENTAS ───────┘
-     (lo ya aprendido y lo que la corrida exige, inyectados ARRIBA)
-                                                         │
-                                                         ▼
-                                              RESPUESTA DEFINITIVA (en español)
+                          ┌───────────────────────────┐
+                          │   TU PETICIÓN / ARCHIVO   │
+                          └─────────────┬─────────────┘
+                                        │
+           ┌────────────────────────────┴───────────────────────────┐
+           │ LILIM (Sentidos): Ojos (Lens/PDF) · Oídos · Brazos      │
+           └────────────────────────────┬───────────────────────────┘
+                                        ▼
+                               NAOKO elige el estilo
+                                        │
+                                        ▼
+ MELCHIOR (gpt)  ───────TESIS───────▶  BALTHASAR (gemini)  ──────ANTÍTESIS──────▶  CASPER (command)
+   (construye)                           (refuta con evidencia)                       (SÍNTESIS)
+        ▲                                          ▲                                      │
+        │      ════════════════════════════════════╧═══════════════════════════════════   │
+        └──────║ LILIM (Vaina de Mielina): lubricación local 0-50ms / KoboldCpp Qwen ║◀───┘
+               ════════════════════════════════════════════════════════════════════════
+                                        │
+                                        ▼
+                         RESPUESTA DEFINITIVA (en español)
 
-RITSUKO  ──audita a NAOKO y su relación con los tres──▶  informes y megaplanes
-(no toca nada: solo informa, en su propia pestaña)
+ RITSUKO (auditora) ──audita el bus y la salud sin tocar nada──▶ informes y megaplanes
 ```
 
 **Ritsuko** es la quinta IA, y existe porque nadie comprobaba a la cuarta.
@@ -140,6 +146,78 @@ audita, tiene su propio chat y su propia pestaña, y habla solo español o ingl�
   distintas.
 - **Escribe informes descargables** con la evidencia que los sostiene, en
   `%LOCALAPPDATA%\MagiSystem\informes-ritsuko`.
+
+---
+
+## Lilim: La vaina de mielina local y los sentidos periféricos
+
+Lilim no es un cuarto árbitro dialéctico ni un auditor pasivo: es la **vaina de mielina** del sistema nervioso de MAGI y su enlace sensorial periférico. En biología, la mielina recubre los axones neuronales para permitir una conducción saltatoria ultraveloz de los impulsos. En MAGI, Lilim actúa como un lubricante cognitivo local (latencia de 0 ms en chequeos deterministas a ~45 tok/s en inferencia VLM) que acelera, desahoga y protege a Melchior, Balthasar, Casper, Naoko y Ritsuko.
+
+### Arquitectura de Inferencia Neuronal Local: KoboldCpp + Qwen 2.5 1.5B
+
+Para dotar a Lilim de capacidad de razonamiento e inspección visual en local sin comprometer la estabilidad del sistema ni saturar el hardware, la arquitectura se asienta sobre restricciones rigurosamente auditadas:
+
+- **Motor KoboldCpp (`koboldcpp-oldpc.exe` / `cu11_oldcpu`):** El host opera con un procesador Intel Core i7-3770 (Ivy Bridge, SSE4.2 y AVX1, sin soporte para AVX2 ni FMA3). KoboldCpp es el único runtime contemporáneo que distribuye compilaciones especializadas sin instrucciones AVX2 ilegales, integrando descarga acelerada cuBLAS sobre GPUs NVIDIA Pascal.
+- **VLM / LLM Local (Qwen 2.5 1.5B Instruct en GGUF Q4_K_M):** Con un peso aproximado de ~986 MB en VRAM, el modelo cabe íntegramente en la memoria de una NVIDIA GeForce GTX 1050 de 2 GB (~1.5 GB libres tras composición de escritorio DWM), manteniendo los tensores en GPU y evitando el trasvase punitivo de memoria a la RAM del sistema.
+- **Cliente Asíncrono de Bajo Impacto:** Implementado en la biblioteca estándar de Python (`urllib.request` asíncrono / JSON), sin dependencias pesadas de frameworks externos. Si el endpoint de KoboldCpp (`http://127.0.0.1:5001`) no está activo o se encuentra ocupado, Lilim degrada de manera transparente (fail-safe) a los analizadores heurísticos deterministas de MAGI o a los proveedores en nube.
+
+### La Conducción Saltatoria: Lubricación Dialéctica (Mielina)
+
+El módulo `magi.modules.lilim.mielina` interviene antes y durante cada fase del debate dialéctico:
+
+1. **Aceleración de Melchior (`lubricar_propuesta`):** Analiza sintáctica y léxicamente la intención del encargo. Extrae esqueletos de código y estructuras probadas, permitiendo que Melchior redacte la tesis sin consumir ciclos en boilerplate.
+2. **Pre-auditoría Estática de Balthasar (`pre_auditoria_estatica` & `lubricar_critica`):** Ejecuta una verificación previa mediante el analizador sintáctico abstracto (AST de Python) en 0 ms. Si la propuesta de Melchior contiene errores sintácticos evidentes, Balthasar los refuta de inmediato con evidencia determinista antes de recurrir a modelos externos.
+3. **Pre-síntesis de Casper (`lubricar_arbitraje`):** Evalúa solapamientos y contradicciones directas entre tesis y antítesis, entregando a Casper una matriz sintetizada para cerrar el veredicto en una única pasada fluida.
+4. **Optimización de Diagnóstico para Naoko (`lubricar_vision`):** Pre-filtra inconsistencias visuales y métricas de pantalla para focalizar los auto-arreglos.
+5. **Heurística Local para Ritsuko (`clasificar_intencion_local`):** Clasifica la taxonomía de la tarea en local para alimentar las auditorías de Ritsuko sin agotar la cuota de red.
+
+### Tríada Sensorial Periférica: Ojos, Oídos y Brazos
+
+Lilim extiende la interacción de MAGI más allá del texto plano mediante tres subsistemas especializados:
+
+- **👁️ Ojos (`magi.modules.lilim.ojos` — Google Lens Local):**
+  - **Rasterización de Documentos:** Transforma archivos PDF (vectoriales o escaneados) en mapas de bits de alta fidelidad mediante PyMuPDF (`fitz.Matrix`) a resoluciones configurables (150-300 DPI).
+  - **Extracción de Layout y Bloques:** Extrae bloques de texto, coordenadas delimitadoras (`bbox`), metadatos de autoría y recuentos de página.
+  - **Inspección Visual Multimodal:** Analiza imágenes escaneadas, diagramas y capturas de pantalla enviándolas al proyector visual de KoboldCpp / Qwen multimodal o puentes de visión, identificando texto ilegible, patrones de diseño y anomalías visuales.
+- **👂 Oídos (`magi.modules.lilim.oidos`):**
+  - **Inspección de Contenedores de Audio:** Analiza cabeceras de archivos WAV (PCM no comprimido), MP3 y OGG sin necesidad de decodificadores externos pesados.
+  - **Verificación Acústica:** Extrae frecuencia de muestreo (Hz), canales, profundidad de bits y tasa de transferencia.
+  - **Integración con Loopback:** Conecta con el analizador de audio WASAPI de MAGI (`percepcion/oidos.py`) para confirmar la presencia o ausencia de sonido real en juegos y emuladores.
+- **🦾 Brazos (`magi.modules.lilim.brazos`):**
+  - **Actuación y Reportes de Workspace:** Genera automáticamente informes técnicos estructurados en Markdown con trazabilidad, marcas de tiempo y procedencia.
+  - **Generación Documental DOCX:** Exporta dictámenes, resoluciones y especificaciones a formato Microsoft Word nativo utilizando `docx`.
+  - **Manipulación de Imágenes:** Recorta regiones de interés (ROI / bounding boxes) sobre capturas de pantalla de diagnóstico.
+  - **Certificación de Integridad:** Computa resúmenes criptográficos SHA-256 inmutables de los artefactos generados para auditoría.
+
+### Diagrama de Flujo y Mielinización
+
+```mermaid
+flowchart TD
+    User([Petición / Documento / Audio]) --> Sentidos[Lilim Sentidos]
+    
+    subgraph Percepcion [Percepción Periférica]
+        Sentidos -->|PDF / Imagen| Ojos[Ojos: PyMuPDF + Lens VLM]
+        Sentidos -->|Audio / Loopback| Oidos[Oídos: WAV / MP3 / WASAPI]
+    end
+    
+    Percepcion --> Naoko[Naoko: Supervisora]
+    
+    subgraph Dialectica [Bucle Dialéctico Mielinizado]
+        Naoko --> Melchior[Melchior: Tesis]
+        Melchior --> Balthasar[Balthasar: Antítesis]
+        Balthasar --> Casper[Casper: Síntesis]
+        
+        Mielina[(Lilim Mielina: KoboldCpp Qwen 2.5 1.5B / AST)]
+        Mielina -.->|Esqueleto previo| Melchior
+        Mielina -.->|Pre-auditoría AST 0ms| Balthasar
+        Mielina -.->|Matriz de arbitraje| Casper
+    end
+    
+    Casper --> Brazos[Brazos: Actuación Workspace / DOCX / MD]
+    Brazos --> Entrega([Respuesta Final Verificada])
+    
+    Ritsuko[Ritsuko: Auditora] -.->|Vigila telemetría| Dialectica
+```
 
 ---
 
@@ -350,7 +428,7 @@ común**, sin otra IA supervisándolo. Cada versión acerca eso:
   versión del kernel en vivo; el sistema se audita usándose a sí mismo y lo
   que encuentra se corrige con la medición pegada al commit.
 
-**1766 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
+**1786 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:

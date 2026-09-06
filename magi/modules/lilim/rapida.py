@@ -136,9 +136,25 @@ def _clave() -> str | None:
 async def puente(pregunta: str, imagen_b64: str | None = None) -> str:
     """
     La respuesta rápida con inteligencia REAL pero acotada: una llamada al
-    modelo flash con temperatura baja y SIN herramientas. Es la antítesis
-    del enjambre: una voz, una vuelta, sin debate.
+    modelo flash o al motor neural local KoboldCpp (Qwen 2.5 1.5B) con
+    temperatura baja y SIN herramientas.
     """
+    # Nivel local neural: KoboldCpp con Qwen 2.5 1.5B (0 ms latencia de red, offline)
+    try:
+        from .cliente_kobold import ClienteKobold
+        cli = ClienteKobold()
+        if await cli.esta_disponible(timeout=0.6):
+            if imagen_b64:
+                resp_vlm = await cli.vision(pregunta, imagen_b64, max_tokens=400)
+                if resp_vlm:
+                    return f"[vía Lilim Neural VLM] {resp_vlm}"
+            else:
+                resp_txt = await cli.generar(pregunta, max_tokens=350)
+                if resp_txt:
+                    return f"[vía Lilim Neural Local] {resp_txt}"
+    except Exception:
+        pass
+
     clave = _clave()
     if not clave:
         # Sin clave: las familias gratuitas del enjambre en modo flash.
