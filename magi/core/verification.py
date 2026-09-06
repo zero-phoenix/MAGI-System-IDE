@@ -340,6 +340,13 @@ async def _run(cmd: list[str], cwd: Path, timeout: float = 45.0,
             proc.kill()
             await proc.wait()
             return 124, f"timeout tras {timeout}s"
+        except (ValueError, OSError) as e:
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+            return 1, f"error de tubería de E/S: {e}"
     return proc.returncode or 0, out.decode("utf-8", errors="replace")
 
 
