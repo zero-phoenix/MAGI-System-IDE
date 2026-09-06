@@ -6,7 +6,7 @@ mapea el cableado por topics entre `magi-gui/src` y `magi/`.
 | | |
 |---|---:|
 | Comandos conectados (UI → handler) | 19 |
-| Eventos conectados (backend → UI) | 24 |
+| Eventos conectados (backend → UI) | 26 |
 | Sin nadie al otro lado | 0 |
 | Capacidades invisibles | 25 |
 
@@ -50,6 +50,7 @@ _el backend los emite y la UI los nombra_
 - `provider.model_drift`
 - `ritsuko.informe`
 - `ritsuko.log`
+- `ritsuko.ronda_dormida`
 - `ritsuko.status`
 - `swarm.approval_required`
 - `swarm.fases`
@@ -60,6 +61,7 @@ _el backend los emite y la UI los nombra_
 - `task.archived`
 - `task.cancelled`
 - `task.deleted`
+- `task.plan`
 - `task.titled`
 - `task.usage`
 

@@ -1062,9 +1062,8 @@ if __name__ == "__main__":
         kernel = Kernel()
         try:
             await kernel.start()
-            # Mantener el kernel vivo
             await asyncio.Future()
         except KeyboardInterrupt:
             await kernel.shutdown()
-
     asyncio.run(main())
+

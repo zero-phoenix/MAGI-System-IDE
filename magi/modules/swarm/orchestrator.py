@@ -70,14 +70,8 @@ class SwarmOrchestrator:
         self.latest_task_id = None
         self._memory: dict[str, EpisodicMemory] = {}
         self._reconciliadas: list[str] = []
-        # Libro de admisión: toda entrada del usuario queda escrita antes de
-        # decidir qué hacer con ella. Ver `core/store/admision.py`.
         from magi.core.store.admision import LibroDeAdmision
         self.admision = LibroDeAdmision(self.store)
-        # Los agentes necesitan la tienda para medir sus turnos, y el
-        # blackboard es la vía que ya existe para compartir cosas globales.
-        # Pasarla por el constructor de cada agente habría cambiado tres
-        # firmas públicas para un detalle de instrumentación.
         try:
             self.blackboard.post("global.task_store", self.store)
         except Exception:                                 # pragma: no cover
@@ -901,14 +895,14 @@ class SwarmOrchestrator:
             "max_rounds": max_rounds,
             "use_tools": use_tools,
             # Presupuesto (v6.0 §A1): techo de llamadas y tiempo de pared.
-            # `calls_used` solo sube (vía `cobrar` de los agentes); `rebuilds`
-            # cuenta las regeneraciones completas por verificación fallida; el
-            # reloj de pared arranca con cada alta.
             "calls_used": 0,
             "rebuilds": 0,
             "inicio_pared": time.monotonic(),
             "approval_event": asyncio.Event(),
         }
+        from magi.modules.swarm import plan as _plan_mod
+        tarea_plan = _plan_mod.crear_plan_desde_enunciado(task_id, command)
+        self.active_tasks[task_id]["plan"] = tarea_plan
         self._persist(task_id)
         self._amarrar_presupuesto(task_id)
 
@@ -916,6 +910,7 @@ class SwarmOrchestrator:
             topic="TERMINAL_OUT",
             payload={"content": f"[SWARM] Iniciando análisis para la tarea: '{command}'"}
         ))
+        await self.bus.publish(BusEvent(topic="task.plan", payload=tarea_plan.a_dict()))
 
         # Arrancar el bucle de la conversación asíncronamente
         self._spawn_loop(task_id)
@@ -1128,6 +1123,7 @@ class SwarmOrchestrator:
                 # de después. Nunca alarga la ronda: si no llega, se cancela
                 # (`cosechar_recon`) y los ejes siguen como hoy.
                 from magi.modules.swarm import abanico
+                from magi.modules.swarm import subagentes as _subagentes
                 crono = abanico.CronoDeRonda()
                 if recon_task is not None and not recon_task.done():
                     recon_task.cancel()
@@ -1138,9 +1134,11 @@ class SwarmOrchestrator:
                         command=state.get("command", ""),
                         round_num=current_round, engine=engine,
                         narrative_style=style))
-                # La verificación también entra en el abanico: cada variante
-                # se verifica EN CUANDO existe (`tras_cada`), no cuando
-                # terminen todas.
+                elif False:
+                    await _subagentes.despachar_subagente(
+                        nodo="MELCHIOR", familia=self.melchior.family,
+                        mision="recon", bus=self.bus, task_id=task_id)
+                # La verificación entra en el abanico: tras_cada variante.
                 verifier = ProposalVerifier()
 
                 async def _verificar(v, _verificador=verifier):
@@ -1453,30 +1451,17 @@ class SwarmOrchestrator:
                                          ("swarm.entrega_incompleta", {"task_id": task_id, "motivo": humo})):
                         await self.bus.publish(BusEvent(topic=tema, payload=carga))  # noqa: E501
                     break
+                from magi.modules.swarm import cierre as _cierre
+                _cierre.evaluar_cierre_entrega(
+                    verdict.get("decision", ""), verdict.get("feedback", ""),
+                    plan=state.get("plan"))
                 await self._publish_approval(task_id, state, verdict)
 
                 await self.bus.publish(BusEvent(
                     topic="TERMINAL_OUT",
                     payload={"content": "[SWARM] Esperando tu aprobacion interactiva."}))
-                # AQUI NO SE APARCA EL BUCLE ESPERANDO AL USUARIO.
-                #
-                # La v5.5.2 cambio este `break` por
-                # `await state["approval_event"].wait()`. Costo dos cosas:
-                #
-                # 1. La suite se colgaba entera. La tarea no termina nunca, y
-                #    al cerrar el bucle de eventos pytest-asyncio espera para
-                #    siempre. El sintoma no señalaba aqui —el test PASA y lo
-                #    que se cuelga es el desmontaje—, asi que se diagnostico
-                #    como «cuelgue transitorio de xdist». Se reproduce en
-                #    serie, con un solo test y sin xdist.
-                # 2. Dos bucles para la misma tarea: al responder con
-                #    objeciones, `submit_task` reanuda con `_spawn_loop` Y el
-                #    bucle aparcado despertaba con `.set()`. Gasto duplicado
-                #    de cuota, justo lo que esta version venia a frenar.
-                #
-                # Con `break` la corrutina TERMINA, que es lo contrario de
-                # dejar un huerfano: quien reanuda es `_spawn_loop`, que ya se
-                # llama en los tres caminos de vuelta.
+                # AQUÍ NO SE APARCA EL BUCLE: en v5.5.2 await approval_event colgaba la suite entera.
+                # Con break la corrutina termina limpiamente y quien reanuda es _spawn_loop.
                 break  # Pausar el bucle hasta recibir input del usuario
             elif verdict["decision"] == "REJECTED_NEEDS_WORK":
                 self.memory_for(task_id).record(

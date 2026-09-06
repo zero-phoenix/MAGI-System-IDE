@@ -72,6 +72,20 @@ class PlanTarea:
             lineas.append(item.a_linea())
         return "\n".join(lineas)
 
+    def a_dict(self) -> dict:
+        return {
+            "task_id": self.task_id,
+            "items": [
+                {
+                    "id": item.id,
+                    "descripcion": item.descripcion,
+                    "estado": item.estado,
+                    "motivo": item.motivo,
+                }
+                for item in self.items
+            ],
+        }
+
     def desde_markdown(self, md_text: str) -> None:
         self.items.clear()
         for linea in md_text.splitlines():

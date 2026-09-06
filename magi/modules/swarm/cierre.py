@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import logging
 import subprocess
-import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from magi.core.paths import python_executable
 
 from .memoria_persistente import registrar_descarte
 from .plan import PlanTarea, verificar_cierre_plan
@@ -48,7 +49,10 @@ def ejecutar_compuerta_rapida(
     if not script_verificar.exists():
         return False, f"No se encontró scripts/verificar.py en {script_verificar}"
 
-    cmd = [sys.executable, str(script_verificar), "--rapido"]
+    py = python_executable()
+    if not py:
+        return False, "No se encontró un intérprete de Python válido"
+    cmd = [py, str(script_verificar), "--rapido"]
     try:
         res = subprocess.run(
             cmd,
