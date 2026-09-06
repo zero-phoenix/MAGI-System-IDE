@@ -1,17 +1,17 @@
 :root {
-  --bg: #000;
-  --sf: #0A0E0E;
-  --node: #5BC5E0;
-  --dim: #2E6D7D;
-  --acc: #F08000;
-  --acc2: #FFA733;
+  --bg: #03060a;
+  --sf: #070d14;
+  --node: #00D2C4;
+  --dim: #005953;
+  --acc: #FF6600;
+  --acc2: #FFA726;
   --ink: #000;
-  --txt: #F5A65B;
+  --txt: #FFA040;
   --ok: #39FF7A;
   --warn: #FFC400;
   --dang: #FF2D2D;
   --und: #8A8F98;
-  --gr: #1A2A2E;
+  --gr: #0e2429;
 }
 
 * {

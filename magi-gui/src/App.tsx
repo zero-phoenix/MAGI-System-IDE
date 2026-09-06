@@ -314,12 +314,18 @@ export default function App() {
   return (
     <>
       <div className="tt">
-        <b>MAGI SYSTEM IDE</b> — ejecutable de escritorio. Interfaz horizontal fija.
+        <b>MAGI SYSTEM IDE</b> — Supercomputadora Táctica Autónoma (independiente de Venim). Interfaz horizontal fija.
       </div>
 
       <div className="bar">
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <span className="brand">MAGI SYSTEM IDE {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}</span>
+          <span className="brand">
+            MAGI SYSTEM IDE
+            <span style={{ color: "var(--node)", fontSize: "10px", padding: "1px 6px", border: "1px solid var(--node)", borderRadius: "2px", marginLeft: "8px", letterSpacing: "0.08em" }}>
+              EVANGELION TACTICAL
+            </span>{" "}
+            {connected ? "[EN LÍNEA]" : "[DESCONECTADO]"}
+          </span>
         </div>
         <div className="q">
           {/* Los dos selectores no decían qué hacen: "MOTOR: Inferencia

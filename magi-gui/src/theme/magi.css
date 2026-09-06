@@ -1,22 +1,22 @@
 :root {
-  /* T12 - Premium Design System */
-  --magi-bg: #030508;
-  --magi-surface: #0a0e14;
-  --magi-surface-hover: #131a26;
-  --magi-node: #3b82f6;
-  --magi-node-dim: #1e3a8a;
-  --magi-accent: #f97316;
-  --magi-accent-hi: #fb923c;
+  /* Authentic Evangelion MAGI Design System */
+  --magi-bg: #03060a;
+  --magi-surface: #070d14;
+  --magi-surface-hover: #0f1a26;
+  --magi-node: #00d2c4;
+  --magi-node-dim: #005852;
+  --magi-accent: #ff6600;
+  --magi-accent-hi: #ffa726;
   --magi-ink: #000000;
   --magi-text: #e2e8f0;
-  --magi-text-dim: #94a3b8;
+  --magi-text-dim: #8fa5b5;
   --magi-ok: #10b981;
-  --magi-warn: #eab308;
+  --magi-warn: #f59e0b;
   --magi-danger: #ef4444;
   --magi-undecided: #64748b;
-  --magi-grid: rgba(255, 255, 255, 0.05);
-  --magi-glow-accent: rgba(249, 115, 22, 0.5);
-  --magi-glow-node: rgba(59, 130, 246, 0.5);
+  --magi-grid: rgba(0, 210, 196, 0.08);
+  --magi-glow-accent: rgba(255, 102, 0, 0.45);
+  --magi-glow-node: rgba(0, 210, 196, 0.45);
   
   --font-prose: "Inter", "Outfit", system-ui, sans-serif;
   --font-code: "JetBrains Mono", "Fira Code", monospace;
