@@ -124,18 +124,37 @@ async def replica_de_melchior(agent, *, task_id: str, objeciones: str,
     mio.rama = f"{task_id}/r{round_num}/melchior/replica"
     mio.rama_rol = "réplica"
     mio.rama_profundidad = 1
+    # POR QUE ESTE PROMPT ES ASI, Y COMO ERA ANTES
+    # ============================================
+    # La primera version ofrecia la concesion PRIMERO, la calificaba de
+    # «salida legítima, no una derrota», y cerraba con «Balthasar ejecutó el
+    # código, y tú no» — que le da autoridad epistémica superior al crítico.
+    # Tres empujones en la misma dirección.
+    #
+    # Medido sobre las 14 primeras rondas REALES del registro:
+    # `concedio: true` en las **14**. No es que la salida sea legítima: es
+    # que era la única. Y una réplica que siempre se rinde invierte el
+    # mecanismo — Casper deja de arbitrar cuando hay objeciones, y la
+    # antítesis gana por defecto, que es tan malo como que gane la tesis.
+    #
+    # Ahora las dos salidas pesan igual, la concesión tiene que ser
+    # ESPECÍFICA (qué objeción, no «acepto las críticas»), y se dice
+    # explícitamente que conceder en bloque no vale.
     sys_prompt = (
         "Eres MELCHIOR. Balthasar ha objetado tu propuesta y tienes UNA "
         "réplica. Una sola: no habrá otra vuelta.\n\n"
         "Responde SOLO a las objeciones, en máximo 8 líneas, sin "
         "preámbulo.\n"
-        "Si una objeción es correcta, EMPIEZA tu primera línea con "
-        "«CONCESIÓN:» y di cuál aceptas — rendirse ante una objeción "
-        "válida cierra el debate antes y es una salida legítima, no una "
-        "derrota.\n"
-        "Si la objeción viene de un malentendido, cita la línea exacta "
-        "que lo desmiente. Lo que NO vale es defender lo indefendible: "
-        "Balthasar ejecutó el código, y tú no.")
+        "Tu trabajo es SEPARAR: qué objeciones aciertan y cuáles no. "
+        "Casi nunca aciertan todas, y casi nunca fallan todas.\n"
+        "— Las que aciertan, acéptalas UNA POR UNA y di cuál.\n"
+        "— Las que no, refútalas citando la línea o el dato exacto que "
+        "las desmiente. Defender lo que sí se sostiene es tu trabajo, no "
+        "terquedad: si te callas, se da por buena una objeción falsa.\n"
+        "Empieza con «CONCESIÓN:» SOLO si aciertan TODAS. Si aciertan "
+        "unas y otras no, no empieces con esa palabra: concede las que "
+        "toque dentro del texto y defiende el resto. Conceder en bloque "
+        "para cerrar antes no es acuerdo, es abandonar la propuesta.")
     user = f"OBJECIONES DE BALTHASAR:\n\n{objeciones}\n\nTu réplica:"
     try:
         content, _, _ = await mio._ask(
@@ -182,6 +201,51 @@ def veredicto_por_concesion(critique: dict, texto_replica: str) -> dict:
 def sombra_activada() -> bool:
     """Modo medición: corre el contrafactual y regístralo."""
     return os.environ.get("MAGI_REPLICA_SOMBRA", "0") == "1"
+
+
+#: Por encima de esto, la réplica no está debatiendo: está capitulando.
+#:
+#: No es un número elegido a ojo. La réplica existe para que Melchior
+#: RESPONDA antes de que Casper arbitre, con la concesión como una de dos
+#: salidas. Si se toma casi siempre, Casper deja de arbitrar cuando hay
+#: objeciones y la antítesis gana por defecto — que es el mismo fallo que
+#: el mecanismo venía a corregir, con el signo cambiado.
+#:
+#: 0,85 deja sitio a que Balthasar tenga razón a menudo (lo tiene: ejecuta
+#: el código) sin admitir el 100 % que se midió el 6-sep-2026.
+TASA_MAXIMA_DE_CONCESION = 0.85
+
+#: Por debajo de esto no se opina: dos rondas al 100 % no dicen nada.
+MINIMO_PARA_JUZGAR = 10
+
+
+def tasa_de_concesion(filas: list[dict]) -> float | None:
+    """
+    Qué fracción de las réplicas acabó en rendición.
+
+    `None` mientras no haya rondas suficientes: una tasa calculada sobre
+    tres rondas es ruido con forma de porcentaje.
+    """
+    con_replica = [f for f in filas if f.get("fired")]
+    if len(con_replica) < MINIMO_PARA_JUZGAR:
+        return None
+    return sum(1 for f in con_replica if f.get("concedio")) / len(con_replica)
+
+
+def replica_degenerada(filas: list[dict]) -> str:
+    """
+    El diagnóstico en una línea, o cadena vacía si está sana.
+
+    Se separa de la tasa a propósito: lo que hace falta arriba no es un
+    número, es saber si hay que mirar.
+    """
+    tasa = tasa_de_concesion(filas)
+    if tasa is None or tasa <= TASA_MAXIMA_DE_CONCESION:
+        return ""
+    return (f"La réplica concede el {tasa:.0%} de las veces "
+            f"(techo {TASA_MAXIMA_DE_CONCESION:.0%}). No está debatiendo: "
+            f"Casper no llega a arbitrar y la objeción gana por defecto. "
+            f"Mira el prompt de la réplica antes que el mecanismo.")
 
 
 @dataclass

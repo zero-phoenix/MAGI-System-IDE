@@ -31,8 +31,13 @@ import websockets
 
 # Windows: la consola cp1252 revienta con «→» o con acentos, y lo que se
 # pierde entonces es justo el veredicto que se venia a leer.
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+# `line_buffering=True` no es cosmetico: sin el, con la salida redirigida a
+# un fichero Python acumula todo y no se ve NADA hasta que el proceso
+# termina. En una ronda de diez minutos eso convierte una herramienta de
+# supervision en un informe post mortem, y lo que se queria era mirar el
+# debate mientras ocurre.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+sys.stderr.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
 URI = "ws://127.0.0.1:20128"
 

@@ -13,6 +13,8 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
       la realidad dijo: se queda en la licencia de SEGA; lee 3 sectores del IP.BIN y abandona, con el disco llegando byte-perfecto
 - [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
       la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
+- [REFUTADA] La replica de Melchior contesta a la objecion en vez de rendirse  (0/1)
+      la realidad dijo: 14 rondas reales en replica.jsonl y concedio=true en las 14. La concesion no era una de dos salidas: era la unica. Con eso Casper no llega a arbitrar cuando hay objeciones y la antitesis gana por defecto — el mismo fallo que la replica venia a corregir, con el signo cambiado. Causa en el prompt: ofr
 
 ## Frágiles (se caen a menudo)
 
@@ -25,6 +27,8 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
 - [OK] Corro la compuerta completa antes de publicar  (2/3)
 - [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
       la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
+- [REFUTADA] La replica de Melchior contesta a la objecion en vez de rendirse  (0/1)
+      la realidad dijo: 14 rondas reales en replica.jsonl y concedio=true en las 14. La concesion no era una de dos salidas: era la unica. Con eso Casper no llega a arbitrar cuando hay objeciones y la antitesis gana por defecto — el mismo fallo que la replica venia a corregir, con el signo cambiado. Causa en el prompt: ofr
 
 ## Sin comprobar todavía
 
@@ -46,4 +50,6 @@ lleva la prueba que puede tumbarla. Sin prueba no se admite.
 - [OK] Corro la compuerta completa antes de publicar  (2/3)
 - [REFUTADA] Mis pruebas de tiempos distinguen una regresion del ruido de la maquina  (0/1)
       la realidad dijo: test_el_recon_cabe_en_la_ventana_de_melchior afirmaba t_melchior_ms < 900 y el runner windows-latest/3.10 midio 4531. Medido despues en local dio 1218: el umbral tampoco valia aqui, solo tuve suerte. Reescrito contra un control medido en la misma corrida (recon de 0,3 s frente a 5,0 s), y retirado u
+- [REFUTADA] La replica de Melchior contesta a la objecion en vez de rendirse  (0/1)
+      la realidad dijo: 14 rondas reales en replica.jsonl y concedio=true en las 14. La concesion no era una de dos salidas: era la unica. Con eso Casper no llega a arbitrar cuando hay objeciones y la antitesis gana por defecto — el mismo fallo que la replica venia a corregir, con el signo cambiado. Causa en el prompt: ofr
 
