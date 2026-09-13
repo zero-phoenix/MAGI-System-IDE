@@ -1,9 +1,11 @@
 # MEGAPLAN COMPLETO — Magisys + YabauseVita
-## Consolidado de las sesiones del 2-sep al 6-sep-2026 · Estado: v5.26.0 publicada
+## Consolidado de las sesiones del 2-sep al 6-sep-2026 · Estado: **v5.27.2** (corregido el 13-sep contra el código)
 
 **Para:** cualquier agente que continúe (Antigravity IDE, ZCode Desktop, u otro)
 **Repositorios:** `zero-phoenix/Magisys` (público) y `zero-phoenix/yabausevita` (público)
-**Clones locales de trabajo:** `C:\Users\D\Documents\GitHub\Magisys` y `C:\Users\D\Documents\GitHub\yabausevita-zp`
+**Clones locales de trabajo:** `C:\Users\D\Documents\GitHub\MAGI-System-IDE` (la carpeta
+conserva el nombre anterior **a propósito**: renombrarla rompe rutas de la máquina)
+y `C:\Users\D\Documents\GitHub\yabausevita-zp`
 **Máquina:** `DESKTOP-B6D864U` · Windows 10 22H2 · i7-3770 (8 hilos) · GTX 1050 low profile 2 GB (NO se usa) · 24 GB RAM · C: ~10 GB libres
 
 ---
@@ -49,34 +51,63 @@ tiró por creerle al documento.
 | v5.26.0 | LILIM multimodal: motor EPD, traductor 6 idiomas, novedades 2023-2026, lilim_ensenar (M4), CONTEXTO inyectado, A2 con marca por fichero | ✅ |
 | v5.27.0 | Enjambre v6 (F1-F5), degradación D2, clon shallow L2, CancelReport C1-GUI, E2/E3 Ronda 4 CDB/SH2, LILIM v13 (Mielina neuronal KoboldCpp Qwen 2.5 1.5B, Ojos Google Lens con PyMuPDF, Oídos acústicos, Brazos workspace) | ✅ |
 
-**Repositorio limpio en `main`, CI verde, todos los releases conservados
-(ninguno se borra NUNCA).**
+| v5.27.1 | Paleta Evangelion, desacople de Venim, auditoría ortogonal de YabauseVita | ✅ (tagueada con `pyproject` aún en 5.27.0) |
+| v5.27.2 | Herramientas del CI con versión fija (pyright/pip-audit/pyinstaller), `no_browser` sin depender del stub de g4f, errata de F2-F5 | ✅ |
+
+**Todos los releases conservados (ninguno se borra NUNCA). El asset se llamó
+`MAGI-IDE-v5.zip` hasta la v5.27.1 incluida; desde el renombrado a Magisys el
+workflow genera `Magisys.zip`.**
+
+> **Corregido el 13-sep-2026:** este documento decía «CI verde». Medido: `main`
+> estuvo **en rojo del 10 al 13 de septiembre**, tres corridas seguidas, por
+> `pip install pyright` sin versión fija — el instrumento cambió, no el código.
+> Lo arregla la v5.27.2. Un documento no es el sistema, tampoco este.
 
 ### Los planes y su estado
 
 | Plan | Hecho | Pendiente |
 |---|---|---|
-| **v6** (fases 1-11) | 6,7,8,10,11, **F1**, **F2**, **F3**, **F4**, **F5** | (Completado) |
+| **v6** (fases 1-11) | 6,7,8,10,11, **F1** | **F2-F5 escritas y NO cableadas** al orquestador (medido 12-sep): subagentes bajo `elif False:` (`orchestrator.py:1137`), retorno de la compuerta descartado (`:1455`), plan que nunca sale de `pendiente` ni se inyecta, 4.º veredicto que Casper no conoce y acaba en «tarea fallida» |
 | **v9** (Ritsuko) | R1, R2, R4 | **R3** portera de la sonda (tras rodar G4 en uso real) |
 | **v10** (megaplan base) | D1-D6, M1, M2, P4, auditoría en vivo, **E1**, **E2**, **E3** | **E4** dynarec solo con Vita real; **P1-P3** diferidas con precondición |
 | **v11** (Tetris) | A1, A2, A3, B1, B3, C2, C3, D1, **C1-GUI**, **D2** | **T5** el tetris.exe del Escritorio sigue con la R rota |
 | **v12** (Lilim) | L1 + motor EPD + traductor + novedades + M4 + contexto + **L2** + **L3** + **L4** | **L5** panel de Lilim en la GUI |
 | **v13** (Lilim Mielina) | Cliente KoboldCpp, acelerador mielina (Melchior/Balthasar/Casper/Naoko/Ritsuko), Ojos (Lens/PDF), Oídos (acústico), Brazos (workspace/MD/DOCX/SHA-256) | (Completado) |
 
-### Pendientes prioritarios (el orden recomendado)
+### Pendientes prioritarios (reescritos el 13-sep-2026 sobre lo medido)
 
-1. **D2** — degradar motor deep→fast cuando la salud de proveedores se
-   degrade (la misión Tetris padeció 45+ min con proveedores moribundos).
-   Señal: tasa de respuestas inservibles de la sonda/telemetría.
-2. **L2** — `repos_clonar(nombre)`: clon shallow al workspace con registro en
-   journal (la compuerta A3 ya lo exige) y des-registro limpio.
-3. **F1-F5** del v6 en su orden original (web_search es la que más desbloquea).
-4. **C1-GUI** — el informe de CancelReport pintado en la GUI (hoy va al Terminal).
-5. **E2/E3** del emulador (instrumentar SH2LRU/dynarec; Ronda 4 BIOS/CDB de
+La lista anterior daba por pendientes D2, L2, F1, C1-GUI y E1: **todos se
+escribieron el 6-sep y se publicaron en la v5.27.0**. Lo que queda de verdad:
+
+1. **Cablear F2-F5** (v5.28.0). Existen los módulos y sus pruebas de unidad;
+   ninguna de las cuatro fases se ejecuta. Las pruebas nuevas tienen que mirar
+   el **orquestador**, no la unidad: las de hoy pasan porque inyectan las
+   dependencias a mano. El orden que se sostiene: F4 (es la compuerta de las
+   demás) → F5 → F3 → F2. Margen del trinquete: `orchestrator.py` va 1534/1550,
+   así que la lógica se coloca en `cierre.py`/`plan.py` y el orquestador se
+   queda con llamadas de una línea.
+2. **Herramientas alcanzables.** `repos_clonar`, `repos_desregistrar`,
+   `web_search` y `web_read` están en el registry pero fuera de `CORE_TOOLS` y
+   de todo `_DOMAIN_TOOLSETS`: en cuanto la tarea tiene pista de dominio,
+   desaparecen (`builtin.py:786-789`). `huerfanos.py` no lo caza porque busca el
+   nombre como texto. Hace falta un trinquete que lo mire.
+3. **Guardas de escritura destructiva** (`TRASPASO-ASTRA.md` §5.1): una
+   herramienta dejó `vidgpu.c` en 15 de 417 líneas, y Melchior citó
+   `vita_gpu.h`, que no existe. Rechazar la escritura que reduce un fichero por
+   debajo del ~25 % y comprobar que las citas `fichero:línea` existen.
+   **Bloquea soltarle el repositorio del emulador al enjambre.**
+4. **E1** a medias (el plan se pinta una vez y no cambia de estado, y no filtra
+   por conversación), **E2** (Naoko/Ritsuko son pestañas del cajón derecho, no
+   hilos en la izquierda), **E3** (el manifiesto ni siquiera viaja en
+   `swarm.approval_required`: faltan las dos mitades), **L5** (no hay panel de
+   Lilim ni RPC: la capa existe y es inalcanzable desde la interfaz).
+5. **E2/E3 del emulador** (instrumentar SH2LRU/dynarec; Ronda 4 BIOS/CDB de
    NiGHTS). **E4** solo con Vita real.
-6. **E1-E3 de interfaz**: tarjeta de plan vivo en el flujo, hilos de
-   Naoko/Ritsuko en la izquierda, manifiesto visible en la tarjeta de
-   aprobación.
+6. **A9 de la bitácora está caducado:** `VIDGPUVdp2LogTiming` en
+   `src/vita/vidgpu.c` ya imprime `drawn/presented/dropped`. Corregirlo antes de
+   que otro encargo salga con premisa falsa, como ya pasó.
+7. **Tres umbrales absolutos de tiempo** (`test_fase2_velocidad.py:147,175`,
+   `test_phase2.py:106,191`): miden el runner, no el código (R12).
 
 ## 3. REGLAS NO NEGOCIABLES
 

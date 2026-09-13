@@ -234,14 +234,22 @@ def _install_cdp_block() -> None:
         if hasattr(cdp, name):
             setattr(cdp, name, repl)
 
-    if hasattr(cdp, "CDPSession"):
-        cdp.CDPSession.start = _blocked_async  # type: ignore[method-assign]
-        if hasattr(cdp.CDPSession, "start_chrome"):
-            cdp.CDPSession.start_chrome = _blocked_sync  # type: ignore[method-assign]
-    if hasattr(cdp, "SyncCDPSession"):
-        cdp.SyncCDPSession.start_chrome = _blocked_sync  # type: ignore[method-assign]
-        if hasattr(cdp.SyncCDPSession, "start"):
-            cdp.SyncCDPSession.start = _blocked_sync  # type: ignore[method-assign]
+    # Mismo patron que el bucle de arriba, y por la misma razon: `cdp` es de
+    # un tercero (g4f) y cambia de forma entre versiones, asi que ninguna de
+    # estas clases se da por presente. Leerlas con punto ataba el fichero a lo
+    # que el stub declarase ese mes: el 10-sep-2026 dejo de declarar
+    # `SyncCDPSession` y el CI se puso rojo tres corridas seguidas sin que este
+    # codigo cambiara (pyright 1.1.411 verde; 1.1.413 y 1.1.414 rojas). Con
+    # getattr/setattr se dice lo mismo sin depender del stub, y sin cuatro
+    # `# type: ignore` que apagaban la comprobacion justo aqui. Vigilado por
+    # tests/test_entorno_fijado.py.
+    for clase, metodo, repl in (("CDPSession", "start", _blocked_async),
+                                ("CDPSession", "start_chrome", _blocked_sync),
+                                ("SyncCDPSession", "start", _blocked_sync),
+                                ("SyncCDPSession", "start_chrome", _blocked_sync)):
+        objetivo = getattr(cdp, clase, None)
+        if objetivo is not None and hasattr(objetivo, metodo):
+            setattr(objetivo, metodo, repl)
 
 
 # ------------------------------------------------- capa 2: nodriver / webview

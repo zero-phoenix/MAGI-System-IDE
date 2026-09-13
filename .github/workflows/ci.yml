@@ -187,7 +187,7 @@ jobs:
       # Se subieron los pins. Si vuelve a fallar, hay un CVE nuevo y el pin
       # correspondiente tiene que subir en el mismo commit.
       run: |
-        pip install pip-audit
+        pip install -r requirements-dev.txt
         pip-audit -r requirements.txt --no-deps
 
     - name: Audit de dependencias npm (bloqueante)
@@ -210,8 +210,12 @@ jobs:
       # 2026-08-16 (26 errores -> 0, y dos bugs reales en el camino: la sonda
       # de latencia muerta por un import equivocado y t.nombre() llamando a
       # una property). Lo que esta a cero se queda bloqueante.
+      #
+      # 2026-09-13: `pip install pyright` a secas puso el CI en rojo tres
+      # corridas seguidas (1.1.411 verde -> 1.1.413 y 1.1.414 rojas, mismo
+      # codigo). El pin vive en requirements-dev.txt, como el de ruff.
       run: |
-        pip install pyright
+        pip install -r requirements-dev.txt
         pyright magi/core
 
     - name: Type check resto (informativo)
