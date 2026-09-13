@@ -53,6 +53,7 @@ tiró por creerle al documento.
 
 | v5.27.1 | Paleta Evangelion, desacople de Venim, auditoría ortogonal de YabauseVita | ✅ (tagueada con `pyproject` aún en 5.27.0) |
 | v5.27.2 | Herramientas del CI con versión fija (pyright/pip-audit/pyinstaller), `no_browser` sin depender del stub de g4f, errata de F2-F5 | ✅ |
+| v5.28.0 | F5, F3 y F2 cableados al orquestador (F4 no, a propósito); veredictos extraídos del bucle (1545→1489); compuerta local midiendo como el CI; tres guardas nuevas | ✅ |
 
 **Todos los releases conservados (ninguno se borra NUNCA). El asset se llamó
 `MAGI-IDE-v5.zip` hasta la v5.27.1 incluida; desde el renombrado a Magisys el
@@ -67,7 +68,7 @@ workflow genera `Magisys.zip`.**
 
 | Plan | Hecho | Pendiente |
 |---|---|---|
-| **v6** (fases 1-11) | 6,7,8,10,11, **F1** | **F2-F5 escritas y NO cableadas** al orquestador (medido 12-sep): subagentes bajo `elif False:` (`orchestrator.py:1137`), retorno de la compuerta descartado (`:1455`), plan que nunca sale de `pendiente` ni se inyecta, 4.º veredicto que Casper no conoce y acaba en «tarea fallida» |
+| **v6** (fases 1-11) | 6,7,8,10,11, **F1**, y en la v5.28.0 **F5** (cuarto veredicto), **F2** (sin fabricar, tras bandera apagada) y **F3** a medias (el plan se inyecta) | **F4** — bloqueada a propósito: ejecuta la suite antes de cada aprobación y la suite falla 1 de cada 3 corridas en paralelo. Va detrás de su estabilidad. **La otra mitad de F3**: los estados de las partes necesitan que Casper los declare, y eso toca su prompt otra vez — aparte y con medición |
 | **v9** (Ritsuko) | R1, R2, R4 | **R3** portera de la sonda (tras rodar G4 en uso real) |
 | **v10** (megaplan base) | D1-D6, M1, M2, P4, auditoría en vivo, **E1**, **E2**, **E3** | **E4** dynarec solo con Vita real; **P1-P3** diferidas con precondición |
 | **v11** (Tetris) | A1, A2, A3, B1, B3, C2, C3, D1, **C1-GUI**, **D2** | **T5** el tetris.exe del Escritorio sigue con la R rota |
@@ -79,13 +80,14 @@ workflow genera `Magisys.zip`.**
 La lista anterior daba por pendientes D2, L2, F1, C1-GUI y E1: **todos se
 escribieron el 6-sep y se publicaron en la v5.27.0**. Lo que queda de verdad:
 
-1. **Cablear F2-F5** (v5.28.0). Existen los módulos y sus pruebas de unidad;
-   ninguna de las cuatro fases se ejecuta. Las pruebas nuevas tienen que mirar
-   el **orquestador**, no la unidad: las de hoy pasan porque inyectan las
-   dependencias a mano. El orden que se sostiene: F4 (es la compuerta de las
-   demás) → F5 → F3 → F2. Margen del trinquete: `orchestrator.py` va 1534/1550,
-   así que la lógica se coloca en `cierre.py`/`plan.py` y el orquestador se
-   queda con llamadas de una línea.
+1. ~~Cablear F2-F5~~ — **hecho en la v5.28.0 salvo F4**, y el orden cambió sobre
+   la marcha: se planteó «F4 primero, que es la compuerta de las demás» y la
+   medición lo tumbó. F4 ejecuta `verificar.py --rapido` antes de cada
+   aprobación (~165 s) y la suite **falla 1 de cada 3 corridas en paralelo** por
+   un transporte de asyncio que se destruye sin cerrar: cablearla convertiría un
+   fallo de infraestructura en el rechazo aleatorio de 1 de cada 3 entregas
+   legítimas. **F4 va detrás de la estabilidad de la suite**, que es trabajo
+   aparte y ya abierto.
 2. **Herramientas alcanzables.** `repos_clonar`, `repos_desregistrar`,
    `web_search` y `web_read` están en el registry pero fuera de `CORE_TOOLS` y
    de todo `_DOMAIN_TOOLSETS`: en cuanto la tarea tiene pista de dominio,

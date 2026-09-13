@@ -12,7 +12,32 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.27.2: el CI volvió a ser un instrumento fiable
+## Qué hay de nuevo en la v5.28.0: el Enjambre v6 pasa de escrito a conectado
+
+- **F5 — el cuarto veredicto ya opera.** «La pregunta era otra» cierra la ronda
+  con su aviso y deja el hallazgo en `descartes.jsonl`. Antes caía en la rama de
+  «tarea fallida», que además no cortaba el bucle: el debate entero se repetía
+  hasta agotar las rondas.
+- **F2 — el subagente deja de fabricar.** Sin ejecutor devuelve fallo explícito
+  en vez de un «verificado sin hallazgos críticos» que nadie había verificado.
+  Con `MAGI_SUBAGENTES=1` consulta de verdad a un modelo de la misma familia que
+  su nodo. Apagado por defecto hasta medir su premisa contra un control.
+- **F3 — el plan viaja en el prompt.** El enjambre ya sabe en cuántas partes se
+  dividió el encargo. Los estados de las partes siguen pendientes de una señal
+  honesta: no se marcan solos para no convertir el plan en un registro falso.
+- **La compuerta local vuelve a medir lo mismo que el CI**, y cuando no puede
+  medirlo lo dice: el lint completo sale **NO HECHO** si tu ruff no es el fijado,
+  en vez de dar un verde que no comprobó nada.
+- **Tres guardas nuevas**, cada una nacida de un fallo medido: ninguna rama
+  apagada con un `False` literal, ninguna copia del repositorio dentro del
+  repositorio contando como uso, y ningún lint completo medido con otra versión
+  de ruff.
+
+**F4 no entra a propósito:** ejecuta la suite antes de cada aprobación, y la
+suite falla 1 de cada 3 corridas en paralelo por un transporte de asyncio sin
+cerrar. Cablearla hoy rechazaría al azar una de cada tres entregas legítimas.
+
+## Qué trajo la v5.27.2: el CI volvió a ser un instrumento fiable
 
 - **Las herramientas del CI ya no se instalan flotantes.** `pip install pyright`
   sin versión tumbó `main` tres corridas seguidas (10 → 13-sep) sin que nadie
@@ -33,14 +58,16 @@ sin suscripciones.
 ### Errata sobre la v5.27.0 — F2-F5
 
 Las notas de la v5.27.0 y este README daban **F2-F5 por «consolidado»**. Medido
-contra el código el 12-sep: los cuatro módulos existen y sus tests de unidad
-pasan, pero **no están conectados al orquestador**. La única llamada a
-subagentes está bajo un `elif False:` (`orchestrator.py:1137`); el retorno de la
-compuerta F4 se descarta (`orchestrator.py:1455`); el plan de F3 nace en
-`pendiente`, nadie lo actualiza y no se inyecta en el prompt; y a Casper nunca
-se le ofrece el cuarto veredicto de F5, que acaba en la rama de «tarea fallida».
-Se corrige en la v5.28.0, con pruebas que miran el orquestador y no la unidad.
-Lo de abajo describe lo que la v5.27.0 **construyó**, no lo que hoy se ejecuta.
+contra el código el 12-sep: los cuatro módulos existían y sus tests de unidad
+pasaban, pero **ninguno estaba conectado al orquestador**. La única llamada a
+subagentes vivía bajo un `elif False:`; el retorno de la compuerta F4 se
+descartaba; el plan de F3 nacía en `pendiente`, nadie lo actualizaba y no se
+inyectaba en el prompt; y a Casper nunca se le ofrecía el cuarto veredicto de
+F5, que acababa en la rama de «tarea fallida».
+
+**Corregido en la v5.28.0** para F2, F3 y F5, con pruebas que miran el
+orquestador y no la unidad. **F4 sigue sin conectar a propósito** — ver arriba.
+Lo de abajo describe lo que la v5.27.0 **construyó**.
 
 ## Qué se construyó en la v5.27.0: enjambre v6, percepción web, degradación D2 y plan vivo
 
@@ -48,7 +75,7 @@ Lo de abajo describe lo que la v5.27.0 **construyó**, no lo que hoy se ejecuta.
 - **D2 — Degradación de motor por salud:** cuando la **tasa de respuestas inservibles** de los proveedores gratuitos pasa del 50 % (con un mínimo de 4 muestras, de la telemetría en vivo o de la sonda), el motor `deep` degrada automáticamente a `fast` diciendo por qué. Solo baja, nunca sube. *(Errata: hasta la v5.27.1 esta línea decía «umbral de latencia/errores»; el umbral implementado es de tasa de fallos — `motor.py:75`.)*
 - **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
 - **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` sobre `urllib` (stdlib, con timeout y una sola redirección), con presupuesto por tarea y citas con URL + fecha en cada resultado. Sin red no se inventa nada: se declara `SIN COMPROBAR`. *(Errata: el presupuesto se anunció «por ronda»; hoy se cuenta por tarea y dura lo que el proceso — `web.py:61`.)*
-- **F2-F5 — Enjambre v6, construido y aún sin conectar:** subagentes por familia de modelo (`F2`), `plan.md` vivo con tarjeta en la interfaz (`F3`), compuerta automática antes del cierre (`F4`) y 4to veredicto «la pregunta era otra» (`F5`) con memoria de descartes reutilizables. Los módulos y sus pruebas existen; el cableado al orquestador llega en la v5.28.0 (ver la errata de arriba). De los cuatro, lo único visible hoy es la tarjeta de plan en la interfaz, que se pinta una vez y no cambia de estado.
+- **F2-F5 — Enjambre v6, construido aquí y conectado en la v5.28.0:** subagentes por familia de modelo (`F2`), `plan.md` vivo con tarjeta en la interfaz (`F3`), compuerta automática antes del cierre (`F4`) y 4to veredicto «la pregunta era otra» (`F5`) con memoria de descartes reutilizables. Esta versión escribió los módulos y sus pruebas de unidad; el cableado al orquestador llegó en la siguiente, salvo `F4` (ver arriba).
 - **C1-GUI — Informe de cancelación visible:** el reporte real de procesos parados y bucles cancelados se pinta directamente en el flujo de conversación.
 - **L3-L4 — Lilim enciclopédico:** verificación automática de novedades tecnológicas 2023-2026 y enciclopedia por dominios.
 
@@ -455,7 +482,7 @@ común**, sin otra IA supervisándolo. Cada versión acerca eso:
   versión del kernel en vivo; el sistema se audita usándose a sí mismo y lo
   que encuentra se corrige con la medición pegada al commit.
 
-**1813 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
+**1825 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:
