@@ -73,7 +73,9 @@ async def captura():
     set_registry(None)
 
 
-async def _ronda_con_veredicto(captura, veredicto: str, *, max_rounds: int = 3):
+async def _ronda_con_veredicto(captura, veredicto: str, *,
+                               max_rounds: int = 3,
+                               encargo: str = ENCARGO):
     """Una ronda real donde Casper cierra con el veredicto que se le pida."""
     bus, posts, terminal = captura
     melchior = GuionProvider(
@@ -91,7 +93,7 @@ async def _ronda_con_veredicto(captura, veredicto: str, *, max_rounds: int = 3):
 
     db = Path(tempfile.mkdtemp(prefix="magi-cableado-")) / "t.db"
     swarm = SwarmOrchestrator(Blackboard(), bus, store=TaskStore(db))
-    await swarm.submit_task("t-v6", ENCARGO, use_tools=False, max_rounds=max_rounds)
+    await swarm.submit_task("t-v6", encargo, use_tools=False, max_rounds=max_rounds)
 
     # Se espera al ESTADO, no a un reloj: un sleep fijo mide el runner.
     for _ in range(int(40.0 / 0.05)):
@@ -197,3 +199,58 @@ async def test_f5_una_aprobacion_normal_sigue_entrando_por_su_puerta(captura):
     assert not any(
         "pregunta era otra" in t.lower() for t in terminal
     ), "una aprobacion normal se conto como desvio de foco"
+# =========================================================================
+# F3 - el plan vivo
+# =========================================================================
+
+ENCARGO_EN_PARTES = """Prepara la ronda del emulador:
+1. instrumenta el contador de ciclos del SH2 esclavo
+2. mide una corrida de 60 segundos con ojos y oidos
+3. escribe el hallazgo en la bitacora con su control
+"""
+
+
+@pytest.mark.asyncio
+async def test_f3_el_plan_viaja_en_el_prompt_del_enjambre(captura):
+    """
+    El plan existe desde que nace la tarea y el enjambre no lo ve.
+
+    `crear_plan_desde_enunciado` parte el encargo en sus partes y el plan se
+    publica a la interfaz (`task.plan`), pero `PlanTarea.para_el_prompt()` no
+    tiene ningun llamador: `inyecciones.acumuladas()` inyecta aceptacion, caja,
+    bitacora, ronda, memoria y automodelo - el plan no esta.
+
+    Es la mitad que hace util a F3. Un enjambre que no sabe que el encargo
+    tenia tres partes no puede echar en falta las dos que no hizo: por eso se
+    dejan partes sin hacer sin que nadie lo note, que es justo el fallo que F3
+    venia a cerrar.
+    """
+    _swarm, _posts, _terminal, (melchior, _bal, _cas) = await _ronda_con_veredicto(
+        captura, "Hecho. DECISION: APROBADA", encargo=ENCARGO_EN_PARTES)
+
+    prompts = chr(10).join(melchior.vistos)
+    assert "ESTADO DEL PLAN DE TRABAJO" in prompts, (
+        "el plan no se inyecta en el prompt: el enjambre no sabe en cuantas "
+        "partes se dividio el encargo")
+    for parte in ("instrumenta el contador", "mide una corrida",
+                  "escribe el hallazgo"):
+        assert parte in prompts, f"falta la parte «{parte}» en el prompt"
+
+
+@pytest.mark.asyncio
+async def test_f3_un_encargo_sin_partes_no_ensucia_el_prompt(captura):
+    """
+    Control: sin partes que declarar, no se inyecta nada.
+
+    `crear_plan_desde_enunciado` siempre crea al menos una parte -el encargo
+    entero- y repetirla arriba del prompt seria ruido: el enjambre ya tiene el
+    encargo delante. Sin este control, la prueba de arriba pasaria igual
+    inyectando el plan SIEMPRE.
+    """
+    _swarm, _posts, _terminal, (melchior, _bal, _cas) = await _ronda_con_veredicto(
+        captura, "Hecho. DECISION: APROBADA",
+        encargo="arregla el parser de ROM que se cuelga con cabeceras cortas")
+
+    prompts = chr(10).join(melchior.vistos)
+    assert "ESTADO DEL PLAN DE TRABAJO" not in prompts, (
+        "se inyecto un plan de una sola parte, que es repetir el encargo")
