@@ -1,3 +1,94 @@
+# v5.27.2 — El instrumento medía otra cosa: el CI llevaba tres días en rojo sin que nadie tocara el código
+
+**Qué cambia:** se fija la versión de todas las herramientas que deciden si el
+build es verde o compilan el binario, y se quita del cortafuegos de navegador la
+dependencia del stub de terceros que provocó el rojo. Además se corrigen dos
+afirmaciones falsas de las notas de la v5.27.0.
+
+**La medición, con control.** Entre el 10 y el 13 de septiembre, tres corridas
+seguidas de `main` en rojo. Los commits de esos tres días son `docs:` y
+`magi/core/no_browser.py` no se tocaba desde el 6-sep. El único error era:
+
+```
+magi/core/no_browser.py:243:24 - error: "SyncCDPSession" is not a known
+attribute of module ".cdp" (reportAttributeAccessIssue)
+```
+
+Contrastado contra las propias corridas, que es el control que había:
+
+| Corrida | pyright | Resultado |
+|---|---|---|
+| `34312710220` · 9-sep | 1.1.411 | verde |
+| `34458014802` · 10-sep | 1.1.413 | rojo |
+| `34733894754` · 13-sep | 1.1.414 | rojo |
+
+Lo que cambió fue el instrumento, no lo medido. El CI hacía `pip install pyright`
+sin versión.
+
+**Lo concreto:**
+
+- **Pines en `requirements-dev.txt`:** `pyright==1.1.411` y `pip-audit==2.10.1`,
+  las dos versiones que estaban corriendo en verde — no las últimas. Acompañan al
+  `ruff==0.16.5` fijado el 31-ago por este mismo motivo, con la lección ya
+  escrita ahí: «una version nueva puede poner el build en rojo sin que nadie
+  toque una linea de codigo». Se aplicó a ruff y se dejaron las otras tres.
+- **`ci.yml`:** los pasos «Audit de dependencias Python» y «Type check nucleo»
+  —los dos bloqueantes— instalan desde `requirements-dev.txt` en vez de
+  `pip install <herramienta>` suelto.
+- **`release.yml`:** eliminado el `pip install pyinstaller pywebview` que venía
+  **después** de `pip install -r requirements.lock` y pisaba los pines recién
+  instalados. Las dos ya están en el lock (`pyinstaller==6.21.0`,
+  `pywebview==4.4.1`), así que la línea no añadía nada y sí quitaba
+  reproducibilidad: el comentario de ese mismo job promete «aquí no se quiere la
+  última versión: se quiere exactamente la que se probó». Ahora lo cumple.
+- **`magi/core/no_browser.py`:** los atributos opcionales del módulo `cdp` de g4f
+  se leen con `getattr`/`setattr`, el mismo patrón que el bucle de al lado. En
+  runtime no había fallo —había un `hasattr` guardando cada acceso—, pero
+  escrito con punto el fichero dependía de lo que el stub declarase ese mes.
+  Desaparecen cuatro `# type: ignore[method-assign]` que apagaban la
+  comprobación justo en el cortafuegos de navegador. Los 16 tests de
+  `test_no_browser.py` siguen verdes.
+- **Guarda nueva `tests/test_entorno_fijado.py` (5 pruebas):** ningún workflow
+  puede instalar una herramienta sin `==`; las tres de la compuerta tienen pin
+  exacto; y ningún atributo guardado con `hasattr` se lee con punto. **Antes del
+  arreglo la primera fallaba nombrando las cuatro**: pyright, pip-audit,
+  pyinstaller y pywebview. Parsea el YAML en vez del texto crudo a propósito —
+  los comentarios de estos workflows citan el patrón prohibido para explicarlo, y
+  un regex sobre el fichero entero obligaría a borrar la explicación.
+- **Desfase de versión resuelto:** `pyproject.toml` decía `5.27.0` con el tag
+  `v5.27.1` ya publicado. Detectado el 10-sep y sin resolver hasta hoy.
+
+**Errata sobre la v5.27.0.** Aquellas notas decían que F2-F5 quedaba
+«consolidado». Medido contra el código el 12-sep: los cuatro módulos existen y
+sus tests de unidad pasan, pero **ninguno está conectado al orquestador**. La
+única llamada a subagentes vive bajo un `elif False:` (`orchestrator.py:1137`);
+el retorno de la compuerta F4 se descarta, así que nunca puede rechazar nada
+(`orchestrator.py:1455`) y `ejecutar_compuerta_rapida()` no tiene llamador; el
+plan de F3 nace entero en `pendiente`, nadie llama a `actualizar_estado()` y no
+se inyecta en el prompt; y a Casper no se le ofrece el cuarto veredicto de F5,
+que además caería en la rama de «tarea fallida». Los tests pasaban porque
+inyectan las dependencias a mano y ninguno mira el orquestador: verde sin
+comprobar. Se cablea en la v5.28.0, con pruebas sobre el orquestador real.
+
+Dos erratas menores del mismo repaso: D2 no usa «umbral de latencia» sino **tasa
+de respuestas inservibles** (50 %, mínimo 4 muestras, `motor.py:75`), y el
+presupuesto web de F1 no es «por ronda» sino por tarea y de por vida del proceso
+(`WebBudget.reiniciar()` no tiene llamador, `web.py:61`).
+
+**SIN COMPROBAR:** pyright no está instalado en la máquina de desarrollo y no se
+descargó para esto (el runtime de Node no cabe en el disco disponible). Que el
+tipado quede en verde lo mide GitHub Actions; el pin apunta a la versión que ya
+pasó sobre este mismo código, y `getattr` no puede producir ese error. El lint
+completo local tampoco vale como medida: el ruff de esta máquina es 0.6.9 y el
+del CI 0.16.5 — marca 17 `UP038` que el CI no marca, ninguno en el código de
+esta versión.
+
+**67 herramientas** en el catálogo. **1813 tests en Python** + **131 en
+TypeScript/GUI**. Techos intactos: `kernel.py` 1069/1070, `orchestrator.py`
+1534/1550, `ritsuko.py` 800/800, `builtin.py` 797/800; huérfanos en 80.
+
+---
+
 # v5.27.1 — Interfaz táctica Evangelion, desacople de Venim y auditoría ortogonal de YabauseVita
 
 **Qué cambia:** Se aplica la paleta visual canónica de las supercomputadoras MAGI de Evangelion (naranja ámbar `#FF6600`/`#FFA726` y azul turquesa táctico `#00D2C4`/`#005953`), se rotula y desacopla definitivamente la identidad del sistema frente a Venim, y se audita el pipeline de medición ortogonal con Vita3K sobre YabauseVita (775 ventanas de 5 s procesadas, mediana 44.5 FPS).

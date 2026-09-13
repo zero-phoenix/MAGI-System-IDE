@@ -12,13 +12,43 @@ sin suscripciones.
 
 ---
 
-## Qué hay de nuevo en la v5.27.0: enjambre v6, percepción web, degradación D2 y plan vivo
+## Qué hay de nuevo en la v5.27.2: el CI volvió a ser un instrumento fiable
+
+- **Las herramientas del CI ya no se instalan flotantes.** `pip install pyright`
+  sin versión tumbó `main` tres corridas seguidas (10 → 13-sep) sin que nadie
+  tocara una línea de código: pyright 1.1.411 daba verde y 1.1.413 daba rojo
+  sobre el MISMO fichero. Los pines viven en `requirements-dev.txt`
+  (`pyright==1.1.411`, `pip-audit==2.10.1`, junto al `ruff==0.16.5` que ya
+  estaba), y `tests/test_entorno_fijado.py` impide que vuelva a colarse una.
+- **El job que compila el `.exe` ya no deshace su propio lock.** Debajo de
+  `pip install -r requirements.lock` había un `pip install pyinstaller pywebview`
+  sin versión que pisaba los pines recién instalados — en el mismo job cuyo
+  comentario dice «aquí no se quiere la última versión: se quiere exactamente la
+  que se probó». Ambas ya estaban en el lock; la línea sobraba.
+- **`no_browser.py` deja de depender del stub de terceros.** Los atributos
+  opcionales del módulo `cdp` de g4f se leen con `getattr`, que es lo que el
+  `hasattr` de al lado ya decía, y desaparecen cuatro `# type: ignore` que
+  apagaban la comprobación justo en el cortafuegos de navegador.
+
+### Errata sobre la v5.27.0 — F2-F5
+
+Las notas de la v5.27.0 y este README daban **F2-F5 por «consolidado»**. Medido
+contra el código el 12-sep: los cuatro módulos existen y sus tests de unidad
+pasan, pero **no están conectados al orquestador**. La única llamada a
+subagentes está bajo un `elif False:` (`orchestrator.py:1137`); el retorno de la
+compuerta F4 se descarta (`orchestrator.py:1455`); el plan de F3 nace en
+`pendiente`, nadie lo actualiza y no se inyecta en el prompt; y a Casper nunca
+se le ofrece el cuarto veredicto de F5, que acaba en la rama de «tarea fallida».
+Se corrige en la v5.28.0, con pruebas que miran el orquestador y no la unidad.
+Lo de abajo describe lo que la v5.27.0 **construyó**, no lo que hoy se ejecuta.
+
+## Qué se construyó en la v5.27.0: enjambre v6, percepción web, degradación D2 y plan vivo
 
 - **Lilim Mielina & Sentidos Tridimensionales:** Inferencia local ultrarrápida (KoboldCpp con Qwen 2.5 1.5B Q4_K_M adaptado a i7-3770 / GTX 1050), acelerador dialéctico («vaina de mielina») para lubricar Melchior, Balthasar, Casper, Naoko y Ritsuko, y tríada sensorial completa: Ojos (inspección de PDFs escaneados e imágenes tipo Google Lens a 150-300 DPI con PyMuPDF), Oídos (validación acústica WAV/MP3/OGG y loopback WASAPI) y Brazos (actuación de workspace con informes Markdown/DOCX y hashing SHA-256).
-- **D2 — Degradación de motor por salud:** cuando los proveedores gratuitos de `deep` fallan o superan el umbral de latencia/errores, el sistema degrada automáticamente a `fast` sin colgar la máquina.
+- **D2 — Degradación de motor por salud:** cuando la **tasa de respuestas inservibles** de los proveedores gratuitos pasa del 50 % (con un mínimo de 4 muestras, de la telemetría en vivo o de la sonda), el motor `deep` degrada automáticamente a `fast` diciendo por qué. Solo baja, nunca sube. *(Errata: hasta la v5.27.1 esta línea decía «umbral de latencia/errores»; el umbral implementado es de tasa de fallos — `motor.py:75`.)*
 - **L2 — `repos_clonar`:** clon shallow directamente al workspace con procedencia completa en el WriteJournal de la tarea (cumpliendo la compuerta A3).
-- **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` HTTP con presupuesto estricto por ronda y citas con URL + fecha obligatorias.
-- **F2-F5 — Enjambre v6 consolidado:** subagentes por familia de modelo (`F2`), `plan.md` vivo con tarjeta en la interfaz (`F3`), compuerta automática obligatoria antes del cierre (`F4`) y 4to veredicto «la pregunta era otra» (`F5`) con memoria de descartes reutilizables.
+- **F1 — Percepción web sin navegador:** herramientas `web_search` y `web_read` sobre `urllib` (stdlib, con timeout y una sola redirección), con presupuesto por tarea y citas con URL + fecha en cada resultado. Sin red no se inventa nada: se declara `SIN COMPROBAR`. *(Errata: el presupuesto se anunció «por ronda»; hoy se cuenta por tarea y dura lo que el proceso — `web.py:61`.)*
+- **F2-F5 — Enjambre v6, construido y aún sin conectar:** subagentes por familia de modelo (`F2`), `plan.md` vivo con tarjeta en la interfaz (`F3`), compuerta automática antes del cierre (`F4`) y 4to veredicto «la pregunta era otra» (`F5`) con memoria de descartes reutilizables. Los módulos y sus pruebas existen; el cableado al orquestador llega en la v5.28.0 (ver la errata de arriba). De los cuatro, lo único visible hoy es la tarjeta de plan en la interfaz, que se pinta una vez y no cambia de estado.
 - **C1-GUI — Informe de cancelación visible:** el reporte real de procesos parados y bucles cancelados se pinta directamente en el flujo de conversación.
 - **L3-L4 — Lilim enciclopédico:** verificación automática de novedades tecnológicas 2023-2026 y enciclopedia por dominios.
 
@@ -425,7 +455,7 @@ común**, sin otra IA supervisándolo. Cada versión acerca eso:
   versión del kernel en vivo; el sistema se audita usándose a sí mismo y lo
   que encuentra se corrige con la medición pegada al commit.
 
-**1788 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
+**1813 tests en Python · 131 en la interfaz · sin tests verdes no hay release.**
 
 Y esa regla no depende del CI. Lo mismo que ejecuta GitHub Actions se ejecuta
 aquí, con los mismos comandos:

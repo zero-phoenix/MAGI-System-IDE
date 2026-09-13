@@ -2,3 +2,12 @@
 # lo que pasaba en local rebotaba alli. Una version nueva puede poner
 # el build en rojo sin que nadie toque una linea de codigo.
 ruff==0.16.5
+
+# Anadidos el 13-sep-2026, por la misma razon y doce dias tarde. pyright se
+# instalaba flotante y tumbo el CI tres corridas seguidas sin que nadie tocara
+# el codigo: 1.1.411 verde el 9-sep, 1.1.413 rojo el 10-sep, 1.1.414 rojo el
+# 13-sep, siempre por la misma linea de no_browser.py. pip-audit es la otra
+# mitad del mismo agujero: decide un paso BLOQUEANTE y se instalaba flotante.
+# Las versiones son las que estaban corriendo en verde, no las ultimas.
+pyright==1.1.411
+pip-audit==2.10.1
