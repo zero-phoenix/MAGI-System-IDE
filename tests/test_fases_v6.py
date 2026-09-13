@@ -88,21 +88,30 @@ async def test_f2_tope_duro_por_nodo_y_ronda():
     """F2: Tope estricto de subagentes por nodo por ronda (máximo 2 para evitar agotar cuota)."""
     gestor = GestorSubagentes(limite_por_nodo=2)
 
+    # El ejecutor se inyecta porque esta prueba mide el TOPE, no de dónde sale
+    # la conclusión. Antes no se pasaba y el módulo devolvía un texto fabricado
+    # con exito=True: la prueba pasaba gracias al defecto que había debajo.
+    async def _ejecutor(*, nodo, familia, mision):
+        return f"leído y resumido: {mision}"
+
     # 1º OK
     r1 = await despachar_subagente(
-        nodo="Balthasar", familia="gemini", mision="m1", round_num=1, gestor=gestor
+        nodo="Balthasar", familia="gemini", mision="m1", round_num=1,
+        gestor=gestor, ejecutor=_ejecutor
     )
     assert r1.exito
 
     # 2º OK
     r2 = await despachar_subagente(
-        nodo="Balthasar", familia="gemini", mision="m2", round_num=1, gestor=gestor
+        nodo="Balthasar", familia="gemini", mision="m2", round_num=1,
+        gestor=gestor, ejecutor=_ejecutor
     )
     assert r2.exito
 
     # 3º Rechazado por tope excedido
     r3 = await despachar_subagente(
-        nodo="Balthasar", familia="gemini", mision="m3", round_num=1, gestor=gestor
+        nodo="Balthasar", familia="gemini", mision="m3", round_num=1,
+        gestor=gestor, ejecutor=_ejecutor
     )
     assert not r3.exito
     assert "TOPE EXCEDIDO" in r3.error
