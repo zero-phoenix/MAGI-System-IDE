@@ -43,12 +43,57 @@ def test_el_script_existe_y_se_puede_ejecutar():
 
 def test_comprueba_lo_mismo_que_el_lint_del_CI():
     """
-    El CI hace bloqueante SOLO `E9,F63,F7,F82` —errores de sintaxis y nombres
-    indefinidos— y deja el resto informativo. Si aquí se exigiera más, el
-    script diría rojo donde el CI dice verde, y se dejaría de usar.
+    Las DOS pasadas de lint del CI, no solo la barata.
+
+    Este test decía: «el CI hace bloqueante SOLO E9,F63,F7,F82 y deja el resto
+    informativo». Dejó de ser verdad el 2026-08-16, cuando el lint completo
+    pasó a bloqueante, y `scripts/` entró el 2026-09-06. La compuerta local se
+    quedó con la pasada barata y el test lo bendecía: describía un CI que ya no
+    existía.
+
+    Lo que costó, medido: el 13-sep-2026 un import sin usar (F401) pasó
+    `verificar.py --rapido` en verde y tumbó Actions. La compuerta local decía
+    verde donde el CI decía rojo, que es exactamente el fallo contrario al que
+    este test vigilaba.
     """
-    assert "E9,F63,F7,F82" in _fuente()
-    assert "E9,F63,F7,F82" in _pasos_ci("lint")
+    fuente = _fuente()
+    lint_ci = _pasos_ci("lint")
+
+    assert "E9,F63,F7,F82" in fuente
+    assert "E9,F63,F7,F82" in lint_ci
+
+    # La pasada completa: mismos paths que el CI, y `scripts/` incluido.
+    assert "ruff check magi/ tests/ scripts/" in lint_ci, (
+        "el CI ya no hace el lint completo; si es a propósito, este test y "
+        "verificar.py cambian juntos")
+    # La cadena exacta del comando, no un "scripts/" suelto: ese aparece
+    # cuatro veces mas en el fichero (rutas, docstrings) y la asercion pasaba
+    # aunque el paso no lo incluyera. Comprobado quitandolo: no fallaba.
+    assert '"ruff", "check", "magi/", "tests/", "scripts/"' in fuente, (
+        "verificar.py no pasa el lint completo por scripts/, donde viven la "
+        "compuerta, el publicador y un trinquete")
+
+
+def test_el_lint_completo_no_se_mide_con_otra_version_de_ruff():
+    """
+    Un lint completo con otra versión de ruff no dice si el CI pasará.
+
+    Medido el 13-sep-2026 sobre el mismo árbol, sin tocar una línea: ruff 0.6.9
+    (el de la máquina) marca 17 `UP038` que ruff 0.16.5 (el del CI, fijado en
+    requirements-dev.txt) no marca. Correr la pasada completa con la versión
+    equivocada no es medir de más: es medir otra cosa.
+
+    Por eso el paso lleva precondición y, si las versiones no coinciden, sale
+    como NO HECHO —código 2— en vez de como verde. Es la misma distinción que
+    el script ya hacía con las herramientas ausentes: «no lo he mirado» no es
+    «está bien».
+    """
+    fuente = _fuente()
+    assert "precondicion" in fuente, "el paso del lint completo no la declara"
+    assert "_ruff_desalineado" in fuente
+    assert "requirements-dev.txt" in fuente, (
+        "la version fijada tiene que leerse del pin, no escribirse a mano en "
+        "dos sitios")
 
 
 def test_comprueba_lo_mismo_que_los_tests_del_CI():

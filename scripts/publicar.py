@@ -124,6 +124,18 @@ def correr(orden: list[str], *, cwd: Path = RAIZ, titulo: str = "") -> bool:
     return r.returncode == 0
 
 
+def correr_con_codigo(orden: list[str], *, cwd: Path = RAIZ,
+                      titulo: str = "") -> int:
+    """Como `correr`, pero devuelve el codigo: 0 verde, 1 rojo, 2 sin hacer."""
+    di(f"\n=== {titulo or ' '.join(orden[:3])} ===")
+    r = subprocess.run(orden, cwd=cwd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=_entorno())
+    salida = (r.stdout or "") + (r.stderr or "")
+    for ln in [x for x in salida.splitlines() if x.strip()][-10:]:
+        di("    " + ln[:150])
+    return r.returncode
+
+
 # ------------------------------------------------------- reproducibilidad
 
 def _directas() -> set[str]:
@@ -241,8 +253,19 @@ def main() -> int:
 
     # ---- 2. la suite entera, incluidos los que compilan
     if not args.sin_tests:
-        if not correr([sys.executable, str(RAIZ / "scripts/verificar.py"), "--todo"],
-                      titulo="suite completa (verificar.py --todo)"):
+        codigo = correr_con_codigo(
+            [sys.executable, str(RAIZ / "scripts/verificar.py"), "--todo"],
+            titulo="suite completa (verificar.py --todo)")
+        if codigo == 2:
+            # Ni verde ni rojo. `verificar.py` devuelve 2 cuando una
+            # comprobacion NO se ha hecho —por ejemplo, el lint completo
+            # con una version de ruff distinta a la del CI—. Decir "tests
+            # en rojo" aqui manda a buscar un fallo que no existe, que es
+            # la clase de diagnostico que este script ya arreglo una vez.
+            di("\nHay comprobaciones SIN HACER (codigo 2). Arriba dice cuales "
+               "y por que. No se publica lo que no se ha medido.")
+            return 1
+        if codigo != 0:
             di("\nTests en rojo. Sin tests verdes no hay release.")
             return 1
 
