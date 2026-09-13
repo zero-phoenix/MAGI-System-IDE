@@ -117,6 +117,48 @@ def evaluar_cierre_entrega(
     return DECISION_APROBADO, f"{feedback}{adjunto}"
 
 
+async def cerrar_por_desvio_de_foco(
+    *,
+    bus: Any,
+    task_id: str,
+    encargo: str,
+    feedback: str,
+    ronda: int,
+) -> str:
+    """
+    F5: cierra una ronda cuyo debate no iba de lo que se preguntaba.
+
+    Publica el aviso y deja el desvio en descartes.jsonl. Vive aqui y no en
+    el orquestador por el trinquete de lineas, y porque lo que hace es una
+    compuerta de cierre: el modulo que le corresponde.
+
+    Un desvio NO es un fracaso. Antes de esto caia en el `else` del bucle de
+    veredictos —«Tarea fallida tras N rondas»— y, como ese `else` no cortaba
+    el bucle, el debate entero se repetia hasta agotar las rondas: se pagaban
+    tres arbitrajes para acabar entregando igual, y el hallazgo (que la
+    pregunta apuntaba al sitio equivocado) se perdia por el camino.
+    """
+    aviso = (
+        "[SWARM] La pregunta era otra. El debate no iba de lo que se "
+        "preguntaba, asi que se cierra la ronda aqui en vez de gastar otra "
+        f"vuelta en el sitio equivocado.\n\n{feedback}"
+    )
+    registrar_descarte_pregunta_otra(
+        proyecto=task_id,
+        ronda=f"ronda_{ronda}",
+        enfoque=encargo[:300],
+        motivo="el debate se desvio del encargo",
+        rescatable=feedback[:600],
+    )
+    from magi.core.bus import BusEvent
+
+    for tema, carga in (("TERMINAL_OUT", {"content": aviso}),
+                        ("swarm.task_completed",
+                         {"task_id": task_id, "result": aviso})):
+        await bus.publish(BusEvent(topic=tema, payload=carga))
+    return aviso
+
+
 def registrar_descarte_pregunta_otra(
     *,
     proyecto: str,
