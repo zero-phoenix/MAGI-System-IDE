@@ -1472,6 +1472,17 @@ class SwarmOrchestrator:
                 state["round"] += 1
                 state["command"] = f"Revisar propuesta considerando crítica: {verdict['feedback']}"
                 await asyncio.sleep(1.0)
+            elif verdict["decision"] == "LA_PREGUNTA_ERA_OTRA":
+                # F5 — cuarto veredicto. El cuerpo vive en cierre.py: aqui no
+                # cabe (trinquete) y ahi es donde estan las demas compuertas.
+                from magi.modules.swarm import cierre as _f5
+                await _f5.cerrar_por_desvio_de_foco(
+                    bus=self.bus, task_id=task_id,
+                    encargo=state.get("command", ""),
+                    feedback=verdict.get("feedback", ""), ronda=current_round)
+                state["status"] = "completed"
+                self._persist(task_id)
+                break
             else:
                 state["status"] = "failed"
                 await self.bus.publish(BusEvent(

@@ -1048,7 +1048,8 @@ Termina con estas dos líneas, exactamente así y en este orden:
 (tu veredicto en español y tu consulta al usuario)
 
 DECISIÓN: APROBADA
-(o bien `DECISIÓN: NECESITA REVISIÓN` si la propuesta aún no está lista)"""
+(o bien `DECISIÓN: NECESITA REVISIÓN` si la propuesta aún no está lista)
+(o bien `DECISIÓN: LA PREGUNTA ERA OTRA` cuando el debate entero ha discutido algo que NO es lo que se preguntaba. Solo si puedes decir cuál es la pregunta real y con qué dato lo sabes: no es una salida cómoda para cerrar antes, y una propuesta simplemente floja se rechaza con NECESITA REVISIÓN, no con esta.)"""
         # Fase 8 — la réplica. Si Balthasar objetó y Melchior se defendió,
         # Casper arbitra un debate COMPLETO: tesis, antítesis y la respuesta
         # de la tesis a la antítesis. Sin este bloque arbitra un juicio en

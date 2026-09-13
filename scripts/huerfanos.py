@@ -64,7 +64,13 @@ PAQUETE = RAIZ / "magi"
 #: nombres comunes encontrados ahí contaban como "uso" y bajaban el conteo
 #: sin que nadie hubiera conectado nada. Un rinquete que mide distinto según
 #: dónde corre no es un rinquete.
-EXCLUIDOS = {"_attic", "__pycache__", "node_modules", ".git", "dist", "build",
+#: 2026-09-13: lo mismo otra vez, con otro directorio. Un agente abrio su
+#: worktree en .claude/worktrees/ —DENTRO del repositorio— y el indice se
+#: encontro una copia entera de magi/: cada simbolo aparecia "usado" en su
+#: gemelo y el conteo cayo de 80 a 0. Lo canto el propio trinquete, con
+#: assert 0 >= 80 - 5, que para eso esta.
+EXCLUIDOS = {"_attic", "__pycache__", "node_modules", ".git", ".claude",
+             "dist", "build",
              ".venv-lock", "venv", "env", "release", "journal", "scratch",
              "generated_media", "htmlcov", ".pytest_cache", ".ruff_cache",
              ".idea", ".vscode"}

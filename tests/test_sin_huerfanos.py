@@ -166,3 +166,45 @@ def test_el_script_explica_que_hacer_y_no_solo_que_pasa():
     assert r.returncode == 0
     for pista in ("CONÉCTALA", "BÓRRALO", "_attic", "ENTRADAS"):
         assert pista in r.stdout, f"el informe debería explicar «{pista}»"
+def test_una_copia_del_repo_dentro_del_repo_no_cuenta_como_uso(tmp_path):
+    """
+    Un worktree anidado desarma el trinquete entero, en silencio.
+
+    El 13-sep-2026 un agente abrio su worktree en `.claude/worktrees/` —dentro
+    del repositorio— y el indice de usos se encontro una copia completa de
+    `magi/`: cada simbolo aparecia «usado» en su propio gemelo y el conteo cayo
+    de 80 a **0**. Sin la guarda, a partir de ahi cualquier funcion publica sin
+    llamador habria entrado sin que nadie se enterase.
+
+    Es la SEGUNDA vez que pasa lo mismo con otro directorio: la primera fue
+    `.venv-lock/site-packages`, y esta escrita en la cabecera de
+    `scripts/huerfanos.py` («un rinquete que mide distinto segun donde corre no
+    es un rinquete»). Aquella se arreglo sin dejar prueba; esta la deja.
+
+    No comprueba la lista de EXCLUIDOS: comprueba el EFECTO, creando la copia
+    donde el fallo ocurrio.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("huerfanos_bajo_prueba", SCRIPT)
+    huerfanos = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(huerfanos)
+
+    intruso = RAIZ / ".claude" / "worktrees" / "prueba-trinquete" / "magi"
+    fichero = intruso / "copia_de_modulo.py"
+    try:
+        intruso.mkdir(parents=True, exist_ok=True)
+        fichero.write_text("def una_funcion_publica_cualquiera():\n    pass\n",
+                           encoding="utf-8", newline="\n")
+
+        indexados = huerfanos._ficheros(RAIZ, huerfanos.EXTENSIONES_DE_USO)
+        colados = [p for p in indexados if ".claude" in p.parts]
+        assert not colados, (
+            "el indice de usos esta leyendo una copia del repositorio: "
+            f"{[str(p) for p in colados[:3]]}")
+    finally:
+        if fichero.exists():
+            fichero.unlink()
+        for d in (intruso, intruso.parent):
+            if d.exists() and not any(d.iterdir()):
+                d.rmdir()
