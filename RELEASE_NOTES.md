@@ -1,3 +1,86 @@
+# v5.28.0 — F2, F3 y F5 existían y no se ejecutaban: ahora sí
+
+**Qué cambia:** el Enjambre v6 pasa de estar escrito a estar conectado. La
+v5.27.0 publicó F2-F5 y las notas lo dieron por «consolidado»; medido contra el
+código el 12-sep, ninguna de las cuatro fases operaba. Sus tests pasaban porque
+inyectaban las dependencias a mano y ninguno miraba el orquestador.
+
+**Lo que hacía de verdad cada una, antes de esta versión:**
+
+| Fase | Qué pasaba |
+|---|---|
+| F2 | La única llamada a subagentes vivía bajo `elif False:`. Y debajo, sin ejecutor, el módulo devolvía `"Análisis de {mision}: verificado sin hallazgos críticos."` con `exito=True` |
+| F3 | El plan se creaba y se publicaba a la interfaz, pero `para_el_prompt()` no tenía llamador: el enjambre no sabía en cuántas partes se había dividido el encargo |
+| F5 | A Casper no se le ofrecía el cuarto veredicto en su prompt. Y si lo emitía, caía en el `else` de «tarea fallida» — que además no cortaba el bucle: el debate entero se repetía hasta agotar las rondas |
+
+**Lo concreto:**
+
+- **F5 — el cuarto veredicto opera.** «La pregunta era otra» cierra la ronda con
+  su aviso y deja el hallazgo en `descartes.jsonl`, en vez de contarse como
+  fallo y pagar tres arbitrajes para entregar igual. A Casper se le ofrece el
+  veredicto con una redacción **estrecha**: tiene que nombrar la pregunta real y
+  el dato que lo sostiene, y se le dice que una propuesta floja se rechaza con
+  NECESITA REVISIÓN. Es la lección de la réplica que capitulaba el 100 % de las
+  veces: un prompt que ofrece una salida cómoda la convierte en la única.
+- **F2 — el subagente deja de fabricar.** Sin ejecutor devuelve fallo explícito,
+  no un «no encontré nada» sin haber mirado. Se añade `ejecutor_de_nube()`, que
+  pregunta de verdad a un modelo de la **misma familia** que el nodo, con un
+  prompt que le prohíbe escribir y proponer, turno único a temperatura 0.2 y
+  menos de 50 palabras. Se conecta donde estaba la rama muerta, detrás de
+  `MAGI_SUBAGENTES` y **apagado por defecto**: la premisa de F2 —«ahorro neto de
+  contexto»— nunca se midió contra un control, y cada subagente es una llamada
+  más a proveedores gratuitos que ya se degradan solos.
+- **F3 — el plan viaja en el prompt.** `inyecciones.acumuladas()` lo cierra con
+  las partes del encargo, y solo cuando hay más de una: repetir un encargo
+  indivisible arriba del prompt es ruido. *La otra mitad de F3 no entra en esta
+  versión y es a propósito:* los estados siguen naciendo en `pendiente` y no hay
+  ninguna señal automática honesta de que una parte concreta esté hecha.
+  Marcarlas al entregar sería inventárselo, y el plan pasaría de estar vacío a
+  estar mintiendo. La única fuente fiable es Casper declarándolo, y eso toca su
+  prompt otra vez — dos cambios en el mismo prompt sin poder atribuir una
+  degradación a ninguno es como se perdió la réplica durante catorce rondas.
+- **El bloque de veredictos sale del bucle.** `orchestrator.py` iba 1545 de un
+  techo de 1550 y las fases no cabían. El techo no se sube: se extrae
+  `magi/modules/swarm/veredicto.py`. Refactorización con las transformaciones
+  contadas una a una (10 `self.`→`orq.`, 3 `break`→`return True`, 1
+  `continue`→`return False`) y los 36 tests del enjambre como red. La extracción
+  lo dejó en **1483**; con F3 y F2 conectados encima queda en **1489**, con 61
+  líneas de margen para lo que venga.
+- **La compuerta local vuelve a medir lo mismo que el CI.** `verificar.py` solo
+  pasaba el lint crítico mientras el CI pasa el completo y bloqueante desde el
+  2026-08-16: un import sin usar pasaba en verde aquí y tumbaba Actions. Ahora
+  corre las dos pasadas — y si tu ruff no es el del pin, el paso sale **NO
+  HECHO** en vez de verde, porque con otra versión mide otra cosa (0.6.9 marca
+  17 `UP038` que 0.16.5 no marca). `publicar.py` distingue ese código 2 de un
+  rojo de verdad.
+
+**Tres guardas nuevas, todas nacidas de un fallo medido esta misma tanda:**
+
+- Ninguna rama de `magi/` puede estar apagada con una constante falsa. Es el
+  patrón que escondió F2 durante una versión entera: `huerfanos.py` no podía
+  cazarlo porque busca el nombre como texto, y `despachar_subagente` aparecía en
+  sus propios tests.
+- Una copia del repositorio dentro del repositorio no cuenta como uso. Un agente
+  abrió su worktree en `.claude/worktrees/` y el índice de huérfanos se encontró
+  una copia entera de `magi/`: **el conteo cayó de 80 a 0** y el trinquete quedó
+  desarmado hasta que él mismo lo cantó. Es la segunda vez con otro directorio;
+  la primera fue `.venv-lock` y se arregló sin dejar prueba.
+- El lint completo no se mide con otra versión de ruff.
+
+**Lo que NO entra, y por qué:** **F4** (compuerta obligatoria antes del «hecho»)
+queda fuera a propósito. Ejecuta `verificar.py --rapido` antes de cada
+aprobación, y medido hoy la suite tarda ~165 s y **falla 1 de cada 3 corridas en
+paralelo** por un transporte de asyncio que se destruye sin cerrar. Cablearla
+ahora convertiría ese fallo intermitente de infraestructura en el rechazo
+aleatorio de una de cada tres entregas legítimas. Va detrás de la estabilidad de
+la suite, no delante.
+
+**67 herramientas** en el catálogo. **1825 tests en Python** + **131 en
+TypeScript/GUI**. Techos: `kernel.py` 1069/1070, `orchestrator.py` **1489**/1550,
+`ritsuko.py` 800/800, `builtin.py` 797/800; huérfanos en 80.
+
+---
+
 # v5.27.2 — El instrumento medía otra cosa: el CI llevaba tres días en rojo sin que nadie tocara el código
 
 **Qué cambia:** se fija la versión de todas las herramientas que deciden si el
