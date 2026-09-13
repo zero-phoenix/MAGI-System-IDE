@@ -1422,73 +1422,11 @@ class SwarmOrchestrator:
                 await self.bus.publish(BusEvent(topic="swarm.task_completed", payload={"task_id": task_id, "result": error_msg}))
                 break
 
-            feedback_text = verdict.get("feedback", "").upper()
-            is_asking_approval = "¿APRUEBAS" in feedback_text or "APRUEBAS" in feedback_text or verdict["decision"] == "APPROVED"
-
-            # C1/C2 — SIN_ARBITRAJE entra por la misma puerta que una
-            # aprobación, y a propósito.
-            #
-            # Sin esto caía al `else` final —«Tarea fallida tras N rondas»— y
-            # el usuario perdía la tesis y la crítica, que estaban hechas. Una
-            # tarea sin árbitro NO es una tarea fallida: es una tarea con dos
-            # tercios del trabajo terminados y sin quien los cierre. Se entrega
-            # lo que hay, se dice que falta el arbitraje, y decide el usuario.
-            sin_arbitro = verdict["decision"] == "SIN_ARBITRAJE"
-
-            if is_asking_approval or sin_arbitro or current_round >= state.get("max_rounds", 3):
-                # Si escribiste algo mientras trabajabamos, se atiende ahora.
-                if await self._vaciar_cola(task_id):
-                    continue
-                state["status"] = "WAITING_USER_APPROVAL"
-                self._persist(task_id)
-
-                from . import contraste as _c  # C3 (v11): sin humo no se pregunta
-                humo = _c.producto_sin_humo(state, verdict)
-                if humo:
-                    state["status"] = "completed"
-                    self._persist(task_id)
-                    for tema, carga in (("TERMINAL_OUT", {"content": humo}),
-                                         ("swarm.entrega_incompleta", {"task_id": task_id, "motivo": humo})):
-                        await self.bus.publish(BusEvent(topic=tema, payload=carga))  # noqa: E501
-                    break
-                from magi.modules.swarm import cierre as _cierre
-                _cierre.evaluar_cierre_entrega(
-                    verdict.get("decision", ""), verdict.get("feedback", ""),
-                    plan=state.get("plan"))
-                await self._publish_approval(task_id, state, verdict)
-
-                await self.bus.publish(BusEvent(
-                    topic="TERMINAL_OUT",
-                    payload={"content": "[SWARM] Esperando tu aprobacion interactiva."}))
-                # AQUÍ NO SE APARCA EL BUCLE: en v5.5.2 await approval_event colgaba la suite entera.
-                # Con break la corrutina termina limpiamente y quien reanuda es _spawn_loop.
-                break  # Pausar el bucle hasta recibir input del usuario
-            elif verdict["decision"] == "REJECTED_NEEDS_WORK":
-                self.memory_for(task_id).record(
-                    round_num=current_round,
-                    approach=(state.get("last_proposal") or {}).get("content", ""),
-                    outcome="refutado",
-                    reason=verdict.get("feedback", ""))
-                state["round"] += 1
-                state["command"] = f"Revisar propuesta considerando crítica: {verdict['feedback']}"
-                await asyncio.sleep(1.0)
-            elif verdict["decision"] == "LA_PREGUNTA_ERA_OTRA":
-                # F5 — cuarto veredicto. El cuerpo vive en cierre.py: aqui no
-                # cabe (trinquete) y ahi es donde estan las demas compuertas.
-                from magi.modules.swarm import cierre as _f5
-                await _f5.cerrar_por_desvio_de_foco(
-                    bus=self.bus, task_id=task_id,
-                    encargo=state.get("command", ""),
-                    feedback=verdict.get("feedback", ""), ronda=current_round)
-                state["status"] = "completed"
-                self._persist(task_id)
+            from magi.modules.swarm import veredicto as _veredicto
+            if await _veredicto.procesar(self, task_id=task_id, state=state,
+                                         verdict=verdict,
+                                         current_round=current_round):
                 break
-            else:
-                state["status"] = "failed"
-                await self.bus.publish(BusEvent(
-                    topic="TERMINAL_OUT",
-                    payload={"content": f"[SWARM] Tarea fallida tras {current_round} rondas."}
-                ))
 
     def _spawn_tracked(self, task_id: str, coro) -> None:
         """
