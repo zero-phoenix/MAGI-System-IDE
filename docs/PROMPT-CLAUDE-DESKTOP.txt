@@ -1,0 +1,85 @@
+Continúas un trabajo en curso sobre mi proyecto "MAGI System IDE". Te subo
+el documento **MEGAPLAN-COMPLETO-MAGI.md** (o está en
+`docs/MEGAPLAN-COMPLETO-MAGI.md` de mi repositorio de GitHub
+zero-phoenix/MAGI-System-IDE). Léelo COMPLETO antes de responder nada: es el
+estado consolidado y verificado del proyecto — las 8 versiones publicadas,
+los 5 planes con su estado, las reglas no negociables y los procedimientos.
+
+REGLA FUNDAMENTAL: un documento sobre el sistema no es el sistema. Si algo
+de lo que leas contradice al código real, gana el código y se corrige el
+documento.
+
+LO QUE QUIERO DE TI EN ESTA CONVERSACIÓN (por este orden):
+
+1. Lee el megaplan y devuélveme TRES FRASES con tu entendimiento del estado
+   actual y qué paquete atacarías primero. Sin escribir código todavía.
+
+2. Cuando te lo confirme, ayúdame a implementar los paquetes pendientes EN
+   ESTE ORDRE (cada uno está detallado en el megaplan con su compuerta):
+   a) **D2** — degradar el motor deep→fast cuando los proveedores gratuitos
+      se degraden (señal: tasa de respuestas inservibles de la telemetría).
+   b) **L2 de Lilim** — repos_clonar: clon shallow de repos del índice
+      repos_top.json al workspace, registrado en el journal.
+   c) **F1** — web_search/web_read SIN navegador (presupuesto por ronda,
+      cita obligatoria con URL y fecha, sin red → "SIN COMPROBAR").
+   d) **F2-F5** — subagentes por familia, plan.md vivo por tarea, compuerta
+      obligatoria antes del "hecho", veredicto "la pregunta era otra".
+   e) **C1-GUI** — pintar el informe de cancelación en la interfaz.
+   f) **E1-E3 de interfaz** — plan vivo en el flujo, hilos de
+      Naoko/Ritsuko, manifiesto visible en la tarjeta de aprobación.
+
+3. PARA CADA CAMBIO DE CÓDIGO, trabaja así:
+   - Muéstrame primero QUÉ ficheros vas a tocar y por qué.
+   - Respeta los TRINQUETES (nunca se suben sus techos): kernel.py ≤ 1070
+     líneas, orchestrator.py ≤ 1550, ritsuko.py ≤ 800, builtin.py ≤ 800,
+     huérfanos ≤ 80. Si un cambio no cabe: extrae un módulo nuevo.
+   - Escribe la PRUEBA que reproduce el fallo que curas ANTES de dar el
+     cambio por bueno.
+   - Cada cambio nuevo de herramienta o módulo debe quedar CABLEADO (una
+     función pública sin llamador es un "huérfano" y el trinquete lo caza).
+
+REGLAS DEL PROYECTO QUE NO SE NEGOCIAN (resumen — el detalle en el megaplan):
+- "Un documento no es el sistema": verifica contra el código real.
+- Toda medición contra un CONTROL en la misma corrida, nunca contra
+  constantes de reloj. Sin ojos/oidos no hay evidencia.
+- "No lo comprobé" se declara SIN COMPROBAR; inventar un resultado es peor.
+- Ficheros escritos con Python, newline='\n', sin BOM (PowerShell mete BOM).
+- No borrar releases anteriores NUNCA. No editar a mano documentos
+  generados (AUTOMODELO, MAPA-INTERFAZ).
+- Lilim es stdlib pura, sin GPU, un hilo, sin red: no debe ahogar mi máquina
+  (i7-3770 + GTX 1050 2 GB). Sin descargas grandes (C: tiene ~10 GB).
+- Si te equivocas, dilo y corrígelo en el mismo mensaje. Si no puedes
+  comprobar algo, di "SIN COMPROBAR" en vez de rellenarlo.
+
+REGLA PERMANENTE DE PUBLICACIÓN (siempre, en cada versión que cerremos):
+Cuando el código esté listo y verificado, los pasos de publicación son:
+  1. Yo ejecuto en mi máquina: `python scripts/verificar.py --todo`
+     (compila el .exe localmente).
+  2. Actualizar pyproject.toml (versión) y RELEASE_NOTES.md (notas
+     CONCRETAS de qué cambió y qué se midió, nunca genéricas).
+  3. Actualizar el README con las cifras reales (tests, herramientas) y lo
+     nuevo de la versión.
+  4. Commit + push de main, crear el tag vX.Y.Z y empujarlo → GitHub
+     Actions compila el exe y publica el RELEASE con MAGI-IDE-v5.zip +
+     CHECKSUMS.txt y la descripción de lo nuevo.
+  5. Verificar el release (gh release view) y conservar TODOS los releases
+     anteriores. Nunca se borra uno.
+Cuando me des el código, dame también los pasos EXACTOS de estos 5 puntos
+con la versión que toque.
+
+CONTEXTO ÚTIL:
+- Repos: zero-phoenix/MAGI-System-IDE (este) y zero-phoenix/yabausevita
+  (el emulador; su bitácora A1-A27/R1-R16 en yabausevita-zp/docs/).
+- En mi máquina: Windows 10, i7-3770, GTX 1050 2 GB (Lilim no la usa),
+  C: con ~10 GB libres. Cuenta GitHub activa: zero-phoenix.
+- La última versión publicada es v5.26.0 (CI en verde, zip + checksums).
+- Hay tres planes abiertos: v10 (megaplan base), v11 (misión Tetris),
+  v12 (Lilim) — todos con su estado de ejecución dentro del documento.
+
+CÓMO QUIERO QUE ME HABLES: en español. Dime lo que MIDES, no lo que
+supones. Si no puedes comprobar algo, di "SIN COMPROBAR" en vez de
+rellenarlo. Y si crees que una de mis instrucciones está mal, discútela:
+este proyecto ha mejorado cada vez que alguien señaló que el plan apuntaba
+al sitio equivocado.
+
+Empieza ahora: lee el megaplan y dame las tres frases.
