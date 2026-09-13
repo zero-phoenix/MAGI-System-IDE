@@ -254,3 +254,121 @@ async def test_f3_un_encargo_sin_partes_no_ensucia_el_prompt(captura):
     prompts = chr(10).join(melchior.vistos)
     assert "ESTADO DEL PLAN DE TRABAJO" not in prompts, (
         "se inyecto un plan de una sola parte, que es repetir el encargo")
+# =========================================================================
+# F2 - los subagentes
+# =========================================================================
+
+
+@pytest.mark.asyncio
+async def test_f2_sin_ejecutor_el_subagente_no_concluye_nada():
+    """
+    Un subagente sin quien lo ejecute no puede haber leido nada.
+
+    `despachar_subagente` traia un "fallback determinista" que devolvia
+    `Analisis de {mision}: verificado sin hallazgos criticos.` con exito=True.
+    Es un «no encontre nada» sin haber mirado: sale al bus como SUBAGENT_TRACE
+    y, en cuanto alguien cablee esto al debate, entra como evidencia.
+
+    Este proyecto ya pago ese error dos veces —los 53,3 FPS que Melchior no
+    midio y el `vita_gpu.h` que cito sin que existiera— y la regla que salio de
+    ahi es que una conclusion fabricada es peor que el silencio, porque el
+    critico la defiende y el debate se va detras de ella.
+    """
+    from magi.modules.swarm.subagentes import GestorSubagentes, despachar_subagente
+
+    res = await despachar_subagente(
+        nodo="MELCHIOR", familia="gpt", mision="recon del parser",
+        round_num=1, gestor=GestorSubagentes())
+
+    assert not res.exito, f"concluyo sin ejecutor: {res.conclusion!r}"
+    assert not res.conclusion, f"fabrico una conclusion: {res.conclusion!r}"
+    assert "sin ejecutor" in res.error.lower(), res.error
+    assert "sin hallazgos" not in res.conclusion.lower()
+
+
+def test_f2_ninguna_rama_del_enjambre_esta_apagada_con_un_false_literal():
+    """
+    El patron que escondio F2 durante una version entera.
+
+    La unica llamada a subagentes vivia bajo `elif False:`. Nada lo cazaba: el
+    trinquete de huerfanos busca el NOMBRE en cualquier fichero del repositorio
+    y `despachar_subagente` aparecia en sus tests, asi que contaba como usado.
+    El README y las notas de la v5.27.0 lo dieron por «consolidado».
+
+    Codigo apagado con una constante no es una funcionalidad desactivada: es
+    una funcionalidad que nadie sabe que esta apagada.
+    """
+    import ast
+
+    raiz = Path(__file__).resolve().parents[1] / "magi"
+    apagadas = []
+    for fichero in raiz.rglob("*.py"):
+        if "_attic" in fichero.parts or "__pycache__" in fichero.parts:
+            continue
+        try:
+            arbol = ast.parse(fichero.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, ast.If):
+                continue
+            prueba = nodo.test
+            if isinstance(prueba, ast.Constant) and prueba.value in (False, 0):
+                apagadas.append(f"{fichero.relative_to(raiz.parent)}:{nodo.lineno}")
+
+    assert not apagadas, (
+        "hay ramas apagadas con una constante falsa:\n  " + "\n  ".join(apagadas)
+        + "\n\nO se conecta, o se borra: dejarla ahi hace creer que la"
+          " funcionalidad existe.")
+@pytest.mark.asyncio
+async def test_f2_encendido_el_subagente_sale_al_bus_con_la_familia_de_su_nodo(
+        captura, monkeypatch):
+    """
+    Con la bandera encendida, la rama existe y se recorre de verdad.
+
+    Antes vivia bajo `elif False:`, asi que esta prueba no podia escribirse:
+    no habia camino que recorrer. El invariante 1 —misma familia que su nodo—
+    se comprueba en el evento, no en la funcion suelta.
+    """
+    monkeypatch.setenv("MAGI_SUBAGENTES", "1")
+    trazas = []
+
+    bus = captura[0]
+
+    async def on_trace(event):
+        trazas.append(event.payload)
+
+    bus.subscribe("SUBAGENT_TRACE", on_trace)
+
+    _swarm, _posts, _terminal, (melchior, _b, _c) = await _ronda_con_veredicto(
+        captura, "Hecho. DECISION: APROBADA")
+
+    assert trazas, "la rama de subagentes no se recorrio con la bandera encendida"
+    assert trazas[0]["nodo"] == "MELCHIOR"
+    assert trazas[0]["familia"] == melchior.family, (
+        f"el subagente salio de otra familia: {trazas[0]['familia']} en vez de "
+        f"{melchior.family}")
+    assert trazas[0]["conclusion"], "salio al bus sin conclusion"
+
+
+@pytest.mark.asyncio
+async def test_f2_apagado_por_defecto_no_gasta_una_llamada(captura):
+    """
+    Control: sin la bandera no se despacha nada.
+
+    La premisa de F2 —«una ronda con subagentes gasta MENOS contexto por
+    nodo»— no esta medida, y cada subagente es una llamada mas a proveedores
+    gratuitos que ya se degradan solos. Hasta que se mida contra un control en
+    la misma corrida, apagado.
+    """
+    trazas = []
+    bus = captura[0]
+
+    async def on_trace(event):
+        trazas.append(event.payload)
+
+    bus.subscribe("SUBAGENT_TRACE", on_trace)
+
+    await _ronda_con_veredicto(captura, "Hecho. DECISION: APROBADA")
+
+    assert not trazas, f"se despacho un subagente sin pedirlo: {trazas}"

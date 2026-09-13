@@ -1135,10 +1135,15 @@ class SwarmOrchestrator:
                         command=state.get("command", ""),
                         round_num=current_round, engine=engine,
                         narrative_style=style))
-                elif False:
+                elif _subagentes.activado() and usadas + 2 < p.llamadas:
+                    # F2 — sin abanico y con presupuesto, Melchior consulta a un
+                    # subagente de su propia familia. Apagado por defecto: ver
+                    # `subagentes.activado()`.
                     await _subagentes.despachar_subagente(
                         nodo="MELCHIOR", familia=self.melchior.family,
-                        mision="recon", bus=self.bus, task_id=task_id)
+                        mision=f"recon de: {state.get('command', '')[:200]}",
+                        round_num=current_round, bus=self.bus, task_id=task_id,
+                        ejecutor=_subagentes.ejecutor_de_nube())
                 # La verificación entra en el abanico: tras_cada variante.
                 verifier = ProposalVerifier()
 
