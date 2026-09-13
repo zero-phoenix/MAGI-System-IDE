@@ -41,6 +41,7 @@ cero si algo falla — para poder encadenarlo con `&&` antes de un `git push`.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -97,11 +98,16 @@ def _que_falta(salida: str) -> str | None:
 
 class Paso:
     def __init__(self, nombre: str, orden: list[str], *,
-                 cwd: Path = RAIZ, opcional: bool = False):
+                 cwd: Path = RAIZ, opcional: bool = False,
+                 precondicion=None):
         self.nombre = nombre
         self.orden = orden
         self.cwd = cwd
         self.opcional = opcional
+        #: Devuelve el motivo por el que este paso NO se puede medir, o None.
+        #: No es lo mismo «esto esta mal» que «con esta herramienta no puedo
+        #: mirarlo»: lo segundo es NO HECHO, y sale por el codigo 2.
+        self.precondicion = precondicion
         self.ok: bool | None = None
         self.segundos = 0.0
         self.salida = ""
@@ -111,6 +117,14 @@ class Paso:
     def correr(self) -> bool:
         print(plegar(f"\n=== {self.nombre} ==="), flush=True)
         print(plegar(f"    {' '.join(self.orden)}"), flush=True)
+        if self.precondicion is not None:
+            motivo = self.precondicion()
+            if motivo:
+                self.falta = motivo
+                self.ok = None
+                self.salida = motivo
+                print(plegar(f"    SIN COMPROBAR: {motivo}"), flush=True)
+                return False
         t0 = time.perf_counter()
         try:
             r = subprocess.run(self.orden, cwd=self.cwd, capture_output=True,
@@ -187,16 +201,64 @@ def _npm() -> list[str]:
     return [exe] if exe else ["npm"]
 
 
+def _ruff_del_pin() -> str:
+    """La version de ruff que fija requirements-dev.txt, o "" si no la fija."""
+    try:
+        texto = (RAIZ / "requirements-dev.txt").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"^ruff==([0-9][0-9.]*)", texto, re.MULTILINE)
+    return m.group(1) if m else ""
+
+
+def _ruff_desalineado() -> str | None:
+    """
+    Motivo por el que el lint completo no se puede medir aqui, o None.
+
+    El lint completo depende de la VERSION: ruff quita y anade reglas entre
+    releases. Medido el 13-sep-2026 sobre este mismo arbol, con el codigo
+    identico: ruff 0.6.9 (el de la maquina) marca 17 UP038 que ruff 0.16.5
+    (el del CI, fijado en requirements-dev.txt) no marca. Correr el lint
+    completo con otra version no dice si el CI pasara: dice otra cosa.
+
+    Asi que o se mide con la version fijada, o se declara SIN COMPROBAR. Lo
+    que no se puede es dar un verde que no se ha medido.
+    """
+    fijada = _ruff_del_pin()
+    if not fijada:
+        return "requirements-dev.txt no fija ruff con =="
+    try:
+        r = subprocess.run([sys.executable, "-m", "ruff", "--version"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", env=_entorno())
+    except FileNotFoundError:
+        return "ruff no esta instalado"
+    instalada = (r.stdout or "").strip().split()[-1] if r.stdout else "?"
+    if instalada != fijada:
+        return (f"tu ruff es {instalada} y el del CI es {fijada}: el lint "
+                f"completo mediria otra cosa. `pip install -r "
+                f"requirements-dev.txt`")
+    return None
+
+
 def construir_pasos(todo: bool, rapido: bool) -> list[Paso]:
     py = [sys.executable, "-m"]
     marca = [] if todo else ["-m", "not slow"]
 
     pasos = [
-        # Igual que en ci.yml: solo E9/F63/F7/F82 son bloqueantes. El lint
-        # completo es informativo allí, así que aquí tampoco puede tumbar nada.
+        # Primera pasada: sintaxis y nombres indefinidos. Bloqueante en
+        # ci.yml y aquí, y barata.
         Paso("ruff (sintaxis y nombres indefinidos)",
              [*py, "ruff", "check", "magi/", "tests/",
               "--select", "E9,F63,F7,F82"]),
+        # El lint COMPLETO tambien es bloqueante en ci.yml desde el
+        # 2026-08-16, y `scripts/` entro el 2026-09-06. Aqui faltaba, y el
+        # comentario que habia en su lugar decia que en el CI era informativo:
+        # describia un CI que ya no existia. Un import sin usar pasaba esta
+        # compuerta en verde y tumbaba Actions — paso el 13-sep-2026.
+        Paso("ruff completo (bloqueante en el CI)",
+             [*py, "ruff", "check", "magi/", "tests/", "scripts/"],
+             precondicion=_ruff_desalineado),
         # -n auto: la suite en paralelo (~2,5 min frente a ~5-7 en serie).
         # --dist loadfile agrupa cada fichero en un worker: los tests que
         # comparten estado (puertos reales, tmp_path encadenados) viven juntos.
