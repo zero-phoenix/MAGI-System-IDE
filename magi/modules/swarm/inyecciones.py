@@ -29,8 +29,14 @@ from __future__ import annotations
 __all__ = ["acumuladas"]
 
 
-def acumuladas(encargo: str) -> str:
-    """Todas las inyecciones que aplican a `encargo`, ya concatenadas."""
+def acumuladas(encargo: str, plan=None) -> str:
+    """Todas las inyecciones que aplican a `encargo`, ya concatenadas.
+
+    `plan` es el plan vivo de la tarea (F3). Se inyecta solo cuando el
+    encargo se partio en MAS de una parte: `crear_plan_desde_enunciado`
+    siempre crea al menos una —el encargo entero—, y repetirla arriba del
+    prompt seria ruido, porque el enjambre ya tiene el encargo delante.
+    """
     from magi.modules.swarm import aceptacion as _acept
     from magi.modules.swarm import automodelo as _auto
     from magi.modules.swarm import bitacora as _bit
@@ -45,4 +51,6 @@ def acumuladas(encargo: str) -> str:
         + _ronda.para_el_prompt(encargo)
         + _mem.para_el_prompt(encargo)
         + _auto.para_el_prompt(encargo)
+        + (plan.para_el_prompt()
+           if len(getattr(plan, "items", None) or []) > 1 else "")
     )

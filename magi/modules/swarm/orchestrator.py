@@ -1106,7 +1106,8 @@ class SwarmOrchestrator:
                 # corrida) viven en `inyecciones.acumuladas`: un solo sitio
                 # con la secuencia entera y su porqué.
                 from magi.modules.swarm import inyecciones as _iny
-                command_with_memory += _iny.acumuladas(state.get("command", ""))
+                command_with_memory += _iny.acumuladas(state.get("command", ""),
+                                                       plan=state.get("plan"))
                 # Se anota si la herramienta llegó a correr de verdad. Sin
                 # esta marca, el contraste de P5 avisaría de «cita de memoria»
                 # también cuando la cita es legítima — y una alarma falsa
